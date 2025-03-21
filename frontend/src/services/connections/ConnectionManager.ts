@@ -61,6 +61,206 @@ export class EnhancedConnectionManager {
       this.updateLastActivity();
     });
   }
+
+  public async reconnectWithBackoff(): Promise<boolean> {
+    // If we're already reconnecting, just wait for that to finish
+    if (this.state === ConnectionState.RECONNECTING) {
+      return new Promise<boolean>((resolve) => {
+        const checkInterval = setInterval(() => {
+          if (this.state === ConnectionState.CONNECTED) {
+            clearInterval(checkInterval);
+            resolve(true);
+          } else if (this.state === ConnectionState.FAILED) {
+            clearInterval(checkInterval);
+            resolve(false);
+          }
+        }, 500);
+        
+        // Timeout after 30 seconds
+        setTimeout(() => {
+          clearInterval(checkInterval);
+          resolve(false);
+        }, 30000);
+      });
+    }
+  
+    // Start reconnection process
+    this.setState(ConnectionState.RECONNECTING);
+    this.backoffStrategy.reset(); // Reset backoff on new reconnection sequence
+    
+    const session = SessionStore.getSession();
+    if (!session || !session.token || !session.sessionId) {
+      this.setState(ConnectionState.FAILED);
+      this.emit('session', { valid: false, reason: 'no_session_data' });
+      return false;
+    }
+    
+    let attempts = 0;
+    let success = false;
+    
+    while (attempts < this.maxReconnectAttempts && !success) {
+      attempts++;
+      
+      try {
+        this.emit('reconnecting', { 
+          attempt: attempts, 
+          maxAttempts: this.maxReconnectAttempts 
+        });
+        
+        // Try to reconnect using the explicit reconnect endpoint
+        success = await this.reconnectSession(
+          session.token, 
+          session.sessionId, 
+          attempts
+        );
+        
+        if (success) {
+          this.setState(ConnectionState.CONNECTED);
+          return true;
+        }
+      } catch (error) {
+        console.error(`Reconnection attempt ${attempts} failed:`, error);
+      }
+      
+      if (!success && attempts < this.maxReconnectAttempts) {
+        // Wait with exponential backoff before next attempt
+        const backoffTime = this.backoffStrategy.nextBackoffTime();
+        await new Promise(resolve => setTimeout(resolve, backoffTime));
+      }
+    }
+    
+    if (!success) {
+      this.setState(ConnectionState.FAILED);
+      this.emit('session', { valid: false, reason: 'max_attempts_reached' });
+    }
+    
+    return success;
+  }
+
+  public async updateConnectionQuality(): Promise<void> {
+    const session = SessionStore.getSession();
+    if (!session || !session.token || !session.sessionId || !this.isConnected()) {
+      return;
+    }
+    
+    try {
+      // Calculate metrics
+      const metrics = {
+        sessionId: session.sessionId,
+        latencyMs: this.heartbeatLatency || 0,
+        missedHeartbeats: this.consecutiveHeartbeatMisses,
+        connectionType: this.detectConnectionType()
+      };
+      
+      const response = await fetch('/api/session/connection-quality', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.token}`
+        },
+        body: JSON.stringify(metrics)
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Update connection quality
+        if (data.quality) {
+          this.connectionQuality = data.quality;
+        }
+        
+        // Check if server recommends reconnection
+        if (data.reconnectRecommended) {
+          console.warn('Server recommends reconnection due to poor connection quality');
+          if (this.state === ConnectionState.CONNECTED) {
+            this.reconnectWithBackoff();
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Failed to update connection quality:', error);
+    }
+  }
+
+  private detectConnectionType(): string {
+    // Use Network Information API if available
+    if ('connection' in navigator) {
+      const conn = (navigator as any).connection;
+      if (conn) {
+        if (conn.type) {
+          return conn.type;
+        }
+        
+        // Fall back to effective type (slow-2g, 2g, 3g, 4g)
+        if (conn.effectiveType) {
+          return conn.effectiveType;
+        }
+      }
+    }
+    
+    // Default if Network Information API is not available
+    return 'unknown';
+  }
+
+  private async reconnectSession(
+    token: string, 
+    sessionId: string, 
+    attempt: number
+  ): Promise<boolean> {
+    try {
+      // Call the explicit reconnect endpoint
+      const response = await fetch('/api/session/reconnect', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          sessionId,
+          reconnectAttempt: attempt
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Reconnection failed: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        this.sessionId = data.sessionId;
+        this.simulatorId = data.simulatorId || null;
+        this.simulatorStatus = data.simulatorStatus || 'UNKNOWN';
+        
+        // Update stored session
+        SessionStore.saveSession({
+          token,
+          sessionId: data.sessionId,
+          simulatorId: data.simulatorId || null,
+          lastActive: Date.now(),
+          reconnectAttempts: 0
+        });
+        
+        this.startKeepAlive();
+        this.startHeartbeats();
+        
+        this.emit('session', {
+          valid: true,
+          reconnected: true,
+          sessionId: data.sessionId,
+          simulatorId: data.simulatorId || null,
+          simulatorStatus: data.simulatorStatus || 'UNKNOWN'
+        });
+        
+        return true;
+      } else {
+        throw new Error(data.errorMessage || 'Reconnection failed');
+      }
+    } catch (error) {
+      console.error('Failed to reconnect session:', error);
+      return false;
+    }
+  }
   
   private handleNetworkChange(isOnline: boolean): void {
     if (isOnline) {

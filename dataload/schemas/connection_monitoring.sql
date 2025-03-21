@@ -1,5 +1,3 @@
--- Create a new file: schemas/connection_monitoring.sql
-
 CREATE SCHEMA IF NOT EXISTS monitoring;
 
 CREATE TABLE IF NOT EXISTS monitoring.connection_quality (

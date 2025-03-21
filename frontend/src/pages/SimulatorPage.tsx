@@ -48,6 +48,7 @@ const SimulatorPage: React.FC = () => {
   const [submittingOrder, setSubmittingOrder] = useState(false);
   const [orderError, setOrderError] = useState<string | null>(null);
   const navigate = useNavigate();
+  const [warningMessage, setWarningMessage] = useState<string | null>(null);
   
   const token = localStorage.getItem('token');
   
@@ -72,6 +73,7 @@ const SimulatorPage: React.FC = () => {
       setWarningMessage(null);
     }
   }, [isConnected, isConnecting, simulatorStatus, connectionQuality, canSubmitOrders]);
+
   
   useEffect(() => {
     if (!token || !sessionId || !simulatorId) {

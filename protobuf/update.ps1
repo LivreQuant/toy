@@ -161,4 +161,12 @@ Copy-ProtoFiles -SourcePath "gen/python/main" `
                 -NoFilesMessage "No Python market data service files found" `
                 -PathReplacements $pyPathReplacements
                 
+# Exchange Manager
+Copy-ProtoFiles -SourcePath "gen/python/main" `
+                -DestinationPath "../interface/exchange-manager-service/source/api" `
+                -FileType "exchange*.py" `
+                -SuccessMessage "Python market data service files copied successfully" `
+                -NoFilesMessage "No Python market data service files found" `
+                -PathReplacements $pyPathReplacements
+                
 Write-Host "Protobuf update complete!"

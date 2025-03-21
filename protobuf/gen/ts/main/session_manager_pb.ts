@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file main/session_manager.proto.
  */
 export const file_main_session_manager: GenFile = /*@__PURE__*/
-  fileDesc("ChptYWluL3Nlc3Npb25fbWFuYWdlci5wcm90byI2ChRDcmVhdGVTZXNzaW9uUmVxdWVzdBIPCgd1c2VyX2lkGAEgASgJEg0KBXRva2VuGAIgASgJIlMKFUNyZWF0ZVNlc3Npb25SZXNwb25zZRIPCgdzdWNjZXNzGAEgASgIEhIKCnNlc3Npb25faWQYAiABKAkSFQoNZXJyb3JfbWVzc2FnZRgDIAEoCSI2ChFHZXRTZXNzaW9uUmVxdWVzdBISCgpzZXNzaW9uX2lkGAEgASgJEg0KBXRva2VuGAIgASgJIl8KEkdldFNlc3Npb25SZXNwb25zZRIWCg5zZXNzaW9uX2FjdGl2ZRgBIAEoCBIaChJzaW11bGF0b3JfZW5kcG9pbnQYAiABKAkSFQoNZXJyb3JfbWVzc2FnZRgDIAEoCSI2ChFFbmRTZXNzaW9uUmVxdWVzdBISCgpzZXNzaW9uX2lkGAEgASgJEg0KBXRva2VuGAIgASgJIjwKEkVuZFNlc3Npb25SZXNwb25zZRIPCgdzdWNjZXNzGAEgASgIEhUKDWVycm9yX21lc3NhZ2UYAiABKAkiNQoQS2VlcEFsaXZlUmVxdWVzdBISCgpzZXNzaW9uX2lkGAEgASgJEg0KBXRva2VuGAIgASgJIiQKEUtlZXBBbGl2ZVJlc3BvbnNlEg8KB3N1Y2Nlc3MYASABKAgiOwoWR2V0U2Vzc2lvblN0YXRlUmVxdWVzdBISCgpzZXNzaW9uX2lkGAEgASgJEg0KBXRva2VuGAIgASgJIqQBChdHZXRTZXNzaW9uU3RhdGVSZXNwb25zZRIPCgdzdWNjZXNzGAEgASgIEhQKDHNpbXVsYXRvcl9pZBgCIAEoCRIaChJzaW11bGF0b3JfZW5kcG9pbnQYAyABKAkSGgoSc2Vzc2lvbl9jcmVhdGVkX2F0GAQgASgDEhMKC2xhc3RfYWN0aXZlGAUgASgDEhUKDWVycm9yX21lc3NhZ2UYBiABKAkyvwIKFVNlc3Npb25NYW5hZ2VyU2VydmljZRI+Cg1DcmVhdGVTZXNzaW9uEhUuQ3JlYXRlU2Vzc2lvblJlcXVlc3QaFi5DcmVhdGVTZXNzaW9uUmVzcG9uc2USNQoKR2V0U2Vzc2lvbhISLkdldFNlc3Npb25SZXF1ZXN0GhMuR2V0U2Vzc2lvblJlc3BvbnNlEjUKCkVuZFNlc3Npb24SEi5FbmRTZXNzaW9uUmVxdWVzdBoTLkVuZFNlc3Npb25SZXNwb25zZRIyCglLZWVwQWxpdmUSES5LZWVwQWxpdmVSZXF1ZXN0GhIuS2VlcEFsaXZlUmVzcG9uc2USRAoPR2V0U2Vzc2lvblN0YXRlEhcuR2V0U2Vzc2lvblN0YXRlUmVxdWVzdBoYLkdldFNlc3Npb25TdGF0ZVJlc3BvbnNlQhdCE1Nlc3Npb25NYW5hZ2VyUHJvdG9QAWIGcHJvdG8z");
+  fileDesc("ChptYWluL3Nlc3Npb25fbWFuYWdlci5wcm90byI2ChRDcmVhdGVTZXNzaW9uUmVxdWVzdBIPCgd1c2VyX2lkGAEgASgJEg0KBXRva2VuGAIgASgJIlMKFUNyZWF0ZVNlc3Npb25SZXNwb25zZRIPCgdzdWNjZXNzGAEgASgIEhIKCnNlc3Npb25faWQYAiABKAkSFQoNZXJyb3JfbWVzc2FnZRgDIAEoCSI2ChFHZXRTZXNzaW9uUmVxdWVzdBISCgpzZXNzaW9uX2lkGAEgASgJEg0KBXRva2VuGAIgASgJIl8KEkdldFNlc3Npb25SZXNwb25zZRIWCg5zZXNzaW9uX2FjdGl2ZRgBIAEoCBIaChJzaW11bGF0b3JfZW5kcG9pbnQYAiABKAkSFQoNZXJyb3JfbWVzc2FnZRgDIAEoCSI2ChFFbmRTZXNzaW9uUmVxdWVzdBISCgpzZXNzaW9uX2lkGAEgASgJEg0KBXRva2VuGAIgASgJIjwKEkVuZFNlc3Npb25SZXNwb25zZRIPCgdzdWNjZXNzGAEgASgIEhUKDWVycm9yX21lc3NhZ2UYAiABKAkiNQoQS2VlcEFsaXZlUmVxdWVzdBISCgpzZXNzaW9uX2lkGAEgASgJEg0KBXRva2VuGAIgASgJIiQKEUtlZXBBbGl2ZVJlc3BvbnNlEg8KB3N1Y2Nlc3MYASABKAgiOwoWR2V0U2Vzc2lvblN0YXRlUmVxdWVzdBISCgpzZXNzaW9uX2lkGAEgASgJEg0KBXRva2VuGAIgASgJIqQBChdHZXRTZXNzaW9uU3RhdGVSZXNwb25zZRIPCgdzdWNjZXNzGAEgASgIEhQKDHNpbXVsYXRvcl9pZBgCIAEoCRIaChJzaW11bGF0b3JfZW5kcG9pbnQYAyABKAkSGgoSc2Vzc2lvbl9jcmVhdGVkX2F0GAQgASgDEhMKC2xhc3RfYWN0aXZlGAUgASgDEhUKDWVycm9yX21lc3NhZ2UYBiABKAkiVwoXUmVjb25uZWN0U2Vzc2lvblJlcXVlc3QSEgoKc2Vzc2lvbl9pZBgBIAEoCRINCgV0b2tlbhgCIAEoCRIZChFyZWNvbm5lY3RfYXR0ZW1wdBgDIAEoBSKiAQoYUmVjb25uZWN0U2Vzc2lvblJlc3BvbnNlEg8KB3N1Y2Nlc3MYASABKAgSEgoKc2Vzc2lvbl9pZBgCIAEoCRIUCgxzaW11bGF0b3JfaWQYAyABKAkSGgoSc2ltdWxhdG9yX2VuZHBvaW50GAQgASgJEhgKEHNpbXVsYXRvcl9zdGF0dXMYBSABKAkSFQoNZXJyb3JfbWVzc2FnZRgGIAEoCSKFAQoYQ29ubmVjdGlvblF1YWxpdHlSZXF1ZXN0EhIKCnNlc3Npb25faWQYASABKAkSDQoFdG9rZW4YAiABKAkSEgoKbGF0ZW5jeV9tcxgDIAEoBRIZChFtaXNzZWRfaGVhcnRiZWF0cxgEIAEoBRIXCg9jb25uZWN0aW9uX3R5cGUYBSABKAkiSwoZQ29ubmVjdGlvblF1YWxpdHlSZXNwb25zZRIPCgdxdWFsaXR5GAEgASgJEh0KFXJlY29ubmVjdF9yZWNvbW1lbmRlZBgCIAEoCDLaAwoVU2Vzc2lvbk1hbmFnZXJTZXJ2aWNlEj4KDUNyZWF0ZVNlc3Npb24SFS5DcmVhdGVTZXNzaW9uUmVxdWVzdBoWLkNyZWF0ZVNlc3Npb25SZXNwb25zZRI1CgpHZXRTZXNzaW9uEhIuR2V0U2Vzc2lvblJlcXVlc3QaEy5HZXRTZXNzaW9uUmVzcG9uc2USNQoKRW5kU2Vzc2lvbhISLkVuZFNlc3Npb25SZXF1ZXN0GhMuRW5kU2Vzc2lvblJlc3BvbnNlEjIKCUtlZXBBbGl2ZRIRLktlZXBBbGl2ZVJlcXVlc3QaEi5LZWVwQWxpdmVSZXNwb25zZRJECg9HZXRTZXNzaW9uU3RhdGUSFy5HZXRTZXNzaW9uU3RhdGVSZXF1ZXN0GhguR2V0U2Vzc2lvblN0YXRlUmVzcG9uc2USRwoQUmVjb25uZWN0U2Vzc2lvbhIYLlJlY29ubmVjdFNlc3Npb25SZXF1ZXN0GhkuUmVjb25uZWN0U2Vzc2lvblJlc3BvbnNlElAKF1VwZGF0ZUNvbm5lY3Rpb25RdWFsaXR5EhkuQ29ubmVjdGlvblF1YWxpdHlSZXF1ZXN0GhouQ29ubmVjdGlvblF1YWxpdHlSZXNwb25zZUIXQhNTZXNzaW9uTWFuYWdlclByb3RvUAFiBnByb3RvMw");
 
 /**
  * @generated from message CreateSessionRequest
@@ -260,6 +260,134 @@ export const GetSessionStateResponseSchema: GenMessage<GetSessionStateResponse> 
   messageDesc(file_main_session_manager, 9);
 
 /**
+ * @generated from message ReconnectSessionRequest
+ */
+export type ReconnectSessionRequest = Message<"ReconnectSessionRequest"> & {
+  /**
+   * @generated from field: string session_id = 1;
+   */
+  sessionId: string;
+
+  /**
+   * @generated from field: string token = 2;
+   */
+  token: string;
+
+  /**
+   * @generated from field: int32 reconnect_attempt = 3;
+   */
+  reconnectAttempt: number;
+};
+
+/**
+ * Describes the message ReconnectSessionRequest.
+ * Use `create(ReconnectSessionRequestSchema)` to create a new message.
+ */
+export const ReconnectSessionRequestSchema: GenMessage<ReconnectSessionRequest> = /*@__PURE__*/
+  messageDesc(file_main_session_manager, 10);
+
+/**
+ * @generated from message ReconnectSessionResponse
+ */
+export type ReconnectSessionResponse = Message<"ReconnectSessionResponse"> & {
+  /**
+   * @generated from field: bool success = 1;
+   */
+  success: boolean;
+
+  /**
+   * @generated from field: string session_id = 2;
+   */
+  sessionId: string;
+
+  /**
+   * @generated from field: string simulator_id = 3;
+   */
+  simulatorId: string;
+
+  /**
+   * @generated from field: string simulator_endpoint = 4;
+   */
+  simulatorEndpoint: string;
+
+  /**
+   * @generated from field: string simulator_status = 5;
+   */
+  simulatorStatus: string;
+
+  /**
+   * @generated from field: string error_message = 6;
+   */
+  errorMessage: string;
+};
+
+/**
+ * Describes the message ReconnectSessionResponse.
+ * Use `create(ReconnectSessionResponseSchema)` to create a new message.
+ */
+export const ReconnectSessionResponseSchema: GenMessage<ReconnectSessionResponse> = /*@__PURE__*/
+  messageDesc(file_main_session_manager, 11);
+
+/**
+ * @generated from message ConnectionQualityRequest
+ */
+export type ConnectionQualityRequest = Message<"ConnectionQualityRequest"> & {
+  /**
+   * @generated from field: string session_id = 1;
+   */
+  sessionId: string;
+
+  /**
+   * @generated from field: string token = 2;
+   */
+  token: string;
+
+  /**
+   * @generated from field: int32 latency_ms = 3;
+   */
+  latencyMs: number;
+
+  /**
+   * @generated from field: int32 missed_heartbeats = 4;
+   */
+  missedHeartbeats: number;
+
+  /**
+   * @generated from field: string connection_type = 5;
+   */
+  connectionType: string;
+};
+
+/**
+ * Describes the message ConnectionQualityRequest.
+ * Use `create(ConnectionQualityRequestSchema)` to create a new message.
+ */
+export const ConnectionQualityRequestSchema: GenMessage<ConnectionQualityRequest> = /*@__PURE__*/
+  messageDesc(file_main_session_manager, 12);
+
+/**
+ * @generated from message ConnectionQualityResponse
+ */
+export type ConnectionQualityResponse = Message<"ConnectionQualityResponse"> & {
+  /**
+   * @generated from field: string quality = 1;
+   */
+  quality: string;
+
+  /**
+   * @generated from field: bool reconnect_recommended = 2;
+   */
+  reconnectRecommended: boolean;
+};
+
+/**
+ * Describes the message ConnectionQualityResponse.
+ * Use `create(ConnectionQualityResponseSchema)` to create a new message.
+ */
+export const ConnectionQualityResponseSchema: GenMessage<ConnectionQualityResponse> = /*@__PURE__*/
+  messageDesc(file_main_session_manager, 13);
+
+/**
  * @generated from service SessionManagerService
  */
 export const SessionManagerService: GenService<{
@@ -302,6 +430,22 @@ export const SessionManagerService: GenService<{
     methodKind: "unary";
     input: typeof GetSessionStateRequestSchema;
     output: typeof GetSessionStateResponseSchema;
+  },
+  /**
+   * @generated from rpc SessionManagerService.ReconnectSession
+   */
+  reconnectSession: {
+    methodKind: "unary";
+    input: typeof ReconnectSessionRequestSchema;
+    output: typeof ReconnectSessionResponseSchema;
+  },
+  /**
+   * @generated from rpc SessionManagerService.UpdateConnectionQuality
+   */
+  updateConnectionQuality: {
+    methodKind: "unary";
+    input: typeof ConnectionQualityRequestSchema;
+    output: typeof ConnectionQualityResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_main_session_manager, 0);

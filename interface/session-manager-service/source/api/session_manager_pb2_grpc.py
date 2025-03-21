@@ -39,6 +39,16 @@ class SessionManagerServiceStub(object):
                 request_serializer=main_dot_session__manager__pb2.GetSessionStateRequest.SerializeToString,
                 response_deserializer=main_dot_session__manager__pb2.GetSessionStateResponse.FromString,
                 )
+        self.ReconnectSession = channel.unary_unary(
+                '/SessionManagerService/ReconnectSession',
+                request_serializer=main_dot_session__manager__pb2.ReconnectSessionRequest.SerializeToString,
+                response_deserializer=main_dot_session__manager__pb2.ReconnectSessionResponse.FromString,
+                )
+        self.UpdateConnectionQuality = channel.unary_unary(
+                '/SessionManagerService/UpdateConnectionQuality',
+                request_serializer=main_dot_session__manager__pb2.ConnectionQualityRequest.SerializeToString,
+                response_deserializer=main_dot_session__manager__pb2.ConnectionQualityResponse.FromString,
+                )
 
 
 class SessionManagerServiceServicer(object):
@@ -74,6 +84,18 @@ class SessionManagerServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def ReconnectSession(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def UpdateConnectionQuality(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_SessionManagerServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -101,6 +123,16 @@ def add_SessionManagerServiceServicer_to_server(servicer, server):
                     servicer.GetSessionState,
                     request_deserializer=main_dot_session__manager__pb2.GetSessionStateRequest.FromString,
                     response_serializer=main_dot_session__manager__pb2.GetSessionStateResponse.SerializeToString,
+            ),
+            'ReconnectSession': grpc.unary_unary_rpc_method_handler(
+                    servicer.ReconnectSession,
+                    request_deserializer=main_dot_session__manager__pb2.ReconnectSessionRequest.FromString,
+                    response_serializer=main_dot_session__manager__pb2.ReconnectSessionResponse.SerializeToString,
+            ),
+            'UpdateConnectionQuality': grpc.unary_unary_rpc_method_handler(
+                    servicer.UpdateConnectionQuality,
+                    request_deserializer=main_dot_session__manager__pb2.ConnectionQualityRequest.FromString,
+                    response_serializer=main_dot_session__manager__pb2.ConnectionQualityResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -194,5 +226,39 @@ class SessionManagerService(object):
         return grpc.experimental.unary_unary(request, target, '/SessionManagerService/GetSessionState',
             main_dot_session__manager__pb2.GetSessionStateRequest.SerializeToString,
             main_dot_session__manager__pb2.GetSessionStateResponse.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def ReconnectSession(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/SessionManagerService/ReconnectSession',
+            main_dot_session__manager__pb2.ReconnectSessionRequest.SerializeToString,
+            main_dot_session__manager__pb2.ReconnectSessionResponse.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def UpdateConnectionQuality(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/SessionManagerService/UpdateConnectionQuality',
+            main_dot_session__manager__pb2.ConnectionQualityRequest.SerializeToString,
+            main_dot_session__manager__pb2.ConnectionQualityResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)

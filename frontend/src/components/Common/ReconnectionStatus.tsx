@@ -9,7 +9,7 @@ const ReconnectionStatus: React.FC = () => {
     reconnectAttempt, 
     maxReconnectAttempts,
     error,
-    reconnect
+    reconnectWithBackoff
   } = useConnection();
   
   if (isConnected) {
@@ -29,7 +29,7 @@ const ReconnectionStatus: React.FC = () => {
         <div className="connection-error">
           <div className="error-icon">⚠️</div>
           <div className="message">{error}</div>
-          <button className="retry-button" onClick={reconnect}>
+          <button className="retry-button" onClick={() => reconnectWithBackoff()}>
             Retry Connection
           </button>
         </div>

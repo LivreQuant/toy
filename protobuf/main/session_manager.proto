@@ -1,12 +1,17 @@
 // session_manager.proto
 syntax = "proto3";
 
+import exchange_simulator;
+
 service SessionManagerService {
   rpc CreateSession(CreateSessionRequest) returns (CreateSessionResponse);
   rpc GetSession(GetSessionRequest) returns (GetSessionResponse);
   rpc EndSession(EndSessionRequest) returns (EndSessionResponse);
   rpc KeepAlive(KeepAliveRequest) returns (KeepAliveResponse);
   rpc GetSessionState(GetSessionStateRequest) returns (GetSessionStateResponse);
+  rpc ReconnectSession(ReconnectSessionRequest) returns (ReconnectSessionResponse);
+  rpc UpdateConnectionQuality(ConnectionQualityRequest) returns (ConnectionQualityResponse);
+  rpc StreamExchangeData(StreamExchangeDataRequest) returns (stream exchange.ExchangeDataUpdate);
 }
 
 message CreateSessionRequest {
@@ -62,4 +67,38 @@ message GetSessionStateResponse {
   int64 session_created_at = 4;
   int64 last_active = 5;
   string error_message = 6;
+}
+
+message ReconnectSessionRequest {
+  string session_id = 1;
+  string token = 2;
+  int32 reconnect_attempt = 3;
+}
+
+message ReconnectSessionResponse {
+  bool success = 1;
+  string session_id = 2;
+  string simulator_id = 3;
+  string simulator_endpoint = 4;
+  string simulator_status = 5;
+  string error_message = 6;
+}
+
+message ConnectionQualityRequest {
+  string session_id = 1;
+  string token = 2;
+  int32 latency_ms = 3;
+  int32 missed_heartbeats = 4;
+  string connection_type = 5;
+}
+
+message ConnectionQualityResponse {
+  string quality = 1;
+  bool reconnect_recommended = 2;
+}
+
+message StreamExchangeDataRequest {
+  string session_id = 1;
+  string token = 2;
+  repeated string symbols = 3;
 }

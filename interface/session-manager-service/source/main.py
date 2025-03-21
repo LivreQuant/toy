@@ -1,368 +1,290 @@
-# session_manager.py
+# main.py
 import uuid
 import time
 import grpc
 import json
-from concurrent import futures
+import os
+import socket
+import threading
 import logging
+from concurrent import futures
+from datetime import datetime, timezone
+
+# Import protocol buffers
 import session_manager_pb2
 import session_manager_pb2_grpc
 import auth_pb2
 import auth_pb2_grpc
-from redis import Redis
+
+# Import our managers
+from db_manager import DatabaseManager
+from frontend_manager import FrontendManager
+from exchange_manager import ExchangeManager
+from health_server import start_health_server
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger('session_manager')
 
 class SessionManagerServicer(session_manager_pb2_grpc.SessionManagerServiceServicer):
-    def __init__(self, auth_channel, redis_client):
+    def __init__(self, auth_channel):
+        # Store pod identifier
+        self.pod_name = os.getenv('POD_NAME', socket.gethostname())
+        logger.info(f"Initializing session manager on pod {self.pod_name}")
+        
+        # Create auth stub
         self.auth_stub = auth_pb2_grpc.AuthServiceStub(auth_channel)
-        self.redis = redis_client
-        # Session timeout - 1 hour by default
-        self.session_timeout = 3600
-        # Time after which we extend the session TTL - 30 minutes
-        self.session_extension_threshold = 1800
-        # Maximum time to keep a simulator reserved after last activity - 10 minutes
-        self.simulator_timeout = 600
+        
+        # Create database manager
+        self.db = DatabaseManager()
+        
+        # Configuration
+        self.session_timeout = int(os.getenv('SESSION_TIMEOUT_SECONDS', '3600'))  # 1 hour
+        self.session_extension_threshold = int(os.getenv('SESSION_EXTENSION_THRESHOLD', '1800'))  # 30 minutes
+        self.simulator_timeout = int(os.getenv('SIMULATOR_TIMEOUT_SECONDS', '600'))  # 10 minutes
+        self.max_frontend_connections = int(os.getenv('MAX_FRONTEND_CONNECTIONS', '3'))
+        
+        # Initialize managers
+        self.exchange_manager = ExchangeManager(self)
+        self.frontend_manager = FrontendManager(self)
         
         # Start background cleaner for expired sessions
-        import threading
         self.cleaner = threading.Thread(target=self._clean_expired_sessions, daemon=True)
         self.cleaner.start()
+        
+        # Start health server
+        start_health_server()
+        
+        logger.info("Session manager service initialized")
     
+    # Session management methods
     def CreateSession(self, request, context):
         # Validate token
-        validate_response = self.auth_stub.ValidateToken(
-            auth_pb2.ValidateTokenRequest(token=request.token)
-        )
-        
-        if not validate_response.valid:
-            logger.warning(f"Invalid token during CreateSession")
+        user_id = self.validate_token(request.token)
+        if not user_id:
             return session_manager_pb2.CreateSessionResponse(
                 success=False,
                 error_message="Invalid authentication token"
             )
         
-        user_id = validate_response.user_id
-        
         # Check if user already has an active session
-        existing_session_key = f"user:{user_id}:active_session"
-        existing_session_id = self.redis.get(existing_session_key)
-        
+        existing_session_id = self.db.get_user_session(user_id)
         if existing_session_id:
-            # Check if existing session is still valid
-            session_data = self._get_session_data(existing_session_id.decode())
-            if session_data and (time.time() - session_data.get('last_active', 0)) < self.session_timeout:
-                logger.info(f"User {user_id} has existing session {existing_session_id.decode()}")
-                # Return existing session
-                return session_manager_pb2.CreateSessionResponse(
-                    success=True,
-                    session_id=existing_session_id.decode()
-                )
+            # Session exists, update activity
+            self.db.update_session_activity(existing_session_id)
+            logger.info(f"User {user_id} has existing session {existing_session_id}")
+            
+            # Update pod hosting info
+            self.db.update_session_metadata(existing_session_id, {
+                "session_host": self.pod_name
+            })
+            
+            return session_manager_pb2.CreateSessionResponse(
+                success=True,
+                session_id=existing_session_id
+            )
         
         # Create new session
         session_id = str(uuid.uuid4())
-        logger.info(f"Creating new session {session_id} for user {user_id}")
         
-        session_data = {
-            "user_id": user_id,
-            "created_at": time.time(),
-            "last_active": time.time(),
-            "simulator_endpoint": None,
-            "simulator_id": None
-        }
+        # Get client IP from context if available
+        client_ip = context.peer() if hasattr(context, 'peer') else 'unknown'
         
-        # Store session data in Redis
-        self._save_session_data(session_id, session_data)
+        # Create session in database
+        success = self.db.create_session(session_id, user_id, client_ip)
         
-        # Map user to session
-        self.redis.set(f"user:{user_id}:active_session", session_id)
-        self.redis.expire(f"user:{user_id}:active_session", self.session_timeout)
-        
-        return session_manager_pb2.CreateSessionResponse(
-            success=True,
-            session_id=session_id
-        )
+        if success:
+            # Add pod hosting info
+            self.db.update_session_metadata(session_id, {
+                "session_host": self.pod_name
+            })
+            
+            logger.info(f"Created new session {session_id} for user {user_id} on pod {self.pod_name}")
+            
+            # Don't start exchange service immediately - wait until needed
+            
+            return session_manager_pb2.CreateSessionResponse(
+                success=True,
+                session_id=session_id
+            )
+        else:
+            return session_manager_pb2.CreateSessionResponse(
+                success=False,
+                error_message="Failed to create session in database"
+            )
     
     def GetSession(self, request, context):
-        session_id = request.session_id
-        
-        # Validate token
-        validate_response = self.auth_stub.ValidateToken(
-            auth_pb2.ValidateTokenRequest(token=request.token)
-        )
-        
-        if not validate_response.valid:
-            logger.warning(f"Invalid token during GetSession for {session_id}")
-            return session_manager_pb2.GetSessionResponse(
-                session_active=False,
-                error_message="Invalid authentication token"
-            )
-        
-        user_id = validate_response.user_id
-        
-        # Get session data
-        session_data = self._get_session_data(session_id)
-        
-        if not session_data:
-            logger.warning(f"Session {session_id} not found")
-            return session_manager_pb2.GetSessionResponse(
-                session_active=False,
-                error_message="Session not found"
-            )
-        
-        # Check if session belongs to requesting user
-        if session_data.get("user_id") != user_id:
-            logger.warning(f"Session {session_id} does not belong to user {user_id}")
-            return session_manager_pb2.GetSessionResponse(
-                session_active=False,
-                error_message="Session does not belong to user"
-            )
-        
-        # Check if session has expired
-        last_active = session_data.get("last_active", 0)
-        if time.time() - last_active > self.session_timeout:
-            # Clean up expired session
-            logger.info(f"Session {session_id} has expired")
-            self._delete_session(session_id, user_id)
-            return session_manager_pb2.GetSessionResponse(
-                session_active=False,
-                error_message="Session has expired"
-            )
-        
-        # Update last active timestamp
-        self._update_session_activity(session_id, session_data)
-        
-        # Check if we should extend the TTL
-        if time.time() - last_active > self.session_extension_threshold:
-            # Extend TTL
-            logger.info(f"Extending TTL for session {session_id}")
-            self.redis.expire(f"session:{session_id}", self.session_timeout)
-            self.redis.expire(f"user:{user_id}:active_session", self.session_timeout)
-        
-        return session_manager_pb2.GetSessionResponse(
-            session_active=True,
-            simulator_endpoint=session_data.get("simulator_endpoint") or ""
-        )
+        return self.frontend_manager.get_session(request, context)
     
     def EndSession(self, request, context):
-        session_id = request.session_id
-        
-        # Validate token
-        validate_response = self.auth_stub.ValidateToken(
-            auth_pb2.ValidateTokenRequest(token=request.token)
-        )
-        
-        if not validate_response.valid:
-            logger.warning(f"Invalid token during EndSession for {session_id}")
-            return session_manager_pb2.EndSessionResponse(
-                success=False,
-                error_message="Invalid authentication token"
-            )
-        
-        user_id = validate_response.user_id
-        
-        # Get session data
-        session_data = self._get_session_data(session_id)
-        
-        if not session_data:
-            logger.warning(f"Session {session_id} not found during EndSession")
-            return session_manager_pb2.EndSessionResponse(
-                success=False,
-                error_message="Session not found"
-            )
-        
-        # Check if session belongs to requesting user
-        if session_data.get("user_id") != user_id:
-            logger.warning(f"Session {session_id} does not belong to user {user_id}")
-            return session_manager_pb2.EndSessionResponse(
-                success=False,
-                error_message="Session does not belong to user"
-            )
-        
-        # Delete session
-        logger.info(f"Ending session {session_id} for user {user_id}")
-        self._delete_session(session_id, user_id)
-        
-        return session_manager_pb2.EndSessionResponse(success=True)
+        return self.frontend_manager.end_session(request, context)
     
     def KeepAlive(self, request, context):
-        session_id = request.session_id
-        
-        # Validate token
-        validate_response = self.auth_stub.ValidateToken(
-            auth_pb2.ValidateTokenRequest(token=request.token)
-        )
-        
-        if not validate_response.valid:
-            logger.warning(f"Invalid token during KeepAlive for {session_id}")
-            return session_manager_pb2.KeepAliveResponse(success=False)
-        
-        user_id = validate_response.user_id
-        
-        # Get session data
-        session_data = self._get_session_data(session_id)
-        
-        if not session_data:
-            logger.warning(f"Session {session_id} not found during KeepAlive")
-            return session_manager_pb2.KeepAliveResponse(success=False)
-        
-        # Check if session belongs to requesting user
-        if session_data.get("user_id") != user_id:
-            logger.warning(f"Session {session_id} does not belong to user {user_id}")
-            return session_manager_pb2.KeepAliveResponse(success=False)
-        
-        # Update last active timestamp
-        self._update_session_activity(session_id, session_data)
-        
-        return session_manager_pb2.KeepAliveResponse(success=True)
+        return self.frontend_manager.keep_alive(request, context)
     
     def GetSessionState(self, request, context):
+        return self.frontend_manager.get_session_state(request, context)
+    
+    def ReconnectSession(self, request, context):
+        return self.frontend_manager.reconnect_session(request, context)
+    
+    def UpdateConnectionQuality(self, request, context):
+        return self.frontend_manager.update_connection_quality(request, context)
+    
+    def StreamExchangeData(self, request, context):
+        """Stream exchange data to frontend client with connection limits"""
         session_id = request.session_id
+        token = request.token
         
-        # Validate token
-        validate_response = self.auth_stub.ValidateToken(
-            auth_pb2.ValidateTokenRequest(token=request.token)
-        )
+        # Validate token and session
+        user_id = self.validate_session_access(token, session_id)
+        if not user_id:
+            context.abort(grpc.StatusCode.UNAUTHENTICATED, "Invalid token or session")
+            return
         
-        if not validate_response.valid:
-            logger.warning(f"Invalid token during GetSessionState for {session_id}")
-            return session_manager_pb2.GetSessionStateResponse(
-                success=False,
-                error_message="Invalid authentication token"
-            )
+        # Update session activity
+        self.db.update_session_activity(session_id)
         
-        user_id = validate_response.user_id
+        # Check connection limit
+        session_data = self.db.get_session(session_id)
+        frontend_connections = session_data.get('frontend_connections', 0)
         
-        # Get session data
-        session_data = self._get_session_data(session_id)
+        if frontend_connections >= self.max_frontend_connections:
+            context.abort(grpc.StatusCode.RESOURCE_EXHAUSTED, 
+                        f"Maximum frontend connections ({self.max_frontend_connections}) reached for this session")
+            return
         
-        if not session_data:
-            logger.warning(f"Session {session_id} not found during GetSessionState")
-            return session_manager_pb2.GetSessionStateResponse(
-                success=False,
-                error_message="Session not found"
-            )
+        # Increment connection count
+        self.db.update_session_metadata(session_id, {
+            'frontend_connections': frontend_connections + 1
+        })
         
-        # Check if session belongs to requesting user
-        if session_data.get("user_id") != user_id:
-            logger.warning(f"Session {session_id} does not belong to user {user_id}")
-            return session_manager_pb2.GetSessionStateResponse(
-                success=False,
-                error_message="Session does not belong to user"
-            )
-        
-        # Update last active timestamp
-        self._update_session_activity(session_id, session_data)
-        
-        # Return session state
-        return session_manager_pb2.GetSessionStateResponse(
-            success=True,
-            simulator_id=session_data.get("simulator_id") or "",
-            simulator_endpoint=session_data.get("simulator_endpoint") or "",
-            session_created_at=int(session_data.get("created_at", 0)),
-            last_active=int(session_data.get("last_active", 0))
-        )
-    
-    def _get_session_data(self, session_id):
-        data = self.redis.get(f"session:{session_id}")
-        if not data:
-            return None
-        
+        # Ensure exchange service is activated
+        exchange_id, exchange_endpoint = self.exchange_manager.activate_session(session_id, user_id)
+        if not exchange_id or not exchange_endpoint:
+            context.abort(grpc.StatusCode.INTERNAL, "Failed to activate exchange service")
+            return
+            
         try:
-            return json.loads(data.decode())
-        except (json.JSONDecodeError, UnicodeDecodeError) as e:
-            logger.error(f"Error decoding session data for {session_id}: {e}")
+            # Stream exchange data
+            self.exchange_manager.stream_exchange_data(session_id, user_id, request, context)
+        finally:
+            # Decrement connection count when done
+            current_data = self.db.get_session(session_id)
+            if current_data:
+                self.db.update_session_metadata(session_id, {
+                    'frontend_connections': max(0, current_data.get('frontend_connections', 1) - 1)
+                })
+    
+    # Authentication methods
+    def validate_token(self, token):
+        """Validate token and return user_id if valid"""
+        try:
+            validate_response = self.auth_stub.ValidateToken(
+                auth_pb2.ValidateTokenRequest(token=token)
+            )
+            
+            if not validate_response.valid:
+                return None
+            
+            return validate_response.user_id
+        except Exception as e:
+            logger.error(f"Error validating token: {e}")
             return None
     
-    def _save_session_data(self, session_id, data):
-        self.redis.set(f"session:{session_id}", json.dumps(data))
-        self.redis.expire(f"session:{session_id}", self.session_timeout)
-    
-    def _update_session_activity(self, session_id, session_data):
-        session_data["last_active"] = time.time()
-        self._save_session_data(session_id, session_data)
-    
-    def _delete_session(self, session_id, user_id):
-        # Delete session data
-        self.redis.delete(f"session:{session_id}")
+    def validate_session_access(self, token, session_id):
+        """Validate token and session access rights"""
+        user_id = self.validate_token(token)
+        if not user_id:
+            return None
         
-        # Delete user-to-session mapping
-        self.redis.delete(f"user:{user_id}:active_session")
+        # Get session from database
+        session = self.db.get_session(session_id)
+        if not session:
+            return None
         
-        # Get simulator ID for cleanup
-        simulator_id = self.redis.get(f"session:{session_id}:simulator")
-        if simulator_id:
-            # Mark simulator for delayed cleanup
-            # This gives time for reconnection
-            self.redis.set(f"simulator:{simulator_id.decode()}:pending_cleanup", time.time())
-            self.redis.expire(f"simulator:{simulator_id.decode()}:pending_cleanup", self.simulator_timeout)
+        # Check user ownership
+        if str(session.get('user_id')) != user_id:
+            return None
+        
+        # Check expiration
+        if 'expires_at' in session and session['expires_at'] < time.time():
+            return None
+        
+        return user_id
     
+    def get_session_data(self, session_id):
+        """Get session data from database"""
+        return self.db.get_session(session_id)
+    
+    def update_session_metadata(self, session_id, updates):
+        """Update session metadata"""
+        return self.db.update_session_metadata(session_id, updates)
+    
+    # Cleanup methods
     def _clean_expired_sessions(self):
+        """Background task to clean expired sessions"""
         while True:
             try:
-                time.sleep(300)  # Check every 5 minutes
+                time.sleep(300)  # Run every 5 minutes
                 logger.info("Running session cleanup task")
                 
-                # Clean up expired sessions
-                cursor = 0
-                while True:
-                    cursor, keys = self.redis.scan(cursor, match="session:*", count=100)
-                    
-                    for key in keys:
-                        try:
-                            if b":simulator" in key or b":pending_cleanup" in key:
-                                continue  # Skip non-session keys
-                                
-                            session_id = key.decode().split(":")[1]
-                            session_data = self._get_session_data(session_id)
-                            
-                            if session_data and time.time() - session_data.get("last_active", 0) > self.session_timeout:
-                                # Session expired, clean it up
-                                logger.info(f"Cleaning expired session: {session_id}")
-                                self._delete_session(session_id, session_data.get("user_id"))
-                        except Exception as e:
-                            logger.error(f"Error processing session key {key}: {e}")
-                    
-                    if cursor == 0:
-                        break
+                # Use database function for cleanup
+                self.db.cleanup_expired_sessions()
                 
-                # Clean up pending simulator cleanups
-                cursor = 0
-                while True:
-                    cursor, keys = self.redis.scan(cursor, match="simulator:*:pending_cleanup", count=100)
-                    
-                    for key in keys:
-                        try:
-                            simulator_id = key.decode().split(":")[1]
-                            pending_since = float(self.redis.get(key).decode())
-                            
-                            if time.time() - pending_since > self.simulator_timeout:
-                                # Simulator hasn't been reclaimed, clean it up
-                                logger.info(f"Cleaning up simulator: {simulator_id}")
-                                # In production: call simulator manager to stop the simulator
-                                self.redis.delete(key)
-                        except Exception as e:
-                            logger.error(f"Error processing simulator cleanup key {key}: {e}")
-                    
-                    if cursor == 0:
-                        break
-                
+                logger.info("Session cleanup completed")
             except Exception as e:
                 logger.error(f"Error in session cleanup task: {e}")
 
+
 def serve():
-    auth_channel = grpc.insecure_channel('auth:50051')
-    redis_client = Redis(host='redis', port=6379, db=0)
+    # Get environment configuration
+    auth_service = os.getenv('AUTH_SERVICE', 'auth-service:50051')
+    service_port = int(os.getenv('SERVICE_PORT', '50052'))
     
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-    session_manager_pb2_grpc.add_SessionManagerServiceServicer_to_server(
-        SessionManagerServicer(auth_channel, redis_client), server
+    # Create auth channel with retry options
+    channel_options = [
+        ('grpc.enable_retries', 1),
+        ('grpc.service_config', json.dumps({
+            'methodConfig': [{
+                'name': [{}],  # Apply to all methods
+                'retryPolicy': {
+                    'maxAttempts': 5,
+                    'initialBackoff': '0.1s',
+                    'maxBackoff': '10s',
+                    'backoffMultiplier': 2.0,
+                    'retryableStatusCodes': ['UNAVAILABLE']
+                }
+            }]
+        }))
+    ]
+    auth_channel = grpc.insecure_channel(auth_service, options=channel_options)
+    
+    # Create gRPC server
+    server = grpc.server(
+        futures.ThreadPoolExecutor(max_workers=10),
+        options=[
+            ('grpc.max_receive_message_length', 10 * 1024 * 1024),  # 10 MB
+            ('grpc.max_send_message_length', 10 * 1024 * 1024),     # 10 MB
+            ('grpc.keepalive_time_ms', 10000),                      # 10 seconds
+            ('grpc.keepalive_timeout_ms', 5000),                    # 5 seconds
+            ('grpc.keepalive_permit_without_calls', 1),             # Allow keepalive without active calls
+        ]
     )
-    server.add_insecure_port('[::]:50052')
+    
+    # Add service to server
+    session_manager_pb2_grpc.add_SessionManagerServiceServicer_to_server(
+        SessionManagerServicer(auth_channel), server
+    )
+    
+    # Start server
+    server.add_insecure_port(f'[::]:{service_port}')
     server.start()
-    logger.info("Session Manager Service started on port 50052")
+    logger.info(f"Session Manager Service started on port {service_port}")
+    
+    # Wait for termination
     server.wait_for_termination()
 
-if __name__ == '__main__
+
+if __name__ == '__main__':
+    serve()

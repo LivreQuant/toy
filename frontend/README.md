@@ -337,3 +337,17 @@ I'm working on a trading exchange simulator with frontend and backend components
 We've implemented comprehensive reconnection logic that prevents users from submitting orders during unstable connections. The system gracefully handles temporary disconnections while providing users with clear visual feedback about connection status.
 
 I'd like to continue building this system, focusing on implementing the PostgreSQL integration and/or finalizing the communication between frontend and backend components.
+
+
+┌─────────┐   WebSocket/gRPC   ┌──────────────┐   Internal Connection   ┌─────────────────┐
+│ Frontend │◄─────────────────►│ Session Svc  │◄─────────────────────►│ Exchange Service │
+└─────────┘                    └──────────────┘                       └─────────────────┘
+    │                                 │                                       │
+    │                                 │                                       │
+    │                                 ▼                                       │
+    │                          ┌──────────────┐                              │
+    │                          │ PostgreSQL   │                              │
+    │                          │ (Session DB) │                              │
+    │                          └──────────────┘                              │
+    │                                                                        │
+    └───────────────── One-time API calls ──────────────────────────────────┘

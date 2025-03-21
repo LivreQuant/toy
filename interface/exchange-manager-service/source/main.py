@@ -1,249 +1,363 @@
-# simulator_manager.py
-import uuid
-import grpc
-import subprocess
+# exchange_simulator.py
 import time
+import uuid
+import random
+import threading
+import logging
 from concurrent import futures
-import simulator_manager_pb2
-import simulator_manager_pb2_grpc
-import auth_pb2
-import auth_pb2_grpc
-import session_manager_pb2
-import session_manager_pb2_grpc
+import grpc
 
-class SimulatorManagerServicer(simulator_manager_pb2_grpc.SimulatorManagerServiceServicer):
-    def __init__(self, auth_channel, session_manager_channel):
-        self.auth_stub = auth_pb2_grpc.AuthServiceStub(auth_channel)
-        self.session_manager_stub = session_manager_pb2_grpc.SessionManagerServiceStub(session_manager_channel)
-        self.simulators = {}  # simulator_id -> {session_id, pod_name, status, endpoint}
+import exchange_pb2
+import exchange_pb2_grpc
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger('exchange_simulator')
+
+class ExchangeSimulator(exchange_pb2_grpc.ExchangeSimulatorServicer):
+    def __init__(self):
+        self.active_sessions = {}  # session_id -> client_connections
+        self.symbols = ["AAPL", "MSFT", "GOOGL", "AMZN", "TSLA"]
+        self.symbol_prices = {
+            "AAPL": 175.0,
+            "MSFT": 350.0,
+            "GOOGL": 140.0,
+            "AMZN": 130.0,
+            "TSLA": 200.0
+        }
+        self.orders = {}  # order_id -> order_info
+        self.portfolios = {}  # session_id -> portfolio_data
+        self.lock = threading.RLock()
         
-        # In production, this would interact with Kubernetes API
-        self.simulate_kubernetes = True
+        # Start data processor
+        self.running = True
+        self.data_thread = threading.Thread(target=self._process_exchange_data)
+        self.data_thread.daemon = True
+        self.data_thread.start()
     
-    def StartSimulator(self, request, context):
+    def StreamExchangeData(self, request, context):
+        """Stream complete exchange data for a session"""
         session_id = request.session_id
+        client_id = request.client_id
+        requested_symbols = list(request.symbols) or self.symbols
         
-        # Validate token
-        validate_response = self.auth_stub.ValidateToken(
-            auth_pb2.ValidateTokenRequest(token=request.token)
-        )
+        logger.info(f"Exchange data stream requested for session {session_id}, client {client_id}")
         
-        if not validate_response.valid:
-            return simulator_manager_pb2.StartSimulatorResponse(
-                success=False,
-                error_message="Invalid authentication token"
-            )
-        
-        # Validate session
-        session_response = self.session_manager_stub.GetSession(
-            session_manager_pb2.GetSessionRequest(
-                session_id=session_id,
-                token=request.token
-            )
-        )
-        
-        if not session_response.session_active:
-            return simulator_manager_pb2.StartSimulatorResponse(
-                success=False,
-                error_message="Invalid or inactive session"
-            )
-        
-        # Check if simulator already exists for this session
-        for sim_id, sim_info in self.simulators.items():
-            if sim_info["session_id"] == session_id:
-                return simulator_manager_pb2.StartSimulatorResponse(
-                    success=True,
-                    simulator_id=sim_id,
-                    simulator_endpoint=sim_info["endpoint"]
-                )
-        
-        # Create new simulator
-        simulator_id = str(uuid.uuid4())
-        pod_name = f"simulator-{simulator_id[:8]}"
-        
-        if self.simulate_kubernetes:
-            # In a real K8s environment, this would create a pod
-            print(f"Starting simulator pod: {pod_name}")
-            
-            # Simulate pod startup time
-            time.sleep(1)
-            
-            # K8s would assign an endpoint
-            endpoint = f"simulator-{simulator_id[:8]}:50053"
-            
-            self.simulators[simulator_id] = {
-                "session_id": session_id,
-                "pod_name": pod_name,
-                "status": "RUNNING",
-                "endpoint": endpoint
-            }
-            
-            # Update session with simulator endpoint
-            # In real implementation, this would be handled by the simulator pod registering itself
-            
-            return simulator_manager_pb2.StartSimulatorResponse(
-                success=True,
-                simulator_id=simulator_id,
-                simulator_endpoint=endpoint
-            )
-        else:
-            # Local development with docker-compose
-            # This would start a new container
-            try:
-                # This is just an example for local dev
-                container_id = subprocess.check_output([
-                    "docker", "run", "-d", "--name", pod_name,
-                    "--network", "trading-simulator_default",
-                    "-e", f"SIMULATOR_ID={simulator_id}",
-                    "-e", f"SESSION_ID={session_id}",
-                    "-p", "0:50053",
-                    "trading-simulator/exchange-simulator"
-                ]).decode().strip()
-                
-                # Get assigned port
-                port_info = subprocess.check_output([
-                    "docker", "port", container_id, "50053"
-                ]).decode().strip()
-                
-                # Format: 0.0.0.0:12345
-                endpoint = f"localhost:{port_info.split(':')[1]}"
-                
-                self.simulators[simulator_id] = {
-                    "session_id": session_id,
-                    "pod_name": pod_name,
-                    "status": "RUNNING",
-                    "endpoint": endpoint,
-                    "container_id": container_id
-                }
-                
-                return simulator_manager_pb2.StartSimulatorResponse(
-                    success=True,
-                    simulator_id=simulator_id,
-                    simulator_endpoint=endpoint
-                )
-                
-            except Exception as e:
-                print(f"Failed to start simulator: {e}")
-                return simulator_manager_pb2.StartSimulatorResponse(
-                    success=False,
-                    error_message=f"Failed to start simulator: {str(e)}"
-                )
-    
-    def StopSimulator(self, request, context):
-        simulator_id = request.simulator_id
-        
-        # Validate token
-        validate_response = self.auth_stub.ValidateToken(
-            auth_pb2.ValidateTokenRequest(token=request.token)
-        )
-        
-        if not validate_response.valid:
-            return simulator_manager_pb2.StopSimulatorResponse(
-                success=False,
-                error_message="Invalid authentication token"
-            )
-        
-        # Check if simulator exists
-        if simulator_id not in self.simulators:
-            return simulator_manager_pb2.StopSimulatorResponse(
-                success=False,
-                error_message="Simulator not found"
-            )
-        
-        simulator = self.simulators[simulator_id]
-        session_id = simulator["session_id"]
-        
-        # Validate session
-        session_response = self.session_manager_stub.GetSession(
-            session_manager_pb2.GetSessionRequest(
-                session_id=session_id,
-                token=request.token
-            )
-        )
-        
-        if not session_response.session_active:
-            return simulator_manager_pb2.StopSimulatorResponse(
-                success=False,
-                error_message="Invalid or inactive session"
-            )
-        
-        # Stop simulator
-        if self.simulate_kubernetes:
-            # In a real K8s environment, this would delete the pod
-            print(f"Stopping simulator pod: {simulator['pod_name']}")
-            
-            # Simulate pod termination time
-            time.sleep(1)
-            
-            del self.simulators[simulator_id]
-            
-            return simulator_manager_pb2.StopSimulatorResponse(success=True)
-        else:
-            # Local development with docker-compose
-            try:
-                # Stop and remove container
-                subprocess.check_call(["docker", "stop", simulator["container_id"]])
-                subprocess.check_call(["docker", "rm", simulator["container_id"]])
-                
-                del self.simulators[simulator_id]
-                
-                return simulator_manager_pb2.StopSimulatorResponse(success=True)
-                
-            except Exception as e:
-                print(f"Failed to stop simulator: {e}")
-                return simulator_manager_pb2.StopSimulatorResponse(
-                    success=False,
-                    error_message=f"Failed to stop simulator: {str(e)}"
-                )
-    
-    def GetSimulatorStatus(self, request, context):
-        simulator_id = request.simulator_id
-        
-        # Validate token
-        validate_response = self.auth_stub.ValidateToken(
-            auth_pb2.ValidateTokenRequest(token=request.token)
-        )
-        
-        if not validate_response.valid:
-            return simulator_manager_pb2.GetSimulatorStatusResponse(
-                status=simulator_manager_pb2.GetSimulatorStatusResponse.Status.ERROR,
-                error_message="Invalid authentication token"
-            )
-        
-        # Check if simulator exists
-        if simulator_id not in self.simulators:
-            return simulator_manager_pb2.GetSimulatorStatusResponse(
-                status=simulator_manager_pb2.GetSimulatorStatusResponse.Status.UNKNOWN,
-                error_message="Simulator not found"
-            )
-        
-        simulator = self.simulators[simulator_id]
-        
-        # Map internal status to protobuf status
-        status_map = {
-            "STARTING": simulator_manager_pb2.GetSimulatorStatusResponse.Status.STARTING,
-            "RUNNING": simulator_manager_pb2.GetSimulatorStatusResponse.Status.RUNNING,
-            "STOPPING": simulator_manager_pb2.GetSimulatorStatusResponse.Status.STOPPING,
-            "STOPPED": simulator_manager_pb2.GetSimulatorStatusResponse.Status.STOPPED,
-            "ERROR": simulator_manager_pb2.GetSimulatorStatusResponse.Status.ERROR
+        # Create client connection entry
+        connection_info = {
+            'client_id': client_id,
+            'symbols': requested_symbols,
+            'context': context,
+            'last_update': time.time()
         }
         
-        return simulator_manager_pb2.GetSimulatorStatusResponse(
-            status=status_map.get(simulator["status"], 
-                  simulator_manager_pb2.GetSimulatorStatusResponse.Status.UNKNOWN)
+        # Register this connection
+        with self.lock:
+            if session_id not in self.active_sessions:
+                self.active_sessions[session_id] = []
+                
+                # Initialize empty portfolio for new session
+                if session_id not in self.portfolios:
+                    self.portfolios[session_id] = {
+                        'cash_balance': 100000.0,
+                        'positions': {}
+                    }
+            
+            # Add connection to session
+            self.active_sessions[session_id].append(connection_info)
+        
+        # Setup stream termination handler
+        def on_rpc_done():
+            with self.lock:
+                if session_id in self.active_sessions:
+                    # Remove this connection
+                    self.active_sessions[session_id] = [
+                        conn for conn in self.active_sessions[session_id] 
+                        if conn.get('context') != context
+                    ]
+                    
+                    # If no more connections for this session, clean up
+                    if not self.active_sessions[session_id]:
+                        logger.info(f"No more connections for session {session_id}, removing session")
+                        del self.active_sessions[session_id]
+                        
+                        # In a real system, we might keep the portfolio data for reconnection
+                        # For this example, we'll clean it up
+                        if session_id in self.portfolios:
+                            del self.portfolios[session_id]
+        
+        context.add_callback(on_rpc_done)
+        
+        # Keep connection alive and send initial data
+        try:
+            # Send initial complete update
+            self._send_complete_update_to_session(session_id)
+            
+            # Keep stream open
+            while context.is_active() and self.running:
+                # In a real implementation, we might have backpressure handling here
+                time.sleep(60)  # This is just to keep the stream open
+        except Exception as e:
+            logger.error(f"Error in exchange data stream for {session_id}/{client_id}: {e}")
+        
+        return  # Stream ends when client disconnects
+    
+    def Heartbeat(self, request, context):
+        """Process heartbeat request to keep session alive"""
+        session_id = request.session_id
+        client_id = request.client_id
+        client_timestamp = request.client_timestamp
+        
+        # Update last active timestamp for this session/client
+        with self.lock:
+            if session_id in self.active_sessions:
+                for conn in self.active_sessions[session_id]:
+                    if conn.get('client_id') == client_id:
+                        conn['last_update'] = time.time()
+        
+        return exchange_pb2.HeartbeatResponse(
+            success=True,
+            server_timestamp=int(time.time() * 1000)
         )
+    
+    def _process_exchange_data(self):
+        """Main processing thread for exchange data"""
+        data_update_interval = 1.0  # seconds
+        last_update_time = 0
+        
+        while self.running:
+            try:
+                current_time = time.time()
+                
+                # Only update at specified interval
+                if current_time - last_update_time >= data_update_interval:
+                    last_update_time = current_time
+                    
+                    # 1. Update market prices
+                    self._update_market_prices()
+                    
+                    # 2. Process simulated orders
+                    self._process_simulated_orders()
+                    
+                    # 3. Send complete updates to all active sessions
+                    self._broadcast_updates_to_all_sessions()
+                
+                # Sleep a small amount to prevent CPU hogging
+                time.sleep(0.01)
+            
+            except Exception as e:
+                logger.error(f"Error in exchange data processing: {e}")
+                time.sleep(1.0)  # Sleep longer on error
+    
+    def _update_market_prices(self):
+        """Update market prices for all symbols"""
+        with self.lock:
+            for symbol in self.symbols:
+                # Random price movement
+                price = self.symbol_prices[symbol]
+                price_change = price * (random.random() * 0.01 - 0.005)  # -0.5% to +0.5%
+                new_price = max(0.01, price + price_change)
+                self.symbol_prices[symbol] = new_price
+                
+                # Update portfolio values based on new prices
+                for session_id, portfolio in self.portfolios.items():
+                    if symbol in portfolio['positions']:
+                        position = portfolio['positions'][symbol]
+                        position['market_value'] = position['quantity'] * new_price
+    
+    def _process_simulated_orders(self):
+        """Simulate some order activity"""
+        # Only simulate for sessions that have been active for a while
+        with self.lock:
+            for session_id in list(self.active_sessions.keys()):
+                # 10% chance of creating a simulated order
+                if random.random() < 0.1:
+                    symbol = random.choice(self.symbols)
+                    is_buy = random.choice([True, False])
+                    quantity = random.randint(1, 10) * 10  # 10, 20, ..., 100
+                    price = self.symbol_prices[symbol]
+                    
+                    # Create order update
+                    order_id = str(uuid.uuid4())
+                    self.orders[order_id] = {
+                        'session_id': session_id,
+                        'symbol': symbol,
+                        'side': 'BUY' if is_buy else 'SELL',
+                        'quantity': quantity,
+                        'price': price,
+                        'status': 'FILLED',  # Simplification - all orders fill immediately
+                        'filled_quantity': quantity,
+                        'average_price': price,
+                        'timestamp': time.time()
+                    }
+                    
+                    # Update portfolio
+                    if session_id in self.portfolios:
+                        portfolio = self.portfolios[session_id]
+                        
+                        # Update cash
+                        trade_value = quantity * price
+                        if is_buy:
+                            portfolio['cash_balance'] -= trade_value
+                        else:
+                            portfolio['cash_balance'] += trade_value
+                        
+                        # Update position
+                        if symbol not in portfolio['positions']:
+                            portfolio['positions'][symbol] = {
+                                'quantity': 0,
+                                'average_cost': 0,
+                                'market_value': 0
+                            }
+                        
+                        position = portfolio['positions'][symbol]
+                        
+                        if is_buy:
+                            # Buying - add to position
+                            new_quantity = position['quantity'] + quantity
+                            new_cost_basis = (
+                                (position['quantity'] * position['average_cost']) + 
+                                (quantity * price)
+                            ) / new_quantity if new_quantity > 0 else 0
+                            
+                            position['quantity'] = new_quantity
+                            position['average_cost'] = new_cost_basis
+                            position['market_value'] = new_quantity * price
+                        else:
+                            # Selling - reduce position
+                            position['quantity'] -= quantity
+                            position['market_value'] = position['quantity'] * price
+                            
+                            # Remove if quantity is zero or negative (simplification)
+                            if position['quantity'] <= 0:
+                                del portfolio['positions'][symbol]
+    
+    def _broadcast_updates_to_all_sessions(self):
+        """Send complete updates to all active sessions"""
+        with self.lock:
+            for session_id in list(self.active_sessions.keys()):
+                self._send_complete_update_to_session(session_id)
+    
+    def _send_complete_update_to_session(self, session_id):
+        """Create and send a complete data update to a specific session"""
+        with self.lock:
+            if session_id not in self.active_sessions:
+                return
+            
+            # Get connections for this session
+            connections = self.active_sessions[session_id]
+            if not connections:
+                return
+            
+            # Get all symbols requested by any connection for this session
+            requested_symbols = set()
+            for conn in connections:
+                symbols = conn.get('symbols', [])
+                requested_symbols.update(symbols)
+            
+            # If no specific symbols requested, use all symbols
+            if not requested_symbols:
+                requested_symbols = set(self.symbols)
+            
+            # Gather market data
+            market_data_list = []
+            for symbol in requested_symbols:
+                if symbol in self.symbol_prices:
+                    price = self.symbol_prices[symbol]
+                    bid = price - random.random() * 0.02  # Small random spread
+                    ask = price + random.random() * 0.02
+                    
+                    market_data_list.append(exchange_pb2.MarketData(
+                        symbol=symbol,
+                        bid=bid,
+                        ask=ask,
+                        bid_size=random.randint(100, 1000),
+                        ask_size=random.randint(100, 1000),
+                        last_price=price,
+                        last_size=random.randint(10, 100)
+                    ))
+            
+            # Gather recent order updates
+            order_updates = []
+            for order_id, order in list(self.orders.items()):
+                if order.get('session_id') == session_id:
+                    # Only include recent orders from the last 10 seconds
+                    if time.time() - order.get('timestamp', 0) < 10:
+                        order_updates.append(exchange_pb2.OrderUpdate(
+                            order_id=order_id,
+                            symbol=order['symbol'],
+                            status=order['status'],
+                            filled_quantity=order['filled_quantity'],
+                            average_price=order['average_price']
+                        ))
+            
+            # Get portfolio status
+            portfolio_status = None
+            if session_id in self.portfolios:
+                portfolio = self.portfolios[session_id]
+                positions = []
+                
+                for symbol, pos in portfolio['positions'].items():
+                    positions.append(exchange_pb2.Position(
+                        symbol=symbol,
+                        quantity=pos['quantity'],
+                        average_cost=pos['average_cost'],
+                        market_value=pos['market_value']
+                    ))
+                
+                total_value = portfolio['cash_balance']
+                for pos in portfolio['positions'].values():
+                    total_value += pos['market_value']
+                
+                portfolio_status = exchange_pb2.PortfolioStatus(
+                    positions=positions,
+                    cash_balance=portfolio['cash_balance'],
+                    total_value=total_value
+                )
+            
+            # Create complete update
+            update = exchange_pb2.ExchangeDataUpdate(
+                timestamp=int(time.time() * 1000),
+                market_data=market_data_list,
+                order_updates=order_updates,
+                portfolio=portfolio_status or exchange_pb2.PortfolioStatus()
+            )
+            
+            # Send update to all connections for this session
+            for conn in list(connections):
+                try:
+                    conn['context'].write(update)
+                except Exception as e:
+                    logger.error(f"Error sending update to session {session_id}: {e}")
+                    # Don't remove the connection here - let the gRPC framework handle disconnects
+    
+    def shutdown(self):
+        """Cleanup when shutting down"""
+        self.running = False
+        if self.data_thread.is_alive():
+            self.data_thread.join(timeout=2)
+
 
 def serve():
-    auth_channel = grpc.insecure_channel('auth:50051')
-    session_manager_channel = grpc.insecure_channel('session-manager:50052')
-    
+    """Start the exchange simulator server"""
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-    simulator_manager_pb2_grpc.add_SimulatorManagerServiceServicer_to_server(
-        SimulatorManagerServicer(auth_channel, session_manager_channel), server
-    )
-    server.add_insecure_port('[::]:50053')
+    simulator = ExchangeSimulator()
+    exchange_pb2_grpc.add_ExchangeSimulatorServicer_to_server(simulator, server)
+    
+    # Listen on all interfaces
+    server.add_insecure_port('[::]:50055')
     server.start()
-    server.wait_for_termination()
+    
+    logger.info("Exchange Simulator started on port 50055")
+    
+    try:
+        while True:
+            time.sleep(86400)  # Sleep for a day
+    except KeyboardInterrupt:
+        logger.info("Shutting down Exchange Simulator")
+        simulator.shutdown()
+        server.stop(0)
+
 
 if __name__ == '__main__':
     serve()

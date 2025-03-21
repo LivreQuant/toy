@@ -1,49 +1,73 @@
+// exchange_simulator.proto
 syntax = "proto3";
 
-package marketdataservice;
-import "google/protobuf/empty.proto";
+package exchange;
 
-message MarketDataBar {
-    string timestamp = 1; // UTC timestamp in ISO8601 format
-    string instrument = 2;
-    string exchange = 3;
-    string currency = 4;
-    double open = 5;
-    double high = 6;
-    double low = 7;
-    double close = 8;
-    double volume = 9;
-    double vwap = 10; // Volume weighted price
-    double vwas = 11; // Volume weighted spread
-    double vwav = 12; // volume weighted price volatility (= sqrt(sum(volume_i * (price_i - VWAP)^2) / total_volume))
-    uint32 count = 13; // Number of trades in the period
+service ExchangeSimulator {
+  // Single unified stream for all exchange data
+  rpc StreamExchangeData(StreamRequest) returns (stream ExchangeDataUpdate);
+  
+  // Heartbeat to verify connection
+  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
 }
 
-message MarketDataBars {
-    repeated MarketDataBar bars = 1;
+message StreamRequest {
+  string session_id = 1;
+  string client_id = 2;
+  repeated string symbols = 3;
 }
 
-// New message for SOD market state
-message MarketState {
-    string timestamp = 1;
-    string instrument = 2;
-    string exhange = 3;
-    string currency = 4;
-    double last_price = 5;    // Previous closing price
-    double last_volume = 6;   // Previous day's volume
+message ExchangeDataUpdate {
+  int64 timestamp = 1;
+  
+  // Market data for all requested symbols
+  repeated MarketData market_data = 2;
+  
+  // Order updates
+  repeated OrderUpdate order_updates = 3;
+  
+  // Portfolio information
+  PortfolioStatus portfolio = 4;
 }
 
-message MarketStateSnapshot {
-    repeated MarketState states = 1;
+message MarketData {
+  string symbol = 1;
+  double bid = 2;
+  double ask = 3;
+  int32 bid_size = 4;
+  int32 ask_size = 5;
+  double last_price = 6;
+  int32 last_size = 7;
 }
 
-message MarketDataResponse {
-    bool success = 1;
-    string message = 2;
+message OrderUpdate {
+  string order_id = 1;
+  string symbol = 2;
+  string status = 3; // "NEW", "ACCEPTED", "REJECTED", "FILLED", etc.
+  int32 filled_quantity = 4;
+  double average_price = 5;
 }
 
-service FixSimMarketDataService {
-    rpc StreamMarketDataBars(google.protobuf.Empty) returns (stream MarketDataBars) {};
-    rpc InsertMarketDataBars(MarketDataBars) returns (MarketDataResponse) {};
-    rpc InsertSODMarketState(MarketStateSnapshot) returns (MarketDataResponse) {};
+message PortfolioStatus {
+  repeated Position positions = 1;
+  double cash_balance = 2;
+  double total_value = 3;
+}
+
+message Position {
+  string symbol = 1;
+  int32 quantity = 2;
+  double average_cost = 3;
+  double market_value = 4;
+}
+
+message HeartbeatRequest {
+  string session_id = 1;
+  string client_id = 2;
+  int64 client_timestamp = 3;
+}
+
+message HeartbeatResponse {
+  bool success = 1;
+  int64 server_timestamp = 2;
 }

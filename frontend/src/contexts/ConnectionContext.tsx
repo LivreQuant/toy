@@ -21,6 +21,8 @@ interface ConnectionContextState {
   reconnect: () => Promise<boolean>;
   disconnect: () => void;
   canSubmitOrders: boolean;
+  reconnectWithBackoff: () => Promise<boolean>;
+  updateConnectionQuality: () => Promise<void>;
 }
 
 const ConnectionContext = createContext<ConnectionContextState | undefined>(undefined);
@@ -203,7 +205,9 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         connect,
         reconnect,
         disconnect,
-        canSubmitOrders
+        canSubmitOrders,
+        reconnectWithBackoff: connectionManager.reconnectWithBackoff.bind(connectionManager),
+        updateConnectionQuality: connectionManager.updateConnectionQuality.bind(connectionManager),
       }}
     >
       {children}

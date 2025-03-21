@@ -1,4 +1,0 @@
-CREATE ROLE opentp;
-CREATE DATABASE opentp;
-ALTER USER opentp WITH PASSWORD 'samaral';
-ALTER USER opentp WITH LOGIN;
