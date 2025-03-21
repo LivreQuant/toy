@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: client-config-service
+  labels:
+    app: client-config-service
+spec:
+  ports:
+    - name: grpc
+      port: 50551
+      protocol: TCP
+      targetPort: grpc
+  selector:
+    app: client-config-service

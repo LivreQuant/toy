@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+package marketdataservice;
+import "google/protobuf/empty.proto";
+
+message MarketDataBar {
+    string timestamp = 1; // UTC timestamp in ISO8601 format
+    string instrument = 2;
+    string exchange = 3;
+    string currency = 4;
+    double open = 5;
+    double high = 6;
+    double low = 7;
+    double close = 8;
+    double volume = 9;
+    double vwap = 10; // Volume weighted price
+    double vwas = 11; // Volume weighted spread
+    double vwav = 12; // volume weighted price volatility (= sqrt(sum(volume_i * (price_i - VWAP)^2) / total_volume))
+    uint32 count = 13; // Number of trades in the period
+}
+
+message MarketDataBars {
+    repeated MarketDataBar bars = 1;
+}
+
+// New message for SOD market state
+message MarketState {
+    string timestamp = 1;
+    string instrument = 2;
+    string exhange = 3;
+    string currency = 4;
+    double last_price = 5;    // Previous closing price
+    double last_volume = 6;   // Previous day's volume
+}
+
+message MarketStateSnapshot {
+    repeated MarketState states = 1;
+}
+
+message MarketDataResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+service FixSimMarketDataService {
+    rpc StreamMarketDataBars(google.protobuf.Empty) returns (stream MarketDataBars) {};
+    rpc InsertMarketDataBars(MarketDataBars) returns (MarketDataResponse) {};
+    rpc InsertSODMarketState(MarketStateSnapshot) returns (MarketDataResponse) {};
+}

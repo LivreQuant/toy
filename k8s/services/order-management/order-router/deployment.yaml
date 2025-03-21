@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-router
+  labels:
+    app: order-router
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: order-router
+  template:
+    metadata:
+      labels:
+        app: order-router
+    spec:
+      serviceAccountName: trading-services
+      containers:
+        - name: order-router
+          image: ${DOCKER_REPO}/otp-order-router:${VERSION}
+          imagePullPolicy: Always
+          envFrom:
+            - configMapRef:
+                name: opentp-common
+          ports:
+            - name: grpc
+              containerPort: 50581
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "200m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          readinessProbe:
+            tcpSocket:
+              port: grpc
+            initialDelaySeconds: 5
+            periodSeconds: 10

@@ -1,0 +1,65 @@
+// session_manager.proto
+syntax = "proto3";
+
+service SessionManagerService {
+  rpc CreateSession(CreateSessionRequest) returns (CreateSessionResponse);
+  rpc GetSession(GetSessionRequest) returns (GetSessionResponse);
+  rpc EndSession(EndSessionRequest) returns (EndSessionResponse);
+  rpc KeepAlive(KeepAliveRequest) returns (KeepAliveResponse);
+  rpc GetSessionState(GetSessionStateRequest) returns (GetSessionStateResponse);
+}
+
+message CreateSessionRequest {
+  string user_id = 1;
+  string token = 2;
+}
+
+message CreateSessionResponse {
+  bool success = 1;
+  string session_id = 2;
+  string error_message = 3;
+}
+
+message GetSessionRequest {
+  string session_id = 1;
+  string token = 2;
+}
+
+message GetSessionResponse {
+  bool session_active = 1;
+  string simulator_endpoint = 2;
+  string error_message = 3;
+}
+
+message EndSessionRequest {
+  string session_id = 1;
+  string token = 2;
+}
+
+message EndSessionResponse {
+  bool success = 1;
+  string error_message = 2;
+}
+
+message KeepAliveRequest {
+  string session_id = 1;
+  string token = 2;
+}
+
+message KeepAliveResponse {
+  bool success = 1;
+}
+
+message GetSessionStateRequest {
+  string session_id = 1;
+  string token = 2;
+}
+
+message GetSessionStateResponse {
+  bool success = 1;
+  string simulator_id = 2;
+  string simulator_endpoint = 3;
+  int64 session_created_at = 4;
+  int64 last_active = 5;
+  string error_message = 6;
+}

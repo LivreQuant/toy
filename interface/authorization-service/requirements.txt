@@ -1,0 +1,9 @@
+aiohttp>=3.8.5
+asyncio>=3.4.3
+bcrypt>=4.0.1
+grpcio>=1.62.0
+grpcio-reflection>=1.62.0
+grpcio-tools>=1.62.0
+protobuf>=4.21.0
+psycopg2-binary==2.9.6
+PyJWT>=2.8.0

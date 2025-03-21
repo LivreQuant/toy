@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: order-router
+  labels:
+    app: order-router
+spec:
+  ports:
+    - name: api
+      port: 50581
+      protocol: TCP
+      targetPort: grpc
+  selector:
+    app: order-router
+  sessionAffinity: None

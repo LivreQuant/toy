@@ -1,0 +1,42 @@
+kafka:
+  image:
+    registry: docker.io
+    repository: bitnami/kafka
+    tag: latest
+  replicaCount: 3
+  persistence:
+    enabled: true
+    size: 8Gi
+  zookeeper:
+    enabled: true
+  metrics:
+    kafka:
+      enabled: true
+  listeners:
+    client:
+      protocol: PLAINTEXT
+  topics:
+    - name: orders
+      partitions: 3
+      replicationFactor: 2
+
+extraDeploy:
+  - |
+    apiVersion: batch/v1
+    kind: Job
+    metadata:
+      name: kafka-topics-setup
+    spec:
+      template:
+        spec:
+          containers:
+          - name: kafka-topics
+            image: bitnami/kafka:latest
+            command: 
+              - "/bin/bash"
+              - "-c"
+              - |
+                kafka-topics.sh --create --topic orders \
+                  --bootstrap-server kafka-opentp.kafka.svc.cluster.local:9092 \
+                  --if-not-exists
+          restartPolicy: Never

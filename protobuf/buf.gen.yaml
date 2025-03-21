@@ -1,0 +1,16 @@
+version: v2
+managed:
+  enabled: true
+
+plugins:
+  # PYTHON
+  - remote: buf.build/grpc/python:v1.60.0 # Use an older version compatible with protobuf 5.x
+    out: gen/python
+  - remote: buf.build/protocolbuffers/python:v21.12 # Specify older protobuf version
+    out: gen/python
+
+  # TYPESCRIPT (HANDLES CONNECTION GRPC AS WELL)
+  - remote: buf.build/bufbuild/es:v2.2.3
+    out: gen/ts
+    opt:
+      - target=ts

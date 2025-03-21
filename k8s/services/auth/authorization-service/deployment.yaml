@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: authorization-service
+  labels:
+    app: authorization-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: authorization-service
+  template:
+    metadata:
+      labels:
+        app: authorization-service
+    spec:
+      serviceAccountName: trading-services
+      containers:
+        - name: authorization-service
+          image: ${REGISTRY}/opentp-auth:${TAG}
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: opentp-common
+            - configMapRef:
+                name: auth-service-config
+          env:
+            - name: DB_CONN_STRING
+              valueFrom:
+                secretKeyRef:
+                  name: opentp-db-credentials
+                  key: DB_CONN_STRING
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: auth-jwt-secret
+                  key: JWT_SECRET
+          ports:
+            - name: grpc
+              containerPort: 50551
+            - name: auth
+              containerPort: 4000
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"

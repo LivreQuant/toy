@@ -1,0 +1,18 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: db-init-job
+spec:
+  ttlSecondsAfterFinished: 100
+  template:
+    spec:
+      containers:
+        - name: db-init
+          image: ${REGISTRY}/opentp-dataload:${TAG}
+          env:
+            - name: DB_CONN_STRING
+              valueFrom:
+                secretKeyRef:
+                  name: opentp-db-credentials
+                  key: DB_CONN_STRING
+      restartPolicy: OnFailure

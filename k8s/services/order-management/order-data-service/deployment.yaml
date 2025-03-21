@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-data-service
+  labels:
+    app: order-data-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: order-data-service
+  template:
+    metadata:
+      labels:
+        app: order-data-service
+    spec:
+      serviceAccountName: trading-services
+      containers:
+        - name: order-data-service
+          image: ${DOCKER_REPO}/otp-order-data-service:${VERSION}
+          imagePullPolicy: Always
+          envFrom:
+            - configMapRef:
+                name: opentp-common
+          ports:
+            - name: grpc
+              containerPort: 50551
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "200m"
+            limits:
+              memory: "512Mi"
+              cpu: "400m"
+          readinessProbe:
+            tcpSocket:
+              port: grpc
+            initialDelaySeconds: 5
+            periodSeconds: 10

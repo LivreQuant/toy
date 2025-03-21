@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: iexgsimulator
+  labels:
+    app: iexgsimulator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: iexgsimulator
+  template:
+    metadata:
+      labels:
+        app: iexgsimulator
+    spec:
+      containers:
+        - name: iexgsimulator
+          image: ${DOCKER_REPO}/otp-fixmarketsimulator:${VERSION}
+          env:
+            - name: FIX_FILE_STORE_PATH
+              value: /usr/share/cnoms/iexgsimulator
+            - name: TARGET_COMP_IDS
+              value: iexg-order-gateway-0,iexg-order-gateway-1,iexg-order-gateway-2
+            - name: BB_SYMS_TO_RUN
+              value: SPY,MSFT,BAC,OXY,CHNG,GE
+          volumeMounts:
+            - mountPath: /usr/share/cnoms
+              name: fixsim-storage
+          ports:
+            - containerPort: 9876
+              name: fix-server
+            - containerPort: 8501
+              name: open-api
+            - containerPort: 50051
+              name: grpc
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "200m"
+            limits:
+              memory: "512Mi"
+              cpu: "400m"
+      volumes:
+        - name: fixsim-storage
+          emptyDir: {}

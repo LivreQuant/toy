@@ -1,0 +1,10 @@
+version: v2
+name: buf.build/pb/main
+
+lint:
+  use:
+    - DEFAULT
+
+breaking:
+  use:
+    - PACKAGE
