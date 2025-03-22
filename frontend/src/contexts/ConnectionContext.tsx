@@ -1,8 +1,12 @@
 // src/contexts/ConnectionContext.tsx
 import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
-import { EnhancedConnectionManager, ConnectionState, ConnectionEvent } from '../services/connections/EnhancedConnectionManager';
+import { EnhancedConnectionManager } from '../services/connections/EnhancedConnectionManager';
+import { ConnectionState } from '../services/connections/ConnectionTypes';
 import { SessionStore } from '../services/session/SessionStore';
-import { SimulatorStatus } from '../types/simulator';
+import { getServiceConfig } from '../services/config/ServiceConfig';
+
+// Define simulator status type if not already defined elsewhere
+export type SimulatorStatus = 'UNKNOWN' | 'STARTING' | 'RUNNING' | 'STOPPING' | 'STOPPED' | 'ERROR';
 
 interface ConnectionContextState {
   isConnected: boolean;
@@ -17,6 +21,8 @@ interface ConnectionContextState {
   lastHeartbeatTime: number;
   heartbeatLatency: number | null;
   error: string | null;
+  podName: string | null;
+  podSwitched: boolean;
   connect: (token: string) => Promise<boolean>;
   reconnect: () => Promise<boolean>;
   disconnect: () => void;
@@ -28,18 +34,28 @@ interface ConnectionContextState {
 const ConnectionContext = createContext<ConnectionContextState | undefined>(undefined);
 
 export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // Basic connection states
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [hasSession, setHasSession] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [simulatorId, setSimulatorId] = useState<string | null>(null);
   const [simulatorStatus, setSimulatorStatus] = useState<SimulatorStatus>('UNKNOWN');
-  const [connectionQuality, setConnectionQuality] = useState<'good' | 'degraded' | 'poor'>('poor');
+  
+  // Connection quality metrics
+  const [connectionQuality, setConnectionQuality] = useState<'good' | 'degraded' | 'poor'>('good');
   const [reconnectAttempt, setReconnectAttempt] = useState(0);
-  const [maxReconnectAttempts] = useState(10);
+  const [maxReconnectAttempts, setMaxReconnectAttempts] = useState(15); // Increased for EKS
   const [lastHeartbeatTime, setLastHeartbeatTime] = useState(0);
   const [heartbeatLatency, setHeartbeatLatency] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  
+  // EKS-specific tracking
+  const [podName, setPodName] = useState<string | null>(null);
+  const [podSwitched, setPodSwitched] = useState(false);
+  
+  // Get service configuration
+  const serviceConfig = useMemo(() => getServiceConfig(), []);
   
   // Initialize connection manager
   const connectionManager = useMemo(() => new EnhancedConnectionManager(), []);
@@ -61,6 +77,9 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   }, [isConnected, isConnecting, simulatorStatus, connectionQuality, lastHeartbeatTime]);
   
   useEffect(() => {
+    // Update maxReconnectAttempts from config
+    setMaxReconnectAttempts(serviceConfig.maxReconnectAttempts || 15);
+    
     // Set up event listeners
     const handleStateChange = (data: any) => {
       setIsConnecting(data.newState === ConnectionState.CONNECTING || 
@@ -77,6 +96,17 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         setHasSession(true);
         setSessionId(data.sessionId);
         setError(null);
+        
+        // Handle pod info if present
+        if (data.podName) {
+          const oldPod = podName;
+          setPodName(data.podName);
+          
+          if (oldPod && oldPod !== data.podName) {
+            console.log(`Pod switched from ${oldPod} to ${data.podName}`);
+            setPodSwitched(true);
+          }
+        }
       } else {
         setHasSession(false);
         
@@ -100,7 +130,7 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }
       
       if (data.status) {
-        setSimulatorStatus(data.status);
+        setSimulatorStatus(data.status as SimulatorStatus);
       }
       
       if (data.error) {
@@ -115,17 +145,24 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }
     };
     
-    const handleAllEvents = (event: ConnectionEvent) => {
-      // Update connection quality after any event
-      setConnectionQuality(connectionManager.getConnectionQuality());
+    const handleConnectionQuality = (data: any) => {
+      setConnectionQuality(data.quality);
     };
     
+    const handlePodSwitched = (data: any) => {
+      console.log(`Pod switched from ${data.oldPod} to ${data.newPod}`);
+      setPodName(data.newPod);
+      setPodSwitched(true);
+    };
+    
+    // Register all event handlers
     connectionManager.on('state_change', handleStateChange);
     connectionManager.on('session', handleSession);
     connectionManager.on('reconnecting', handleReconnecting);
     connectionManager.on('simulator', handleSimulator);
     connectionManager.on('heartbeat', handleHeartbeat);
-    connectionManager.on('all', handleAllEvents);
+    connectionManager.on('connection_quality', handleConnectionQuality);
+    connectionManager.on('pod_switched', handlePodSwitched);
     
     // Check for existing session
     const existingSession = SessionStore.getSession();
@@ -140,6 +177,8 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       ).then(success => {
         if (success) {
           setSimulatorId(existingSession.simulatorId || null);
+          setPodName(existingSession.connectionInfo?.currentPodName || null);
+          setPodSwitched(SessionStore.hasPodSwitched());
         }
       });
     }
@@ -151,10 +190,12 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       connectionManager.off('reconnecting', handleReconnecting);
       connectionManager.off('simulator', handleSimulator);
       connectionManager.off('heartbeat', handleHeartbeat);
-      connectionManager.off('all', handleAllEvents);
+      connectionManager.off('connection_quality', handleConnectionQuality);
+      connectionManager.off('pod_switched', handlePodSwitched);
     };
-  }, [connectionManager]);
+  }, [connectionManager, podName, serviceConfig.maxReconnectAttempts]);
   
+  // API methods
   const connect = async (token: string): Promise<boolean> => {
     setIsConnecting(true);
     setError(null);
@@ -184,6 +225,8 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setSessionId(null);
     setSimulatorId(null);
     setSimulatorStatus('UNKNOWN');
+    setPodName(null);
+    setPodSwitched(false);
     setError(null);
   };
   
@@ -202,6 +245,8 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         lastHeartbeatTime,
         heartbeatLatency,
         error,
+        podName,
+        podSwitched,
         connect,
         reconnect,
         disconnect,
