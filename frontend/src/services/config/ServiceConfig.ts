@@ -22,23 +22,26 @@ export interface ServiceConfig {
       initialBackoffMs: 1000,
       maxBackoffMs: 30000,
       connectionTimeoutMs: 30000,
-      isLocalK8s
+      isLocalK8s,
+      useHttps: process.env.NODE_ENV === 'production' || window.location.protocol === 'https:'
     };
+    
+    const protocol = commonConfig.useHttps ? 'https' : 'http';
     
     // Environment-specific configurations
     if (isLocalK8s) {
       // Local Kubernetes configuration
       return {
         ...commonConfig,
-        authService: 'http://auth-api.local',
-        sessionService: 'http://session-api.local',
+        authService: `${protocol}://auth-api.local`,
+        sessionService: `${protocol}://session-api.local`,
       };
     } else if (process.env.NODE_ENV === 'development') {
       // Development configuration
       return {
         ...commonConfig,
-        authService: '/api/auth',
-        sessionService: '/api/session',
+        authService: `${protocol}://localhost:3001/api/auth`,
+        sessionService: `${protocol}://localhost:3001/api/session`,
       };
     } else {
       // Production configuration

@@ -7,6 +7,7 @@ import { getServiceConfig } from '../config/ServiceConfig';
 import { EventEmitter } from './EventEmitter';
 import { ConnectionHeartbeat } from './ConnectionHeartbeat';
 import { ConnectionSession } from './ConnectionSession';
+import { TokenManager } from '../auth/TokenManager';
 
 export class EnhancedConnectionManager {
   // Core state
@@ -14,6 +15,7 @@ export class EnhancedConnectionManager {
   private backoffStrategy: BackoffStrategy;
   private serviceConfig: any;
   private connectionQuality: ConnectionQuality = 'good';
+  private tokenManager: TokenManager;
   
   // Interval timers
   private keepAliveInterval: NodeJS.Timeout | null = null;
@@ -24,7 +26,8 @@ export class EnhancedConnectionManager {
   private heartbeat: ConnectionHeartbeat;
   private session: ConnectionSession;
   
-  constructor() {
+  constructor(tokenManager: TokenManager) {
+    this.tokenManager = tokenManager;
     this.serviceConfig = getServiceConfig();
     
     // Initialize backoff strategy
@@ -123,6 +126,16 @@ export class EnhancedConnectionManager {
     }
   }
   
+  // Token management
+  public getTokenManager(): TokenManager {
+    return this.tokenManager;
+  }
+  
+  public updateAuthToken(token: string): void {
+    // Notify session about token update
+    this.session.updateToken(token);
+  }
+  
   // Public API
   public async connect(token: string): Promise<boolean> {
     return this.session.connect(token);
@@ -162,8 +175,15 @@ export class EnhancedConnectionManager {
     this.setState(ConnectionState.RECONNECTING);
     this.backoffStrategy.reset(); // Reset backoff on new reconnection sequence
     
+    const token = await this.tokenManager.getAccessToken();
+    if (!token) {
+      this.setState(ConnectionState.FAILED);
+      this.emit('session', { valid: false, reason: 'no_token' });
+      return false;
+    }
+    
     const session = SessionStore.getSession();
-    if (!session || !session.token || !session.sessionId) {
+    if (!session || !session.sessionId) {
       this.setState(ConnectionState.FAILED);
       this.emit('session', { valid: false, reason: 'no_session_data' });
       return false;
@@ -183,7 +203,7 @@ export class EnhancedConnectionManager {
         
         // Try to reconnect using the explicit reconnect endpoint
         success = await this.session.reconnectSession(
-          session.token, 
+          token, 
           session.sessionId, 
           attempts
         );
@@ -252,8 +272,15 @@ export class EnhancedConnectionManager {
   
   // Helper methods
   public async checkAndReconnect(): Promise<void> {
+    const token = await this.tokenManager.getAccessToken();
+    if (!token) {
+      // No token available, can't reconnect
+      this.emit('session', { valid: false, reason: 'no_token' });
+      return;
+    }
+    
     const session = SessionStore.getSession();
-    if (!session || !session.token || !session.sessionId) {
+    if (!session || !session.sessionId) {
       // No session data available
       this.emit('session', { valid: false, reason: 'no_session_data' });
       return;
@@ -266,12 +293,12 @@ export class EnhancedConnectionManager {
     }
     
     // Attempt to reconnect
-    this.reconnect(session.token, session.sessionId, session.simulatorId);
+    this.reconnect(token, session.sessionId, session.simulatorId);
   }
   
   // Interval management
   public startKeepAlive(): void {
-    this.heartbeat.startKeepAlive();
+    this.heartbeat.startHeartbeats();
   }
   
   public clearIntervals(): void {
@@ -290,8 +317,11 @@ export class EnhancedConnectionManager {
   
   // Connection quality monitoring
   public async updateConnectionQuality(): Promise<void> {
+    const token = await this.tokenManager.getAccessToken();
+    if (!token) return;
+    
     const session = SessionStore.getSession();
-    if (!session || !session.token || !session.sessionId || !this.isConnected()) {
+    if (!session || !session.sessionId || !this.isConnected()) {
       return;
     }
     
@@ -299,7 +329,7 @@ export class EnhancedConnectionManager {
       // Calculate metrics
       const metrics = {
         sessionId: session.sessionId,
-        token: session.token,
+        token: token,
         latencyMs: this.heartbeat.getHeartbeatLatency() || 0,
         missedHeartbeats: this.heartbeat.getConsecutiveMisses(),
         connectionType: ConnectionNetworkManager.detectConnectionType()
@@ -310,7 +340,7 @@ export class EnhancedConnectionManager {
         method: 'POST',
         ...ConnectionNetworkManager.getFetchOptions({
           headers: {
-            'Authorization': `Bearer ${session.token}`
+            'Authorization': `Bearer ${token}`
           },
           body: JSON.stringify(metrics)
         })

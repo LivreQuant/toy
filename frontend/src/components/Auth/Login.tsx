@@ -15,7 +15,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
-  const { connect } = useConnection();
+  const { login } = useConnection();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,34 +29,16 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     setError(null);
     
     try {
-      // Call your authentication API
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ username, password }),
-      });
+      // Use the login method from ConnectionContext
+      const success = await login(username, password);
       
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.message || 'Authentication failed');
-      }
-      
-      // Store token in localStorage
-      localStorage.setItem('token', data.token);
-      
-      // Connect to the session system
-      const connected = await connect(data.token);
-      
-      if (connected) {
+      if (success) {
         if (onLoginSuccess) {
           onLoginSuccess();
         }
         navigate('/home');
       } else {
-        throw new Error('Failed to establish connection');
+        throw new Error('Login failed. Please try again.');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed. Please try again.');

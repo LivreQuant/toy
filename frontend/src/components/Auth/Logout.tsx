@@ -9,40 +9,20 @@ interface LogoutProps {
 }
 
 const Logout: React.FC<LogoutProps> = ({ onLogout }) => {
-  const { disconnect } = useConnection();
+  const { logout } = useConnection();
   const navigate = useNavigate();
   
   const handleLogout = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      
-      if (token) {
-        // Optional: Notify server about logout
-        await fetch('/api/auth/logout', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-      }
-    } catch (err) {
-      console.error('Error during logout:', err);
-    } finally {
-      // Disconnect from session
-      disconnect();
-      
-      // Remove token
-      localStorage.removeItem('token');
-      
-      // Callback if provided
-      if (onLogout) {
-        onLogout();
-      }
-      
-      // Redirect to login
-      navigate('/login');
+    // Call the logout method from ConnectionContext
+    logout();
+    
+    // Callback if provided
+    if (onLogout) {
+      onLogout();
     }
+    
+    // Redirect to login
+    navigate('/login');
   };
   
   return (

@@ -1,5 +1,4 @@
 // src/services/connections/ConnectionSession.ts
-
 import { ConnectionState } from './ConnectionTypes';
 import { EnhancedConnectionManager } from './EnhancedConnectionManager';
 import { ConnectionNetworkManager } from './ConnectionNetworkManager';
@@ -197,29 +196,6 @@ export class ConnectionSession {
     }
   }
   
-  private async handleExpiredSession(token: string, simulatorId?: string): Promise<boolean> {
-    console.log('Session expired. Creating a new session...');
-    
-    try {
-      // Create new session
-      const success = await this.connect(token);
-      
-      if (success && simulatorId) {
-        // If we had a simulator, notify about the change
-        this.manager.emit('simulator', {
-          id: null,
-          status: 'EXPIRED',
-          needsRestart: true
-        });
-      }
-      
-      return success;
-    } catch (error) {
-      console.error('Failed to create new session after expiration:', error);
-      return false;
-    }
-  }
-  
   public async reconnectSession(
     token: string, 
     sessionId: string, 
@@ -310,6 +286,29 @@ export class ConnectionSession {
     }
   }
   
+  private async handleExpiredSession(token: string, simulatorId?: string): Promise<boolean> {
+    console.log('Session expired. Creating a new session...');
+    
+    try {
+      // Create new session
+      const success = await this.connect(token);
+      
+      if (success && simulatorId) {
+        // If we had a simulator, notify about the change
+        this.manager.emit('simulator', {
+          id: null,
+          status: 'EXPIRED',
+          needsRestart: true
+        });
+      }
+      
+      return success;
+    } catch (error) {
+      console.error('Failed to create new session after expiration:', error);
+      return false;
+    }
+  }
+  
   // Stream management
   public registerStream(streamId: string, streamObj: any): void {
     this.activeStreams.set(streamId, streamObj);
@@ -388,6 +387,17 @@ export class ConnectionSession {
     this.currentPodId = null;
     this.streamReconnectAttempts = 0;
     SessionStore.clearSession();
+  }
+  
+  // Update session with new token
+  public updateToken(token: string): void {
+    const session = SessionStore.getSession();
+    if (session && this.sessionId) {
+      SessionStore.saveSession({
+        ...session,
+        token: token
+      });
+    }
   }
   
   // Getters

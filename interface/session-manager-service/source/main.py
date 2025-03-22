@@ -449,27 +449,20 @@ class SessionManagerServicer(session_manager_pb2_grpc.SessionManagerServiceServi
         self._untrack_stream(session_id, context)
 
 def serve():
-    # Get environment configuration
-    auth_service = os.getenv('AUTH_SERVICE', 'auth-service:50051')
-    service_port = int(os.getenv('SERVICE_PORT', '50052'))
+    # Create auth channel with TLS
+    auth_channel = create_auth_channel()
     
-    # Create auth channel with retry options
-    channel_options = [
-        ('grpc.enable_retries', 1),
-        ('grpc.service_config', json.dumps({
-            'methodConfig': [{
-                'name': [{}],  # Apply to all methods
-                'retryPolicy': {
-                    'maxAttempts': 5,
-                    'initialBackoff': '0.1s',
-                    'maxBackoff': '10s',
-                    'backoffMultiplier': 2.0,
-                    'retryableStatusCodes': ['UNAVAILABLE']
-                }
-            }]
-        }))
-    ]
-    auth_channel = grpc.insecure_channel(auth_service, options=channel_options)
+    # Load server credentials for this service
+    server_key = open('certs/server.key', 'rb').read()
+    server_cert = open('certs/server.crt', 'rb').read()
+    ca_cert = open('certs/ca.crt', 'rb').read()
+    
+        # Create server credentials
+    server_credentials = grpc.ssl_server_credentials(
+        [(server_key, server_cert)],
+        root_certificates=ca_cert,
+        require_client_auth=True  # Require mutual TLS
+    )
     
     # Create gRPC server
     server = grpc.server(
@@ -495,20 +488,19 @@ def serve():
         servicer, server
     )
     
-    # Start server
-    server.add_insecure_port(f'[::]:{service_port}')
+    # Start server with TLS
+    service_port = int(os.getenv('SERVICE_PORT', '50052'))
+    server.add_secure_port(f'[::]:{service_port}', server_credentials)
     server.start()
-    logger.info(f"Session Manager Service started on port {service_port}")
+    
+    logger.info(f"Session Manager Service started with TLS on port {service_port}")
     
     try:
-        # Keep server running until interrupted
         server.wait_for_termination()
     except KeyboardInterrupt:
         logger.info("Keyboard interrupt received, initiating shutdown")
         servicer._handle_shutdown_signal(signal.SIGINT, None)
-        # Give some time for graceful shutdown
         time.sleep(5)
-
 
 if __name__ == '__main__':
     serve()

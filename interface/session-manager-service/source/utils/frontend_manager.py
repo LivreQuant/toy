@@ -280,3 +280,39 @@ class FrontendManager:
             quality=quality,
             reconnect_recommended=reconnect_recommended
         )
+    
+    # When creating the client connection to auth service, use TLS
+    def create_auth_channel():
+        # Load client credentials
+        client_key = open('certs/client.key', 'rb').read()
+        client_cert = open('certs/client.crt', 'rb').read()
+        ca_cert = open('certs/ca.crt', 'rb').read()
+        
+        # Create channel credentials
+        channel_credentials = grpc.ssl_channel_credentials(
+            root_certificates=ca_cert,
+            private_key=client_key,
+            certificate_chain=client_cert
+        )
+        
+        # Create channel options for retry
+        channel_options = [
+            ('grpc.enable_retries', 1),
+            ('grpc.service_config', json.dumps({
+                'methodConfig': [{
+                    'name': [{}],  # Apply to all methods
+                    'retryPolicy': {
+                        'maxAttempts': 5,
+                        'initialBackoff': '0.1s',
+                        'maxBackoff': '10s',
+                        'backoffMultiplier': 2.0,
+                        'retryableStatusCodes': ['UNAVAILABLE']
+                    }
+                }]
+            }))
+        ]
+        
+        # Create secure channel
+        auth_service = os.getenv('AUTH_SERVICE', 'auth-service:50051')
+        return grpc.secure_channel(auth_service, channel_credentials, options=channel_options)
+

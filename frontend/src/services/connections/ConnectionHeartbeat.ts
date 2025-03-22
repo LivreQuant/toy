@@ -133,6 +133,15 @@ export class ConnectionHeartbeat {
     }
   }
   
+  private showMaintenanceNotification(): void {
+    // This could dispatch to your UI notification system
+    // Or you could emit an event that your UI components listen for
+    this.manager.emit('maintenance_notification', {
+      message: 'The service is undergoing maintenance. You will be reconnected automatically.',
+      timestamp: Date.now()
+    });
+  }
+
   // Public getters for state
   public getLastHeartbeatTime(): number {
     return this.lastHeartbeatResponse;

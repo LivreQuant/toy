@@ -4,6 +4,7 @@ import { EnhancedConnectionManager } from '../services/connections/EnhancedConne
 import { ConnectionState } from '../services/connections/ConnectionTypes';
 import { SessionStore } from '../services/session/SessionStore';
 import { getServiceConfig } from '../services/config/ServiceConfig';
+import { TokenManager } from '../services/auth/TokenManager';
 
 // Define simulator status type if not already defined elsewhere
 export type SimulatorStatus = 'UNKNOWN' | 'STARTING' | 'RUNNING' | 'STOPPING' | 'STOPPED' | 'ERROR';
@@ -21,6 +22,7 @@ interface ConnectionContextState {
   lastHeartbeatTime: number;
   heartbeatLatency: number | null;
   error: string | null;
+  // src/contexts/ConnectionContext.tsx (continued)
   podName: string | null;
   podSwitched: boolean;
   connect: (token: string) => Promise<boolean>;
@@ -29,6 +31,9 @@ interface ConnectionContextState {
   canSubmitOrders: boolean;
   reconnectWithBackoff: () => Promise<boolean>;
   updateConnectionQuality: () => Promise<void>;
+  tokenManager: TokenManager;
+  login: (username: string, password: string) => Promise<boolean>;
+  logout: () => void;
 }
 
 const ConnectionContext = createContext<ConnectionContextState | undefined>(undefined);
@@ -57,8 +62,11 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   // Get service configuration
   const serviceConfig = useMemo(() => getServiceConfig(), []);
   
+  // Initialize token manager
+  const tokenManager = useMemo(() => new TokenManager(), []);
+  
   // Initialize connection manager
-  const connectionManager = useMemo(() => new EnhancedConnectionManager(), []);
+  const connectionManager = useMemo(() => new EnhancedConnectionManager(tokenManager), [tokenManager]);
   
   // Determine if order submission should be allowed
   const canSubmitOrders = useMemo(() => {
@@ -79,6 +87,17 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   useEffect(() => {
     // Update maxReconnectAttempts from config
     setMaxReconnectAttempts(serviceConfig.maxReconnectAttempts || 15);
+    
+    // Register token refresh handler
+    tokenManager.onTokenRefresh(() => {
+      // If we're connected, update the token in the connection manager
+      if (isConnected) {
+        const tokens = tokenManager.getTokens();
+        if (tokens) {
+          connectionManager.updateAuthToken(tokens.accessToken);
+        }
+      }
+    });
     
     // Set up event listeners
     const handleStateChange = (data: any) => {
@@ -116,6 +135,8 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           setError(data.error || 'Failed to create session');
         } else if (data.reason === 'network_error') {
           setError('Network connection error. Please check your connection.');
+        } else if (data.reason === 'no_token') {
+          setError('Authentication token expired. Please log in again.');
         }
       }
     };
@@ -164,21 +185,34 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     connectionManager.on('connection_quality', handleConnectionQuality);
     connectionManager.on('pod_switched', handlePodSwitched);
     
-    // Check for existing session
-    const existingSession = SessionStore.getSession();
-    if (existingSession && existingSession.token && existingSession.sessionId) {
+    // Check for existing session and token
+    const tokens = tokenManager.getTokens();
+    if (tokens && tokenManager.isAuthenticated()) {
+      // We have a valid token, check for existing session
       setIsConnecting(true);
       
-      // Try to reconnect with stored session
-      connectionManager.reconnect(
-        existingSession.token, 
-        existingSession.sessionId, 
-        existingSession.simulatorId
-      ).then(success => {
-        if (success) {
-          setSimulatorId(existingSession.simulatorId || null);
-          setPodName(existingSession.connectionInfo?.currentPodName || null);
-          setPodSwitched(SessionStore.hasPodSwitched());
+      tokenManager.getAccessToken().then(token => {
+        if (token) {
+          // Try to reconnect with stored session
+          const existingSession = SessionStore.getSession();
+          if (existingSession && existingSession.sessionId) {
+            connectionManager.reconnect(
+              token, 
+              existingSession.sessionId, 
+              existingSession.simulatorId
+            ).then(success => {
+              if (success) {
+                setSimulatorId(existingSession.simulatorId || null);
+                setPodName(existingSession.connectionInfo?.currentPodName || null);
+                setPodSwitched(SessionStore.hasPodSwitched());
+              }
+            });
+          } else {
+            // No existing session but we have a token - create new session
+            connectionManager.connect(token);
+          }
+        } else {
+          setIsConnecting(false);
         }
       });
     }
@@ -193,7 +227,75 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       connectionManager.off('connection_quality', handleConnectionQuality);
       connectionManager.off('pod_switched', handlePodSwitched);
     };
-  }, [connectionManager, podName, serviceConfig.maxReconnectAttempts]);
+  }, [connectionManager, podName, serviceConfig.maxReconnectAttempts, tokenManager, isConnected]);
+  
+  // Login function
+  const login = async (username: string, password: string): Promise<boolean> => {
+    try {
+      setIsConnecting(true);
+      setError(null);
+      
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ username, password }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Login failed');
+      }
+      
+      const data = await response.json();
+      
+      // Store tokens
+      tokenManager.storeTokens({
+        accessToken: data.accessToken,
+        refreshToken: data.refreshToken,
+        expiresAt: Date.now() + (data.expiresIn * 1000),
+      });
+      
+      // Connect with the new token
+      return connectionManager.connect(data.accessToken);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Login failed');
+      setIsConnecting(false);
+      return false;
+    }
+  };
+  
+  // Logout function
+  const logout = () => {
+    const tokens = tokenManager.getTokens();
+    if (tokens) {
+      // Call logout API
+      fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${tokens.accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ refreshToken: tokens.refreshToken }),
+      }).catch(err => {
+        console.error('Logout error:', err);
+      });
+    }
+    
+    // Disconnect and clear tokens
+    connectionManager.disconnect();
+    tokenManager.clearTokens();
+    SessionStore.clearSession();
+    
+    // Reset states
+    setSessionId(null);
+    setSimulatorId(null);
+    setSimulatorStatus('UNKNOWN');
+    setPodName(null);
+    setPodSwitched(false);
+    setHasSession(false);
+  };
   
   // API methods
   const connect = async (token: string): Promise<boolean> => {
@@ -203,8 +305,14 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
   
   const reconnect = async (): Promise<boolean> => {
+    const token = await tokenManager.getAccessToken();
+    if (!token) {
+      setError('Authentication token expired. Please log in again.');
+      return false;
+    }
+    
     const session = SessionStore.getSession();
-    if (!session || !session.token || !session.sessionId) {
+    if (!session || !session.sessionId) {
       setError('No session data available for reconnection');
       return false;
     }
@@ -212,7 +320,7 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setIsConnecting(true);
     setError(null);
     return connectionManager.reconnect(
-      session.token, 
+      token, 
       session.sessionId, 
       session.simulatorId
     );
@@ -253,6 +361,9 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         canSubmitOrders,
         reconnectWithBackoff: connectionManager.reconnectWithBackoff.bind(connectionManager),
         updateConnectionQuality: connectionManager.updateConnectionQuality.bind(connectionManager),
+        tokenManager,
+        login,
+        logout,
       }}
     >
       {children}

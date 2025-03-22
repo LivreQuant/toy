@@ -1,0 +1,5 @@
+# Request a certificate for your domain
+aws acm request-certificate \
+  --domain-name trading.yourdomain.com \
+  --validation-method DNS \
+  --subject-alternative-names "*.trading.yourdomain.com"

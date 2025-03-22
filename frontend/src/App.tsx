@@ -1,7 +1,7 @@
 // src/App.tsx
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { ConnectionProvider } from './contexts/ConnectionContext';
+import { ConnectionProvider, useConnection } from './contexts/ConnectionContext';
 import LoginPage from './pages/LoginPage';
 import HomePage from './pages/HomePage';
 import SimulatorPage from './pages/SimulatorPage';
@@ -28,27 +28,26 @@ const App: React.FC = () => {
 
 // Require authentication wrapper
 const RequireAuth: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { hasSession, isConnecting } = useConnection();
+  const { hasSession, isConnecting, tokenManager } = useConnection();
   
-  // Check for stored token
-  const token = localStorage.getItem('token');
-  
-  if (!token) {
-    // No token, redirect to login
+  // Check for valid authentication first
+  if (!tokenManager.isAuthenticated()) {
+    // Not authenticated, redirect to login
     return <Navigate to="/login" replace />;
   }
   
+  // If connected to a session, allow access
+  if (hasSession) {
+    return <>{children}</>;
+  }
+  
+  // If connecting, show loading
   if (isConnecting) {
-    // Still trying to reconnect, show loading
     return <div className="loading-container">Connecting to session...</div>;
   }
   
-  if (!hasSession) {
-    // Not connected and not connecting, redirect to login
-    return <Navigate to="/login" replace />;
-  }
-  
-  return <>{children}</>;
+  // Not connected and not connecting, redirect to login
+  return <Navigate to="/login" replace />;
 };
 
 export default App;
