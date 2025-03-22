@@ -22,7 +22,7 @@ COPY *.py ./
 COPY protos/ ./protos/
 
 # Expose ports
-EXPOSE 50052 8088
+EXPOSE 51558 51559 8088 8089
 
 # Set health check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \

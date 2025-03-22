@@ -23,6 +23,7 @@ from db_manager import DatabaseManager
 from frontend_manager import FrontendManager
 from exchange_manager import ExchangeManager
 from health_server import start_health_server
+from sse_bridge import SSEBridge
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -45,6 +46,7 @@ class SessionManagerServicer(session_manager_pb2_grpc.SessionManagerServiceServi
         self.session_extension_threshold = int(os.getenv('SESSION_EXTENSION_THRESHOLD', '1800'))  # 30 minutes
         self.simulator_timeout = int(os.getenv('SIMULATOR_TIMEOUT_SECONDS', '600'))  # 10 minutes
         self.max_frontend_connections = int(os.getenv('MAX_FRONTEND_CONNECTIONS', '3'))
+        self.sse_port = int(os.getenv('SSE_PORT', '8089'))  # Port for SSE HTTP server
         
         # Track active connections for graceful shutdown
         self.active_connections = {}  # session_id -> list of connections
@@ -54,6 +56,9 @@ class SessionManagerServicer(session_manager_pb2_grpc.SessionManagerServiceServi
         # Initialize managers
         self.exchange_manager = ExchangeManager(self)
         self.frontend_manager = FrontendManager(self)
+        
+        # Initialize SSE bridge
+        self.sse_bridge = SSEBridge(self)
         
         # Start background cleaner for expired sessions
         self.cleaner = threading.Thread(target=self._clean_expired_sessions, daemon=True)
@@ -105,15 +110,19 @@ class SessionManagerServicer(session_manager_pb2_grpc.SessionManagerServiceServi
                     except Exception as e:
                         logger.error(f"Error notifying stream of shutdown: {e}")
             
-            # 3. Wait a moment for clients to receive shutdown notice
+            # 3. Shutdown SSE bridge
+            logger.info("Shutting down SSE bridge")
+            self.sse_bridge.shutdown()
+            
+            # 4. Wait a moment for clients to receive shutdown notice
             logger.info("Waiting for clients to process shutdown notifications")
             time.sleep(2)
             
-            # 4. Close database connections
+            # 5. Close database connections
             logger.info("Closing database connections")
-            self.db.close()
+            self.db.close_all()
             
-            # 5. Exit the process
+            # 6. Exit the process
             logger.info("Shutdown complete, exiting process")
             sys.exit(0)
         except Exception as e:
@@ -448,21 +457,69 @@ class SessionManagerServicer(session_manager_pb2_grpc.SessionManagerServiceServi
         """Handle stream termination"""
         self._untrack_stream(session_id, context)
 
+def create_auth_channel():
+    """Create a gRPC channel to the auth service with TLS"""
+    try:
+        # Load client credentials
+        client_key = open('certs/client.key', 'rb').read()
+        client_cert = open('certs/client.crt', 'rb').read()
+        ca_cert = open('certs/ca.crt', 'rb').read()
+        
+        # Create channel credentials
+        channel_credentials = grpc.ssl_channel_credentials(
+            root_certificates=ca_cert,
+            private_key=client_key,
+            certificate_chain=client_cert
+        )
+        
+        # Create channel options for retry
+        channel_options = [
+            ('grpc.enable_retries', 1),
+            ('grpc.service_config', json.dumps({
+                'methodConfig': [{
+                    'name': [{}],  # Apply to all methods
+                    'retryPolicy': {
+                        'maxAttempts': 5,
+                        'initialBackoff': '0.1s',
+                        'maxBackoff': '10s',
+                        'backoffMultiplier': 2.0,
+                        'retryableStatusCodes': ['UNAVAILABLE']
+                    }
+                }]
+            }))
+        ]
+        
+        # Create secure channel
+        auth_service = os.getenv('AUTH_SERVICE', 'auth-service:50051')
+        return grpc.secure_channel(auth_service, channel_credentials, options=channel_options)
+    except Exception as e:
+        logger.error(f"Failed to create secure auth channel: {e}")
+        # Fallback to insecure channel for development/testing
+        auth_service = os.getenv('AUTH_SERVICE', 'auth-service:50051')
+        logger.warning(f"Using insecure channel to auth service at {auth_service}")
+        return grpc.insecure_channel(auth_service)
+
 def serve():
     # Create auth channel with TLS
     auth_channel = create_auth_channel()
     
     # Load server credentials for this service
-    server_key = open('certs/server.key', 'rb').read()
-    server_cert = open('certs/server.crt', 'rb').read()
-    ca_cert = open('certs/ca.crt', 'rb').read()
-    
+    try:
+        server_key = open('certs/server.key', 'rb').read()
+        server_cert = open('certs/server.crt', 'rb').read()
+        ca_cert = open('certs/ca.crt', 'rb').read()
+        
         # Create server credentials
-    server_credentials = grpc.ssl_server_credentials(
-        [(server_key, server_cert)],
-        root_certificates=ca_cert,
-        require_client_auth=True  # Require mutual TLS
-    )
+        server_credentials = grpc.ssl_server_credentials(
+            [(server_key, server_cert)],
+            root_certificates=ca_cert,
+            require_client_auth=True  # Require mutual TLS
+        )
+        use_tls = True
+    except Exception as e:
+        logger.error(f"Failed to load TLS certificates: {e}")
+        logger.warning("Starting server WITHOUT TLS - THIS IS NOT SECURE FOR PRODUCTION")
+        use_tls = False
     
     # Create gRPC server
     server = grpc.server(
@@ -488,12 +545,16 @@ def serve():
         servicer, server
     )
     
-    # Start server with TLS
+    # Start server with appropriate credentials
     service_port = int(os.getenv('SERVICE_PORT', '50052'))
-    server.add_secure_port(f'[::]:{service_port}', server_credentials)
-    server.start()
+    if use_tls:
+        server.add_secure_port(f'[::]:{service_port}', server_credentials)
+        logger.info(f"Session Manager Service started with TLS on port {service_port}")
+    else:
+        server.add_insecure_port(f'[::]:{service_port}')
+        logger.info(f"Session Manager Service started WITHOUT TLS on port {service_port}")
     
-    logger.info(f"Session Manager Service started with TLS on port {service_port}")
+    server.start()
     
     try:
         server.wait_for_termination()
