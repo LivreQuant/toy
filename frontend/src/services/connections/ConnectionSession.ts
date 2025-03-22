@@ -367,6 +367,77 @@ export class ConnectionSession {
     return false;
   }
   
+  public async closeExchangeConnections(): Promise<void> {
+    // Close all active connections to exchange services
+    with this.lock:
+      for session_id, connections in list(this.exchange_connections.items()):
+        try {
+          this._close_exchange_connection(session_id);
+        } catch (e) {
+          logger.error(`Error closing exchange connection for ${session_id}: ${e}`);
+        }
+  }
+  
+  public async initializeExchangeConnection(): Promise<boolean> {
+    const session = SessionStore.getSession();
+    if (!session || !session.sessionId) return false;
+    
+    try {
+      // Get simulator info
+      const sessionState = await this._getSessionState(session.sessionId, session.token);
+      
+      if (sessionState && sessionState.simulatorId && sessionState.simulatorEndpoint) {
+        // Register in database
+        return await this._activateExchangeService(
+          session.sessionId,
+          sessionState.simulatorId,
+          sessionState.simulatorEndpoint
+        );
+      }
+      return false;
+    } catch (error) {
+      logger.error(`Failed to initialize exchange connection: ${error}`);
+      return false;
+    }
+  }
+
+  private async _getSessionState(sessionId: string, token: string): Promise<any> {
+    const url = ConnectionNetworkManager.createServiceUrl('session', 'state');
+    const response = await fetch(`${url}?sessionId=${sessionId}`, {
+      method: 'GET',
+      ...ConnectionNetworkManager.getFetchOptions({
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+    });
+    
+    if (!response.ok) return null;
+    return await response.json();
+  }
+
+  private async _activateExchangeService(
+    sessionId: string, 
+    simulatorId: string, 
+    endpoint: string
+  ): Promise<boolean> {
+    // Register connection
+    this.exchange_connections[sessionId] = {
+      simulatorId,
+      endpoint,
+      active: true,
+      lastActive: Date.now()
+    };
+    
+    // Update session metadata
+    SessionStore.updateSessionData(sessionId, {
+      simulatorId,
+      simulatorEndpoint: endpoint
+    });
+    
+    return true;
+  }
+
   // Session management
   public clearSession(): void {
     // Close all active streams

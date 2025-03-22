@@ -229,7 +229,6 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     };
   }, [connectionManager, podName, serviceConfig.maxReconnectAttempts, tokenManager, isConnected]);
   
-  // Login function
   const login = async (username: string, password: string): Promise<boolean> => {
     try {
       setIsConnecting(true);
@@ -245,20 +244,20 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Login failed');
+        throw new Error(errorData.error || errorData.error_message || 'Login failed');
       }
       
       const data = await response.json();
       
-      // Store tokens
+      // Store tokens - ensure consistent naming
       tokenManager.storeTokens({
-        accessToken: data.accessToken,
-        refreshToken: data.refreshToken,
-        expiresAt: Date.now() + (data.expiresIn * 1000),
+        accessToken: data.access_token,
+        refreshToken: data.refresh_token,
+        expiresAt: Date.now() + (data.expires_in * 1000),
       });
       
       // Connect with the new token
-      return connectionManager.connect(data.accessToken);
+      return connectionManager.connect(data.access_token);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
       setIsConnecting(false);
@@ -266,7 +265,6 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   };
   
-  // Logout function
   const logout = () => {
     const tokens = tokenManager.getTokens();
     if (tokens) {
@@ -277,7 +275,7 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           'Authorization': `Bearer ${tokens.accessToken}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ refreshToken: tokens.refreshToken }),
+        body: JSON.stringify({ refresh_token: tokens.refreshToken }),
       }).catch(err => {
         console.error('Logout error:', err);
       });

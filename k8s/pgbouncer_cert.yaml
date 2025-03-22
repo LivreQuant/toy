@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: pgbouncer-credentials
+  namespace: postgresql
+type: Opaque
+stringData:
+  userlist.txt: '"opentp" "md5password_hash_here"'
+
+# Replace md5password_hash_here with the actual MD5 hash of your password. You can generate it with:
+# echo -n "passwordopentp" | md5sum | cut -d ' ' -f 1

@@ -149,6 +149,7 @@ export class EnhancedConnectionManager {
     return this.session.reconnect(token, sessionId, simulatorId);
   }
   
+  // Improved reconnect with backoff method
   public async reconnectWithBackoff(): Promise<boolean> {
     // If we're already reconnecting, just wait for that to finish
     if (this.state === ConnectionState.RECONNECTING) {
@@ -177,9 +178,13 @@ export class EnhancedConnectionManager {
     
     const token = await this.tokenManager.getAccessToken();
     if (!token) {
-      this.setState(ConnectionState.FAILED);
-      this.emit('session', { valid: false, reason: 'no_token' });
-      return false;
+      // Try to refresh the token first before giving up
+      const refreshed = await this.tokenManager.refreshAccessToken();
+      if (!refreshed) {
+        this.setState(ConnectionState.FAILED);
+        this.emit('session', { valid: false, reason: 'no_token' });
+        return false;
+      }
     }
     
     const session = SessionStore.getSession();
@@ -201,9 +206,15 @@ export class EnhancedConnectionManager {
           maxAttempts: this.serviceConfig.maxReconnectAttempts 
         });
         
+        // Always get a fresh token for each attempt
+        const currentToken = await this.tokenManager.getAccessToken();
+        if (!currentToken) {
+          throw new Error("Could not obtain valid token");
+        }
+        
         // Try to reconnect using the explicit reconnect endpoint
         success = await this.session.reconnectSession(
-          token, 
+          currentToken, 
           session.sessionId, 
           attempts
         );
@@ -270,13 +281,16 @@ export class EnhancedConnectionManager {
     SessionStore.updateActivity();
   }
   
-  // Helper methods
+  // Improved check and reconnect method with proper session affinity handling
   public async checkAndReconnect(): Promise<void> {
     const token = await this.tokenManager.getAccessToken();
     if (!token) {
-      // No token available, can't reconnect
-      this.emit('session', { valid: false, reason: 'no_token' });
-      return;
+      // Try to refresh the token before giving up
+      const refreshed = await this.tokenManager.refreshAccessToken();
+      if (!refreshed) {
+        this.emit('session', { valid: false, reason: 'no_token' });
+        return;
+      }
     }
     
     const session = SessionStore.getSession();
@@ -292,8 +306,35 @@ export class EnhancedConnectionManager {
       return;
     }
     
+    // Capture current pod name before reconnection
+    const prevPodName = session.connectionInfo?.currentPodName;
+    
     // Attempt to reconnect
-    this.reconnect(token, session.sessionId, session.simulatorId);
+    const reconnected = await this.reconnect(
+      await this.tokenManager.getAccessToken(), 
+      session.sessionId, 
+      session.simulatorId
+    );
+    
+    if (reconnected) {
+      // Check if we've switched to a different pod
+      const currentSession = SessionStore.getSession();
+      const newPodName = currentSession?.connectionInfo?.currentPodName;
+      
+      if (prevPodName && newPodName && prevPodName !== newPodName) {
+        console.log(`Pod switched from ${prevPodName} to ${newPodName}`);
+        
+        // Notify about pod change
+        this.emit('pod_switched', {
+          oldPod: prevPodName,
+          newPod: newPodName
+        });
+        
+        // Re-initialize exchange connection on pod switch
+        await this.session.closeExchangeConnections();
+        await this.session.initializeExchangeConnection();
+      }
+    }
   }
   
   // Interval management
