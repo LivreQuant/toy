@@ -96,3 +96,36 @@ Auto-scaling Rules: Define clear auto-scaling triggers and limits
 Resource Management: Add resource quotas and limits per user
 
 By addressing these areas, your session service would become a truly production-ready component capable of handling enterprise-level requirements for scalability, security, observability, and operational excellence.
+
+
+
+
+
+---------
+I'm working on a cloud-based trading simulator platform deployed on AWS EKS. The system uses a microservice architecture with:
+
+1. React frontend (CloudFront/S3) communicating via REST, WebSockets, and SSE
+2. Authorization service (JWT authentication)
+3. Session manager service (connection bridging between frontend and exchange)
+4. Exchange simulator service (stateful trading engines, one per user)
+5. Order service (validation and submission)
+6. PostgreSQL for persistent data and Redis for caching
+
+Our current focus is on [specific component or feature to work on next]. We're prioritizing reliability, real-time data flow, and session management across Kubernetes pods.
+
+Please help me implement/improve [specific task or component], considering:
+- How it integrates with existing services
+- Error handling and reconnection strategies
+- Performance optimization for trading data
+- AWS EKS deployment considerations
+
+The code follows TypeScript for frontend and Python/gRPC for backend services.
+-------------
+I'm working on improving the reliability and resilience of communication between my frontend (hosted on CloudFront/S3) and session manager service running in AWS EKS. We've already implemented circuit breakers and enhanced reconnection strategies with jitter in both the frontend code and backend services.
+
+Now, I'd like to focus on optimizing the AWS ALB Ingress Controller configuration to ensure reliable and persistent connections, especially for WebSockets and SSE streams. Specifically, I need help with:
+
+1. Properly configuring sticky sessions in the ALB Ingress to ensure consistent routing to the same backend pods
+2. Setting up connection draining to handle pod terminations gracefully during deployments
+3. Optimizing timeouts and keep-alive settings for long-lived connections
+4. Enhancing health check configuration for better detection of unhealthy pods

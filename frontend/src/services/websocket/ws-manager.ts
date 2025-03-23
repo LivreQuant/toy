@@ -1,4 +1,5 @@
-// src/services/websocket/ws-manager.ts
+// frontend/src/services/websocket/ws-manager.ts
+
 import { TokenManager } from '../auth/token-manager';
 import { BackoffStrategy } from './backoff-strategy';
 
@@ -6,6 +7,8 @@ export interface WebSocketOptions {
   heartbeatInterval?: number;
   reconnectMaxAttempts?: number;
   heartbeatTimeoutMs?: number;
+  circuitBreakerThreshold?: number;
+  circuitBreakerResetTimeMs?: number;
 }
 
 export class WebSocketManager {
@@ -25,6 +28,13 @@ export class WebSocketManager {
   private heartbeatInterval: number;
   private heartbeatTimeoutMs: number;
   
+  // Circuit breaker properties
+  private consecutiveFailures: number = 0;
+  private circuitBreakerThreshold: number;
+  private circuitBreakerState: 'CLOSED' | 'OPEN' | 'HALF_OPEN' = 'CLOSED';
+  private circuitBreakerResetTime: number;
+  private circuitBreakerTrippedAt: number = 0;
+  
   constructor(url: string, tokenManager: TokenManager, options: WebSocketOptions = {}) {
     this.url = url;
     this.tokenManager = tokenManager;
@@ -32,6 +42,10 @@ export class WebSocketManager {
     this.maxReconnectAttempts = options.reconnectMaxAttempts || 15;
     this.heartbeatInterval = options.heartbeatInterval || 15000; // 15 seconds
     this.heartbeatTimeoutMs = options.heartbeatTimeoutMs || 5000; // 5 seconds
+    
+    // Circuit breaker configuration
+    this.circuitBreakerThreshold = options.circuitBreakerThreshold || 5;
+    this.circuitBreakerResetTime = options.circuitBreakerResetTimeMs || 60000; // 1 minute
   }
   
   public async connect(sessionId: string): Promise<boolean> {
@@ -46,6 +60,25 @@ export class WebSocketManager {
       });
     }
     
+    // Check circuit breaker status
+    if (this.circuitBreakerState === 'OPEN') {
+      const currentTime = Date.now();
+      if (currentTime - this.circuitBreakerTrippedAt < this.circuitBreakerResetTime) {
+        // Circuit is open, fast fail the connection attempt
+        this.emit('circuit_open', { 
+          message: 'Connection attempts temporarily suspended due to repeated failures',
+          resetTimeMs: this.circuitBreakerResetTime - (currentTime - this.circuitBreakerTrippedAt)
+        });
+        return false;
+      } else {
+        // Allow one attempt to try to reconnect (half-open state)
+        this.circuitBreakerState = 'HALF_OPEN';
+        this.emit('circuit_half_open', { 
+          message: 'Trying one connection attempt after circuit breaker timeout'
+        });
+      }
+    }
+    
     this.isConnecting = true;
     this.sessionId = sessionId;
     
@@ -53,6 +86,7 @@ export class WebSocketManager {
       const token = await this.tokenManager.getAccessToken();
       if (!token) {
         this.isConnecting = false;
+        this.handleConnectionFailure();
         return false;
       }
       
@@ -63,6 +97,7 @@ export class WebSocketManager {
       return new Promise<boolean>((resolve) => {
         if (!this.ws) {
           this.isConnecting = false;
+          this.handleConnectionFailure();
           resolve(false);
           return;
         }
@@ -73,6 +108,14 @@ export class WebSocketManager {
           this.reconnectAttempt = 0;
           this.backoffStrategy.reset();
           this.lastHeartbeatResponse = Date.now();
+          
+          // Reset circuit breaker on successful connection
+          this.consecutiveFailures = 0;
+          if (this.circuitBreakerState === 'HALF_OPEN') {
+            this.circuitBreakerState = 'CLOSED';
+            this.emit('circuit_closed', { message: 'Circuit breaker reset after successful connection' });
+          }
+          
           this.emit('connected', { connected: true });
           this.startHeartbeat();
           resolve(true);
@@ -82,6 +125,7 @@ export class WebSocketManager {
           this.handleDisconnect(event);
           if (this.isConnecting) {
             this.isConnecting = false;
+            this.handleConnectionFailure();
             resolve(false);
           }
         };
@@ -91,6 +135,7 @@ export class WebSocketManager {
           this.emit('error', { error });
           if (this.isConnecting) {
             this.isConnecting = false;
+            this.handleConnectionFailure();
             resolve(false);
           }
         };
@@ -102,7 +147,24 @@ export class WebSocketManager {
     } catch (error) {
       console.error('WebSocket connection error:', error);
       this.isConnecting = false;
+      this.handleConnectionFailure();
       return false;
+    }
+  }
+  
+  private handleConnectionFailure() {
+    // Increment failure counter
+    this.consecutiveFailures++;
+    
+    // Check if we should trip the circuit breaker
+    if (this.circuitBreakerState !== 'OPEN' && this.consecutiveFailures >= this.circuitBreakerThreshold) {
+      this.circuitBreakerState = 'OPEN';
+      this.circuitBreakerTrippedAt = Date.now();
+      this.emit('circuit_trip', { 
+        message: 'Circuit breaker tripped due to consecutive connection failures',
+        failureCount: this.consecutiveFailures,
+        resetTimeMs: this.circuitBreakerResetTime
+      });
     }
   }
   
@@ -233,8 +295,15 @@ export class WebSocketManager {
       return;
     }
     
-    // Attempt to reconnect
-    this.attemptReconnect();
+    // Increment failure counter for non-clean disconnects
+    if (!wasClean) {
+      this.handleConnectionFailure();
+    }
+    
+    // Attempt to reconnect if circuit breaker allows
+    if (this.circuitBreakerState !== 'OPEN') {
+      this.attemptReconnect();
+    }
   }
   
   private attemptReconnect(): void {
@@ -263,7 +332,7 @@ export class WebSocketManager {
       if (this.sessionId) {
         const connected = await this.connect(this.sessionId);
         
-        if (!connected) {
+        if (!connected && this.circuitBreakerState !== 'OPEN') {
           // If connection failed, try again
           this.attemptReconnect();
         }
@@ -322,5 +391,15 @@ export class WebSocketManager {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
     }
+  }
+  
+  public getCircuitBreakerState(): string {
+    return this.circuitBreakerState;
+  }
+  
+  public resetCircuitBreaker(): void {
+    this.circuitBreakerState = 'CLOSED';
+    this.consecutiveFailures = 0;
+    this.emit('circuit_reset', { message: 'Circuit breaker manually reset' });
   }
 }

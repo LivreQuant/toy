@@ -89,6 +89,10 @@ class SessionServer:
             self.ws_protocol
         )
         
+        # Register circuit breaker state change listeners
+        for name, circuit_breaker in self.websocket_manager.circuit_breakers.items():
+            circuit_breaker.on_state_change(self._handle_circuit_breaker_state_change)
+        
         # Store components in app for access in request handlers
         self.app['db_manager'] = self.db_manager
         self.app['session_manager'] = self.session_manager
@@ -140,6 +144,19 @@ class SessionServer:
         """Simple health check endpoint"""
         return web.Response(text="OK", status=200)
     
+    # Add a new method to handle circuit breaker state changes
+    async def _handle_circuit_breaker_state_change(self, circuit_name, old_state, new_state, state_info):
+        """Handle circuit breaker state change"""
+        logger.warning(f"Circuit breaker '{circuit_name}' changed from {old_state.value} to {new_state.value}")
+        
+        # Broadcast to all connected clients
+        await self.websocket_manager.broadcast_circuit_breaker_update(circuit_name, state_info)
+        
+        # If a critical service becomes available again, try to recover any failed operations
+        if old_state != CircuitState.CLOSED and new_state == CircuitState.CLOSED:
+            logger.info(f"Circuit '{circuit_name}' closed, attempting recovery operations")
+            # Implement recovery logic here if needed
+            
     async def readiness_handler(self, request):
         """Readiness check endpoint"""
         # Check all dependencies are available

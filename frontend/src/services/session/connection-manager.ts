@@ -1,4 +1,5 @@
-// src/services/session/connection-manager.ts
+// frontend/src/services/session/connection-manager.ts
+
 import { TokenManager } from '../auth/token-manager';
 import { WebSocketManager } from '../websocket/ws-manager';
 import { MarketDataStream } from '../sse/market-data-stream';
@@ -20,6 +21,9 @@ export interface ConnectionState {
   podName: string | null;
   reconnectAttempt: number;
   error: string | null;
+  // Circuit breaker state
+  circuitBreakerState: 'CLOSED' | 'OPEN' | 'HALF_OPEN';
+  circuitBreakerResetTime: number | null;
 }
 
 export class ConnectionManager {
@@ -41,7 +45,9 @@ export class ConnectionManager {
     heartbeatLatency: null,
     podName: null,
     reconnectAttempt: 0,
-    error: null
+    error: null,
+    circuitBreakerState: 'CLOSED',
+    circuitBreakerResetTime: null
   };
   
   private heartbeatInterval: number | null = null;
@@ -66,13 +72,17 @@ export class ConnectionManager {
     // Create WebSocket manager
     this.wsManager = new WebSocketManager(wsUrl, tokenManager, {
       heartbeatInterval: 15000,
-      reconnectMaxAttempts: 15
+      reconnectMaxAttempts: 15,
+      circuitBreakerThreshold: 5,
+      circuitBreakerResetTimeMs: 60000
     });
     
     // Create Market Data stream
     this.marketDataStream = new MarketDataStream(tokenManager, {
       baseUrl: sseUrl,
-      reconnectMaxAttempts: 15
+      reconnectMaxAttempts: 15,
+      circuitBreakerThreshold: 5,
+      circuitBreakerResetTimeMs: 60000
     });
     
     // Set up event listeners
@@ -147,6 +157,28 @@ export class ConnectionManager {
       this.emit('simulator_status', data);
     });
     
+    // Circuit breaker events
+    this.wsManager.on('circuit_trip', (data: any) => {
+      this.updateState({ 
+        circuitBreakerState: 'OPEN',
+        circuitBreakerResetTime: Date.now() + (data.resetTimeMs || 60000)
+      });
+      this.emit('circuit_trip', data);
+    });
+    
+    this.wsManager.on('circuit_half_open', (data: any) => {
+      this.updateState({ circuitBreakerState: 'HALF_OPEN' });
+      this.emit('circuit_half_open', data);
+    });
+    
+    this.wsManager.on('circuit_closed', (data: any) => {
+      this.updateState({ 
+        circuitBreakerState: 'CLOSED',
+        circuitBreakerResetTime: null
+      });
+      this.emit('circuit_closed', data);
+    });
+    
     // Market data stream listeners
     this.marketDataStream.on('market-data-updated', (data: any) => {
       this.emit('market_data', data);
@@ -165,6 +197,30 @@ export class ConnectionManager {
   public async connect(): Promise<boolean> {
     if (this.state.isConnected || this.state.isConnecting) {
       return this.state.isConnected;
+    }
+    
+    // If circuit breaker is open, check if it's time to reset
+    if (this.state.circuitBreakerState === 'OPEN' && 
+        this.state.circuitBreakerResetTime && 
+        Date.now() > this.state.circuitBreakerResetTime) {
+      this.updateState({ 
+        circuitBreakerState: 'HALF_OPEN',
+        circuitBreakerResetTime: null
+      });
+    }
+    
+    // If circuit breaker is still open, fast fail the connection
+    if (this.state.circuitBreakerState === 'OPEN') {
+      const resetTimeRemaining = this.state.circuitBreakerResetTime 
+        ? this.state.circuitBreakerResetTime - Date.now() 
+        : 60000;
+        
+      this.emit('circuit_open', { 
+        message: 'Connection attempts temporarily suspended due to repeated failures',
+        resetTimeMs: resetTimeRemaining
+      });
+      
+      return false;
     }
     
     this.updateState({ isConnecting: true, error: null });
@@ -193,6 +249,13 @@ export class ConnectionManager {
       // Connect WebSocket
       const wsConnected = await this.wsManager.connect(sessionId);
       if (!wsConnected) {
+        if (this.state.circuitBreakerState === 'HALF_OPEN') {
+          // If we failed during half-open state, go back to open
+          this.updateState({ 
+            circuitBreakerState: 'OPEN',
+            circuitBreakerResetTime: Date.now() + 60000 // Try again in 1 minute
+          });
+        }
         throw new Error('Failed to establish WebSocket connection');
       }
       
@@ -218,6 +281,15 @@ export class ConnectionManager {
       
       // Start keep-alive interval
       this.startKeepAlive();
+      
+      // If we made it this far in half-open state, close the circuit breaker
+      if (this.state.circuitBreakerState === 'HALF_OPEN') {
+        this.updateState({ 
+          circuitBreakerState: 'CLOSED',
+          circuitBreakerResetTime: null
+        });
+        this.emit('circuit_closed', { message: 'Circuit breaker reset after successful connection' });
+      }
       
       this.updateState({ isConnected: true, isConnecting: false });
       return true;
@@ -264,6 +336,30 @@ export class ConnectionManager {
     this.updateState({ isConnecting: true, error: null });
     
     try {
+      // If circuit breaker is open, check if it's time to reset
+      if (this.state.circuitBreakerState === 'OPEN' && 
+          this.state.circuitBreakerResetTime && 
+          Date.now() > this.state.circuitBreakerResetTime) {
+        this.updateState({ 
+          circuitBreakerState: 'HALF_OPEN',
+          circuitBreakerResetTime: null
+        });
+      }
+      
+      // If circuit breaker is still open, fast fail the reconnection
+      if (this.state.circuitBreakerState === 'OPEN') {
+        const resetTimeRemaining = this.state.circuitBreakerResetTime 
+          ? this.state.circuitBreakerResetTime - Date.now() 
+          : 60000;
+          
+        this.emit('circuit_open', { 
+          message: 'Reconnection attempts temporarily suspended due to repeated failures',
+          resetTimeMs: resetTimeRemaining
+        });
+        
+        return false;
+      }
+      
       // Get session ID from store
       const sessionId = SessionStore.getSessionId();
       if (!sessionId) {
@@ -278,6 +374,13 @@ export class ConnectionManager {
       const response = await this.sessionApi.reconnectSession(sessionId, attempt);
       
       if (!response.success) {
+        if (this.state.circuitBreakerState === 'HALF_OPEN') {
+          // If we failed during half-open state, go back to open
+          this.updateState({ 
+            circuitBreakerState: 'OPEN',
+            circuitBreakerResetTime: Date.now() + 60000 // Try again in 1 minute
+          });
+        }
         throw new Error(response.errorMessage || 'Failed to reconnect session');
       }
       
@@ -293,6 +396,15 @@ export class ConnectionManager {
       // Start intervals
       this.startHeartbeat();
       this.startKeepAlive();
+      
+      // If we made it this far in half-open state, close the circuit breaker
+      if (this.state.circuitBreakerState === 'HALF_OPEN') {
+        this.updateState({ 
+          circuitBreakerState: 'CLOSED',
+          circuitBreakerResetTime: null
+        });
+        this.emit('circuit_closed', { message: 'Circuit breaker reset after successful reconnection' });
+      }
       
       // Update state
       this.updateState({
@@ -417,7 +529,9 @@ export class ConnectionManager {
       console.error('Failed to update connection quality:', error);
     }
   }
-  
+
+  // frontend/src/services/session/connection-manager.ts (continued)
+
   // State management
   private updateState(updates: Partial<ConnectionState>): void {
     const prevState = { ...this.state };
@@ -428,10 +542,39 @@ export class ConnectionManager {
       previous: prevState, 
       current: this.state 
     });
+    
+    // Emit specific state transition events if needed
+    if (prevState.isConnected !== this.state.isConnected) {
+      this.emit(this.state.isConnected ? 'connected_state' : 'disconnected_state', this.state);
+    }
+    
+    if (prevState.connectionQuality !== this.state.connectionQuality) {
+      this.emit('connection_quality_changed', { 
+        previous: prevState.connectionQuality,
+        current: this.state.connectionQuality
+      });
+    }
+    
+    if (prevState.circuitBreakerState !== this.state.circuitBreakerState) {
+      this.emit('circuit_breaker_changed', { 
+        previous: prevState.circuitBreakerState,
+        current: this.state.circuitBreakerState
+      });
+    }
   }
   
   public getState(): ConnectionState {
     return { ...this.state };
+  }
+  
+  // Reset circuit breaker
+  public resetCircuitBreaker(): void {
+    this.wsManager.resetCircuitBreaker();
+    this.updateState({ 
+      circuitBreakerState: 'CLOSED',
+      circuitBreakerResetTime: null
+    });
+    this.emit('circuit_reset', { message: 'Circuit breaker manually reset' });
   }
   
   // Public API for simulator control
@@ -506,6 +649,14 @@ export class ConnectionManager {
       return { success: false, error: 'No active session' };
     }
     
+    // Don't submit orders when circuit breaker is open
+    if (this.state.circuitBreakerState === 'OPEN') {
+      return { 
+        success: false, 
+        error: 'Order submission temporarily unavailable. Please try again later.' 
+      };
+    }
+    
     if (this.state.connectionQuality === 'poor') {
       return { success: false, error: 'Connection quality too poor for order submission' };
     }
@@ -540,6 +691,8 @@ export class ConnectionManager {
     if (!sessionId) {
       return { success: false, error: 'No active session' };
     }
+    
+    // Allow cancellations even when circuit breaker is open for safety
     
     try {
       const response = await this.ordersApi.cancelOrder(sessionId, orderId);
