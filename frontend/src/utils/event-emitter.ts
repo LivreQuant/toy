@@ -1,5 +1,4 @@
 // src/utils/event-emitter.ts
-
 export class EventEmitter {
     private events: Map<string, Set<Function>> = new Map();
     
@@ -63,9 +62,5 @@ export class EventEmitter {
         this.events.clear();
       }
     }
-    
-    public listenerCount(event: string): number {
-      const listeners = this.events.get(event);
-      return listeners ? listeners.size : 0;
-    }
   }
+  

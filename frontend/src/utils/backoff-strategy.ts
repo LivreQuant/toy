@@ -1,5 +1,5 @@
-// frontend/src/services/websocket/backoff-strategy.ts
 
+// src/utils/backoff-strategy.ts
 export class BackoffStrategy {
     private attempt: number = 0;
     private initialBackoff: number;
@@ -32,4 +32,4 @@ export class BackoffStrategy {
     public getCurrentAttempt(): number {
       return this.attempt;
     }
-}
+  }

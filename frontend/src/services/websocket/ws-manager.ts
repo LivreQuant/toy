@@ -1,7 +1,7 @@
-// frontend/src/services/websocket/ws-manager.ts
-
+// src/services/websocket/ws-manager.ts
 import { TokenManager } from '../auth/token-manager';
-import { BackoffStrategy } from './backoff-strategy';
+import { BackoffStrategy } from '../../utils/backoff-strategy';
+import { EventEmitter } from '../../utils/event-emitter';
 
 export interface WebSocketOptions {
   heartbeatInterval?: number;
@@ -11,7 +11,7 @@ export interface WebSocketOptions {
   circuitBreakerResetTimeMs?: number;
 }
 
-export class WebSocketManager {
+export class WebSocketManager extends EventEmitter {
   private ws: WebSocket | null = null;
   private url: string;
   private isConnecting: boolean = false;
@@ -22,7 +22,6 @@ export class WebSocketManager {
   private lastHeartbeatResponse: number = 0;
   private sessionId: string | null = null;
   private tokenManager: TokenManager;
-  private eventHandlers: Map<string, Set<Function>> = new Map();
   private reconnectAttempt: number = 0;
   private maxReconnectAttempts: number;
   private heartbeatInterval: number;
@@ -36,6 +35,7 @@ export class WebSocketManager {
   private circuitBreakerTrippedAt: number = 0;
   
   constructor(url: string, tokenManager: TokenManager, options: WebSocketOptions = {}) {
+    super();
     this.url = url;
     this.tokenManager = tokenManager;
     this.backoffStrategy = new BackoffStrategy(1000, 30000);
@@ -87,6 +87,7 @@ export class WebSocketManager {
       if (!token) {
         this.isConnecting = false;
         this.handleConnectionFailure();
+        this.emit('connection_failed', { error: 'No valid token available' });
         return false;
       }
       
@@ -98,6 +99,7 @@ export class WebSocketManager {
         if (!this.ws) {
           this.isConnecting = false;
           this.handleConnectionFailure();
+          this.emit('connection_failed', { error: 'Failed to create WebSocket' });
           resolve(false);
           return;
         }
@@ -126,6 +128,10 @@ export class WebSocketManager {
           if (this.isConnecting) {
             this.isConnecting = false;
             this.handleConnectionFailure();
+            this.emit('connection_failed', { 
+              code: event.code, 
+              reason: event.reason || 'Connection closed during connect' 
+            });
             resolve(false);
           }
         };
@@ -136,270 +142,223 @@ export class WebSocketManager {
           if (this.isConnecting) {
             this.isConnecting = false;
             this.handleConnectionFailure();
+            this.emit('connection_failed', { error: 'WebSocket connection error' });
             resolve(false);
           }
         };
-        
+
         this.ws.onmessage = (event) => {
-          this.handleMessage(event);
-        };
-      });
-    } catch (error) {
-      console.error('WebSocket connection error:', error);
-      this.isConnecting = false;
-      this.handleConnectionFailure();
-      return false;
-    }
-  }
-  
-  private handleConnectionFailure() {
-    // Increment failure counter
-    this.consecutiveFailures++;
-    
-    // Check if we should trip the circuit breaker
-    if (this.circuitBreakerState !== 'OPEN' && this.consecutiveFailures >= this.circuitBreakerThreshold) {
-      this.circuitBreakerState = 'OPEN';
-      this.circuitBreakerTrippedAt = Date.now();
-      this.emit('circuit_trip', { 
-        message: 'Circuit breaker tripped due to consecutive connection failures',
-        failureCount: this.consecutiveFailures,
-        resetTimeMs: this.circuitBreakerResetTime
-      });
-    }
-  }
-  
-  public disconnect(): void {
-    this.stopHeartbeat();
-    this.stopReconnectTimer();
-    
-    if (this.ws) {
-      // Use code 1000 for normal closure
-      this.ws.close(1000, 'Client disconnected');
-      this.ws = null;
+            this.handleMessage(event);
+          };
+        });
+      } catch (error) {
+        console.error('WebSocket connection error:', error);
+        this.isConnecting = false;
+        this.handleConnectionFailure();
+        this.emit('connection_failed', { error });
+        return false;
+      }
     }
     
-    this.emit('disconnected', { reason: 'user_disconnect' });
-  }
-  
-  public send(data: any): boolean {
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      return false;
-    }
-    
-    try {
-      this.ws.send(typeof data === 'string' ? data : JSON.stringify(data));
-      return true;
-    } catch (error) {
-      console.error('Error sending WebSocket message:', error);
-      return false;
-    }
-  }
-  
-  public on(event: string, callback: Function): void {
-    if (!this.eventHandlers.has(event)) {
-      this.eventHandlers.set(event, new Set());
-    }
-    
-    this.eventHandlers.get(event)?.add(callback);
-  }
-  
-  public off(event: string, callback: Function): void {
-    const callbacks = this.eventHandlers.get(event);
-    if (callbacks) {
-      callbacks.delete(callback);
-    }
-  }
-  
-  public once(event: string, callback: Function): void {
-    const onceCallback = (...args: any[]) => {
-      this.off(event, onceCallback);
-      callback(...args);
-    };
-    
-    this.on(event, onceCallback);
-  }
-  
-  private emit(event: string, data: any): void {
-    const callbacks = this.eventHandlers.get(event);
-    if (callbacks) {
-      callbacks.forEach(callback => {
-        try {
-          callback(data);
-        } catch (error) {
-          console.error(`Error in WebSocket event handler for ${event}:`, error);
-        }
-      });
-    }
-    
-    // Also emit to wildcard listeners
-    const wildcardCallbacks = this.eventHandlers.get('*');
-    if (wildcardCallbacks) {
-      wildcardCallbacks.forEach(callback => {
-        try {
-          callback(event, data);
-        } catch (error) {
-          console.error(`Error in WebSocket wildcard event handler for ${event}:`, error);
-        }
-      });
-    }
-  }
-  
-  private handleMessage(event: MessageEvent): void {
-    try {
-      // Reset heartbeat timeout on any message
-      this.lastHeartbeatResponse = Date.now();
+    private handleConnectionFailure() {
+      // Increment failure counter
+      this.consecutiveFailures++;
       
-      if (this.heartbeatTimeout) {
+      // Check if we should trip the circuit breaker
+      if (this.circuitBreakerState !== 'OPEN' && this.consecutiveFailures >= this.circuitBreakerThreshold) {
+        this.circuitBreakerState = 'OPEN';
+        this.circuitBreakerTrippedAt = Date.now();
+        this.emit('circuit_trip', { 
+          message: 'Circuit breaker tripped due to consecutive connection failures',
+          failureCount: this.consecutiveFailures,
+          resetTimeMs: this.circuitBreakerResetTime
+        });
+      }
+    }
+    
+    public disconnect(): void {
+      this.stopHeartbeat();
+      this.stopReconnectTimer();
+      
+      if (this.ws) {
+        // Use code 1000 for normal closure
+        this.ws.close(1000, 'Client disconnected');
+        this.ws = null;
+      }
+      
+      this.emit('disconnected', { reason: 'user_disconnect' });
+    }
+    
+    public send(data: any): boolean {
+      if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+        return false;
+      }
+      
+      try {
+        this.ws.send(typeof data === 'string' ? data : JSON.stringify(data));
+        return true;
+      } catch (error) {
+        console.error('Error sending WebSocket message:', error);
+        return false;
+      }
+    }
+    
+    private handleMessage(event: MessageEvent): void {
+      try {
+        // Reset heartbeat timeout on any message
+        this.lastHeartbeatResponse = Date.now();
+        
+        if (this.heartbeatTimeout) {
+          clearTimeout(this.heartbeatTimeout);
+          this.heartbeatTimeout = null;
+        }
+        
+        // Parse message
+        const message = JSON.parse(event.data);
+        
+        // Handle special message types
+        if (message.type === 'heartbeat') {
+          this.emit('heartbeat', { timestamp: Date.now() });
+          return;
+        }
+        
+        // Emit event based on message type
+        if (message.type) {
+          this.emit(message.type, message.data || message);
+        }
+        
+        // Always emit the raw message as 'message'
+        this.emit('message', message);
+      } catch (error) {
+        console.error('Error handling WebSocket message:', error);
+      }
+    }
+    
+    private handleDisconnect(event: CloseEvent): void {
+      this.stopHeartbeat();
+      
+      const wasClean = event.wasClean;
+      const code = event.code;
+      const reason = event.reason || 'Unknown reason';
+      
+      console.log(`WebSocket disconnected: ${reason} (${code})`);
+      
+      this.emit('disconnected', { 
+        wasClean, 
+        code, 
+        reason 
+      });
+      
+      // Don't reconnect if this was a clean closure
+      if (wasClean && code === 1000) {
+        return;
+      }
+      
+      // Increment failure counter for non-clean disconnects
+      if (!wasClean) {
+        this.handleConnectionFailure();
+      }
+      
+      // Attempt to reconnect if circuit breaker allows
+      if (this.circuitBreakerState !== 'OPEN') {
+        this.attemptReconnect();
+      }
+    }
+    
+    private attemptReconnect(): void {
+      if (this.reconnectTimer !== null) {
+        return; // Already trying to reconnect
+      }
+      
+      if (this.reconnectAttempt >= this.maxReconnectAttempts) {
+        this.emit('max_reconnect_attempts', { attempts: this.reconnectAttempt });
+        return;
+      }
+      
+      this.reconnectAttempt++;
+      
+      const delay = this.backoffStrategy.nextBackoffTime();
+      
+      this.emit('reconnecting', { 
+        attempt: this.reconnectAttempt, 
+        maxAttempts: this.maxReconnectAttempts,
+        delay
+      });
+      
+      this.reconnectTimer = window.setTimeout(async () => {
+        this.reconnectTimer = null;
+        
+        if (this.sessionId) {
+          const connected = await this.connect(this.sessionId);
+          
+          if (!connected && this.circuitBreakerState !== 'OPEN') {
+            // If connection failed, try again
+            this.attemptReconnect();
+          }
+        }
+      }, delay);
+    }
+    
+    private startHeartbeat(): void {
+      this.stopHeartbeat();
+      
+      this.heartbeatTimer = window.setInterval(() => {
+        if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+          this.stopHeartbeat();
+          return;
+        }
+        
+        // Send heartbeat
+        this.send({ type: 'heartbeat', timestamp: Date.now() });
+        
+        // Set timeout for heartbeat response
+        this.heartbeatTimeout = window.setTimeout(() => {
+          console.warn('Heartbeat timeout - no response received');
+          
+          // Check how long since last heartbeat response
+          const timeSinceLastHeartbeat = Date.now() - this.lastHeartbeatResponse;
+          
+          if (timeSinceLastHeartbeat > this.heartbeatTimeoutMs * 2) {
+            console.error('Connection seems dead, forcing reconnect');
+            
+            // Force reconnect
+            if (this.ws) {
+              this.ws.close(4000, 'Heartbeat timeout');
+              this.ws = null;
+            }
+            
+            this.attemptReconnect();
+          }
+        }, this.heartbeatTimeoutMs);
+      }, this.heartbeatInterval);
+    }
+    
+    private stopHeartbeat(): void {
+      if (this.heartbeatTimer !== null) {
+        clearInterval(this.heartbeatTimer);
+        this.heartbeatTimer = null;
+      }
+      
+      if (this.heartbeatTimeout !== null) {
         clearTimeout(this.heartbeatTimeout);
         this.heartbeatTimeout = null;
       }
-      
-      // Parse message
-      const message = JSON.parse(event.data);
-      
-      // Handle special message types
-      if (message.type === 'heartbeat') {
-        this.emit('heartbeat', { timestamp: Date.now() });
-        return;
+    }
+    
+    private stopReconnectTimer(): void {
+      if (this.reconnectTimer !== null) {
+        clearTimeout(this.reconnectTimer);
+        this.reconnectTimer = null;
       }
-      
-      // Emit event based on message type
-      if (message.type) {
-        this.emit(message.type, message.data || message);
-      }
-      
-      // Always emit the raw message as 'message'
-      this.emit('message', message);
-    } catch (error) {
-      console.error('Error handling WebSocket message:', error);
+    }
+    
+    public getCircuitBreakerState(): string {
+      return this.circuitBreakerState;
+    }
+    
+    public resetCircuitBreaker(): void {
+      this.circuitBreakerState = 'CLOSED';
+      this.consecutiveFailures = 0;
+      this.emit('circuit_reset', { message: 'Circuit breaker manually reset' });
     }
   }
-  
-  private handleDisconnect(event: CloseEvent): void {
-    this.stopHeartbeat();
-    
-    const wasClean = event.wasClean;
-    const code = event.code;
-    const reason = event.reason || 'Unknown reason';
-    
-    console.log(`WebSocket disconnected: ${reason} (${code})`);
-    
-    this.emit('disconnected', { 
-      wasClean, 
-      code, 
-      reason 
-    });
-    
-    // Don't reconnect if this was a clean closure
-    if (wasClean && code === 1000) {
-      return;
-    }
-    
-    // Increment failure counter for non-clean disconnects
-    if (!wasClean) {
-      this.handleConnectionFailure();
-    }
-    
-    // Attempt to reconnect if circuit breaker allows
-    if (this.circuitBreakerState !== 'OPEN') {
-      this.attemptReconnect();
-    }
-  }
-  
-  private attemptReconnect(): void {
-    if (this.reconnectTimer !== null) {
-      return; // Already trying to reconnect
-    }
-    
-    if (this.reconnectAttempt >= this.maxReconnectAttempts) {
-      this.emit('max_reconnect_attempts', { attempts: this.reconnectAttempt });
-      return;
-    }
-    
-    this.reconnectAttempt++;
-    
-    const delay = this.backoffStrategy.nextBackoffTime();
-    
-    this.emit('reconnecting', { 
-      attempt: this.reconnectAttempt, 
-      maxAttempts: this.maxReconnectAttempts,
-      delay
-    });
-    
-    this.reconnectTimer = window.setTimeout(async () => {
-      this.reconnectTimer = null;
-      
-      if (this.sessionId) {
-        const connected = await this.connect(this.sessionId);
-        
-        if (!connected && this.circuitBreakerState !== 'OPEN') {
-          // If connection failed, try again
-          this.attemptReconnect();
-        }
-      }
-    }, delay);
-  }
-  
-  private startHeartbeat(): void {
-    this.stopHeartbeat();
-    
-    this.heartbeatTimer = window.setInterval(() => {
-      if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-        this.stopHeartbeat();
-        return;
-      }
-      
-      // Send heartbeat
-      this.send({ type: 'heartbeat', timestamp: Date.now() });
-      
-      // Set timeout for heartbeat response
-      this.heartbeatTimeout = window.setTimeout(() => {
-        console.warn('Heartbeat timeout - no response received');
-        
-        // Check how long since last heartbeat response
-        const timeSinceLastHeartbeat = Date.now() - this.lastHeartbeatResponse;
-        
-        if (timeSinceLastHeartbeat > this.heartbeatTimeoutMs * 2) {
-          console.error('Connection seems dead, forcing reconnect');
-          
-          // Force reconnect
-          if (this.ws) {
-            this.ws.close(4000, 'Heartbeat timeout');
-            this.ws = null;
-          }
-          
-          this.attemptReconnect();
-        }
-      }, this.heartbeatTimeoutMs);
-    }, this.heartbeatInterval);
-  }
-  
-  private stopHeartbeat(): void {
-    if (this.heartbeatTimer !== null) {
-      clearInterval(this.heartbeatTimer);
-      this.heartbeatTimer = null;
-    }
-    
-    if (this.heartbeatTimeout !== null) {
-      clearTimeout(this.heartbeatTimeout);
-      this.heartbeatTimeout = null;
-    }
-  }
-  
-  private stopReconnectTimer(): void {
-    if (this.reconnectTimer !== null) {
-      clearTimeout(this.reconnectTimer);
-      this.reconnectTimer = null;
-    }
-  }
-  
-  public getCircuitBreakerState(): string {
-    return this.circuitBreakerState;
-  }
-  
-  public resetCircuitBreaker(): void {
-    this.circuitBreakerState = 'CLOSED';
-    this.consecutiveFailures = 0;
-    this.emit('circuit_reset', { message: 'Circuit breaker manually reset' });
-  }
-}

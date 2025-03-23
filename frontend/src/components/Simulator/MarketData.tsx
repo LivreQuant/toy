@@ -1,6 +1,6 @@
 // src/components/Simulator/MarketData.tsx
-import React from 'react';
-import { useSession } from '../../contexts/SessionContext';
+import React, { useState } from 'react';
+import { useConnection } from '../../contexts/ConnectionContext';
 import './MarketData.css';
 
 interface MarketDataProps {
@@ -8,8 +8,8 @@ interface MarketDataProps {
 }
 
 const MarketData: React.FC<MarketDataProps> = ({ onSymbolSelect }) => {
-  const { isConnected, marketData, connectionQuality } = useSession();
-  const [selectedSymbol, setSelectedSymbol] = React.useState<string | null>(null);
+  const { isConnected, marketData, connectionQuality } = useConnection();
+  const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
   
   const handleSymbolClick = (symbol: string) => {
     setSelectedSymbol(symbol);

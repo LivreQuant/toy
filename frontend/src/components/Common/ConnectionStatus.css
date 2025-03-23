@@ -1,0 +1,82 @@
+.connection-indicator {
+    display: flex;
+    align-items: center;
+    padding: 10px 15px;
+    border-radius: 5px;
+    margin-bottom: 10px;
+    background-color: #f5f5f5;
+    border: 1px solid #ddd;
+  }
+  
+  .indicator-icon {
+    margin-right: 12px;
+    font-size: 20px;
+  }
+  
+  .indicator-text {
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .status-text {
+    font-weight: bold;
+    margin-bottom: 4px;
+  }
+  
+  .simulator-status {
+    font-size: 0.85em;
+    color: #666;
+  }
+  
+  /* Connection status classes */
+  .good {
+    background-color: #e6f7e6;
+    border-color: #c3e6c3;
+  }
+  
+  .degraded {
+    background-color: #fff8e1;
+    border-color: #ffe082;
+  }
+  
+  .poor {
+    background-color: #ffebee;
+    border-color: #ffcdd2;
+  }
+  
+  .disconnected {
+    background-color: #f5f5f5;
+    border-color: #ddd;
+    color: #999;
+  }
+  
+  .connecting {
+    background-color: #e3f2fd;
+    border-color: #bbdefb;
+  }
+  
+  .unknown {
+    background-color: #f5f5f5;
+    border-color: #ddd;
+  }
+  
+  /* Simulator status classes */
+  .running {
+    color: #4caf50;
+  }
+  
+  .starting {
+    color: #2196f3;
+  }
+  
+  .stopping {
+    color: #ff9800;
+  }
+  
+  .stopped {
+    color: #757575;
+  }
+  
+  .error {
+    color: #f44336;
+  }

@@ -65,8 +65,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setError(null);
     
     try {
-
-// src/contexts/AuthContext.tsx (continued)
       const response = await authApi.login(username, password);
       
       // Store tokens

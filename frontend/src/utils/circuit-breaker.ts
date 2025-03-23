@@ -1,5 +1,5 @@
-// src/utils/circuit-breaker.ts
 
+// src/utils/circuit-breaker.ts
 export enum CircuitState {
     CLOSED = "CLOSED",         // Normal operation
     OPEN = "OPEN",             // Circuit is open, failing fast
@@ -12,7 +12,7 @@ export enum CircuitState {
     private lastFailureTime: number = 0;
     private resetTimeout: number;
     private failureThreshold: number;
-    private stateChangeListeners: Array<(circuitName: string, oldState: CircuitState, newState: CircuitState, stateInfo: any) => void> = [];
+    private stateChangeListeners: Array<(name: string, oldState: CircuitState, newState: CircuitState, info: any) => void> = [];
     private halfOpenCallCount: number = 0;
     private maxHalfOpenCalls: number = 1;
     private name: string;
@@ -109,7 +109,7 @@ export enum CircuitState {
       return this.state;
     }
     
-    public onStateChange(listener: (circuitName: string, oldState: CircuitState, newState: CircuitState, stateInfo: any) => void): void {
+    public onStateChange(listener: (name: string, oldState: CircuitState, newState: CircuitState, info: any) => void): void {
       this.stateChangeListeners.push(listener);
     }
     

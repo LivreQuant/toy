@@ -1,6 +1,7 @@
 // src/services/sse/market-data-stream.ts
 import { SSEClient } from './sse-client';
 import { TokenManager } from '../auth/token-manager';
+import { EventEmitter } from '../../utils/event-emitter';
 
 export interface MarketDataOptions {
   baseUrl?: string;
@@ -40,7 +41,7 @@ export interface PortfolioUpdate {
   totalValue: number;
 }
 
-export class MarketDataStream {
+export class MarketDataStream extends EventEmitter {
   private sseClient: SSEClient;
   private sessionId: string | null = null;
   private symbols: string[] = [];
@@ -49,6 +50,7 @@ export class MarketDataStream {
   private portfolio: PortfolioUpdate | null = null;
   
   constructor(tokenManager: TokenManager, options: MarketDataOptions = {}) {
+    super();
     const baseUrl = options.baseUrl || '/api/v1/market-data';
     
     this.sseClient = new SSEClient(baseUrl, tokenManager, {
@@ -62,6 +64,11 @@ export class MarketDataStream {
     this.sseClient.on('order-update', this.handleOrderUpdate.bind(this));
     this.sseClient.on('portfolio-update', this.handlePortfolioUpdate.bind(this));
     this.sseClient.on('error', this.handleError.bind(this));
+    
+    // Forward connection events
+    ['connected', 'disconnected', 'reconnecting', 'circuit_trip', 'circuit_closed'].forEach(event => {
+      this.sseClient.on(event, (data) => this.emit(event, data));
+    });
   }
   
   public async connect(sessionId: string, symbols?: string[]): Promise<boolean> {
@@ -95,14 +102,6 @@ export class MarketDataStream {
     return this.portfolio ? { ...this.portfolio } : null;
   }
   
-  public on(event: string, callback: Function): void {
-    this.sseClient.on(event, callback);
-  }
-  
-  public off(event: string, callback: Function): void {
-    this.sseClient.off(event, callback);
-  }
-  
   private handleMarketData(data: any): void {
     if (Array.isArray(data)) {
       // Handle array of market data updates
@@ -117,7 +116,7 @@ export class MarketDataStream {
     }
     
     // Emit aggregated market data
-    this.sseClient.emit('market-data-updated', this.marketData);
+    this.emit('market-data-updated', this.marketData);
   }
   
   private handleOrderUpdate(data: any): void {
@@ -134,7 +133,7 @@ export class MarketDataStream {
     }
     
     // Emit aggregated order updates
-    this.sseClient.emit('orders-updated', this.orders);
+    this.emit('orders-updated', this.orders);
   }
   
   private handlePortfolioUpdate(data: any): void {
@@ -142,11 +141,12 @@ export class MarketDataStream {
       this.portfolio = data;
       
       // Emit portfolio update
-      this.sseClient.emit('portfolio-updated', this.portfolio);
+      this.emit('portfolio-updated', this.portfolio);
     }
   }
   
   private handleError(error: any): void {
     console.error('Market data stream error:', error);
+    this.emit('error', error);
   }
 }

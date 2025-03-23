@@ -3,24 +3,21 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { ConnectionProvider } from './contexts/ConnectionContext';
-import { SessionProvider } from './contexts/SessionContext';
 import LoginPage from './pages/LoginPage';
 import HomePage from './pages/HomePage';
 import SimulatorPage from './pages/SimulatorPage';
 import ConnectionStatus from './components/Common/ConnectionStatus';
 import ErrorBoundary from './components/Common/ErrorBoundary';
 import LoadingScreen from './components/Common/LoadingScreen';
-import { useConnection } from './contexts/ConnectionContext';
 import { useAuth } from './contexts/AuthContext';
+import { useConnection } from './contexts/ConnectionContext';
 
 const App: React.FC = () => {
   return (
     <ErrorBoundary>
       <AuthProvider>
         <ConnectionProvider>
-          <SessionProvider>
-            <AppRouter />
-          </SessionProvider>
+          <AppRouter />
         </ConnectionProvider>
       </AuthProvider>
     </ErrorBoundary>
