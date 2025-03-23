@@ -1,16 +1,20 @@
 // src/components/Common/ConnectionStatus.tsx
 import React from 'react';
-import { useSession } from '../../contexts/SessionContext';
 import './ConnectionStatus.css';
 
-const ConnectionStatus: React.FC = () => {
-  const { 
-    isConnected, 
-    isConnecting, 
-    connectionQuality, 
-    simulatorStatus
-  } = useSession();
-  
+interface ConnectionStatusProps {
+  isConnected: boolean;
+  isConnecting: boolean;
+  connectionQuality: string;
+  simulatorStatus: string;
+}
+
+const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
+  isConnected,
+  isConnecting,
+  connectionQuality,
+  simulatorStatus
+}) => {
   let statusIcon = '❓';
   let statusClass = 'unknown';
   let statusText = 'Unknown';
