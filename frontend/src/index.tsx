@@ -2,8 +2,8 @@
 import React from 'react';
 import ReactDOM from 'react-dom';
 import App from './App';
-import { setupLocalKubernetesCors } from './services/config/CorsConfig';
-import { getServiceConfig } from './services/config/ServiceConfig';
+import { setupLocalKubernetesCors } from '../old/services/config/CorsConfig';
+import { getServiceConfig } from '../old/services/config/ServiceConfig';
 import './index.css';
 
 // Set up CORS for local Kubernetes testing if needed

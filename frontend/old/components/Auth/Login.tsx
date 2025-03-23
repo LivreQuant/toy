@@ -1,15 +1,21 @@
 // src/components/Auth/Login.tsx
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../contexts/AuthContext';
+import { useConnection } from '../../contexts/ConnectionContext';
+import Loading from '../Common/Loading';
+import './Login.css';
 
-const Login: React.FC = () => {
+interface LoginProps {
+  onLoginSuccess?: () => void;
+}
+
+const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login } = useConnection();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,9 +29,13 @@ const Login: React.FC = () => {
     setError(null);
     
     try {
+      // Use the login method from ConnectionContext
       const success = await login(username, password);
       
       if (success) {
+        if (onLoginSuccess) {
+          onLoginSuccess();
+        }
         navigate('/home');
       } else {
         throw new Error('Login failed. Please try again.');
@@ -74,9 +84,13 @@ const Login: React.FC = () => {
             className="login-button"
             disabled={isLoading}
           >
-            {isLoading ? 'Logging in...' : 'Login'}
+            {isLoading ? <Loading size="small" /> : 'Login'}
           </button>
         </form>
+        
+        <div className="login-footer">
+          <p>Demo credentials: testuser / password123</p>
+        </div>
       </div>
     </div>
   );
