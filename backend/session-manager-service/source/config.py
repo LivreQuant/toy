@@ -28,8 +28,8 @@ class Config:
     DB_MIN_CONNECTIONS = int(os.getenv('DB_MIN_CONNECTIONS', '1'))
     DB_MAX_CONNECTIONS = int(os.getenv('DB_MAX_CONNECTIONS', '10'))
     
-    # Service endpoints
-    AUTH_SERVICE = os.getenv('AUTH_SERVICE', 'auth-service:50051')
+    # Service endpoints - Updated to use REST for auth service
+    AUTH_SERVICE_URL = os.getenv('AUTH_SERVICE_URL', 'http://auth-service:8000')
     EXCHANGE_MANAGER_SERVICE = os.getenv('EXCHANGE_MANAGER_SERVICE', 'exchange-manager-service:50053')
     
     # Session settings

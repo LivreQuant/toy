@@ -12,8 +12,8 @@ import aiohttp_cors
 import redis.asyncio as redis
 
 # Import API components
-from api.routes import setup_routes
-from api.handlers import (
+from rest.routes import setup_routes
+from rest.handlers import (
     handle_create_session, handle_get_session, handle_end_session,
     handle_keep_alive, handle_start_simulator, handle_stop_simulator,
     handle_get_simulator_status, handle_reconnect_session
@@ -28,12 +28,14 @@ from sse.stream import setup_sse_routes
 from sse.adapter import SSEAdapter
 
 # Import core classes
-from session.manager import SessionManager
+from core.session_manager import SessionManager
 from session.state import SessionState, SessionStatus, SimulatorStatus
 
-# Import gRPC clients
-from grpc.exchange import ExchangeServiceClient
-from grpc.auth import AuthServiceClient
+# Import API client for auth service
+from api.auth_client import AuthClient
+
+# Import gRPC client for exchange
+from core.exchange_client import ExchangeServiceClient
 
 # Import database manager
 from db.session_store import DatabaseManager
@@ -305,13 +307,14 @@ class SessionServer:
         self.db_manager = DatabaseManager()
         await self.db_manager.connect()
         
-        # gRPC clients
-        self.auth_client = AuthServiceClient()
+        # Initialize auth client with proper URL - UPDATED to use REST API
+        self.auth_client = AuthClient(config.AUTH_SERVICE_URL)
         await self.auth_client.connect()
         
+        # Exchange gRPC client
         self.exchange_client = ExchangeServiceClient()
         
-        # Session manager - inject Redis
+        # Session manager - inject dependencies
         self.session_manager = SessionManager(
             self.db_manager, 
             self.auth_client,
@@ -336,8 +339,9 @@ class SessionServer:
         self.websocket_manager.redis = self.redis  # Add Redis reference
         
         # Register circuit breaker state change listeners
-        for name, circuit_breaker in self.websocket_manager.circuit_breakers.items():
-            circuit_breaker.on_state_change(self._handle_circuit_breaker_state_change)
+        if hasattr(self.websocket_manager, 'circuit_breakers'):
+            for name, circuit_breaker in self.websocket_manager.circuit_breakers.items():
+                circuit_breaker.on_state_change(self._handle_circuit_breaker_state_change)
         
         # Set up Redis pub/sub
         await self.setup_pubsub()
@@ -437,9 +441,10 @@ class SessionServer:
         await self.websocket_manager.broadcast_circuit_breaker_update(circuit_name, state_info)
         
         # If a critical service becomes available again, try to recover any failed operations
-        if old_state != CircuitState.CLOSED and new_state == CircuitState.CLOSED:
-            logger.info(f"Circuit '{circuit_name}' closed, attempting recovery operations")
-            # Implement recovery logic here if needed
+        if hasattr(old_state, 'value') and hasattr(new_state, 'value'):
+            if old_state.value != "CLOSED" and new_state.value == "CLOSED":
+                logger.info(f"Circuit '{circuit_name}' closed, attempting recovery operations")
+                # Implement recovery logic here if needed
             
     async def readiness_handler(self, request):
         """Readiness check endpoint"""

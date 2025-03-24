@@ -17,16 +17,15 @@ RUN pip install --no-cache-dir psutil
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
-COPY *.py ./
-COPY protos/ ./protos/
+# Copy source code with proper directory structure
+COPY source/ ./source/
 
-# Expose ports
-EXPOSE 51558 51559 8088 8089
+# Expose ports (update these to match your config)
+EXPOSE 8080 8088
 
 # Set health check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD curl -f http://localhost:8088/health || exit 1
+    CMD curl -f http://localhost:8080/health || exit 1
 
 # Start the service
-CMD ["python", "main.py"]
+CMD ["python", "-m", "source.server"]

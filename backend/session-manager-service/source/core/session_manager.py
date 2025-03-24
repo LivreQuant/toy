@@ -75,12 +75,14 @@ class SessionManager:
     
     async def validate_session(self, session_id, token):
         """Validate session and token"""
-        # Validate token
+        # Validate token - Updated to match order-service pattern
         validate_result = await self.auth_client.validate_token(token)
-        if not validate_result['valid']:
+        
+        if not validate_result.get('valid', False):
+            logger.warning(f"Invalid authentication token")
             return None
         
-        user_id = validate_result['user_id']
+        user_id = validate_result.get('userId')  # Note: use 'userId' to match auth service response
         
         # Get session
         session = await self.db.get_session(session_id)
@@ -88,11 +90,7 @@ class SessionManager:
             return None
         
         # Check if session belongs to user
-        if str(session['user_id']) != user_id:
-            return None
-        
-        # Check if session is expired
-        if session.get('expires_at') and session['expires_at'] < time.time():
+        if str(session['user_id']) != str(user_id):
             return None
         
         # Update session activity
