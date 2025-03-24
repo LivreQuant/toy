@@ -6,11 +6,16 @@ metadata:
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /$1
     nginx.ingress.kubernetes.io/use-regex: "true"
-    # For WebSockets
+    # Session affinity for WebSockets
+    nginx.ingress.kubernetes.io/affinity: "cookie"
+    nginx.ingress.kubernetes.io/session-cookie-name: "trading_session"
+    nginx.ingress.kubernetes.io/session-cookie-max-age: "172800"
+    nginx.ingress.kubernetes.io/session-cookie-path: "/"
+    # WebSocket settings
     nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
     nginx.ingress.kubernetes.io/proxy-body-size: "8m"
-    # For WebSocket routing
+    # WebSocket connection upgrade
     nginx.ingress.kubernetes.io/configuration-snippet: |
       location /ws {
         proxy_set_header Upgrade $http_upgrade;
@@ -20,6 +25,10 @@ metadata:
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
       }
+      # Connection draining settings for graceful pod termination
+      proxy_next_upstream error timeout http_502 http_503 http_504 non_idempotent;
+      proxy_next_upstream_tries 3;
+      proxy_next_upstream_timeout 15s;
 spec:
   rules:
   - host: trading.local
@@ -60,8 +69,7 @@ spec:
             name: session-manager
             port:
               number: 8088
-              
-      # Admin dashboard
+      # Admin dashboard and monitoring paths remain unchanged
       - path: /admin/?(.*)
         pathType: Prefix
         backend:
@@ -69,8 +77,6 @@ spec:
             name: admin-dashboard
             port:
               number: 80
-      
-      # Prometheus
       - path: /prometheus/?(.*)
         pathType: Prefix
         backend:
@@ -78,8 +84,6 @@ spec:
             name: prometheus
             port:
               number: 9090
-      
-      # Grafana
       - path: /grafana/?(.*)
         pathType: Prefix
         backend:
@@ -87,8 +91,6 @@ spec:
             name: grafana
             port:
               number: 3000
-      
-      # MinIO console
       - path: /minio/?(.*)
         pathType: Prefix
         backend:

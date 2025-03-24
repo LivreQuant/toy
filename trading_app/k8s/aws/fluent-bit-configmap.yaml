@@ -1,0 +1,24 @@
+# k8s/aws/fluent-bit-configmap.yaml
+kind: ConfigMap
+metadata:
+  name: fluent-bit-config
+data:
+  fluent-bit.conf: |
+    [SERVICE]
+        Flush        5
+        Log_Level    info
+        Daemon       off
+    
+    [INPUT]
+        Name             tail
+        Path             /var/log/containers/*.log
+        Parser           docker
+        Tag              kube.*
+        Refresh_Interval 5
+        
+    [OUTPUT]
+        Name            cloudwatch
+        Match           kube.*
+        region          us-east-1
+        log_group_name  /aws/eks/trading-platform/application
+        log_stream_prefix ${kubernetes['namespace_name']}/${kubernetes['pod_name']}/

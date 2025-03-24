@@ -1,3 +1,4 @@
+# k8s/deployments/pgbouncer.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -17,17 +18,44 @@ spec:
         image: edoburu/pgbouncer:1.15.0
         env:
         - name: DB_USER
-          value: opentp
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: username
         - name: DB_PASSWORD
-          value: samaral
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: password
         - name: DB_HOST
           value: postgres
         - name: DB_NAME
           value: opentp
         - name: POOL_MODE
           value: transaction
+        - name: MAX_CLIENT_CONN
+          value: "1000"  # Increased for multiple service instances
+        - name: DEFAULT_POOL_SIZE
+          value: "20"    # Ensure enough connections for all services
         ports:
         - containerPort: 5432
+        readinessProbe:
+          tcpSocket:
+            port: 5432
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        livenessProbe:
+          tcpSocket:
+            port: 5432
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
 ---
 apiVersion: v1
 kind: Service

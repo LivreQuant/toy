@@ -1,0 +1,6 @@
+# k8s/aws/auth-deployment-aws.yaml
+- name: JWT_SECRET
+  valueFrom:
+    secretKeyRef:
+      name: external-secrets-store
+      key: jwt-secret

@@ -1,9 +1,10 @@
+# k8s/deployments/order-service.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: order-service
 spec:
-  replicas: 1
+  replicas: 2  # Multiple replicas for horizontal scaling
   selector:
     matchLabels:
       app: order-service
@@ -20,19 +21,49 @@ spec:
         - containerPort: 8001
         env:
         - name: DB_HOST
-          value: postgres
+          value: pgbouncer  # Using connection pooling
         - name: DB_PORT
           value: "5432"
         - name: DB_NAME
           value: opentp
         - name: DB_USER
-          value: opentp
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: username
         - name: DB_PASSWORD
-          value: samaral
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: password
         - name: REDIS_HOST
           value: redis
         - name: AUTH_SERVICE_URL
           value: http://auth-service:8000
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8001
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8001
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        # Add init container to wait for database
+        initContainers:
+        - name: wait-for-db
+          image: postgres:13
+          command: ['sh', '-c', 'until pg_isready -h pgbouncer -p 5432; do echo waiting for database; sleep 2; done;']
 ---
 apiVersion: v1
 kind: Service

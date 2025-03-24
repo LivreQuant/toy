@@ -1,9 +1,10 @@
+# k8s/deployments/session-manager.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: session-manager
 spec:
-  replicas: 1
+  replicas: 2  # Scaled to 2 instances for availability
   selector:
     matchLabels:
       app: session-manager
@@ -12,32 +13,64 @@ spec:
       labels:
         app: session-manager
     spec:
+      # Add grace period for WebSocket connections to close properly
+      terminationGracePeriodSeconds: 60
       containers:
       - name: session-manager
         image: opentp/session-manager:latest
         imagePullPolicy: Never
         ports:
-        - containerPort: 8080
-        - containerPort: 8088
+        - containerPort: 8080  # REST API
+        - containerPort: 8088  # WebSocket
         env:
         - name: DB_HOST
-          value: postgres
+          value: pgbouncer  # Using connection pooling
         - name: DB_PORT
           value: "5432"
         - name: DB_NAME
           value: opentp
         - name: DB_USER
-          value: opentp
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: username
         - name: DB_PASSWORD
-          value: samaral
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: password
         - name: REDIS_HOST
           value: redis
-        - name: AUTH_SERVICE
-          value: auth-service:8000
+        - name: AUTH_SERVICE_URL
+          value: http://auth-service:8000
         - name: POD_NAME
           valueFrom:
             fieldRef:
               fieldPath: metadata.name
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        readinessProbe:
+          httpGet:
+            path: /readiness
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 20
+          periodSeconds: 15
+          timeoutSeconds: 3
+        lifecycle:
+          preStop:
+            exec:
+              command: ["/bin/sh", "-c", "sleep 10"]
 ---
 apiVersion: v1
 kind: Service
