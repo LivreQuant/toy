@@ -1,0 +1,165 @@
+# k8s/tools/admin-dashboard.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: admin-dashboard
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: admin-dashboard
+  template:
+    metadata:
+      labels:
+        app: admin-dashboard
+    spec:
+      containers:
+      - name: admin-dashboard
+        image: nginx:alpine
+        ports:
+        - containerPort: 80
+        volumeMounts:
+        - name: dashboard-content
+          mountPath: /usr/share/nginx/html
+      volumes:
+      - name: dashboard-content
+        configMap:
+          name: dashboard-content
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: admin-dashboard
+spec:
+  selector:
+    app: admin-dashboard
+  ports:
+  - port: 80
+    targetPort: 80
+  type: ClusterIP
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dashboard-content
+data:
+  index.html: |
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Trading Platform Admin</title>
+      <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
+        .card { border: 1px solid #ddd; border-radius: 5px; padding: 15px; margin-bottom: 20px; }
+        .card h2 { margin-top: 0; }
+        button { padding: 8px 15px; background: #0078d4; color: white; border: none; border-radius: 3px; cursor: pointer; }
+        button:hover { background: #005a9e; }
+        .status { margin-top: 10px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
+      </style>
+    </head>
+    <body>
+      <h1>Trading Platform Admin Dashboard</h1>
+      
+      <div class="grid">
+        <div class="card">
+          <h2>Environment Status</h2>
+          <button onclick="checkStatus()">Refresh Status</button>
+          <div id="statusOutput" class="status"></div>
+        </div>
+        
+        <div class="card">
+          <h2>Service Controls</h2>
+          <select id="serviceSelect">
+            <option value="auth">Auth Service</option>
+            <option value="session">Session Manager</option>
+            <option value="order">Order Service</option>
+            <option value="exchange">Exchange Simulator</option>
+          </select>
+          <button onclick="restartService()">Restart Service</button>
+          <div id="serviceOutput" class="status"></div>
+        </div>
+        
+        <div class="card">
+          <h2>Monitoring</h2>
+          <a href="/grafana/" target="_blank"><button>Open Grafana</button></a>
+          <a href="/prometheus/" target="_blank"><button>Open Prometheus</button></a>
+        </div>
+        
+        <div class="card">
+          <h2>Test User</h2>
+          <div>Username: testuser</div>
+          <div>Password: password123</div>
+          <button onclick="generateToken()">Generate Test Token</button>
+          <div id="tokenOutput" class="status"></div>
+        </div>
+      </div>
+      
+      <script>
+        async function checkStatus() {
+          const output = document.getElementById('statusOutput');
+          output.innerHTML = 'Checking status...';
+          
+          try {
+            const response = await fetch('/api/admin/status');
+            const data = await response.json();
+            
+            let html = '<ul>';
+            for (const [service, status] of Object.entries(data.services)) {
+              html += `<li>${service}: <span style="color:${status === 'Running' ? 'green' : 'red'}">${status}</span></li>`;
+            }
+            html += '</ul>';
+            
+            output.innerHTML = html;
+          } catch (err) {
+            output.innerHTML = `Error: ${err.message}`;
+          }
+        }
+        
+        async function restartService() {
+          const service = document.getElementById('serviceSelect').value;
+          const output = document.getElementById('serviceOutput');
+          
+          output.innerHTML = `Restarting ${service}...`;
+          
+          try {
+            const response = await fetch('/api/admin/restart', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ service })
+            });
+            
+            const data = await response.json();
+            output.innerHTML = data.message;
+          } catch (err) {
+            output.innerHTML = `Error: ${err.message}`;
+          }
+        }
+        
+        async function generateToken() {
+          const output = document.getElementById('tokenOutput');
+          output.innerHTML = 'Generating token...';
+          
+          try {
+            const response = await fetch('/api/auth/login', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ username: 'testuser', password: 'password123' })
+            });
+            
+            const data = await response.json();
+            if (data.accessToken) {
+              output.innerHTML = `<textarea rows="3" cols="30">${data.accessToken}</textarea>`;
+            } else {
+              output.innerHTML = 'Failed to generate token';
+            }
+          } catch (err) {
+            output.innerHTML = `Error: ${err.message}`;
+          }
+        }
+        
+        // Initial status check
+        checkStatus();
+      </script>
+    </body>
+    </html>

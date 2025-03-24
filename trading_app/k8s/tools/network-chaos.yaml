@@ -1,0 +1,21 @@
+# k8s/tools/network-chaos.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: network-chaos
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: network-chaos
+  template:
+    metadata:
+      labels:
+        app: network-chaos
+    spec:
+      containers:
+      - name: network-chaos
+        image: nicolaka/netshoot
+        command:
+        - "sleep"
+        - "infinity"

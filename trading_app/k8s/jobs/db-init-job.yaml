@@ -1,0 +1,153 @@
+# k8s/jobs/db-init-job.yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: db-init-job
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    spec:
+      containers:
+      - name: db-init
+        image: postgres:13
+        command:
+          - "/bin/bash"
+          - "-c"
+          - |
+            PGPASSWORD=samaral psql -h postgres -U opentp -d opentp << 'EOF'
+            
+            -- Create necessary schemas
+            CREATE SCHEMA IF NOT EXISTS auth;
+            CREATE SCHEMA IF NOT EXISTS session;
+            CREATE SCHEMA IF NOT EXISTS trading;
+            CREATE SCHEMA IF NOT EXISTS simulator;
+            CREATE SCHEMA IF NOT EXISTS monitoring;
+            
+            -- Create users table
+            CREATE TABLE IF NOT EXISTS auth.users (
+                id SERIAL PRIMARY KEY,
+                username VARCHAR(50) UNIQUE NOT NULL,
+                email VARCHAR(100) UNIQUE,
+                password_hash VARCHAR(255) NOT NULL,
+                first_name VARCHAR(50),
+                last_name VARCHAR(50),
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                last_login TIMESTAMP WITH TIME ZONE,
+                is_active BOOLEAN DEFAULT TRUE,
+                role VARCHAR(20) DEFAULT 'user' CHECK (role IN ('admin', 'user', 'demo'))
+            );
+            
+            -- Create sessions table
+            CREATE TABLE IF NOT EXISTS session.active_sessions (
+                session_id UUID PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+                token VARCHAR(255) NOT NULL,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                last_active TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                ip_address VARCHAR(45),
+                user_agent TEXT
+            );
+            
+            -- Create session metadata table
+            CREATE TABLE IF NOT EXISTS session.session_metadata (
+                session_id UUID PRIMARY KEY REFERENCES session.active_sessions(session_id) ON DELETE CASCADE,
+                metadata JSONB DEFAULT '{}'::jsonb
+            );
+            
+            -- Create simulator instances table
+            CREATE TABLE IF NOT EXISTS simulator.instances (
+                simulator_id UUID PRIMARY KEY,
+                session_id UUID NOT NULL REFERENCES session.active_sessions(session_id) ON DELETE CASCADE,
+                status VARCHAR(20) NOT NULL CHECK (status IN ('STARTING', 'RUNNING', 'STOPPING', 'STOPPED', 'ERROR')),
+                endpoint VARCHAR(255),
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                last_active TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                pod_name VARCHAR(100)
+            );
+            
+            -- Create exchange services table
+            CREATE TABLE IF NOT EXISTS session.exchange_services (
+                exchange_id UUID PRIMARY KEY,
+                session_id UUID NOT NULL REFERENCES session.active_sessions(session_id) ON DELETE CASCADE,
+                endpoint VARCHAR(255) NOT NULL,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                last_active TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                inactivity_timeout_seconds INTEGER DEFAULT 300
+            );
+            
+            -- Create orders table
+            CREATE TABLE IF NOT EXISTS trading.orders (
+                order_id UUID PRIMARY KEY,
+                user_id VARCHAR(100) NOT NULL,
+                session_id VARCHAR(100) NOT NULL,
+                symbol VARCHAR(20) NOT NULL,
+                side VARCHAR(10) NOT NULL,
+                quantity NUMERIC(18,8) NOT NULL,
+                price NUMERIC(18,8),
+                order_type VARCHAR(20) NOT NULL,
+                status VARCHAR(20) NOT NULL,
+                filled_quantity NUMERIC(18,8) NOT NULL DEFAULT 0,
+                avg_price NUMERIC(18,8) NOT NULL DEFAULT 0,
+                simulator_id VARCHAR(100),
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                request_id VARCHAR(100),
+                error_message TEXT
+            );
+            
+            -- Create connection monitoring table
+            CREATE TABLE IF NOT EXISTS monitoring.connection_quality (
+                id SERIAL PRIMARY KEY,
+                session_id UUID NOT NULL REFERENCES session.active_sessions(session_id) ON DELETE CASCADE,
+                timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                latency_ms INTEGER,
+                consecutive_heartbeat_misses INTEGER DEFAULT 0,
+                connection_quality VARCHAR(10) CHECK (connection_quality IN ('good', 'degraded', 'poor'))
+            );
+            
+            -- Create session cleanup function
+            CREATE OR REPLACE FUNCTION session.cleanup_expired_sessions() RETURNS void AS $$
+            BEGIN
+                DELETE FROM session.exchange_services
+                WHERE session_id IN (
+                    SELECT session_id 
+                    FROM session.active_sessions 
+                    WHERE expires_at < NOW()
+                );
+                
+                UPDATE simulator.instances
+                SET status = 'STOPPING'
+                WHERE session_id IN (
+                    SELECT session_id 
+                    FROM session.active_sessions 
+                    WHERE expires_at < NOW()
+                );
+                
+                DELETE FROM session.active_sessions 
+                WHERE expires_at < NOW();
+            END;
+            $$ LANGUAGE plpgsql;
+            
+            -- Create test user
+            INSERT INTO auth.users (
+                username, 
+                email, 
+                password_hash, 
+                first_name, 
+                last_name, 
+                role
+            ) VALUES (
+                'testuser', 
+                'test@example.com', 
+                -- This is 'password123' hashed
+                'e70675603898177d82757bd5d8ee9b151b2fbe8fde0c31583732802b9ae86c50', 
+                'Test', 
+                'User', 
+                'user'
+            ) ON CONFLICT (username) DO NOTHING;
+            
+            EOF
+            
+            echo "Database initialization completed."
+      restartPolicy: OnFailure

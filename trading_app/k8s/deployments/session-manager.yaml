@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: session-manager
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: session-manager
+  template:
+    metadata:
+      labels:
+        app: session-manager
+    spec:
+      containers:
+      - name: session-manager
+        image: opentp/session-manager:latest
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 8080
+        - containerPort: 8088
+        env:
+        - name: DB_HOST
+          value: postgres
+        - name: DB_PORT
+          value: "5432"
+        - name: DB_NAME
+          value: opentp
+        - name: DB_USER
+          value: opentp
+        - name: DB_PASSWORD
+          value: samaral
+        - name: REDIS_HOST
+          value: redis
+        - name: AUTH_SERVICE
+          value: auth-service:8000
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: session-manager
+spec:
+  selector:
+    app: session-manager
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+  - name: ws
+    port: 8088
+    targetPort: 8088
+  type: ClusterIP

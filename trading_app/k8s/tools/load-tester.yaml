@@ -1,0 +1,41 @@
+# k8s/tools/load-tester.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: load-tester
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: load-tester
+  template:
+    metadata:
+      labels:
+        app: load-tester
+    spec:
+      containers:
+      - name: load-tester
+        image: alpine:3.16
+        command:
+        - "sleep"
+        - "infinity"
+        volumeMounts:
+        - name: load-test-scripts
+          mountPath: /scripts
+      volumes:
+      - name: load-test-scripts
+        configMap:
+          name: load-test-scripts
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: load-test-scripts
+data:
+  run-load-test.sh: |
+    #!/bin/sh
+    echo "Running load test against $TARGET_SERVICE"
+    apk add --no-cache curl apache2-utils
+    
+    # Run load test
+    ab -n $NUM_REQUESTS -c $CONCURRENCY -H "Authorization: Bearer $AUTH_TOKEN" $TARGET_URL
