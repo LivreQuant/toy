@@ -5,9 +5,11 @@ import asyncio
 import time
 from typing import Dict, Any, Optional, List
 import json
+import pybreaker
 
 from source.api.exchange_pb2 import (
-    SubmitOrderRequest, CancelOrderRequest, GetOrderStatusRequest
+    SubmitOrderRequest, CancelOrderRequest, GetOrderStatusRequest,
+    GetOrderStatusResponse  # Add this line
 )
 from source.api.exchange_pb2_grpc import ExchangeServiceStub
 from source.models.order import Order, OrderStatus, OrderSide, OrderType
@@ -21,6 +23,12 @@ class ExchangeClient:
         self.redis = redis_client
         self.channels = {}  # endpoint -> channel
         self.stubs = {}     # endpoint -> stub
+        
+        self.breaker = pybreaker.CircuitBreaker(
+            fail_max=5,
+            reset_timeout=30,
+            exclude=[grpc.RpcError]
+        )
     
     async def get_channel(self, endpoint: str):
         """Get or create a gRPC channel to the endpoint"""
@@ -122,6 +130,22 @@ class ExchangeClient:
                 "order_id": response.order_id or order.order_id
             }
             
+        except grpc.aio.AioRpcError as e:
+            status_code = e.code()
+            if status_code == grpc.StatusCode.UNAVAILABLE:
+                logger.error(f"Exchange unavailable: {e.details()}")
+                return {
+                    "success": False,
+                    "error": "Exchange service unavailable, please try again later",
+                    "order_id": order.order_id
+                }
+            # Handle other specific gRPC errors
+            logger.error(f"gRPC error ({status_code}): {e.details()}")
+            return {
+                "success": False,
+                "error": f"Communication error: {e.details()}",
+                "order_id": order.order_id
+            }
         except Exception as e:
             logger.error(f"Error submitting order to exchange: {e}")
             return {

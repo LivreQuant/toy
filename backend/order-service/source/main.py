@@ -90,6 +90,33 @@ async def serve():
         logger.error(f"Failed to start service: {e}")
         raise
 
+async def init_redis(max_retries=5):
+    """Initialize Redis connection with retries"""
+    redis_host = os.getenv('REDIS_HOST', 'redis')
+    redis_port = int(os.getenv('REDIS_PORT', '6379'))
+    redis_db = int(os.getenv('REDIS_DB', '0'))
+    
+    retry = 0
+    while retry < max_retries:
+        try:
+            # Create Redis client
+            redis_client = redis.Redis(
+                # Existing params...
+            )
+            
+            # Test connection
+            await redis_client.ping()
+            logger.info("Connected to Redis successfully")
+            return redis_client
+        except Exception as e:
+            retry += 1
+            wait_time = 0.5 * (2 ** retry)  # Exponential backoff
+            logger.warning(f"Redis connection attempt {retry} failed: {e}. Retrying in {wait_time}s")
+            await asyncio.sleep(wait_time)
+    
+    logger.error(f"Failed to connect to Redis after {max_retries} attempts")
+    raise
+
 async def shutdown(runner, order_store, redis_client):
     logger.info("Shutting down server...")
     

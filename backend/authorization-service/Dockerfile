@@ -1,4 +1,3 @@
-# Dockerfile
 FROM python:3.11-slim
 
 WORKDIR /app
@@ -29,21 +28,22 @@ ENV ENVIRONMENT="development" \
     DB_PASSWORD="samaral" \
     DB_MIN_CONNECTIONS="1" \
     DB_MAX_CONNECTIONS="10" \
-    # Service Port
-    REST_PORT="8000" \
+    # Redis Configuration
+    REDIS_HOST="redis" \
+    REDIS_PORT="6379" \
+    REDIS_DB="0" \
+    # Service Configuration
+    REST_PORT="8001" \
+    AUTH_SERVICE_URL="http://auth-service:8000" \
     # Logging and Security
-    LOG_LEVEL="INFO" \
-    JWT_SECRET="development-secret-key" \
-    JWT_REFRESH_SECRET="development-refresh-secret-key" \
-    ACCESS_TOKEN_EXPIRY="3600" \
-    REFRESH_TOKEN_EXPIRY="2592000"
+    LOG_LEVEL="INFO"
 
 # Expose REST port
-EXPOSE 8000
+EXPOSE 8001
 
 # Health check using our HTTP health endpoint
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+    CMD curl -f http://localhost:8001/health || exit 1
 
 # Run the service
 CMD ["python", "main.py"]

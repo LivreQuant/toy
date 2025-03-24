@@ -19,8 +19,8 @@ class OrderStore:
             'user': os.getenv('DB_USER', 'opentp'),
             'password': os.getenv('DB_PASSWORD', 'samaral')
         }
-        self.min_connections = int(os.getenv('DB_MIN_CONNECTIONS', '1'))
-        self.max_connections = int(os.getenv('DB_MAX_CONNECTIONS', '10'))
+        self.min_connections = int(os.getenv('DB_MIN_CONNECTIONS', '2'))  # Increase minimum
+        self.max_connections = int(os.getenv('DB_MAX_CONNECTIONS', '20'))  # Higher max for bursts
     
     async def connect(self):
         """Create the database connection pool"""

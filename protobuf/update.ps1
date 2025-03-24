@@ -144,18 +144,18 @@ Copy-ProtoFiles -SourcePath "gen/ts/main" `
 $pyPathReplacements = @(
     ,@("from main.services import", "from source.api import")
 )
-
-# Authorization
-Copy-ProtoFiles -SourcePath "gen/python/main" `
-                -DestinationPath "../interface/authorization-service/source/api" `
-                -FileType "auth*.py" `
-                -SuccessMessage "Python login service files copied successfully" `
-                -NoFilesMessage "No Python login service files found" `
-                -PathReplacements $pyPathReplacements
                 
+# Exchange Manager
+Copy-ProtoFiles -SourcePath "gen/python/main" `
+                -DestinationPath "../backend/order-service/source/api" `
+                -FileType "exchange*.py" `
+                -SuccessMessage "Python market data service files copied successfully" `
+                -NoFilesMessage "No Python market data service files found" `
+                -PathReplacements $pyPathReplacements
+
 # Session Manager
 Copy-ProtoFiles -SourcePath "gen/python/main" `
-                -DestinationPath "../interface/session-manager-service/source/api" `
+                -DestinationPath "../backend/session-manager-service/source/api" `
                 -FileType "session*.py" `
                 -SuccessMessage "Python market data service files copied successfully" `
                 -NoFilesMessage "No Python market data service files found" `
@@ -163,7 +163,7 @@ Copy-ProtoFiles -SourcePath "gen/python/main" `
                 
 # Exchange Manager
 Copy-ProtoFiles -SourcePath "gen/python/main" `
-                -DestinationPath "../interface/exchange-manager-service/source/api" `
+                -DestinationPath "../backend/exchange-manager-service/source/api" `
                 -FileType "exchange*.py" `
                 -SuccessMessage "Python market data service files copied successfully" `
                 -NoFilesMessage "No Python market data service files found" `
