@@ -119,6 +119,60 @@ class DatabaseManager:
             
             return row['session_id'] if row else None
     
+    async def create_simulator(self, simulator_data):
+        """Create a new simulator record"""
+        async with self.pool.acquire() as conn:
+            await conn.execute("""
+                INSERT INTO simulator.instances 
+                (simulator_id, session_id, user_id, status, created_at, last_active, initial_symbols, initial_cash)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            """, 
+                simulator_data['simulator_id'],
+                simulator_data['session_id'],
+                simulator_data['user_id'],
+                simulator_data['status'],
+                simulator_data['created_at'],
+                simulator_data['last_active'],
+                json.dumps(simulator_data['initial_symbols']),
+                simulator_data['initial_cash']
+            )
+
+    async def get_active_user_simulators(self, user_id):
+        """Get active simulators for a user"""
+        async with self.pool.acquire() as conn:
+            results = await conn.fetch("""
+                SELECT * FROM simulator.instances 
+                WHERE user_id = $1 AND status = 'ACTIVE'
+            """, user_id)
+            return [dict(result) for result in results]
+
+    async def get_all_active_simulators(self) -> List[Dict[str, Any]]:
+        """Get all active simulators"""
+        async with self.pool.acquire() as conn:
+            results = await conn.fetch("""
+                SELECT * FROM simulator.instances 
+                WHERE status = 'ACTIVE'
+            """)
+            return [dict(result) for result in results]
+        
+    async def update_simulator_status(self, simulator_id, status):
+        """Update simulator status"""
+        async with self.pool.acquire() as conn:
+            await conn.execute("""
+                UPDATE simulator.instances 
+                SET status = $1 
+                WHERE simulator_id = $2
+            """, status, simulator_id)
+
+    async def update_simulator_last_active(self, simulator_id, timestamp):
+        """Update last active timestamp"""
+        async with self.pool.acquire() as conn:
+            await conn.execute("""
+                UPDATE simulator.instances 
+                SET last_active = $1 
+                WHERE simulator_id = $2
+            """, timestamp, simulator_id)
+            
     async def create_session(self, session_id, user_id, client_ip=None):
         """Create a new session"""
         if not self.pool:

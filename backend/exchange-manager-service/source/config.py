@@ -16,3 +16,6 @@ class Config:
     
     # Performance settings
     MAX_WORKER_THREADS = int(os.getenv('MAX_WORKER_THREADS', '10'))
+    
+    MAX_USER_SIMULATORS = int(os.getenv('MAX_USER_SIMULATORS', '10'))
+    SIMULATOR_TIMEOUT_SECONDS = int(os.getenv('SIMULATOR_TIMEOUT_SECONDS', '3600'))  # 1 hour

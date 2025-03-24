@@ -1,9 +1,10 @@
+# k8s/deployments/exchange-simulator.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: exchange-simulator
 spec:
-  replicas: 1
+  replicas: 0  # Important: No default replicas
   selector:
     matchLabels:
       app: exchange-simulator
@@ -15,18 +16,30 @@ spec:
       containers:
       - name: exchange-simulator
         image: opentp/exchange-simulator:latest
-        imagePullPolicy: Never
         ports:
         - containerPort: 50055
+        env:
+        - name: SIMULATOR_ID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels['simulator_id']
+        - name: SESSION_ID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels['session_id']
+        - name: USER_ID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels['user_id']
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: exchange-simulator
+  name: exchange-simulator-manager
 spec:
   selector:
-    app: exchange-simulator
+    app: exchange-simulator-manager
   ports:
-  - port: 50055
-    targetPort: 50055
+  - port: 50053
+    targetPort: 50053
   type: ClusterIP

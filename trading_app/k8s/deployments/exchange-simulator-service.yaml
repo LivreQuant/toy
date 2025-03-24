@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: exchangesvc
+spec:
+  selector:
+    app: exchange-simulator
+  ports:
+  - port: 50055
+    targetPort: 50055
+  type: ClusterIP
