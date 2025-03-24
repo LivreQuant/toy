@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: exchange-simulator
+  labels:
+    app: exchange-simulator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: exchange-simulator
+  template:
+    metadata:
+      labels:
+        app: exchange-simulator
+    spec:
+      containers:
+      - name: exchange-simulator
+        image: exchange-simulator:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 50055
+          name: grpc
+        - containerPort: 50056
+          name: http
+        env:
+        - name: PORT
+          valueFrom:
+            configMapKeyRef:
+              name: exchange-simulator-config
+              key: PORT
+        - name: HOST
+          valueFrom:
+            configMapKeyRef:
+              name: exchange-simulator-config
+              key: HOST
+        - name: INACTIVITY_TIMEOUT_SECONDS
+          valueFrom:
+            configMapKeyRef:
+              name: exchange-simulator-config
+              key: INACTIVITY_TIMEOUT_SECONDS
+        - name: AUTO_TERMINATE
+          valueFrom:
+            configMapKeyRef:
+              name: exchange-simulator-config
+              key: AUTO_TERMINATE
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: exchange-simulator-config
+              key: LOG_LEVEL
+        resources:
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+          requests:
+            cpu: "100m"
+            memory: "256Mi"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 50056
+          initialDelaySeconds: 30
+          periodSeconds: 15
+        readinessProbe:
+          httpGet:
+            path: /readiness
+            port: 50056
+          initialDelaySeconds: 5
+          periodSeconds: 10

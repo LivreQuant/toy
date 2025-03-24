@@ -1,0 +1,6 @@
+grpcio==1.54.0
+grpcio-tools==1.54.0
+protobuf==4.22.3
+aiohttp==3.8.5
+pydantic==2.5.2
+ujson==5.8.0

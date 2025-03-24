@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: exchange-simulator-config
+data:
+  PORT: "50055"
+  HOST: "0.0.0.0"
+  INACTIVITY_TIMEOUT_SECONDS: "300"
+  AUTO_TERMINATE: "true"
+  LOG_LEVEL: "INFO"
+  DEFAULT_SYMBOLS: "AAPL,MSFT,GOOGL,AMZN,TSLA"
+  DEFAULT_INITIAL_CASH: "100000.0"
+  MARKET_UPDATE_INTERVAL_SECONDS: "1.0"
