@@ -15,63 +15,64 @@ from source.api.exchange_pb2_grpc import ExchangeSimulatorStub  # Updated to mat
 
 logger = logging.getLogger('exchange_client')
 
+
 class ExchangeClient:
     """Client for communicating with exchange simulator via gRPC"""
-    
+
     def __init__(self, redis_client):
         self.redis = redis_client
         self.channels = {}  # endpoint -> channel
-        self.stubs = {}     # endpoint -> stub
-        
+        self.stubs = {}  # endpoint -> stub
+
         # Initialize circuit breaker
         self.breaker = pybreaker.CircuitBreaker(
             fail_max=5,
             reset_timeout=30,
             exclude=[grpc.aio.AioRpcError]  # Don't count certain exceptions
         )
-    
+
     async def get_channel(self, endpoint: str):
         """Get or create a gRPC channel to the endpoint"""
         if endpoint in self.channels:
             return self.channels[endpoint], self.stubs[endpoint]
-        
+
         # Create channel options
         options = [
-            ('grpc.keepalive_time_ms', 10000),        # 10 seconds
-            ('grpc.keepalive_timeout_ms', 5000),      # 5 seconds
+            ('grpc.keepalive_time_ms', 10000),  # 10 seconds
+            ('grpc.keepalive_timeout_ms', 5000),  # 5 seconds
             ('grpc.keepalive_permit_without_calls', 1),
-            ('grpc.http2.max_pings_without_data', 0), 
+            ('grpc.http2.max_pings_without_data', 0),
             ('grpc.http2.min_time_between_pings_ms', 10000),
             ('grpc.http2.min_ping_interval_without_data_ms', 5000)
         ]
-        
+
         # Create channel
         channel = grpc.aio.insecure_channel(endpoint, options=options)
         stub = ExchangeSimulatorStub(channel)  # Updated to match service name in proto
-        
+
         # Store for reuse
         self.channels[endpoint] = channel
         self.stubs[endpoint] = stub
-        
+
         return channel, stub
-    
+
     async def get_simulator_info(self, session_id: str) -> Optional[Dict[str, str]]:
         """Get simulator info from Redis"""
         try:
             # Get simulator ID for this session
             simulator_id = await self.redis.get(f"session:{session_id}:simulator")
-            
+
             if not simulator_id:
                 logger.warning(f"No simulator found for session {session_id}")
                 return None
-            
+
             # Get simulator endpoint
             simulator_endpoint = await self.redis.get(f"simulator:{simulator_id}:endpoint")
-            
+
             if not simulator_endpoint:
                 logger.warning(f"No endpoint found for simulator {simulator_id}")
                 return None
-            
+
             return {
                 "simulator_id": simulator_id,
                 "endpoint": simulator_endpoint
@@ -79,30 +80,30 @@ class ExchangeClient:
         except Exception as e:
             logger.error(f"Error getting simulator info: {e}")
             return None
-    
+
     async def submit_order(self, order) -> Dict[str, Any]:
         """Submit an order to the exchange simulator"""
         # Get simulator info
         simulator_info = await self.get_simulator_info(order.session_id)
-        
+
         if not simulator_info:
             logger.warning(f"Cannot submit order: No simulator for session {order.session_id}")
             return {
                 "success": False,
                 "error": "No active simulator found for this session"
             }
-        
+
         # Use circuit breaker for gRPC call
         @self.breaker
         async def protected_submit():
             try:
                 # Get gRPC connection
                 _, stub = await self.get_channel(simulator_info["endpoint"])
-                
+
                 # Convert order side and type to gRPC enum values
                 side_enum = self._string_to_side_enum(order.side)
                 type_enum = self._string_to_type_enum(order.order_type)
-                
+
                 # Create gRPC request
                 request = SubmitOrderRequest(
                     session_id=order.session_id,
@@ -113,13 +114,13 @@ class ExchangeClient:
                     type=type_enum,
                     request_id=order.request_id or f"order-{int(time.time())}-{order.order_id}"
                 )
-                
+
                 # Call gRPC service
                 response = await stub.SubmitOrder(request, timeout=5)
-                
+
                 # Update order with simulator ID
                 order.simulator_id = simulator_info["simulator_id"]
-                
+
                 if not response.success:
                     logger.warning(f"Order submission failed: {response.error_message}")
                     return {
@@ -127,12 +128,12 @@ class ExchangeClient:
                         "error": response.error_message,
                         "order_id": order.order_id
                     }
-                
+
                 return {
                     "success": True,
                     "order_id": response.order_id or order.order_id
                 }
-                
+
             except grpc.aio.AioRpcError as e:
                 status_code = e.code()
                 if status_code == grpc.StatusCode.UNAVAILABLE:
@@ -162,7 +163,7 @@ class ExchangeClient:
                     "error": f"Exchange communication error: {str(e)}",
                     "order_id": order.order_id
                 }
-        
+
         try:
             return await protected_submit()
         except pybreaker.CircuitBreakerError:
@@ -172,46 +173,46 @@ class ExchangeClient:
                 "error": "Exchange service temporarily unavailable due to repeated failures",
                 "order_id": order.order_id
             }
-    
+
     async def cancel_order(self, order) -> Dict[str, Any]:
         """Cancel an order on the exchange simulator"""
         # Get simulator info
         simulator_info = await self.get_simulator_info(order.session_id)
-        
+
         if not simulator_info:
             logger.warning(f"Cannot cancel order: No simulator for session {order.session_id}")
             return {
                 "success": False,
                 "error": "No active simulator found for this session"
             }
-        
+
         # Use circuit breaker for gRPC call
         @self.breaker
         async def protected_cancel():
             try:
                 # Get gRPC connection
                 _, stub = await self.get_channel(simulator_info["endpoint"])
-                
+
                 # Create gRPC request
                 request = CancelOrderRequest(
                     session_id=order.session_id,
                     order_id=order.order_id
                 )
-                
+
                 # Call gRPC service
                 response = await stub.CancelOrder(request, timeout=5)
-                
+
                 if not response.success:
                     logger.warning(f"Order cancellation failed: {getattr(response, 'error_message', 'Unknown error')}")
                     return {
                         "success": False,
                         "error": getattr(response, "error_message", "Cancellation failed")
                     }
-                
+
                 return {
                     "success": True
                 }
-                
+
             except grpc.aio.AioRpcError as e:
                 status_code = e.code()
                 if status_code == grpc.StatusCode.UNAVAILABLE:
@@ -231,7 +232,7 @@ class ExchangeClient:
                     "success": False,
                     "error": f"Exchange communication error: {str(e)}"
                 }
-        
+
         try:
             return await protected_cancel()
         except pybreaker.CircuitBreakerError:
@@ -240,38 +241,38 @@ class ExchangeClient:
                 "success": False,
                 "error": "Exchange service temporarily unavailable due to repeated failures"
             }
-    
+
     async def get_order_status(self, order) -> Dict[str, Any]:
         """Get order status from the exchange simulator"""
         # Get simulator info
         simulator_info = await self.get_simulator_info(order.session_id)
-        
+
         if not simulator_info:
             logger.warning(f"Cannot get order status: No simulator for session {order.session_id}")
             return {
                 "success": False,
                 "error": "No active simulator found for this session"
             }
-        
+
         # Use circuit breaker for gRPC call
         @self.breaker
         async def protected_status():
             try:
                 # Get gRPC connection
                 _, stub = await self.get_channel(simulator_info["endpoint"])
-                
+
                 # Create gRPC request
                 request = GetOrderStatusRequest(
                     session_id=order.session_id,
                     order_id=order.order_id
                 )
-                
+
                 # Call gRPC service
                 response = await stub.GetOrderStatus(request, timeout=5)
-                
+
                 # Map gRPC enum status to string
                 status = self._status_enum_to_string(response.status)
-                
+
                 return {
                     "success": True,
                     "status": status,
@@ -279,7 +280,7 @@ class ExchangeClient:
                     "avg_price": float(response.avg_price),
                     "error_message": getattr(response, "error_message", None)
                 }
-                
+
             except grpc.aio.AioRpcError as e:
                 status_code = e.code()
                 if status_code == grpc.StatusCode.UNAVAILABLE:
@@ -299,7 +300,7 @@ class ExchangeClient:
                     "success": False,
                     "error": f"Exchange communication error: {str(e)}"
                 }
-        
+
         try:
             return await protected_status()
         except pybreaker.CircuitBreakerError:
@@ -308,7 +309,7 @@ class ExchangeClient:
                 "success": False,
                 "error": "Exchange service temporarily unavailable due to repeated failures"
             }
-    
+
     def _string_to_side_enum(self, side):
         """Convert string order side to gRPC enum value"""
         side_str = side.value if hasattr(side, 'value') else side
@@ -318,7 +319,7 @@ class ExchangeClient:
             return SubmitOrderRequest.Side.SELL
         else:
             raise ValueError(f"Invalid order side: {side}")
-    
+
     def _string_to_type_enum(self, order_type):
         """Convert string order type to gRPC enum value"""
         type_str = order_type.value if hasattr(order_type, 'value') else order_type
@@ -328,11 +329,11 @@ class ExchangeClient:
             return SubmitOrderRequest.Type.LIMIT
         else:
             raise ValueError(f"Invalid order type: {order_type}")
-    
+
     def _status_enum_to_string(self, status_enum):
         """Convert gRPC enum status to string status"""
         from source.models.order import OrderStatus
-        
+
         status_map = {
             GetOrderStatusResponse.Status.NEW: OrderStatus.NEW,
             GetOrderStatusResponse.Status.PARTIALLY_FILLED: OrderStatus.PARTIALLY_FILLED,
@@ -342,7 +343,7 @@ class ExchangeClient:
             GetOrderStatusResponse.Status.UNKNOWN: OrderStatus.REJECTED  # Map unknown to rejected
         }
         return status_map.get(status_enum, OrderStatus.REJECTED)
-    
+
     async def close(self):
         """Close all gRPC channels"""
         for endpoint, channel in self.channels.items():
@@ -350,6 +351,6 @@ class ExchangeClient:
                 await channel.close()
             except Exception as e:
                 logger.error(f"Error closing channel to {endpoint}: {e}")
-        
+
         self.channels.clear()
         self.stubs.clear()

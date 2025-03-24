@@ -6,13 +6,16 @@ import time
 import uuid
 import json
 
+
 class OrderSide(str, Enum):
     BUY = "BUY"
     SELL = "SELL"
 
+
 class OrderType(str, Enum):
     MARKET = "MARKET"
     LIMIT = "LIMIT"
+
 
 class OrderStatus(str, Enum):
     NEW = "NEW"
@@ -20,6 +23,7 @@ class OrderStatus(str, Enum):
     FILLED = "FILLED"
     CANCELED = "CANCELED"
     REJECTED = "REJECTED"
+
 
 @dataclass
 class Order:
@@ -29,7 +33,7 @@ class Order:
     order_type: OrderType
     user_id: str
     session_id: str
-    
+
     # Optional fields
     price: Optional[float] = None
     order_id: Optional[str] = None
@@ -41,19 +45,19 @@ class Order:
     updated_at: float = 0
     request_id: Optional[str] = None
     error_message: Optional[str] = None
-    
+
     def __post_init__(self):
         # Generate order_id if not provided
         if not self.order_id:
             self.order_id = str(uuid.uuid4())
-        
+
         # Set timestamps if not provided
         current_time = time.time()
         if not self.created_at:
             self.created_at = current_time
         if not self.updated_at:
             self.updated_at = current_time
-    
+
     def to_dict(self):
         """Convert order to dictionary for JSON serialization"""
         return {
@@ -74,11 +78,11 @@ class Order:
             "request_id": self.request_id,
             "error_message": self.error_message
         }
-    
+
     def to_json(self):
         """Convert order to JSON string"""
         return json.dumps(self.to_dict())
-    
+
     @classmethod
     def from_dict(cls, data):
         """Create order from dictionary"""
@@ -89,9 +93,9 @@ class Order:
             data['order_type'] = OrderType(data['order_type'])
         if isinstance(data.get('status'), str):
             data['status'] = OrderStatus(data['status'])
-        
+
         return cls(**data)
-    
+
     @classmethod
     def from_json(cls, json_str):
         """Create order from JSON string"""

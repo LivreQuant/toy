@@ -9,6 +9,7 @@ from source.models.order import Order, OrderStatus
 
 logger = logging.getLogger('order_store')
 
+
 class OrderStore:
     def __init__(self):
         self.pool = None
@@ -22,18 +23,17 @@ class OrderStore:
         self.min_connections = int(os.getenv('DB_MIN_CONNECTIONS', '2'))  # Increased minimum
         self.max_connections = int(os.getenv('DB_MAX_CONNECTIONS', '20'))  # Higher max for bursts
         self._conn_lock = asyncio.Lock()  # Lock for pool initialization
-    
-    
+
     async def connect(self):
         """Create the database connection pool with retry logic"""
         async with self._conn_lock:
             if self.pool:
                 return
-            
+
             max_retries = 5
             retry_count = 0
             last_error = None
-            
+
             while retry_count < max_retries:
                 try:
                     self.pool = await asyncpg.create_pool(
@@ -43,7 +43,7 @@ class OrderStore:
                         **self.db_config
                     )
                     logger.info("Database connection established")
-                    
+
                     # Ensure required schema exists
                     await self.ensure_schema()
                     return
@@ -51,21 +51,22 @@ class OrderStore:
                     last_error = e
                     retry_count += 1
                     wait_time = 0.5 * (2 ** retry_count)  # Exponential backoff
-                    
-                    logger.warning(f"Database connection attempt {retry_count} failed: {e}. Retrying in {wait_time}s...")
+
+                    logger.warning(
+                        f"Database connection attempt {retry_count} failed: {e}. Retrying in {wait_time}s...")
                     await asyncio.sleep(wait_time)
-            
+
             # If we get here, all retries failed
             logger.error(f"Failed to connect to database after {max_retries} attempts: {last_error}")
             raise last_error
-    
+
     async def close(self):
         """Close all database connections"""
         if self.pool:
             await self.pool.close()
             self.pool = None
             logger.info("Database connections closed")
-    
+
     async def ensure_schema(self):
         """Ensure the orders schema and tables exist"""
         schema_query = """
@@ -98,17 +99,17 @@ class OrderStore:
         CREATE INDEX IF NOT EXISTS idx_orders_status ON trading.orders(status);
         CREATE INDEX IF NOT EXISTS idx_orders_created_at ON trading.orders(created_at);
         """
-        
+
         async with self.pool.acquire() as conn:
             await conn.execute(schema_query)
-        
+
         logger.info("Orders schema verification complete")
-    
+
     async def save_order(self, order: Order) -> bool:
         """Save a new order to the database"""
         if not self.pool:
             await self.connect()
-        
+
         query = """
         INSERT INTO trading.orders (
             order_id, user_id, session_id, symbol, side, quantity, price, 
@@ -125,7 +126,7 @@ class OrderStore:
             updated_at = EXCLUDED.updated_at,
             error_message = EXCLUDED.error_message
         """
-        
+
         try:
             async with self.pool.acquire() as conn:
                 await conn.execute(
@@ -151,12 +152,12 @@ class OrderStore:
         except Exception as e:
             logger.error(f"Error saving order: {e}")
             return False
-    
+
     async def get_order(self, order_id: str) -> Optional[Order]:
         """Get an order by ID"""
         if not self.pool:
             await self.connect()
-        
+
         query = """
         SELECT 
             order_id, user_id, session_id, symbol, side, quantity, price, 
@@ -167,13 +168,13 @@ class OrderStore:
         FROM trading.orders
         WHERE order_id = $1
         """
-        
+
         try:
             async with self.pool.acquire() as conn:
                 row = await conn.fetchrow(query, order_id)
                 if not row:
                     return None
-                
+
                 # Convert to Order object
                 return Order(
                     order_id=row['order_id'],
@@ -196,42 +197,42 @@ class OrderStore:
         except Exception as e:
             logger.error(f"Error retrieving order: {e}")
             return None
-    
-    async def update_order_status(self, order_id: str, status: OrderStatus, 
-                                  filled_quantity: float = None, avg_price: float = None, 
+
+    async def update_order_status(self, order_id: str, status: OrderStatus,
+                                  filled_quantity: float = None, avg_price: float = None,
                                   error_message: str = None) -> bool:
         """Update an order's status"""
         if not self.pool:
             await self.connect()
-        
+
         # Build update query based on provided fields
         query_parts = ["UPDATE trading.orders SET status = $1"]
         params = [status.value if isinstance(status, OrderStatus) else status]
-        
+
         param_idx = 2
         if filled_quantity is not None:
             query_parts.append(f"filled_quantity = ${param_idx}")
             params.append(filled_quantity)
             param_idx += 1
-        
+
         if avg_price is not None:
             query_parts.append(f"avg_price = ${param_idx}")
             params.append(avg_price)
             param_idx += 1
-        
+
         if error_message is not None:
             query_parts.append(f"error_message = ${param_idx}")
             params.append(error_message)
             param_idx += 1
-        
+
         query_parts.append(f"updated_at = to_timestamp(${param_idx})")
         params.append(time.time())
-        
+
         query_parts.append(f"WHERE order_id = ${param_idx + 1}")
         params.append(order_id)
-        
+
         query = " ".join(query_parts)
-        
+
         try:
             async with self.pool.acquire() as conn:
                 result = await conn.execute(query, *params)
@@ -239,12 +240,12 @@ class OrderStore:
         except Exception as e:
             logger.error(f"Error updating order status: {e}")
             return False
-    
+
     async def get_user_orders(self, user_id: str, limit: int = 50, offset: int = 0) -> List[Order]:
         """Get orders for a specific user"""
         if not self.pool:
             await self.connect()
-        
+
         query = """
         SELECT 
             order_id, user_id, session_id, symbol, side, quantity, price, 
@@ -257,11 +258,11 @@ class OrderStore:
         ORDER BY created_at DESC
         LIMIT $2 OFFSET $3
         """
-        
+
         try:
             async with self.pool.acquire() as conn:
                 rows = await conn.fetch(query, user_id, limit, offset)
-                
+
                 orders = []
                 for row in rows:
                     orders.append(Order(
@@ -282,17 +283,17 @@ class OrderStore:
                         request_id=row['request_id'],
                         error_message=row['error_message']
                     ))
-                
+
                 return orders
         except Exception as e:
             logger.error(f"Error retrieving user orders: {e}")
             return []
-    
+
     async def get_session_orders(self, session_id: str, limit: int = 50, offset: int = 0) -> List[Order]:
         """Get orders for a specific session"""
         if not self.pool:
             await self.connect()
-        
+
         query = """
         SELECT 
             order_id, user_id, session_id, symbol, side, quantity, price, 
@@ -305,11 +306,11 @@ class OrderStore:
         ORDER BY created_at DESC
         LIMIT $2 OFFSET $3
         """
-        
+
         try:
             async with self.pool.acquire() as conn:
                 rows = await conn.fetch(query, session_id, limit, offset)
-                
+
                 orders = []
                 for row in rows:
                     orders.append(Order(
@@ -330,22 +331,22 @@ class OrderStore:
                         request_id=row['request_id'],
                         error_message=row['error_message']
                     ))
-                
+
                 return orders
         except Exception as e:
             logger.error(f"Error retrieving session orders: {e}")
             return []
-    
+
     async def cleanup_old_orders(self, days_old: int = 30) -> int:
         """Clean up orders older than the specified number of days"""
         if not self.pool:
             await self.connect()
-        
+
         query = """
         DELETE FROM trading.orders
         WHERE created_at < NOW() - INTERVAL '$1 days'
         """
-        
+
         try:
             async with self.pool.acquire() as conn:
                 result = await conn.execute(query, days_old)
@@ -355,7 +356,7 @@ class OrderStore:
         except Exception as e:
             logger.error(f"Error cleaning up old orders: {e}")
             return 0
-    
+
     async def check_connection(self) -> bool:
         """Check if database connection is working"""
         if not self.pool:
@@ -364,7 +365,7 @@ class OrderStore:
                 return True
             except:
                 return False
-        
+
         try:
             async with self.pool.acquire() as conn:
                 await conn.execute("SELECT 1")

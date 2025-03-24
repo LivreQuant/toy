@@ -4,9 +4,9 @@ import signal
 import asyncio
 import logging
 
-from source.utils.config import Config
+from source.config import Config
 from source.utils.logging_setup import setup_logging
-from source.api.grpc_server import GrpcServer
+from source.utils.grpc_server import GrpcServer
 
 logger = logging.getLogger(__name__)
 

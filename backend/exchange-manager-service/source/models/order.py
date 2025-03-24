@@ -4,13 +4,16 @@ from enum import Enum
 from dataclasses import dataclass, field
 from typing import Optional
 
+
 class OrderSide(str, Enum):
     BUY = "BUY"
     SELL = "SELL"
 
+
 class OrderType(str, Enum):
     MARKET = "MARKET"
     LIMIT = "LIMIT"
+
 
 class OrderStatus(str, Enum):
     NEW = "NEW"
@@ -19,6 +22,7 @@ class OrderStatus(str, Enum):
     CANCELED = "CANCELED"
     REJECTED = "REJECTED"
 
+
 @dataclass
 class Order:
     session_id: str
@@ -26,7 +30,7 @@ class Order:
     side: OrderSide
     quantity: float
     order_type: OrderType
-    
+
     # Optional fields
     price: Optional[float] = None
     order_id: str = field(default_factory=lambda: str(uuid.uuid4()))
@@ -37,7 +41,7 @@ class Order:
     created_at: float = field(default_factory=time.time)
     updated_at: float = field(default_factory=time.time)
     error_message: Optional[str] = None
-    
+
     def to_dict(self):
         """Convert to dictionary representation"""
         return {

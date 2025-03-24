@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: session-service-config
+  namespace: default
+data:
+  ENVIRONMENT: "production"
+  LOG_LEVEL: "INFO"
+  PORT: "8080"
+  DB_HOST: "postgres"
+  DB_PORT: "5432"
+  DB_NAME: "sessions"
+  REDIS_HOST: "redis"
+  REDIS_PORT: "6379"
+  REDIS_DB: "0"
+  AUTH_SERVICE_URL: "http://auth-service:8000"
+  EXCHANGE_MANAGER_SERVICE: "exchange-manager-service:50055"
+  WEBSOCKET_HEARTBEAT_INTERVAL: "10"
+  SSE_KEEPALIVE_INTERVAL: "15"
+  SESSION_TIMEOUT_SECONDS: "3600"
+  SESSION_EXTENSION_THRESHOLD: "1800"
+  MAX_SIMULATORS_PER_USER: "2"
+  SIMULATOR_INACTIVITY_TIMEOUT: "3600"
+  SIMULATOR_NAMESPACE: "default"

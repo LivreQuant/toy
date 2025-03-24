@@ -5,6 +5,7 @@ from typing import Dict, List, Any
 
 logger = logging.getLogger(__name__)
 
+
 class MarketDataGenerator:
     def __init__(self, symbols=None):
         self.symbols = symbols or ["AAPL", "MSFT", "GOOGL", "AMZN", "TSLA"]
@@ -19,7 +20,7 @@ class MarketDataGenerator:
         for symbol in self.symbols:
             if symbol not in self.prices:
                 self.prices[symbol] = random.uniform(50.0, 500.0)
-    
+
     def update_prices(self):
         """Update prices with random movements"""
         for symbol in self.symbols:
@@ -28,11 +29,11 @@ class MarketDataGenerator:
             price_change = current_price * (random.random() * 0.01 - 0.005)
             new_price = max(0.01, current_price + price_change)
             self.prices[symbol] = new_price
-    
+
     def get_price(self, symbol: str) -> float:
         """Get current price for a symbol"""
         return self.prices.get(symbol, 0.0)
-    
+
     def get_market_data(self, symbols=None) -> List[Dict[str, Any]]:
         """Generate market data for the specified symbols"""
         market_data = []
@@ -42,7 +43,7 @@ class MarketDataGenerator:
                 # Create small random spread
                 bid = price - random.random() * 0.02
                 ask = price + random.random() * 0.02
-                
+
                 market_data.append({
                     'symbol': symbol,
                     'bid': bid,
@@ -52,5 +53,5 @@ class MarketDataGenerator:
                     'last_price': price,
                     'last_size': random.randint(10, 100)
                 })
-        
+
         return market_data
