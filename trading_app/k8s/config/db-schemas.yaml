@@ -1,0 +1,108 @@
+# k8s/config/db-schemas.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: db-schemas
+data:
+  users.sql: |
+    -- Users Schema
+    CREATE SCHEMA IF NOT EXISTS auth;
+    
+    CREATE TABLE IF NOT EXISTS auth.users (
+        id SERIAL PRIMARY KEY,
+        username VARCHAR(50) UNIQUE NOT NULL,
+        email VARCHAR(100) UNIQUE,
+        password_hash VARCHAR(255) NOT NULL,
+        first_name VARCHAR(50),
+        last_name VARCHAR(50),
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        last_login TIMESTAMP WITH TIME ZONE,
+        is_active BOOLEAN DEFAULT TRUE,
+        role VARCHAR(20) DEFAULT 'user' CHECK (role IN ('admin', 'user', 'demo'))
+    );
+    
+    -- Add indexes
+    CREATE INDEX IF NOT EXISTS idx_users_username ON auth.users(username);
+    CREATE INDEX IF NOT EXISTS idx_users_email ON auth.users(email);
+    CREATE INDEX IF NOT EXISTS idx_users_role ON auth.users(role);
+    
+    -- User preferences table for app settings
+    CREATE TABLE IF NOT EXISTS auth.user_preferences (
+        user_id INTEGER PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+        theme VARCHAR(20) DEFAULT 'light',
+        default_simulator_config JSONB,
+        last_modified TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+    
+    -- Function to hash passwords
+    CREATE OR REPLACE FUNCTION auth.hash_password(password TEXT)
+    RETURNS TEXT AS $$
+    BEGIN
+        -- In production, use a proper password hashing library
+        -- This is a simple hash for demo purposes only
+        RETURN encode(digest(password || 'trading-simulator-salt', 'sha256'), 'hex');
+    END;
+    $$ LANGUAGE plpgsql;
+    
+  auth_tokens.sql: |
+    -- Token management
+    CREATE TABLE IF NOT EXISTS auth.refresh_tokens (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+      token_hash TEXT NOT NULL,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+      is_revoked BOOLEAN DEFAULT FALSE,
+      CONSTRAINT unique_token UNIQUE (token_hash)
+    );
+    
+    -- Add indexes for performance
+    CREATE INDEX IF NOT EXISTS idx_refresh_token_hash ON auth.refresh_tokens(token_hash);
+    CREATE INDEX IF NOT EXISTS idx_refresh_token_user_id ON auth.refresh_tokens(user_id);
+    
+    -- Create cleanup function
+    CREATE OR REPLACE FUNCTION auth.cleanup_expired_tokens()
+    RETURNS void AS $$
+    BEGIN
+      DELETE FROM auth.refresh_tokens 
+      WHERE expires_at < NOW() OR is_revoked = TRUE;
+    END;
+    $$ LANGUAGE plpgsql;
+
+  sessions.sql: |
+    CREATE SCHEMA IF NOT EXISTS session;
+    
+    CREATE TABLE IF NOT EXISTS session.active_sessions (
+        session_id UUID PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+        token VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        last_active TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+        ip_address VARCHAR(45),
+        user_agent TEXT
+    );
+    
+    -- Add indexes
+    CREATE INDEX IF NOT EXISTS idx_active_sessions_user_id ON session.active_sessions(user_id);
+    CREATE INDEX IF NOT EXISTS idx_active_sessions_token ON session.active_sessions(token);
+    CREATE INDEX IF NOT EXISTS idx_active_sessions_expires_at ON session.active_sessions(expires_at);
+    
+    -- Create session metadata table
+    CREATE TABLE IF NOT EXISTS session.session_metadata (
+        session_id UUID PRIMARY KEY REFERENCES session.active_sessions(session_id) ON DELETE CASCADE,
+        metadata JSONB DEFAULT '{}'::jsonb
+    );
+    
+  simulator_sessions.sql: |
+    CREATE SCHEMA IF NOT EXISTS simulator;
+    
+    CREATE TABLE IF NOT EXISTS simulator.instances (
+        simulator_id UUID PRIMARY KEY,
+        session_id UUID NOT NULL REFERENCES session.active_sessions(session_id) ON DELETE CASCADE,
+        status VARCHAR(20) NOT NULL CHECK (status IN ('STARTING', 'RUNNING', 'STOPPING', 'STOPPED', 'ERROR')),
+        endpoint VARCHAR(255),
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        last_active TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        pod_name VARCHAR(100)
+    );

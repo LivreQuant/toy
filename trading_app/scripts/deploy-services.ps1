@@ -61,6 +61,12 @@ if (-not $SkipInfrastructure) {
     } else {
         Write-Output "PostgreSQL is ready."
         
+        # Database initialization ConfigMaps and Job
+        # ADD THESE LINES HERE:
+        Write-Output "Applying database schema and data ConfigMaps..."
+        kubectl apply -f ./k8s/config/db-schemas.yaml
+        kubectl apply -f ./k8s/config/db-data.yaml
+        
         # Initialize database
         kubectl apply -f ./k8s/jobs/db-init-job.yaml
         
