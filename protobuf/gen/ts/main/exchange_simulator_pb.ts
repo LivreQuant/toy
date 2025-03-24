@@ -2,15 +2,113 @@
 // @generated from file main/exchange_simulator.proto (package exchange, syntax proto3)
 /* eslint-disable */
 
-import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv1";
-import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv1";
+import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv1";
+import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv1";
 import type { Message } from "@bufbuild/protobuf";
 
 /**
  * Describes the file main/exchange_simulator.proto.
  */
 export const file_main_exchange_simulator: GenFile = /*@__PURE__*/
-  fileDesc("Ch1tYWluL2V4Y2hhbmdlX3NpbXVsYXRvci5wcm90bxIIZXhjaGFuZ2UiRwoNU3RyZWFtUmVxdWVzdBISCgpzZXNzaW9uX2lkGAEgASgJEhEKCWNsaWVudF9pZBgCIAEoCRIPCgdzeW1ib2xzGAMgAygJIq4BChJFeGNoYW5nZURhdGFVcGRhdGUSEQoJdGltZXN0YW1wGAEgASgDEikKC21hcmtldF9kYXRhGAIgAygLMhQuZXhjaGFuZ2UuTWFya2V0RGF0YRIsCg1vcmRlcl91cGRhdGVzGAMgAygLMhUuZXhjaGFuZ2UuT3JkZXJVcGRhdGUSLAoJcG9ydGZvbGlvGAQgASgLMhkuZXhjaGFuZ2UuUG9ydGZvbGlvU3RhdHVzIoEBCgpNYXJrZXREYXRhEg4KBnN5bWJvbBgBIAEoCRILCgNiaWQYAiABKAESCwoDYXNrGAMgASgBEhAKCGJpZF9zaXplGAQgASgFEhAKCGFza19zaXplGAUgASgFEhIKCmxhc3RfcHJpY2UYBiABKAESEQoJbGFzdF9zaXplGAcgASgFIm8KC09yZGVyVXBkYXRlEhAKCG9yZGVyX2lkGAEgASgJEg4KBnN5bWJvbBgCIAEoCRIOCgZzdGF0dXMYAyABKAkSFwoPZmlsbGVkX3F1YW50aXR5GAQgASgFEhUKDWF2ZXJhZ2VfcHJpY2UYBSABKAEiYwoPUG9ydGZvbGlvU3RhdHVzEiUKCXBvc2l0aW9ucxgBIAMoCzISLmV4Y2hhbmdlLlBvc2l0aW9uEhQKDGNhc2hfYmFsYW5jZRgCIAEoARITCgt0b3RhbF92YWx1ZRgDIAEoASJYCghQb3NpdGlvbhIOCgZzeW1ib2wYASABKAkSEAoIcXVhbnRpdHkYAiABKAUSFAoMYXZlcmFnZV9jb3N0GAMgASgBEhQKDG1hcmtldF92YWx1ZRgEIAEoASJTChBIZWFydGJlYXRSZXF1ZXN0EhIKCnNlc3Npb25faWQYASABKAkSEQoJY2xpZW50X2lkGAIgASgJEhgKEGNsaWVudF90aW1lc3RhbXAYAyABKAMiPgoRSGVhcnRiZWF0UmVzcG9uc2USDwoHc3VjY2VzcxgBIAEoCBIYChBzZXJ2ZXJfdGltZXN0YW1wGAIgASgDMqgBChFFeGNoYW5nZVNpbXVsYXRvchJNChJTdHJlYW1FeGNoYW5nZURhdGESFy5leGNoYW5nZS5TdHJlYW1SZXF1ZXN0GhwuZXhjaGFuZ2UuRXhjaGFuZ2VEYXRhVXBkYXRlMAESRAoJSGVhcnRiZWF0EhouZXhjaGFuZ2UuSGVhcnRiZWF0UmVxdWVzdBobLmV4Y2hhbmdlLkhlYXJ0YmVhdFJlc3BvbnNlQmYKDGNvbS5leGNoYW5nZUIWRXhjaGFuZ2VTaW11bGF0b3JQcm90b1ABogIDRVhYqgIIRXhjaGFuZ2XKAghFeGNoYW5nZeICFEV4Y2hhbmdlXEdQQk1ldGFkYXRh6gIIRXhjaGFuZ2ViBnByb3RvMw");
+  fileDesc("Ch1tYWluL2V4Y2hhbmdlX3NpbXVsYXRvci5wcm90bxIIZXhjaGFuZ2UiawoVU3RhcnRTaW11bGF0b3JSZXF1ZXN0EhIKCnNlc3Npb25faWQYASABKAkSDwoHdXNlcl9pZBgCIAEoCRIXCg9pbml0aWFsX3N5bWJvbHMYAyADKAkSFAoMaW5pdGlhbF9jYXNoGAQgASgBIlYKFlN0YXJ0U2ltdWxhdG9yUmVzcG9uc2USDwoHc3VjY2VzcxgBIAEoCBIVCg1lcnJvcl9tZXNzYWdlGAIgASgJEhQKDHNpbXVsYXRvcl9pZBgDIAEoCSIqChRTdG9wU2ltdWxhdG9yUmVxdWVzdBISCgpzZXNzaW9uX2lkGAEgASgJIj8KFVN0b3BTaW11bGF0b3JSZXNwb25zZRIPCgdzdWNjZXNzGAEgASgIEhUKDWVycm9yX21lc3NhZ2UYAiABKAkiRwoNU3RyZWFtUmVxdWVzdBISCgpzZXNzaW9uX2lkGAEgASgJEhEKCWNsaWVudF9pZBgCIAEoCRIPCgdzeW1ib2xzGAMgAygJIq4BChJFeGNoYW5nZURhdGFVcGRhdGUSEQoJdGltZXN0YW1wGAEgASgDEikKC21hcmtldF9kYXRhGAIgAygLMhQuZXhjaGFuZ2UuTWFya2V0RGF0YRIsCg1vcmRlcl91cGRhdGVzGAMgAygLMhUuZXhjaGFuZ2UuT3JkZXJVcGRhdGUSLAoJcG9ydGZvbGlvGAQgASgLMhkuZXhjaGFuZ2UuUG9ydGZvbGlvU3RhdHVzIoEBCgpNYXJrZXREYXRhEg4KBnN5bWJvbBgBIAEoCRILCgNiaWQYAiABKAESCwoDYXNrGAMgASgBEhAKCGJpZF9zaXplGAQgASgFEhAKCGFza19zaXplGAUgASgFEhIKCmxhc3RfcHJpY2UYBiABKAESEQoJbGFzdF9zaXplGAcgASgFIm8KC09yZGVyVXBkYXRlEhAKCG9yZGVyX2lkGAEgASgJEg4KBnN5bWJvbBgCIAEoCRIOCgZzdGF0dXMYAyABKAkSFwoPZmlsbGVkX3F1YW50aXR5GAQgASgFEhUKDWF2ZXJhZ2VfcHJpY2UYBSABKAEiYwoPUG9ydGZvbGlvU3RhdHVzEiUKCXBvc2l0aW9ucxgBIAMoCzISLmV4Y2hhbmdlLlBvc2l0aW9uEhQKDGNhc2hfYmFsYW5jZRgCIAEoARITCgt0b3RhbF92YWx1ZRgDIAEoASJYCghQb3NpdGlvbhIOCgZzeW1ib2wYASABKAkSEAoIcXVhbnRpdHkYAiABKAUSFAoMYXZlcmFnZV9jb3N0GAMgASgBEhQKDG1hcmtldF92YWx1ZRgEIAEoASJTChBIZWFydGJlYXRSZXF1ZXN0EhIKCnNlc3Npb25faWQYASABKAkSEQoJY2xpZW50X2lkGAIgASgJEhgKEGNsaWVudF90aW1lc3RhbXAYAyABKAMiPgoRSGVhcnRiZWF0UmVzcG9uc2USDwoHc3VjY2VzcxgBIAEoCBIYChBzZXJ2ZXJfdGltZXN0YW1wGAIgASgDIokCChJTdWJtaXRPcmRlclJlcXVlc3QSEgoKc2Vzc2lvbl9pZBgBIAEoCRIOCgZzeW1ib2wYAiABKAkSLwoEc2lkZRgDIAEoDjIhLmV4Y2hhbmdlLlN1Ym1pdE9yZGVyUmVxdWVzdC5TaWRlEhAKCHF1YW50aXR5GAQgASgBEg0KBXByaWNlGAUgASgBEi8KBHR5cGUYBiABKA4yIS5leGNoYW5nZS5TdWJtaXRPcmRlclJlcXVlc3QuVHlwZRISCgpyZXF1ZXN0X2lkGAcgASgJIhkKBFNpZGUSBwoDQlVZEAASCAoEU0VMTBABIh0KBFR5cGUSCgoGTUFSS0VUEAASCQoFTElNSVQQASJPChNTdWJtaXRPcmRlclJlc3BvbnNlEg8KB3N1Y2Nlc3MYASABKAgSEAoIb3JkZXJfaWQYAiABKAkSFQoNZXJyb3JfbWVzc2FnZRgDIAEoCSI6ChJDYW5jZWxPcmRlclJlcXVlc3QSEgoKc2Vzc2lvbl9pZBgBIAEoCRIQCghvcmRlcl9pZBgCIAEoCSI9ChNDYW5jZWxPcmRlclJlc3BvbnNlEg8KB3N1Y2Nlc3MYASABKAgSFQoNZXJyb3JfbWVzc2FnZRgCIAEoCSI9ChVHZXRPcmRlclN0YXR1c1JlcXVlc3QSEgoKc2Vzc2lvbl9pZBgBIAEoCRIQCghvcmRlcl9pZBgCIAEoCSLyAQoWR2V0T3JkZXJTdGF0dXNSZXNwb25zZRI3CgZzdGF0dXMYASABKA4yJy5leGNoYW5nZS5HZXRPcmRlclN0YXR1c1Jlc3BvbnNlLlN0YXR1cxIXCg9maWxsZWRfcXVhbnRpdHkYAiABKAESEQoJYXZnX3ByaWNlGAMgASgBEhUKDWVycm9yX21lc3NhZ2UYBCABKAkiXAoGU3RhdHVzEgsKB1VOS05PV04QABIHCgNORVcQARIUChBQQVJUSUFMTFlfRklMTEVEEAISCgoGRklMTEVEEAMSDAoIQ0FOQ0VMRUQQBBIMCghSRUpFQ1RFRBAFMrwEChFFeGNoYW5nZVNpbXVsYXRvchJTCg5TdGFydFNpbXVsYXRvchIfLmV4Y2hhbmdlLlN0YXJ0U2ltdWxhdG9yUmVxdWVzdBogLmV4Y2hhbmdlLlN0YXJ0U2ltdWxhdG9yUmVzcG9uc2USUAoNU3RvcFNpbXVsYXRvchIeLmV4Y2hhbmdlLlN0b3BTaW11bGF0b3JSZXF1ZXN0Gh8uZXhjaGFuZ2UuU3RvcFNpbXVsYXRvclJlc3BvbnNlEk0KElN0cmVhbUV4Y2hhbmdlRGF0YRIXLmV4Y2hhbmdlLlN0cmVhbVJlcXVlc3QaHC5leGNoYW5nZS5FeGNoYW5nZURhdGFVcGRhdGUwARJECglIZWFydGJlYXQSGi5leGNoYW5nZS5IZWFydGJlYXRSZXF1ZXN0GhsuZXhjaGFuZ2UuSGVhcnRiZWF0UmVzcG9uc2USSgoLU3VibWl0T3JkZXISHC5leGNoYW5nZS5TdWJtaXRPcmRlclJlcXVlc3QaHS5leGNoYW5nZS5TdWJtaXRPcmRlclJlc3BvbnNlEkoKC0NhbmNlbE9yZGVyEhwuZXhjaGFuZ2UuQ2FuY2VsT3JkZXJSZXF1ZXN0Gh0uZXhjaGFuZ2UuQ2FuY2VsT3JkZXJSZXNwb25zZRJTCg5HZXRPcmRlclN0YXR1cxIfLmV4Y2hhbmdlLkdldE9yZGVyU3RhdHVzUmVxdWVzdBogLmV4Y2hhbmdlLkdldE9yZGVyU3RhdHVzUmVzcG9uc2VCZgoMY29tLmV4Y2hhbmdlQhZFeGNoYW5nZVNpbXVsYXRvclByb3RvUAGiAgNFWFiqAghFeGNoYW5nZcoCCEV4Y2hhbmdl4gIURXhjaGFuZ2VcR1BCTWV0YWRhdGHqAghFeGNoYW5nZWIGcHJvdG8z");
+
+/**
+ * @generated from message exchange.StartSimulatorRequest
+ */
+export type StartSimulatorRequest = Message<"exchange.StartSimulatorRequest"> & {
+  /**
+   * @generated from field: string session_id = 1;
+   */
+  sessionId: string;
+
+  /**
+   * @generated from field: string user_id = 2;
+   */
+  userId: string;
+
+  /**
+   * @generated from field: repeated string initial_symbols = 3;
+   */
+  initialSymbols: string[];
+
+  /**
+   * @generated from field: double initial_cash = 4;
+   */
+  initialCash: number;
+};
+
+/**
+ * Describes the message exchange.StartSimulatorRequest.
+ * Use `create(StartSimulatorRequestSchema)` to create a new message.
+ */
+export const StartSimulatorRequestSchema: GenMessage<StartSimulatorRequest> = /*@__PURE__*/
+  messageDesc(file_main_exchange_simulator, 0);
+
+/**
+ * @generated from message exchange.StartSimulatorResponse
+ */
+export type StartSimulatorResponse = Message<"exchange.StartSimulatorResponse"> & {
+  /**
+   * @generated from field: bool success = 1;
+   */
+  success: boolean;
+
+  /**
+   * @generated from field: string error_message = 2;
+   */
+  errorMessage: string;
+
+  /**
+   * @generated from field: string simulator_id = 3;
+   */
+  simulatorId: string;
+};
+
+/**
+ * Describes the message exchange.StartSimulatorResponse.
+ * Use `create(StartSimulatorResponseSchema)` to create a new message.
+ */
+export const StartSimulatorResponseSchema: GenMessage<StartSimulatorResponse> = /*@__PURE__*/
+  messageDesc(file_main_exchange_simulator, 1);
+
+/**
+ * @generated from message exchange.StopSimulatorRequest
+ */
+export type StopSimulatorRequest = Message<"exchange.StopSimulatorRequest"> & {
+  /**
+   * @generated from field: string session_id = 1;
+   */
+  sessionId: string;
+};
+
+/**
+ * Describes the message exchange.StopSimulatorRequest.
+ * Use `create(StopSimulatorRequestSchema)` to create a new message.
+ */
+export const StopSimulatorRequestSchema: GenMessage<StopSimulatorRequest> = /*@__PURE__*/
+  messageDesc(file_main_exchange_simulator, 2);
+
+/**
+ * @generated from message exchange.StopSimulatorResponse
+ */
+export type StopSimulatorResponse = Message<"exchange.StopSimulatorResponse"> & {
+  /**
+   * @generated from field: bool success = 1;
+   */
+  success: boolean;
+
+  /**
+   * @generated from field: string error_message = 2;
+   */
+  errorMessage: string;
+};
+
+/**
+ * Describes the message exchange.StopSimulatorResponse.
+ * Use `create(StopSimulatorResponseSchema)` to create a new message.
+ */
+export const StopSimulatorResponseSchema: GenMessage<StopSimulatorResponse> = /*@__PURE__*/
+  messageDesc(file_main_exchange_simulator, 3);
 
 /**
  * @generated from message exchange.StreamRequest
@@ -37,7 +135,7 @@ export type StreamRequest = Message<"exchange.StreamRequest"> & {
  * Use `create(StreamRequestSchema)` to create a new message.
  */
 export const StreamRequestSchema: GenMessage<StreamRequest> = /*@__PURE__*/
-  messageDesc(file_main_exchange_simulator, 0);
+  messageDesc(file_main_exchange_simulator, 4);
 
 /**
  * @generated from message exchange.ExchangeDataUpdate
@@ -49,22 +147,16 @@ export type ExchangeDataUpdate = Message<"exchange.ExchangeDataUpdate"> & {
   timestamp: bigint;
 
   /**
-   * Market data for all requested symbols
-   *
    * @generated from field: repeated exchange.MarketData market_data = 2;
    */
   marketData: MarketData[];
 
   /**
-   * Order updates
-   *
    * @generated from field: repeated exchange.OrderUpdate order_updates = 3;
    */
   orderUpdates: OrderUpdate[];
 
   /**
-   * Portfolio information
-   *
    * @generated from field: exchange.PortfolioStatus portfolio = 4;
    */
   portfolio?: PortfolioStatus;
@@ -75,7 +167,7 @@ export type ExchangeDataUpdate = Message<"exchange.ExchangeDataUpdate"> & {
  * Use `create(ExchangeDataUpdateSchema)` to create a new message.
  */
 export const ExchangeDataUpdateSchema: GenMessage<ExchangeDataUpdate> = /*@__PURE__*/
-  messageDesc(file_main_exchange_simulator, 1);
+  messageDesc(file_main_exchange_simulator, 5);
 
 /**
  * @generated from message exchange.MarketData
@@ -122,7 +214,7 @@ export type MarketData = Message<"exchange.MarketData"> & {
  * Use `create(MarketDataSchema)` to create a new message.
  */
 export const MarketDataSchema: GenMessage<MarketData> = /*@__PURE__*/
-  messageDesc(file_main_exchange_simulator, 2);
+  messageDesc(file_main_exchange_simulator, 6);
 
 /**
  * @generated from message exchange.OrderUpdate
@@ -139,8 +231,6 @@ export type OrderUpdate = Message<"exchange.OrderUpdate"> & {
   symbol: string;
 
   /**
-   * "NEW", "ACCEPTED", "REJECTED", "FILLED", etc.
-   *
    * @generated from field: string status = 3;
    */
   status: string;
@@ -161,7 +251,7 @@ export type OrderUpdate = Message<"exchange.OrderUpdate"> & {
  * Use `create(OrderUpdateSchema)` to create a new message.
  */
 export const OrderUpdateSchema: GenMessage<OrderUpdate> = /*@__PURE__*/
-  messageDesc(file_main_exchange_simulator, 3);
+  messageDesc(file_main_exchange_simulator, 7);
 
 /**
  * @generated from message exchange.PortfolioStatus
@@ -188,7 +278,7 @@ export type PortfolioStatus = Message<"exchange.PortfolioStatus"> & {
  * Use `create(PortfolioStatusSchema)` to create a new message.
  */
 export const PortfolioStatusSchema: GenMessage<PortfolioStatus> = /*@__PURE__*/
-  messageDesc(file_main_exchange_simulator, 4);
+  messageDesc(file_main_exchange_simulator, 8);
 
 /**
  * @generated from message exchange.Position
@@ -220,7 +310,7 @@ export type Position = Message<"exchange.Position"> & {
  * Use `create(PositionSchema)` to create a new message.
  */
 export const PositionSchema: GenMessage<Position> = /*@__PURE__*/
-  messageDesc(file_main_exchange_simulator, 5);
+  messageDesc(file_main_exchange_simulator, 9);
 
 /**
  * @generated from message exchange.HeartbeatRequest
@@ -247,7 +337,7 @@ export type HeartbeatRequest = Message<"exchange.HeartbeatRequest"> & {
  * Use `create(HeartbeatRequestSchema)` to create a new message.
  */
 export const HeartbeatRequestSchema: GenMessage<HeartbeatRequest> = /*@__PURE__*/
-  messageDesc(file_main_exchange_simulator, 6);
+  messageDesc(file_main_exchange_simulator, 10);
 
 /**
  * @generated from message exchange.HeartbeatResponse
@@ -269,12 +359,289 @@ export type HeartbeatResponse = Message<"exchange.HeartbeatResponse"> & {
  * Use `create(HeartbeatResponseSchema)` to create a new message.
  */
 export const HeartbeatResponseSchema: GenMessage<HeartbeatResponse> = /*@__PURE__*/
-  messageDesc(file_main_exchange_simulator, 7);
+  messageDesc(file_main_exchange_simulator, 11);
+
+/**
+ * @generated from message exchange.SubmitOrderRequest
+ */
+export type SubmitOrderRequest = Message<"exchange.SubmitOrderRequest"> & {
+  /**
+   * @generated from field: string session_id = 1;
+   */
+  sessionId: string;
+
+  /**
+   * @generated from field: string symbol = 2;
+   */
+  symbol: string;
+
+  /**
+   * @generated from field: exchange.SubmitOrderRequest.Side side = 3;
+   */
+  side: SubmitOrderRequest_Side;
+
+  /**
+   * @generated from field: double quantity = 4;
+   */
+  quantity: number;
+
+  /**
+   * @generated from field: double price = 5;
+   */
+  price: number;
+
+  /**
+   * @generated from field: exchange.SubmitOrderRequest.Type type = 6;
+   */
+  type: SubmitOrderRequest_Type;
+
+  /**
+   * For idempotency
+   *
+   * @generated from field: string request_id = 7;
+   */
+  requestId: string;
+};
+
+/**
+ * Describes the message exchange.SubmitOrderRequest.
+ * Use `create(SubmitOrderRequestSchema)` to create a new message.
+ */
+export const SubmitOrderRequestSchema: GenMessage<SubmitOrderRequest> = /*@__PURE__*/
+  messageDesc(file_main_exchange_simulator, 12);
+
+/**
+ * @generated from enum exchange.SubmitOrderRequest.Side
+ */
+export enum SubmitOrderRequest_Side {
+  /**
+   * @generated from enum value: BUY = 0;
+   */
+  BUY = 0,
+
+  /**
+   * @generated from enum value: SELL = 1;
+   */
+  SELL = 1,
+}
+
+/**
+ * Describes the enum exchange.SubmitOrderRequest.Side.
+ */
+export const SubmitOrderRequest_SideSchema: GenEnum<SubmitOrderRequest_Side> = /*@__PURE__*/
+  enumDesc(file_main_exchange_simulator, 12, 0);
+
+/**
+ * @generated from enum exchange.SubmitOrderRequest.Type
+ */
+export enum SubmitOrderRequest_Type {
+  /**
+   * @generated from enum value: MARKET = 0;
+   */
+  MARKET = 0,
+
+  /**
+   * @generated from enum value: LIMIT = 1;
+   */
+  LIMIT = 1,
+}
+
+/**
+ * Describes the enum exchange.SubmitOrderRequest.Type.
+ */
+export const SubmitOrderRequest_TypeSchema: GenEnum<SubmitOrderRequest_Type> = /*@__PURE__*/
+  enumDesc(file_main_exchange_simulator, 12, 1);
+
+/**
+ * @generated from message exchange.SubmitOrderResponse
+ */
+export type SubmitOrderResponse = Message<"exchange.SubmitOrderResponse"> & {
+  /**
+   * @generated from field: bool success = 1;
+   */
+  success: boolean;
+
+  /**
+   * @generated from field: string order_id = 2;
+   */
+  orderId: string;
+
+  /**
+   * @generated from field: string error_message = 3;
+   */
+  errorMessage: string;
+};
+
+/**
+ * Describes the message exchange.SubmitOrderResponse.
+ * Use `create(SubmitOrderResponseSchema)` to create a new message.
+ */
+export const SubmitOrderResponseSchema: GenMessage<SubmitOrderResponse> = /*@__PURE__*/
+  messageDesc(file_main_exchange_simulator, 13);
+
+/**
+ * @generated from message exchange.CancelOrderRequest
+ */
+export type CancelOrderRequest = Message<"exchange.CancelOrderRequest"> & {
+  /**
+   * @generated from field: string session_id = 1;
+   */
+  sessionId: string;
+
+  /**
+   * @generated from field: string order_id = 2;
+   */
+  orderId: string;
+};
+
+/**
+ * Describes the message exchange.CancelOrderRequest.
+ * Use `create(CancelOrderRequestSchema)` to create a new message.
+ */
+export const CancelOrderRequestSchema: GenMessage<CancelOrderRequest> = /*@__PURE__*/
+  messageDesc(file_main_exchange_simulator, 14);
+
+/**
+ * @generated from message exchange.CancelOrderResponse
+ */
+export type CancelOrderResponse = Message<"exchange.CancelOrderResponse"> & {
+  /**
+   * @generated from field: bool success = 1;
+   */
+  success: boolean;
+
+  /**
+   * @generated from field: string error_message = 2;
+   */
+  errorMessage: string;
+};
+
+/**
+ * Describes the message exchange.CancelOrderResponse.
+ * Use `create(CancelOrderResponseSchema)` to create a new message.
+ */
+export const CancelOrderResponseSchema: GenMessage<CancelOrderResponse> = /*@__PURE__*/
+  messageDesc(file_main_exchange_simulator, 15);
+
+/**
+ * @generated from message exchange.GetOrderStatusRequest
+ */
+export type GetOrderStatusRequest = Message<"exchange.GetOrderStatusRequest"> & {
+  /**
+   * @generated from field: string session_id = 1;
+   */
+  sessionId: string;
+
+  /**
+   * @generated from field: string order_id = 2;
+   */
+  orderId: string;
+};
+
+/**
+ * Describes the message exchange.GetOrderStatusRequest.
+ * Use `create(GetOrderStatusRequestSchema)` to create a new message.
+ */
+export const GetOrderStatusRequestSchema: GenMessage<GetOrderStatusRequest> = /*@__PURE__*/
+  messageDesc(file_main_exchange_simulator, 16);
+
+/**
+ * @generated from message exchange.GetOrderStatusResponse
+ */
+export type GetOrderStatusResponse = Message<"exchange.GetOrderStatusResponse"> & {
+  /**
+   * @generated from field: exchange.GetOrderStatusResponse.Status status = 1;
+   */
+  status: GetOrderStatusResponse_Status;
+
+  /**
+   * @generated from field: double filled_quantity = 2;
+   */
+  filledQuantity: number;
+
+  /**
+   * @generated from field: double avg_price = 3;
+   */
+  avgPrice: number;
+
+  /**
+   * @generated from field: string error_message = 4;
+   */
+  errorMessage: string;
+};
+
+/**
+ * Describes the message exchange.GetOrderStatusResponse.
+ * Use `create(GetOrderStatusResponseSchema)` to create a new message.
+ */
+export const GetOrderStatusResponseSchema: GenMessage<GetOrderStatusResponse> = /*@__PURE__*/
+  messageDesc(file_main_exchange_simulator, 17);
+
+/**
+ * @generated from enum exchange.GetOrderStatusResponse.Status
+ */
+export enum GetOrderStatusResponse_Status {
+  /**
+   * @generated from enum value: UNKNOWN = 0;
+   */
+  UNKNOWN = 0,
+
+  /**
+   * @generated from enum value: NEW = 1;
+   */
+  NEW = 1,
+
+  /**
+   * @generated from enum value: PARTIALLY_FILLED = 2;
+   */
+  PARTIALLY_FILLED = 2,
+
+  /**
+   * @generated from enum value: FILLED = 3;
+   */
+  FILLED = 3,
+
+  /**
+   * @generated from enum value: CANCELED = 4;
+   */
+  CANCELED = 4,
+
+  /**
+   * @generated from enum value: REJECTED = 5;
+   */
+  REJECTED = 5,
+}
+
+/**
+ * Describes the enum exchange.GetOrderStatusResponse.Status.
+ */
+export const GetOrderStatusResponse_StatusSchema: GenEnum<GetOrderStatusResponse_Status> = /*@__PURE__*/
+  enumDesc(file_main_exchange_simulator, 17, 0);
 
 /**
  * @generated from service exchange.ExchangeSimulator
  */
 export const ExchangeSimulator: GenService<{
+  /**
+   * Start a simulator for a specific session
+   *
+   * @generated from rpc exchange.ExchangeSimulator.StartSimulator
+   */
+  startSimulator: {
+    methodKind: "unary";
+    input: typeof StartSimulatorRequestSchema;
+    output: typeof StartSimulatorResponseSchema;
+  },
+  /**
+   * Stop a simulator
+   *
+   * @generated from rpc exchange.ExchangeSimulator.StopSimulator
+   */
+  stopSimulator: {
+    methodKind: "unary";
+    input: typeof StopSimulatorRequestSchema;
+    output: typeof StopSimulatorResponseSchema;
+  },
   /**
    * Single unified stream for all exchange data
    *
@@ -294,6 +661,36 @@ export const ExchangeSimulator: GenService<{
     methodKind: "unary";
     input: typeof HeartbeatRequestSchema;
     output: typeof HeartbeatResponseSchema;
+  },
+  /**
+   * Submit an order
+   *
+   * @generated from rpc exchange.ExchangeSimulator.SubmitOrder
+   */
+  submitOrder: {
+    methodKind: "unary";
+    input: typeof SubmitOrderRequestSchema;
+    output: typeof SubmitOrderResponseSchema;
+  },
+  /**
+   * Cancel an order
+   *
+   * @generated from rpc exchange.ExchangeSimulator.CancelOrder
+   */
+  cancelOrder: {
+    methodKind: "unary";
+    input: typeof CancelOrderRequestSchema;
+    output: typeof CancelOrderResponseSchema;
+  },
+  /**
+   * Get order status
+   *
+   * @generated from rpc exchange.ExchangeSimulator.GetOrderStatus
+   */
+  getOrderStatus: {
+    methodKind: "unary";
+    input: typeof GetOrderStatusRequestSchema;
+    output: typeof GetOrderStatusResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_main_exchange_simulator, 0);

@@ -13,7 +13,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1dmain/exchange_simulator.proto\x12\x08\x65xchange\"e\n\rStreamRequest\x12\x1d\n\nsession_id\x18\x01 \x01(\tR\tsessionId\x12\x1b\n\tclient_id\x18\x02 \x01(\tR\x08\x63lientId\x12\x18\n\x07symbols\x18\x03 \x03(\tR\x07symbols\"\xde\x01\n\x12\x45xchangeDataUpdate\x12\x1c\n\ttimestamp\x18\x01 \x01(\x03R\ttimestamp\x12\x35\n\x0bmarket_data\x18\x02 \x03(\x0b\x32\x14.exchange.MarketDataR\nmarketData\x12:\n\rorder_updates\x18\x03 \x03(\x0b\x32\x15.exchange.OrderUpdateR\x0corderUpdates\x12\x37\n\tportfolio\x18\x04 \x01(\x0b\x32\x19.exchange.PortfolioStatusR\tportfolio\"\xba\x01\n\nMarketData\x12\x16\n\x06symbol\x18\x01 \x01(\tR\x06symbol\x12\x10\n\x03\x62id\x18\x02 \x01(\x01R\x03\x62id\x12\x10\n\x03\x61sk\x18\x03 \x01(\x01R\x03\x61sk\x12\x19\n\x08\x62id_size\x18\x04 \x01(\x05R\x07\x62idSize\x12\x19\n\x08\x61sk_size\x18\x05 \x01(\x05R\x07\x61skSize\x12\x1d\n\nlast_price\x18\x06 \x01(\x01R\tlastPrice\x12\x1b\n\tlast_size\x18\x07 \x01(\x05R\x08lastSize\"\xa6\x01\n\x0bOrderUpdate\x12\x19\n\x08order_id\x18\x01 \x01(\tR\x07orderId\x12\x16\n\x06symbol\x18\x02 \x01(\tR\x06symbol\x12\x16\n\x06status\x18\x03 \x01(\tR\x06status\x12\'\n\x0f\x66illed_quantity\x18\x04 \x01(\x05R\x0e\x66illedQuantity\x12#\n\raverage_price\x18\x05 \x01(\x01R\x0c\x61veragePrice\"\x87\x01\n\x0fPortfolioStatus\x12\x30\n\tpositions\x18\x01 \x03(\x0b\x32\x12.exchange.PositionR\tpositions\x12!\n\x0c\x63\x61sh_balance\x18\x02 \x01(\x01R\x0b\x63\x61shBalance\x12\x1f\n\x0btotal_value\x18\x03 \x01(\x01R\ntotalValue\"\x84\x01\n\x08Position\x12\x16\n\x06symbol\x18\x01 \x01(\tR\x06symbol\x12\x1a\n\x08quantity\x18\x02 \x01(\x05R\x08quantity\x12!\n\x0c\x61verage_cost\x18\x03 \x01(\x01R\x0b\x61verageCost\x12!\n\x0cmarket_value\x18\x04 \x01(\x01R\x0bmarketValue\"y\n\x10HeartbeatRequest\x12\x1d\n\nsession_id\x18\x01 \x01(\tR\tsessionId\x12\x1b\n\tclient_id\x18\x02 \x01(\tR\x08\x63lientId\x12)\n\x10\x63lient_timestamp\x18\x03 \x01(\x03R\x0f\x63lientTimestamp\"X\n\x11HeartbeatResponse\x12\x18\n\x07success\x18\x01 \x01(\x08R\x07success\x12)\n\x10server_timestamp\x18\x02 \x01(\x03R\x0fserverTimestamp2\xa8\x01\n\x11\x45xchangeSimulator\x12M\n\x12StreamExchangeData\x12\x17.exchange.StreamRequest\x1a\x1c.exchange.ExchangeDataUpdate0\x01\x12\x44\n\tHeartbeat\x12\x1a.exchange.HeartbeatRequest\x1a\x1b.exchange.HeartbeatResponseBf\n\x0c\x63om.exchangeB\x16\x45xchangeSimulatorProtoP\x01\xa2\x02\x03\x45XX\xaa\x02\x08\x45xchange\xca\x02\x08\x45xchange\xe2\x02\x14\x45xchange\\GPBMetadata\xea\x02\x08\x45xchangeb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1dmain/exchange_simulator.proto\x12\x08\x65xchange\"\x9b\x01\n\x15StartSimulatorRequest\x12\x1d\n\nsession_id\x18\x01 \x01(\tR\tsessionId\x12\x17\n\x07user_id\x18\x02 \x01(\tR\x06userId\x12\'\n\x0finitial_symbols\x18\x03 \x03(\tR\x0einitialSymbols\x12!\n\x0cinitial_cash\x18\x04 \x01(\x01R\x0binitialCash\"z\n\x16StartSimulatorResponse\x12\x18\n\x07success\x18\x01 \x01(\x08R\x07success\x12#\n\rerror_message\x18\x02 \x01(\tR\x0c\x65rrorMessage\x12!\n\x0csimulator_id\x18\x03 \x01(\tR\x0bsimulatorId\"5\n\x14StopSimulatorRequest\x12\x1d\n\nsession_id\x18\x01 \x01(\tR\tsessionId\"V\n\x15StopSimulatorResponse\x12\x18\n\x07success\x18\x01 \x01(\x08R\x07success\x12#\n\rerror_message\x18\x02 \x01(\tR\x0c\x65rrorMessage\"e\n\rStreamRequest\x12\x1d\n\nsession_id\x18\x01 \x01(\tR\tsessionId\x12\x1b\n\tclient_id\x18\x02 \x01(\tR\x08\x63lientId\x12\x18\n\x07symbols\x18\x03 \x03(\tR\x07symbols\"\xde\x01\n\x12\x45xchangeDataUpdate\x12\x1c\n\ttimestamp\x18\x01 \x01(\x03R\ttimestamp\x12\x35\n\x0bmarket_data\x18\x02 \x03(\x0b\x32\x14.exchange.MarketDataR\nmarketData\x12:\n\rorder_updates\x18\x03 \x03(\x0b\x32\x15.exchange.OrderUpdateR\x0corderUpdates\x12\x37\n\tportfolio\x18\x04 \x01(\x0b\x32\x19.exchange.PortfolioStatusR\tportfolio\"\xba\x01\n\nMarketData\x12\x16\n\x06symbol\x18\x01 \x01(\tR\x06symbol\x12\x10\n\x03\x62id\x18\x02 \x01(\x01R\x03\x62id\x12\x10\n\x03\x61sk\x18\x03 \x01(\x01R\x03\x61sk\x12\x19\n\x08\x62id_size\x18\x04 \x01(\x05R\x07\x62idSize\x12\x19\n\x08\x61sk_size\x18\x05 \x01(\x05R\x07\x61skSize\x12\x1d\n\nlast_price\x18\x06 \x01(\x01R\tlastPrice\x12\x1b\n\tlast_size\x18\x07 \x01(\x05R\x08lastSize\"\xa6\x01\n\x0bOrderUpdate\x12\x19\n\x08order_id\x18\x01 \x01(\tR\x07orderId\x12\x16\n\x06symbol\x18\x02 \x01(\tR\x06symbol\x12\x16\n\x06status\x18\x03 \x01(\tR\x06status\x12\'\n\x0f\x66illed_quantity\x18\x04 \x01(\x05R\x0e\x66illedQuantity\x12#\n\raverage_price\x18\x05 \x01(\x01R\x0c\x61veragePrice\"\x87\x01\n\x0fPortfolioStatus\x12\x30\n\tpositions\x18\x01 \x03(\x0b\x32\x12.exchange.PositionR\tpositions\x12!\n\x0c\x63\x61sh_balance\x18\x02 \x01(\x01R\x0b\x63\x61shBalance\x12\x1f\n\x0btotal_value\x18\x03 \x01(\x01R\ntotalValue\"\x84\x01\n\x08Position\x12\x16\n\x06symbol\x18\x01 \x01(\tR\x06symbol\x12\x1a\n\x08quantity\x18\x02 \x01(\x05R\x08quantity\x12!\n\x0c\x61verage_cost\x18\x03 \x01(\x01R\x0b\x61verageCost\x12!\n\x0cmarket_value\x18\x04 \x01(\x01R\x0bmarketValue\"y\n\x10HeartbeatRequest\x12\x1d\n\nsession_id\x18\x01 \x01(\tR\tsessionId\x12\x1b\n\tclient_id\x18\x02 \x01(\tR\x08\x63lientId\x12)\n\x10\x63lient_timestamp\x18\x03 \x01(\x03R\x0f\x63lientTimestamp\"X\n\x11HeartbeatResponse\x12\x18\n\x07success\x18\x01 \x01(\x08R\x07success\x12)\n\x10server_timestamp\x18\x02 \x01(\x03R\x0fserverTimestamp\"\xc4\x02\n\x12SubmitOrderRequest\x12\x1d\n\nsession_id\x18\x01 \x01(\tR\tsessionId\x12\x16\n\x06symbol\x18\x02 \x01(\tR\x06symbol\x12\x35\n\x04side\x18\x03 \x01(\x0e\x32!.exchange.SubmitOrderRequest.SideR\x04side\x12\x1a\n\x08quantity\x18\x04 \x01(\x01R\x08quantity\x12\x14\n\x05price\x18\x05 \x01(\x01R\x05price\x12\x35\n\x04type\x18\x06 \x01(\x0e\x32!.exchange.SubmitOrderRequest.TypeR\x04type\x12\x1d\n\nrequest_id\x18\x07 \x01(\tR\trequestId\"\x19\n\x04Side\x12\x07\n\x03\x42UY\x10\x00\x12\x08\n\x04SELL\x10\x01\"\x1d\n\x04Type\x12\n\n\x06MARKET\x10\x00\x12\t\n\x05LIMIT\x10\x01\"o\n\x13SubmitOrderResponse\x12\x18\n\x07success\x18\x01 \x01(\x08R\x07success\x12\x19\n\x08order_id\x18\x02 \x01(\tR\x07orderId\x12#\n\rerror_message\x18\x03 \x01(\tR\x0c\x65rrorMessage\"N\n\x12\x43\x61ncelOrderRequest\x12\x1d\n\nsession_id\x18\x01 \x01(\tR\tsessionId\x12\x19\n\x08order_id\x18\x02 \x01(\tR\x07orderId\"T\n\x13\x43\x61ncelOrderResponse\x12\x18\n\x07success\x18\x01 \x01(\x08R\x07success\x12#\n\rerror_message\x18\x02 \x01(\tR\x0c\x65rrorMessage\"Q\n\x15GetOrderStatusRequest\x12\x1d\n\nsession_id\x18\x01 \x01(\tR\tsessionId\x12\x19\n\x08order_id\x18\x02 \x01(\tR\x07orderId\"\xa2\x02\n\x16GetOrderStatusResponse\x12?\n\x06status\x18\x01 \x01(\x0e\x32\'.exchange.GetOrderStatusResponse.StatusR\x06status\x12\'\n\x0f\x66illed_quantity\x18\x02 \x01(\x01R\x0e\x66illedQuantity\x12\x1b\n\tavg_price\x18\x03 \x01(\x01R\x08\x61vgPrice\x12#\n\rerror_message\x18\x04 \x01(\tR\x0c\x65rrorMessage\"\\\n\x06Status\x12\x0b\n\x07UNKNOWN\x10\x00\x12\x07\n\x03NEW\x10\x01\x12\x14\n\x10PARTIALLY_FILLED\x10\x02\x12\n\n\x06\x46ILLED\x10\x03\x12\x0c\n\x08\x43\x41NCELED\x10\x04\x12\x0c\n\x08REJECTED\x10\x05\x32\xbc\x04\n\x11\x45xchangeSimulator\x12S\n\x0eStartSimulator\x12\x1f.exchange.StartSimulatorRequest\x1a .exchange.StartSimulatorResponse\x12P\n\rStopSimulator\x12\x1e.exchange.StopSimulatorRequest\x1a\x1f.exchange.StopSimulatorResponse\x12M\n\x12StreamExchangeData\x12\x17.exchange.StreamRequest\x1a\x1c.exchange.ExchangeDataUpdate0\x01\x12\x44\n\tHeartbeat\x12\x1a.exchange.HeartbeatRequest\x1a\x1b.exchange.HeartbeatResponse\x12J\n\x0bSubmitOrder\x12\x1c.exchange.SubmitOrderRequest\x1a\x1d.exchange.SubmitOrderResponse\x12J\n\x0b\x43\x61ncelOrder\x12\x1c.exchange.CancelOrderRequest\x1a\x1d.exchange.CancelOrderResponse\x12S\n\x0eGetOrderStatus\x12\x1f.exchange.GetOrderStatusRequest\x1a .exchange.GetOrderStatusResponseBf\n\x0c\x63om.exchangeB\x16\x45xchangeSimulatorProtoP\x01\xa2\x02\x03\x45XX\xaa\x02\x08\x45xchange\xca\x02\x08\x45xchange\xe2\x02\x14\x45xchange\\GPBMetadata\xea\x02\x08\x45xchangeb\x06proto3')
 
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, globals())
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'main.exchange_simulator_pb2', globals())
@@ -21,22 +21,48 @@ if _descriptor._USE_C_DESCRIPTORS == False:
 
   DESCRIPTOR._options = None
   DESCRIPTOR._serialized_options = b'\n\014com.exchangeB\026ExchangeSimulatorProtoP\001\242\002\003EXX\252\002\010Exchange\312\002\010Exchange\342\002\024Exchange\\GPBMetadata\352\002\010Exchange'
-  _STREAMREQUEST._serialized_start=43
-  _STREAMREQUEST._serialized_end=144
-  _EXCHANGEDATAUPDATE._serialized_start=147
-  _EXCHANGEDATAUPDATE._serialized_end=369
-  _MARKETDATA._serialized_start=372
-  _MARKETDATA._serialized_end=558
-  _ORDERUPDATE._serialized_start=561
-  _ORDERUPDATE._serialized_end=727
-  _PORTFOLIOSTATUS._serialized_start=730
-  _PORTFOLIOSTATUS._serialized_end=865
-  _POSITION._serialized_start=868
-  _POSITION._serialized_end=1000
-  _HEARTBEATREQUEST._serialized_start=1002
-  _HEARTBEATREQUEST._serialized_end=1123
-  _HEARTBEATRESPONSE._serialized_start=1125
-  _HEARTBEATRESPONSE._serialized_end=1213
-  _EXCHANGESIMULATOR._serialized_start=1216
-  _EXCHANGESIMULATOR._serialized_end=1384
+  _STARTSIMULATORREQUEST._serialized_start=44
+  _STARTSIMULATORREQUEST._serialized_end=199
+  _STARTSIMULATORRESPONSE._serialized_start=201
+  _STARTSIMULATORRESPONSE._serialized_end=323
+  _STOPSIMULATORREQUEST._serialized_start=325
+  _STOPSIMULATORREQUEST._serialized_end=378
+  _STOPSIMULATORRESPONSE._serialized_start=380
+  _STOPSIMULATORRESPONSE._serialized_end=466
+  _STREAMREQUEST._serialized_start=468
+  _STREAMREQUEST._serialized_end=569
+  _EXCHANGEDATAUPDATE._serialized_start=572
+  _EXCHANGEDATAUPDATE._serialized_end=794
+  _MARKETDATA._serialized_start=797
+  _MARKETDATA._serialized_end=983
+  _ORDERUPDATE._serialized_start=986
+  _ORDERUPDATE._serialized_end=1152
+  _PORTFOLIOSTATUS._serialized_start=1155
+  _PORTFOLIOSTATUS._serialized_end=1290
+  _POSITION._serialized_start=1293
+  _POSITION._serialized_end=1425
+  _HEARTBEATREQUEST._serialized_start=1427
+  _HEARTBEATREQUEST._serialized_end=1548
+  _HEARTBEATRESPONSE._serialized_start=1550
+  _HEARTBEATRESPONSE._serialized_end=1638
+  _SUBMITORDERREQUEST._serialized_start=1641
+  _SUBMITORDERREQUEST._serialized_end=1965
+  _SUBMITORDERREQUEST_SIDE._serialized_start=1909
+  _SUBMITORDERREQUEST_SIDE._serialized_end=1934
+  _SUBMITORDERREQUEST_TYPE._serialized_start=1936
+  _SUBMITORDERREQUEST_TYPE._serialized_end=1965
+  _SUBMITORDERRESPONSE._serialized_start=1967
+  _SUBMITORDERRESPONSE._serialized_end=2078
+  _CANCELORDERREQUEST._serialized_start=2080
+  _CANCELORDERREQUEST._serialized_end=2158
+  _CANCELORDERRESPONSE._serialized_start=2160
+  _CANCELORDERRESPONSE._serialized_end=2244
+  _GETORDERSTATUSREQUEST._serialized_start=2246
+  _GETORDERSTATUSREQUEST._serialized_end=2327
+  _GETORDERSTATUSRESPONSE._serialized_start=2330
+  _GETORDERSTATUSRESPONSE._serialized_end=2620
+  _GETORDERSTATUSRESPONSE_STATUS._serialized_start=2528
+  _GETORDERSTATUSRESPONSE_STATUS._serialized_end=2620
+  _EXCHANGESIMULATOR._serialized_start=2623
+  _EXCHANGESIMULATOR._serialized_end=3195
 # @@protoc_insertion_point(module_scope)

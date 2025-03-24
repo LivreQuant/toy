@@ -145,7 +145,7 @@ $pyPathReplacements = @(
     ,@("from main.services import", "from source.api import")
 )
                 
-# Exchange Manager
+# Order Manager
 Copy-ProtoFiles -SourcePath "gen/python/main" `
                 -DestinationPath "../backend/order-service/source/api" `
                 -FileType "exchange*.py" `
@@ -156,7 +156,7 @@ Copy-ProtoFiles -SourcePath "gen/python/main" `
 # Session Manager
 Copy-ProtoFiles -SourcePath "gen/python/main" `
                 -DestinationPath "../backend/session-manager-service/source/api" `
-                -FileType "session*.py" `
+                -FileType "exchange*.py" `
                 -SuccessMessage "Python market data service files copied successfully" `
                 -NoFilesMessage "No Python market data service files found" `
                 -PathReplacements $pyPathReplacements

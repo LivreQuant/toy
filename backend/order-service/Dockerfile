@@ -1,4 +1,3 @@
-# Dockerfile
 FROM python:3.11-slim
 
 WORKDIR /app
@@ -16,6 +15,17 @@ RUN apt-get -o Acquire::Check-Valid-Until=false \
 COPY requirements.txt .
 RUN pip install --no-cache-dir --prefer-binary -r requirements.txt
 
+# Install gRPC tools for protobuf compilation
+RUN pip install --no-cache-dir grpcio-tools
+
+# Copy protos and compile them
+COPY ./protos /app/protos
+RUN mkdir -p /app/source/api && \
+    python -m grpc_tools.protoc -I./protos \
+    --python_out=./source/api \
+    --grpc_python_out=./source/api \
+    ./protos/exchange_simulator.proto
+
 # Copy the source code
 COPY . .
 
@@ -27,8 +37,8 @@ ENV ENVIRONMENT="development" \
     DB_NAME="opentp" \
     DB_USER="opentp" \
     DB_PASSWORD="samaral" \
-    DB_MIN_CONNECTIONS="1" \
-    DB_MAX_CONNECTIONS="10" \
+    DB_MIN_CONNECTIONS="2" \
+    DB_MAX_CONNECTIONS="20" \
     # Redis Configuration
     REDIS_HOST="redis" \
     REDIS_PORT="6379" \

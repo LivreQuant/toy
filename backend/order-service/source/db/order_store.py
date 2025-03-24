@@ -19,27 +19,45 @@ class OrderStore:
             'user': os.getenv('DB_USER', 'opentp'),
             'password': os.getenv('DB_PASSWORD', 'samaral')
         }
-        self.min_connections = int(os.getenv('DB_MIN_CONNECTIONS', '2'))  # Increase minimum
+        self.min_connections = int(os.getenv('DB_MIN_CONNECTIONS', '2'))  # Increased minimum
         self.max_connections = int(os.getenv('DB_MAX_CONNECTIONS', '20'))  # Higher max for bursts
+        self._conn_lock = asyncio.Lock()  # Lock for pool initialization
+    
     
     async def connect(self):
-        """Create the database connection pool"""
-        if self.pool:
-            return
-        
-        try:
-            self.pool = await asyncpg.create_pool(
-                min_size=self.min_connections,
-                max_size=self.max_connections,
-                **self.db_config
-            )
-            logger.info("Database connection established")
+        """Create the database connection pool with retry logic"""
+        async with self._conn_lock:
+            if self.pool:
+                return
             
-            # Ensure required schema exists
-            await self.ensure_schema()
-        except Exception as e:
-            logger.error(f"Database connection failed: {e}")
-            raise
+            max_retries = 5
+            retry_count = 0
+            last_error = None
+            
+            while retry_count < max_retries:
+                try:
+                    self.pool = await asyncpg.create_pool(
+                        min_size=self.min_connections,
+                        max_size=self.max_connections,
+                        command_timeout=10,
+                        **self.db_config
+                    )
+                    logger.info("Database connection established")
+                    
+                    # Ensure required schema exists
+                    await self.ensure_schema()
+                    return
+                except Exception as e:
+                    last_error = e
+                    retry_count += 1
+                    wait_time = 0.5 * (2 ** retry_count)  # Exponential backoff
+                    
+                    logger.warning(f"Database connection attempt {retry_count} failed: {e}. Retrying in {wait_time}s...")
+                    await asyncio.sleep(wait_time)
+            
+            # If we get here, all retries failed
+            logger.error(f"Failed to connect to database after {max_retries} attempts: {last_error}")
+            raise last_error
     
     async def close(self):
         """Close all database connections"""
