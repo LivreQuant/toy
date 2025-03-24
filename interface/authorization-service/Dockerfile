@@ -1,3 +1,4 @@
+# Dockerfile
 FROM python:3.11-slim
 
 WORKDIR /app
@@ -28,31 +29,21 @@ ENV ENVIRONMENT="development" \
     DB_PASSWORD="samaral" \
     DB_MIN_CONNECTIONS="1" \
     DB_MAX_CONNECTIONS="10" \
-    NEW_USER="true" \
-    # Service Ports
-    CENTRAL_DESK_INCOMING_PORT="51558" \
-    CENTRAL_DESK_OUTGOING_PORT="51559" \
-    MARKET_DATA_PORT="51552" \
-    ORDER_ENTRY_PORT="51554" \
-    HEALTH_CHECK_PORT="8088" \
-    # Service URLs
-    MARKET_DATA_URL="market-data-service:51552" \
-    ORDER_ENTRY_URL="order-entry-service:51554" \
+    # Service Port
+    REST_PORT="8000" \
     # Logging and Security
     LOG_LEVEL="INFO" \
     JWT_SECRET="development-secret-key" \
-    VERIFY_TOKEN="true" \
-    # Application Modes
-    USE_DATABASE="true" \
-    EVENT_PROCESSING_DELAY="0.1" \
-    INITIALIZATION_TIMEOUT="60"
+    JWT_REFRESH_SECRET="development-refresh-secret-key" \
+    ACCESS_TOKEN_EXPIRY="3600" \
+    REFRESH_TOKEN_EXPIRY="2592000"
 
-# Expose all necessary ports
-EXPOSE 51558 51559 8088
+# Expose REST port
+EXPOSE 8000
 
 # Health check using our HTTP health endpoint
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8088/health || exit 1
+    CMD curl -f http://localhost:8000/health || exit 1
 
 # Run the service
-CMD ["python", "-m", "source.main"]
+CMD ["python", "main.py"]

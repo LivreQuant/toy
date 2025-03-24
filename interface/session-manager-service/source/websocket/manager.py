@@ -1,9 +1,14 @@
+# interface/session-manager-service/source/websocket/manager.py
+
 import logging
 import json
 import asyncio
 import time
+from typing import Dict, Set, Optional, Any, Callable, List, Tuple
 from aiohttp import web, WSMsgType
-from typing import Dict, Set
+
+from ..utils.backoff_strategy import BackoffStrategy
+from ..utils.circuit_breaker import CircuitBreaker, CircuitOpenError
 
 logger = logging.getLogger('websocket_manager')
 
@@ -14,6 +19,20 @@ class WebSocketManager:
         self.session_manager = session_manager
         self.connections = {}  # session_id -> set of WebSocket connections
         self.heartbeat_interval = 10  # seconds
+        
+        # Create circuit breakers for various service connections
+        self.circuit_breakers = {
+            'session_api': CircuitBreaker('session_api', failure_threshold=5, reset_timeout_ms=60000),
+            'auth_api': CircuitBreaker('auth_api', failure_threshold=5, reset_timeout_ms=60000),
+            'simulator_api': CircuitBreaker('simulator_api', failure_threshold=5, reset_timeout_ms=60000)
+        }
+        
+        # Create backoff strategy for reconnections
+        self.backoff_strategy = BackoffStrategy(
+            initial_backoff_ms=1000,
+            max_backoff_ms=30000,
+            jitter_factor=0.5
+        )
     
     async def websocket_handler(self, request):
         """Handle new WebSocket connections"""
@@ -34,11 +53,34 @@ class WebSocketManager:
             return ws
         
         # Validate session
-        user_id = await self.session_manager.validate_session(session_id, token)
-        if not user_id:
+        try:
+            # Use circuit breaker to protect against cascading failures
+            user_id = await self.circuit_breakers['session_api'].execute(
+                self.session_manager.validate_session, session_id, token
+            )
+            
+            if not user_id:
+                await ws.send_json({
+                    'type': 'error',
+                    'error': 'Invalid session or token'
+                })
+                await ws.close()
+                return ws
+                
+        except CircuitOpenError as e:
+            # Circuit is open, fast-fail the connection
             await ws.send_json({
                 'type': 'error',
-                'error': 'Invalid session or token'
+                'error': f'Service temporarily unavailable: {str(e)}',
+                'retry_after_ms': e.remaining_ms
+            })
+            await ws.close()
+            return ws
+        except Exception as e:
+            logger.error(f"Error validating session: {e}")
+            await ws.send_json({
+                'type': 'error',
+                'error': 'Error validating session'
             })
             await ws.close()
             return ws
@@ -62,12 +104,15 @@ class WebSocketManager:
         logger.info(f"WebSocket connection established for session {session_id}")
         
         # Update session metadata
-        session = await self.session_manager.get_session(session_id)
-        frontend_connections = session.get('frontend_connections', 0)
-        
-        await self.session_manager.db.update_session_metadata(session_id, {
-            'frontend_connections': frontend_connections + 1
-        })
+        try:
+            session = await self.session_manager.get_session(session_id)
+            frontend_connections = session.get('frontend_connections', 0)
+            
+            await self.session_manager.db.update_session_metadata(session_id, {
+                'frontend_connections': frontend_connections + 1
+            })
+        except Exception as e:
+            logger.error(f"Error updating session metadata: {e}")
         
         # Process incoming messages
         try:
@@ -134,15 +179,33 @@ class WebSocketManager:
     
     async def handle_heartbeat(self, ws, session_id, message):
         """Handle client heartbeat message"""
-        # Update session activity
-        await self.session_manager.db.update_session_activity(session_id)
-        
-        # Send heartbeat response
-        await ws.send_json({
-            'type': 'heartbeat_ack',
-            'timestamp': int(time.time() * 1000),
-            'clientTimestamp': message.get('timestamp', 0)
-        })
+        try:
+            # Update session activity
+            await self.circuit_breakers['session_api'].execute(
+                self.session_manager.db.update_session_activity, session_id
+            )
+            
+            # Send heartbeat response
+            await ws.send_json({
+                'type': 'heartbeat_ack',
+                'timestamp': int(time.time() * 1000),
+                'clientTimestamp': message.get('timestamp', 0)
+            })
+        except CircuitOpenError as e:
+            # Circuit is open, but we can still respond to the client
+            # Just don't update the database
+            await ws.send_json({
+                'type': 'heartbeat_ack',
+                'timestamp': int(time.time() * 1000),
+                'clientTimestamp': message.get('timestamp', 0),
+                'warning': 'Database connectivity issues, some features may be limited'
+            })
+        except Exception as e:
+            logger.error(f"Error handling heartbeat: {e}")
+            await ws.send_json({
+                'type': 'error',
+                'error': f'Error processing heartbeat: {str(e)}'
+            })
     
     async def handle_connection_quality(self, ws, session_id, message):
         """Handle connection quality report"""
@@ -160,14 +223,44 @@ class WebSocketManager:
             'connection_type': message.get('connectionType', 'unknown')
         }
         
-        quality, reconnect_recommended = await self.session_manager.update_connection_quality(
-            session_id, token, data)
-        
-        await ws.send_json({
-            'type': 'connection_quality_update',
-            'quality': quality,
-            'reconnectRecommended': reconnect_recommended
-        })
+        try:
+            # Update connection quality
+            quality, reconnect_recommended = await self.circuit_breakers['session_api'].execute(
+                self.session_manager.update_connection_quality, session_id, token, data
+            )
+            
+            # Send response
+            await ws.send_json({
+                'type': 'connection_quality_update',
+                'quality': quality,
+                'reconnectRecommended': reconnect_recommended
+            })
+            
+            # Also send circuit breaker state if not closed
+            for name, cb in self.circuit_breakers.items():
+                if cb.state != CircuitState.CLOSED:
+                    await ws.send_json({
+                        'type': 'circuit_breaker_update',
+                        'name': name,
+                        'state': cb.state.value,
+                        'resetTimeMs': cb.get_state()['time_remaining_ms']
+                    })
+        except CircuitOpenError as e:
+            # If the circuit is open, tell the client but don't crash
+            await ws.send_json({
+                'type': 'connection_quality_update',
+                'quality': 'degraded',  # Default to degraded if we can't check
+                'reconnectRecommended': False,
+                'warning': 'Service connectivity issues, some features may be limited',
+                'circuitOpen': True,
+                'retryAfterMs': e.remaining_ms
+            })
+        except Exception as e:
+            logger.error(f"Error handling connection quality: {e}")
+            await ws.send_json({
+                'type': 'error',
+                'error': f'Error processing connection quality report: {str(e)}'
+            })
     
     async def broadcast_to_session(self, session_id, message):
         """Broadcast a message to all connections for a session"""
@@ -188,6 +281,18 @@ class WebSocketManager:
                     await ws.send_str(json_message)
             except Exception as e:
                 logger.error(f"Error sending message to WebSocket: {e}")
+    
+    async def broadcast_circuit_breaker_update(self, circuit_name, state_info):
+        """Broadcast circuit breaker state change to all connections"""
+        message = {
+            'type': 'circuit_breaker_update',
+            'name': circuit_name,
+            **state_info
+        }
+        
+        # Broadcast to all sessions
+        for session_id in self.connections.keys():
+            await self.broadcast_to_session(session_id, message)
     
     async def close_all_connections(self, reason="Server shutting down"):
         """Close all active WebSocket connections"""

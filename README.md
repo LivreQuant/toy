@@ -1,4 +1,109 @@
-You've built an impressive trading application with a robust architecture designed for AWS cloud deployment. The system uses a mix of stateless gRPC services for operations like auth and order entry, while handling real-time market data through streaming connections. The architecture shows careful consideration of production concerns including session management, connection quality monitoring, and graceful handling of pod migrations in Kubernetes.
+# Trading Simulator Platform - Architecture Overview
+
+## Project Summary
+
+This project is a cloud-based trading simulator platform deployed on AWS EKS with a frontend served from CloudFront/S3. The system allows users to participate in simulated trading environments with realistic market data, order execution, and portfolio management.
+
+The architecture follows a microservices approach with the following key components:
+
+### Frontend
+- React-based SPA with TypeScript
+- Communication via REST API, WebSockets, and Server-Sent Events (SSE)
+- Deployment on AWS CloudFront/S3 for global distribution
+
+### Backend Services
+1. **Authorization Service**
+   - Handles user authentication with JWT tokens
+   - Manages login, signup, token validation
+   - Secures access to other services
+
+2. **Session Manager Service**
+   - Core connection management between frontend and backend
+   - Maintains user sessions across EKS pods
+   - Bridges WebSocket/SSE connections to gRPC services
+   - Provides service discovery for user-specific exchange simulators
+
+3. **Exchange Simulator Service**
+   - Stateful service that simulates a trading venue
+   - Manages market data, order execution, and portfolio updates
+   - One pod instance per active user session
+   - Streams data via gRPC to the Session Manager
+
+4. **Order Service**
+   - Processes order submission and cancellation requests
+   - Validates order parameters before routing to exchange
+   - Checks connection quality before accepting orders
+
+5. **User/Profile Service**
+   - Manages user preferences and settings
+   - Handles portfolio configurations and saved states
+
+### Data Storage
+- PostgreSQL for persistent session data and user information
+- Schema includes authentication, session management, and simulator tracking
+- Redis for caching and real-time data distribution
+
+### Communication Patterns
+- **REST APIs** for standard request/response operations
+- **gRPC** for internal service-to-service communication
+- **WebSockets** for bidirectional session management
+- **Server-Sent Events (SSE)** for streaming market data to the browser
+
+### AWS Infrastructure
+- EKS for container orchestration
+- CloudFront/S3 for frontend hosting
+- ACM for TLS certificate management
+- ALB for load balancing
+
+## Key Technical Features
+- JWT-based authentication with refresh tokens
+- Kubernetes-aware session management
+- Bidirectional streaming with fallback mechanisms
+- Connection quality monitoring and reconnection strategies
+- Scalable exchange simulator instances
+- Comprehensive error handling and retry logic
+
+## Current State
+The code provides a solid walking skeleton with core services implemented. The service interactions are well-defined with proper API boundaries. Development appears to be focused on ensuring reliable connectivity and session management, which is crucial for a real-time trading application.
+
+The frontend code demonstrates thoughtful implementation of connection management with automatic reconnection, quality monitoring, and graceful degradation. Backend services show appropriate separation of concerns with well-structured gRPC and REST interfaces.
+
+## Next Steps for Development
+- Complete implementation of order submission flow
+- Enhance market data simulation
+- Add portfolio analytics
+- Implement user preferences/settings
+- Add monitoring and alerting
+- Performance tuning for high-frequency operations
+
+## AI Continuation Prompt
+
+```
+I'm working on a cloud-based trading simulator platform deployed on AWS EKS. The system uses a microservice architecture with:
+
+1. React frontend (CloudFront/S3) communicating via REST, WebSockets, and SSE
+2. Authorization service (JWT authentication)
+3. Session manager service (connection bridging between frontend and exchange)
+4. Exchange simulator service (stateful trading engines, one per user)
+5. Order service (validation and submission)
+6. PostgreSQL for persistent data and Redis for caching
+
+Our current focus is on [specific component or feature to work on next]. We're prioritizing reliability, real-time data flow, and session management across Kubernetes pods.
+
+Please help me implement/improve [specific task or component], considering:
+- How it integrates with existing services
+- Error handling and reconnection strategies
+- Performance optimization for trading data
+- AWS EKS deployment considerations
+
+The code follows TypeScript for frontend and Python/gRPC for backend services.
+```
+
+
+
+
+
+
 
 Here are my observations on the strengths and potential areas for improvement:
 
