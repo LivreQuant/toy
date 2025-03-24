@@ -1,61 +1,34 @@
+# source/core/order_manager.py
 import logging
 import time
 import uuid
 import asyncio
 from typing import Dict, Any, Optional, List
 
-from source.models.order import Order
-from source.models.enums import OrderStatus
-from source.db.order_repository import OrderRepository
-from source.api.clients.auth_client import AuthClient
-from source.api.clients.exchange_client import ExchangeClient
-from source.utils.redis_client import RedisClient
-from source.utils.metrics import Metrics
+from source.models.order import Order, OrderStatus
+from source.api.auth_client import AuthClient
+from source.core.exchange_client import ExchangeClient
+from source.db.order_store import OrderStore
 
 logger = logging.getLogger('order_manager')
+
 
 class OrderManager:
     """Manager for handling order operations"""
 
-    def __init__(
-        self, 
-        order_repository: OrderRepository, 
-        auth_client: AuthClient,
-        exchange_client: ExchangeClient, 
-        redis_client: RedisClient
-    ):
-        """
-        Initialize the order manager
-        
-        Args:
-            order_repository: Repository for order data
-            auth_client: Client for auth service
-            exchange_client: Client for exchange service
-            redis_client: Redis client
-        """
-        self.order_repository = order_repository
+    def __init__(self, order_store: OrderStore, auth_client: AuthClient,
+                 exchange_client: ExchangeClient, redis_client):
+        self.order_store = order_store
         self.auth_client = auth_client
         self.exchange_client = exchange_client
         self.redis = redis_client
-        
-        # Initialize metrics
-        self.metrics = Metrics()
 
         # Track request IDs to detect duplicates
         self.recently_processed = {}
         self._cache_lock = asyncio.Lock()  # For thread-safe cache operations
 
     async def validate_session(self, session_id: str, token: str) -> Dict[str, Any]:
-        """
-        Validate session and authentication token
-        
-        Args:
-            session_id: The session ID
-            token: Authentication token
-            
-        Returns:
-            Validation result
-        """
+        """Validate session and authentication token"""
         # First validate the auth token
         auth_result = await self.auth_client.validate_token(token)
 
@@ -66,15 +39,7 @@ class OrderManager:
                 "error": auth_result.get('error', 'Invalid authentication token')
             }
 
-        user_id = auth_result.get('user_id')
-        
-        # Ensure user ID was returned
-        if not user_id:
-            logger.warning("Auth token valid but no user ID returned")
-            return {
-                "valid": False,
-                "error": "Authentication error: missing user ID"
-            }
+        user_id = auth_result.get('userId')
 
         # Check if session exists in Redis
         try:
@@ -103,7 +68,7 @@ class OrderManager:
             return {
                 "valid": True,
                 "user_id": user_id,
-                "connection_quality": connection_quality or "good"
+                "connection_quality": connection_quality.decode() if connection_quality else "good"
             }
         except Exception as e:
             logger.error(f"Error validating session: {e}")
@@ -113,16 +78,7 @@ class OrderManager:
             }
 
     async def check_duplicate_request(self, user_id: str, request_id: str) -> Optional[Dict[str, Any]]:
-        """
-        Check if this is a duplicate request and return cached response if it is
-        
-        Args:
-            user_id: User ID
-            request_id: Request ID
-            
-        Returns:
-            Cached response if duplicate, None otherwise
-        """
+        """Check if this is a duplicate request and return cached response if it is"""
         if not request_id:
             return None
 
@@ -135,7 +91,6 @@ class OrderManager:
             if cached:
                 # Return cached response for duplicate
                 logger.info(f"Returning cached response for duplicate request {request_id}")
-                self.metrics.increment_counter("duplicate_request_detected")
                 return cached['response']
 
         # Clean up old cache entries
@@ -171,17 +126,7 @@ class OrderManager:
             }
 
     async def submit_order(self, order_data: Dict[str, Any], token: str) -> Dict[str, Any]:
-        """
-        Submit a new order
-        
-        Args:
-            order_data: Order data
-            token: Authentication token
-            
-        Returns:
-            Submission result
-        """
-        # Extract key fields
+        """Submit a new order"""
         session_id = order_data.get('sessionId')
         request_id = order_data.get('requestId')
 
@@ -212,7 +157,7 @@ class OrderManager:
             await self._cache_request_response(user_id, request_id, response)
             return response
 
-        # Prepare order parameters
+        # Validate order parameters
         try:
             symbol = order_data.get('symbol')
             side = order_data.get('side')
@@ -220,17 +165,23 @@ class OrderManager:
             order_type = order_data.get('type')
             price = float(order_data.get('price', 0)) if 'price' in order_data else None
 
-            # Basic validation already handled in controller, but ensure critical values exist
-            if not symbol or not side or not order_type or quantity <= 0:
-                logger.warning(f"Order validation failed: {order_data}")
+            # Basic validation
+            if not symbol or not side or not order_type:
                 response = {
                     "success": False,
-                    "error": "Invalid order parameters"
+                    "error": "Missing required order parameters: symbol, side, and type are required"
                 }
                 await self._cache_request_response(user_id, request_id, response)
                 return response
 
-            # For limit orders, price is required
+            if quantity <= 0:
+                response = {
+                    "success": False,
+                    "error": "Order quantity must be greater than zero"
+                }
+                await self._cache_request_response(user_id, request_id, response)
+                return response
+
             if order_type == 'LIMIT' and (price is None or price <= 0):
                 response = {
                     "success": False,
@@ -264,7 +215,7 @@ class OrderManager:
 
         # Save order to database
         try:
-            save_success = await self.order_repository.save_order(order)
+            save_success = await self.order_store.save_order(order)
 
             if not save_success:
                 logger.error(f"Failed to save order to database")
@@ -295,7 +246,7 @@ class OrderManager:
                 order.status = OrderStatus.REJECTED
                 order.error_message = exchange_result.get('error')
                 order.updated_at = time.time()
-                await self.order_repository.save_order(order)
+                await self.order_store.save_order(order)
 
                 logger.warning(f"Order {order.order_id} rejected by exchange: {order.error_message}")
                 response = {
@@ -311,7 +262,7 @@ class OrderManager:
                 old_id = order.order_id
                 order.order_id = exchange_result.get('order_id')
                 order.updated_at = time.time()
-                await self.order_repository.save_order(order)
+                await self.order_store.save_order(order)
                 logger.info(f"Updated order ID from {old_id} to {order.order_id}")
 
         except Exception as exchange_error:
@@ -320,7 +271,7 @@ class OrderManager:
             order.status = OrderStatus.REJECTED
             order.error_message = f"Exchange communication error: {str(exchange_error)}"
             order.updated_at = time.time()
-            await self.order_repository.save_order(order)
+            await self.order_store.save_order(order)
 
             response = {
                 "success": False,
@@ -340,17 +291,7 @@ class OrderManager:
         return response
 
     async def cancel_order(self, order_id: str, session_id: str, token: str) -> Dict[str, Any]:
-        """
-        Cancel an existing order
-        
-        Args:
-            order_id: Order ID to cancel
-            session_id: Session ID
-            token: Authentication token
-            
-        Returns:
-            Cancellation result
-        """
+        """Cancel an existing order"""
         # Validate session and authentication
         validation = await self.validate_session(session_id, token)
 
@@ -364,7 +305,7 @@ class OrderManager:
 
         # Get order from database
         try:
-            order = await self.order_repository.get_order(order_id)
+            order = await self.order_store.get_order(order_id)
 
             if not order:
                 logger.warning(f"Order {order_id} not found")
@@ -410,7 +351,7 @@ class OrderManager:
             # Update order status in database
             order.status = OrderStatus.CANCELED
             order.updated_at = time.time()
-            await self.order_repository.save_order(order)
+            await self.order_store.save_order(order)
 
             return {
                 "success": True
@@ -424,17 +365,7 @@ class OrderManager:
             }
 
     async def get_order_status(self, order_id: str, session_id: str, token: str) -> Dict[str, Any]:
-        """
-        Get status of an existing order
-        
-        Args:
-            order_id: Order ID
-            session_id: Session ID
-            token: Authentication token
-            
-        Returns:
-            Order status information
-        """
+        """Get status of an existing order"""
         # Validate session and authentication
         validation = await self.validate_session(session_id, token)
 
@@ -448,7 +379,7 @@ class OrderManager:
 
         # Get order from database
         try:
-            order = await self.order_repository.get_order(order_id)
+            order = await self.order_store.get_order(order_id)
 
             if not order:
                 logger.warning(f"Order {order_id} not found")
@@ -476,7 +407,7 @@ class OrderManager:
         if order.status in [OrderStatus.FILLED, OrderStatus.CANCELED, OrderStatus.REJECTED]:
             return {
                 "success": True,
-                "status": order.status.value,
+                "status": order.status.value if hasattr(order.status, 'value') else order.status,
                 "filledQuantity": float(order.filled_quantity),
                 "avgPrice": float(order.avg_price),
                 "errorMessage": order.error_message
@@ -491,7 +422,7 @@ class OrderManager:
                 # Fall back to database status
                 return {
                     "success": True,
-                    "status": order.status.value,
+                    "status": order.status.value if hasattr(order.status, 'value') else order.status,
                     "filledQuantity": float(order.filled_quantity),
                     "avgPrice": float(order.avg_price),
                     "errorMessage": exchange_result.get('error')
@@ -503,14 +434,14 @@ class OrderManager:
             avg_price = exchange_result.get('avg_price')
 
             if (status != order.status or
-                filled_quantity != order.filled_quantity or
-                avg_price != order.avg_price):
+                    filled_quantity != order.filled_quantity or
+                    avg_price != order.avg_price):
                 # Update order
                 order.status = status
                 order.filled_quantity = filled_quantity
                 order.avg_price = avg_price
                 order.updated_at = time.time()
-                await self.order_repository.save_order(order)
+                await self.order_store.save_order(order)
 
             return {
                 "success": True,
@@ -525,51 +456,21 @@ class OrderManager:
             # Fall back to database status
             return {
                 "success": True,
-                "status": order.status.value,
+                "status": order.status.value if hasattr(order.status, 'value') else order.status,
                 "filledQuantity": float(order.filled_quantity),
                 "avgPrice": float(order.avg_price),
                 "errorMessage": f"Exchange error: {str(e)}"
             }
 
-    async def get_user_orders(self, token: str, limit: int = 50, offset: int = 0) -> Dict[str, Any]:
-        """
-        Get orders for a user
-        
-        Args:
-            token: Authentication token
-            limit: Maximum number of orders to return
-            offset: Offset for pagination
-            
-        Returns:
-            User orders list
-        """
-        # Validate token
-        auth_result = await self.auth_client.validate_token(token)
-
-        if not auth_result.get('valid', False):
-            return {
-                "success": False,
-                "error": "Invalid authentication token"
-            }
-
-        user_id = auth_result.get('user_id')
-        
-        # Ensure user ID was returned
-        if not user_id:
-            return {
-                "success": False,
-                "error": "Authentication error: missing user ID"
-            }
-
+    async def get_user_orders(self, user_id: str, limit: int = 50, offset: int = 0) -> Dict[str, Any]:
+        """Get orders for a user"""
         try:
-            orders = await self.order_repository.get_user_orders(user_id, limit, offset)
+            orders = await self.order_store.get_user_orders(user_id, limit, offset)
 
             return {
                 "success": True,
                 "orders": [order.to_dict() for order in orders],
-                "count": len(orders),
-                "limit": limit,
-                "offset": offset
+                "count": len(orders)
             }
         except Exception as e:
             logger.error(f"Error getting user orders: {e}")

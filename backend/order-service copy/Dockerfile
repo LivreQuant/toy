@@ -3,11 +3,12 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # Install system dependencies
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
-        gcc \
-        postgresql-client \
-        curl \
+RUN apt-get -o Acquire::Check-Valid-Until=false \
+    -o Acquire::Check-Date=false update \
+    && apt-get -y --no-install-recommends install \
+    gcc \
+    postgresql-client \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first to leverage Docker cache
@@ -19,20 +20,17 @@ RUN pip install --no-cache-dir grpcio-tools
 
 # Copy protos and compile them
 COPY ./protos /app/protos
-RUN mkdir -p /app/source/api/grpc && \
+RUN mkdir -p /app/source/api && \
     python -m grpc_tools.protoc -I./protos \
-    --python_out=./source/api/grpc \
-    --grpc_python_out=./source/api/grpc \
-    ./protos/exchange_simulator.proto \
-    && sed -i 's/import main_dot_exchange__simulator__pb2/import source.api.grpc.exchange_simulator_pb2 as main_dot_exchange__simulator__pb2/g' \
-    ./source/api/grpc/exchange_simulator_pb2_grpc.py
+    --python_out=./source/api \
+    --grpc_python_out=./source/api \
+    ./protos/exchange_simulator.proto
 
 # Copy the source code
 COPY . .
 
-# Set environment variables
-ENV PYTHONUNBUFFERED=1 \
-    ENVIRONMENT="development" \
+# Set comprehensive default environment variables
+ENV ENVIRONMENT="development" \
     # Database Configuration
     DB_HOST="postgres" \
     DB_PORT="5432" \
