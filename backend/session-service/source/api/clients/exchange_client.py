@@ -12,8 +12,8 @@ from source.utils.circuit_breaker import CircuitBreaker, CircuitOpenError
 from source.config import config
 
 # These would be generated from your proto files
-import exchange_simulator_pb2
-import exchange_simulator_pb2_grpc
+import source.api.grpc.exchange_simulator_pb2
+import source.api.grpc.exchange_simulator_pb2_grpc
 
 logger = logging.getLogger('exchange_client')
 
@@ -200,23 +200,165 @@ class ExchangeClient:
         except Exception as e:
             logger.error(f"Error sending heartbeat: {e}")
             return {'success': False, 'error': str(e)}
-    
+
     async def _heartbeat_request(self, endpoint: str, session_id: str, client_id: str) -> Dict[str, Any]:
         """Make the actual heartbeat request"""
         _, stub = await self.get_channel(endpoint)
-        
+
         request = exchange_simulator_pb2.HeartbeatRequest(
             session_id=session_id,
             client_id=client_id,
             client_timestamp=int(time.time() * 1000)
         )
-        
+
         try:
             response = await stub.Heartbeat(request, timeout=5)
-            
+
             return {
                 'success': response.success,
                 'server_timestamp': response.server_timestamp
             }
         except grpc.aio.AioRpcError as e:
-            logger.error(f"gRPC error sending heartbe
+            logger.error(f"gRPC error sending heartbeat: {e.code()} - {e.details()}")
+            raise
+
+    async def stream_exchange_data(
+            self,
+            endpoint: str,
+            session_id: str,
+            client_id: str,
+            symbols: List[str] = None
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        """
+        Stream market data from the exchange simulator
+
+        Args:
+            endpoint: The endpoint of the simulator
+            session_id: The session ID
+            client_id: The client ID
+            symbols: Optional list of symbols to stream (passed through from frontend)
+
+        Yields:
+            Dict with market data updates
+        """
+        _, stub = await self.get_channel(endpoint)
+
+        request = exchange_simulator_pb2.StreamDataRequest(
+            session_id=session_id,
+            client_id=client_id,
+            symbols=symbols or []
+        )
+
+        # This streaming endpoint doesn't use circuit breaker to allow long-running streams
+        try:
+            stream = stub.StreamMarketData(request)
+
+            async for data in stream:
+                # Simply forward the data structure received from the exchange
+                # Convert protobuf message to dictionary with minimal transformation
+                yield self._convert_stream_data(data)
+
+        except grpc.aio.AioRpcError as e:
+            if e.code() == grpc.StatusCode.CANCELLED:
+                logger.info(f"Stream cancelled for session {session_id}")
+            else:
+                logger.error(f"gRPC error in market data stream: {e.code()} - {e.details()}")
+            raise
+        except Exception as e:
+            logger.error(f"Error in market data stream: {e}")
+            raise
+
+    def _convert_stream_data(self, data):
+        """Convert stream data protobuf message to dictionary"""
+        # Minimal conversion from protobuf to dict
+        result = {
+            'timestamp': data.timestamp,
+            'market_data': [],
+            'portfolio': None
+        }
+
+        # Convert market data
+        for item in data.market_data:
+            result['market_data'].append({
+                'symbol': item.symbol,
+                'price': item.price,
+                'change': item.change,
+                'volume': item.volume,
+                'timestamp': item.timestamp
+            })
+
+        # Convert portfolio if present
+        if data.HasField('portfolio'):
+            portfolio = data.portfolio
+            positions = []
+
+            for pos in portfolio.positions:
+                positions.append({
+                    'symbol': pos.symbol,
+                    'quantity': pos.quantity,
+                    'avg_price': pos.avg_price,
+                    'current_price': pos.current_price,
+                    'market_value': pos.market_value,
+                    'profit_loss': pos.profit_loss
+                })
+
+            result['portfolio'] = {
+                'cash': portfolio.cash,
+                'equity': portfolio.equity,
+                'buying_power': portfolio.buying_power,
+                'positions': positions
+            }
+
+        return result
+
+    async def get_simulator_status(
+            self,
+            endpoint: str,
+            session_id: str
+    ) -> Dict[str, Any]:
+        """
+        Get the status of a simulator instance (for connection management)
+
+        Args:
+            endpoint: The endpoint of the simulator
+            session_id: The session ID
+
+        Returns:
+            Dict with simulator connectivity status
+        """
+        try:
+            # Execute request with circuit breaker
+            return await self.circuit_breaker.execute(
+                self._get_simulator_status_request, endpoint, session_id
+            )
+        except CircuitOpenError as e:
+            logger.warning(f"Circuit open for exchange service: {e}")
+            return {'status': 'UNKNOWN', 'error': 'Exchange service unavailable'}
+        except Exception as e:
+            logger.error(f"Error getting simulator status: {e}")
+            return {'status': 'ERROR', 'error': str(e)}
+
+    async def _get_simulator_status_request(
+            self,
+            endpoint: str,
+            session_id: str
+    ) -> Dict[str, Any]:
+        """Make the actual simulator status request"""
+        _, stub = await self.get_channel(endpoint)
+
+        request = exchange_simulator_pb2.GetSimulatorStatusRequest(
+            session_id=session_id
+        )
+
+        try:
+            response = await stub.GetSimulatorStatus(request, timeout=5)
+
+            return {
+                'status': response.status,
+                'simulator_id': response.simulator_id,
+                'uptime_seconds': response.uptime_seconds,
+                'error': response.error_message if response.status == 'ERROR' else None
+            }
+        except grpc.aio.AioRpcError as e:
+            logger.error(f"gRPC error getting simulator status: {e.code()} - {e.details()}")
+            raise

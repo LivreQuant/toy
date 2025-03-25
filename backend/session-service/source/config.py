@@ -16,6 +16,7 @@ LOG_LEVELS = {
     'CRITICAL': logging.CRITICAL
 }
 
+
 class DatabaseConfig(BaseModel):
     """Database connection configuration"""
     host: str = Field(default="postgres")
@@ -25,11 +26,12 @@ class DatabaseConfig(BaseModel):
     password: str = Field(default="postgres")
     min_connections: int = Field(default=2)
     max_connections: int = Field(default=10)
-    
+
     @property
     def connection_string(self) -> str:
         """Get PostgreSQL connection string"""
         return f"postgres://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}"
+
 
 class RedisConfig(BaseModel):
     """Redis connection configuration"""
@@ -38,41 +40,49 @@ class RedisConfig(BaseModel):
     db: int = Field(default=0)
     password: Optional[str] = Field(default=None)
 
+
 class ServiceConfig(BaseModel):
     """External service endpoints"""
     auth_service_url: str = Field(default="http://auth-service:8000")
     exchange_manager_service: str = Field(default="exchange-manager-service:50055")
+
 
 class ServerConfig(BaseModel):
     """Web server configuration"""
     host: str = Field(default="0.0.0.0")
     port: int = Field(default=8080)
     workers: int = Field(default=4)
-    
+
+
 class SessionConfig(BaseModel):
     """Session-related configuration"""
     timeout_seconds: int = Field(default=3600)  # 1 hour
     extension_threshold: int = Field(default=1800)  # 30 minutes
-    
+
+
 class WebSocketConfig(BaseModel):
     """WebSocket configuration"""
     heartbeat_interval: int = Field(default=10)  # 10 seconds
-    
+
+
 class SSEConfig(BaseModel):
     """Server-Sent Events configuration"""
     keepalive_interval: int = Field(default=15)  # 15 seconds
-    
+
+
 class SimulatorConfig(BaseModel):
     """Simulator configuration"""
     max_per_user: int = Field(default=2)
     inactivity_timeout: int = Field(default=3600)  # 1 hour
     namespace: str = Field(default="default")
-    
+
+
 class KubernetesConfig(BaseModel):
     """Kubernetes configuration"""
     namespace: str = Field(default="default")
     pod_name: str = Field(default=os.getenv('HOSTNAME', 'unknown'))
     in_cluster: bool = Field(default=True)
+
 
 class Config(BaseModel):
     """Main configuration class"""
@@ -87,7 +97,7 @@ class Config(BaseModel):
     sse: SSEConfig = Field(default_factory=SSEConfig)
     simulator: SimulatorConfig = Field(default_factory=SimulatorConfig)
     kubernetes: KubernetesConfig = Field(default_factory=KubernetesConfig)
-    
+
     @classmethod
     def from_env(cls) -> 'Config':
         """Load configuration from environment variables"""
@@ -139,6 +149,7 @@ class Config(BaseModel):
                 in_cluster=os.getenv('K8S_IN_CLUSTER', 'true').lower() == 'true'
             )
         )
+
 
 # Create global config instance
 config = Config.from_env()

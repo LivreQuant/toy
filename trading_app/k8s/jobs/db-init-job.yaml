@@ -25,9 +25,9 @@ spec:
             # Apply schema files in order
             echo "Applying schema files..."
             PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -f /schemas/users.sql
+            PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -f /schemas/auth_tokens.sql
             PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -f /schemas/sessions.sql
             PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -f /schemas/simulator_sessions.sql
-            PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -f /schemas/auth_tokens.sql
             
             # Apply data files
             echo "Applying data files..."

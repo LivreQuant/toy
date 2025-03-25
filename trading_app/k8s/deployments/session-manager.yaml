@@ -4,7 +4,7 @@ kind: Deployment
 metadata:
   name: session-manager
 spec:
-  replicas: 2  # Scaled to 2 instances for availability
+  replicas: 2
   selector:
     matchLabels:
       app: session-manager
@@ -15,17 +15,16 @@ spec:
     spec:
       # Add grace period for WebSocket connections to close properly
       terminationGracePeriodSeconds: 60
-      serviceAccountName: session-service-account  # Add this line
+      serviceAccountName: session-service-account
       containers:
       - name: session-manager
         image: opentp/session-manager:latest
         imagePullPolicy: Never
         ports:
         - containerPort: 8080  # REST API
-        - containerPort: 8088  # WebSocket
         env:
         - name: DB_HOST
-          value: pgbouncer  # Using connection pooling
+          value: pgbouncer
         - name: DB_PORT
           value: "5432"
         - name: DB_NAME
@@ -42,12 +41,26 @@ spec:
               key: password
         - name: REDIS_HOST
           value: redis
+        - name: REDIS_PORT
+          value: "6379"
         - name: AUTH_SERVICE_URL
           value: http://auth-service:8000
         - name: POD_NAME
           valueFrom:
             fieldRef:
               fieldPath: metadata.name
+        - name: KUBERNETES_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: ENVIRONMENT
+          value: "development"
+        - name: LOG_LEVEL
+          value: "DEBUG"
+        - name: WEBSOCKET_HEARTBEAT_INTERVAL
+          value: "10"
+        - name: SESSION_TIMEOUT_SECONDS
+          value: "3600"
         resources:
           requests:
             memory: "256Mi"
@@ -84,7 +97,4 @@ spec:
   - name: http
     port: 8080
     targetPort: 8080
-  - name: ws
-    port: 8088
-    targetPort: 8088
   type: ClusterIP
