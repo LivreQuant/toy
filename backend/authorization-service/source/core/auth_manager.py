@@ -83,7 +83,7 @@ class AuthManager:
                 }
 
             # Generate JWT tokens
-            tokens = self.token_manager.generate_tokens(user['user_id'], user.get('role', 'user'))
+            tokens = self.token_manager.generate_tokens(user['user_id'], user.get('user_role', 'user'))
 
             # Save refresh token to database
             refresh_token_hash = self.token_manager.hash_token(tokens['refreshToken'])
@@ -169,8 +169,8 @@ class AuthManager:
                 }
 
             # Generate new tokens
-            role = user.get('role', 'user')
-            tokens = self.token_manager.generate_tokens(user_id, role)
+            user_role = user.get('user_role', 'user')
+            tokens = self.token_manager.generate_tokens(user_id, user_role)
 
             # Revoke old refresh token
             await self.db.revoke_refresh_token(token_hash)
@@ -222,7 +222,7 @@ class AuthManager:
             return {
                 'valid': True,
                 'userId': str(user_id),
-                'role': validation.get('role', 'user')
+                'user_role': validation.get('user_role', 'user')
             }
         except Exception as e:
             logger.error(f"Token validation error: {e}", exc_info=True)

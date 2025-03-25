@@ -12,14 +12,15 @@ from source.core.auth_manager import AuthManager
 from source.db.db_manager import DatabaseManager
 from source.api.rest_routes import setup_rest_app
 
+
 # Logging setup function
 def setup_logging():
     # Create logs directory if it doesn't exist
-    log_dir = '/home/samaral/projects/toy/20250325/backend/authorization-service'
-    #log_dir = '/app/logs'
+    #log_dir = '/home/samaral/projects/toy/20250325/backend/authorization-service'
+    log_dir = '/app/logs'
 
     os.makedirs(log_dir, exist_ok=True)
-    
+
     # Configure root logger
     logger = logging.getLogger()
     logger.setLevel(getattr(logging, os.getenv('LOG_LEVEL', 'DEBUG')))
@@ -34,7 +35,7 @@ def setup_logging():
     # Rotating File handler
     file_handler = logging.handlers.RotatingFileHandler(
         os.path.join(log_dir, 'auth_service.log'),
-        maxBytes=10*1024*1024,  # 10 MB
+        maxBytes=10 * 1024 * 1024,  # 10 MB
         backupCount=5
     )
     file_handler.setFormatter(logging.Formatter(
@@ -44,13 +45,19 @@ def setup_logging():
 
     return logging.getLogger('auth_service')
 
+
 # Configure logger
 logger = setup_logging()
+
 
 async def serve():
     """Main service startup and run method"""
     logger.info("Starting authentication service")
-    
+
+    db_manager = None
+    auth_manager = None
+    runner = None
+
     try:
         # Create database manager
         db_manager = DatabaseManager()
@@ -73,78 +80,77 @@ async def serve():
 
         logger.info(f"REST Auth service started on port {rest_port}")
 
-        # Keep the service running indefinitely
-        try:
-            # Log start of indefinite wait
-            logger.info("Entering indefinite wait state")
-            
-            # Use asyncio.Event to keep the service running
-            stop_event = asyncio.Event()
-            await stop_event.wait()
-        
-        except asyncio.CancelledError:
-            logger.warning("Service wait state was cancelled")
-            raise
-        except Exception as e:
-            logger.error(f"Unexpected error in serve method: {e}")
-            logger.error(traceback.format_exc())
-            raise
-        finally:
-            # Cleanup
-            logger.info("Initiating service cleanup")
-            await runner.cleanup()
-            await db_manager.close()
-            logger.info("Service cleanup completed")
+        # Keep the service running until stop event is signaled
+        stop_event = asyncio.Event()
+
+        # Set up signal handlers within the serve function
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            loop = asyncio.get_running_loop()
+            loop.add_signal_handler(sig, lambda: asyncio.create_task(shutdown(stop_event)))
+
+        logger.info("Entering wait state - service ready")
+        await stop_event.wait()
+        logger.info("Stop event received, shutting down...")
 
     except Exception as e:
         logger.critical(f"Critical error during service startup: {e}")
         logger.critical(traceback.format_exc())
-        raise
+    finally:
+        # Cleanup in reverse order
+        logger.info("Performing service cleanup...")
+
+        if auth_manager:
+            logger.info("Stopping token cleanup thread...")
+            auth_manager.stop_cleanup_thread()
+
+        if runner:
+            logger.info("Cleaning up web runner...")
+            await runner.cleanup()
+
+        if db_manager:
+            logger.info("Closing database connections...")
+            await db_manager.close()
+
+        logger.info("Service cleanup completed")
+
+
+async def shutdown(stop_event):
+    """Graceful shutdown handler"""
+    logger.info("Shutdown signal received, initiating graceful shutdown...")
+    stop_event.set()
+
 
 def main():
     """Entry point for the application"""
     logger.info("Starting authentication service main method")
-    
-    loop = asyncio.get_event_loop()
-    
-    # Enhance error handling in event loop
-    def exception_handler(loop, context):
-        # Log any unhandled exceptions in the event loop
-        exception = context.get('exception')
-        logger.error(f"Unhandled exception in event loop: {context}")
-        if exception:
-            logger.error(f"Exception details: {exception}")
-            logger.error(traceback.format_exc())
 
-    loop.set_exception_handler(exception_handler)
-    
-    # Create a shutdown event
-    shutdown_event = asyncio.Event()
-    
-    # Setup signal handlers for graceful shutdown
-    def signal_handler():
-        logger.info("Received shutdown signal")
-        shutdown_event.set()
-    
-    for sig in (signal.SIGINT, signal.SIGTERM):
-        loop.add_signal_handler(
-            sig, 
-            signal_handler
-        )
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
 
     try:
-        # Run the service
-        logger.info("Running service in event loop")
         loop.run_until_complete(serve())
     except KeyboardInterrupt:
-        logger.info("Received keyboard interrupt, shutting down")
+        logger.info("Keyboard interrupt received")
     except Exception as e:
         logger.critical(f"Unrecoverable error in main method: {e}")
         logger.critical(traceback.format_exc())
     finally:
+        # Give pending tasks a moment to complete
+        pending = asyncio.all_tasks(loop)
+        for task in pending:
+            if not task.done():
+                try:
+                    # Allow 5 seconds for tasks to complete
+                    loop.run_until_complete(asyncio.wait_for(task, 5.0))
+                except asyncio.TimeoutError:
+                    logger.warning(f"Task did not complete during shutdown: {task}")
+                except Exception as e:
+                    logger.error(f"Error while shutting down task: {e}")
+
         logger.info("Closing event loop")
         loop.close()
         logger.info("Event loop closed")
+
 
 if __name__ == '__main__':
     main()

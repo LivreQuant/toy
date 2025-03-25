@@ -44,6 +44,13 @@ data:
     END;
     $$ LANGUAGE plpgsql;
     
+    -- Grant permissions to opentp user
+    GRANT USAGE ON SCHEMA auth TO opentp;
+    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA auth TO opentp;
+    GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA auth TO opentp;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA auth GRANT ALL ON TABLES TO opentp;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA auth GRANT ALL ON SEQUENCES TO opentp;
+  
   auth_tokens.sql: |
     -- Token management
     CREATE TABLE IF NOT EXISTS auth.refresh_tokens (
@@ -69,6 +76,9 @@ data:
     END;
     $$ LANGUAGE plpgsql;
 
+    -- Grant permissions on the refresh_tokens table
+    GRANT ALL PRIVILEGES ON TABLE auth.refresh_tokens TO opentp;
+
   sessions.sql: |
     CREATE SCHEMA IF NOT EXISTS session;
     
@@ -93,6 +103,13 @@ data:
         session_id UUID PRIMARY KEY REFERENCES session.active_sessions(session_id) ON DELETE CASCADE,
         metadata JSONB DEFAULT '{}'::jsonb
     );
+    
+    -- Grant permissions for session schema
+    GRANT USAGE ON SCHEMA session TO opentp;
+    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA session TO opentp;
+    GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA session TO opentp;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA session GRANT ALL ON TABLES TO opentp;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA session GRANT ALL ON SEQUENCES TO opentp;
 
   simulator_sessions.sql: |
     CREATE SCHEMA IF NOT EXISTS simulator;
@@ -113,3 +130,10 @@ data:
     -- Indexes for performance
     CREATE INDEX IF NOT EXISTS idx_simulator_user_id ON simulator.instances(user_id);
     CREATE INDEX IF NOT EXISTS idx_simulator_status ON simulator.instances(status);
+    
+    -- Grant permissions for simulator schema
+    GRANT USAGE ON SCHEMA simulator TO opentp;
+    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA simulator TO opentp;
+    GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA simulator TO opentp;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA simulator GRANT ALL ON TABLES TO opentp;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA simulator GRANT ALL ON SEQUENCES TO opentp;

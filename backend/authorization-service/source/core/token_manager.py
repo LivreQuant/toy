@@ -17,13 +17,13 @@ class TokenManager:
         self.access_token_expiry = int(os.getenv('ACCESS_TOKEN_EXPIRY', '3600'))  # 1 hour
         self.refresh_token_expiry = int(os.getenv('REFRESH_TOKEN_EXPIRY', '2592000'))  # 30 days
 
-    def generate_tokens(self, user_id, role='user'):
+    def generate_tokens(self, user_id, user_role='user'):
         """Generate access and refresh tokens"""
         # Generate access token
         access_token_expires = datetime.datetime.utcnow() + datetime.timedelta(seconds=self.access_token_expiry)
         access_token_payload = {
             'user_id': user_id,
-            'role': role,
+            'user_role': user_role,
             'exp': access_token_expires,
             'iat': datetime.datetime.utcnow(),
             'jti': str(uuid.uuid4()),
@@ -62,7 +62,7 @@ class TokenManager:
             return {
                 'valid': True,
                 'user_id': payload.get('user_id'),
-                'role': payload.get('role', 'user')
+                'user_role': payload.get('user_role', 'user')
             }
         except jwt.ExpiredSignatureError:
             logger.warning(f"Token expired: {token[:10]}...")

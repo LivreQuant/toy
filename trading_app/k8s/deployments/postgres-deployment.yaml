@@ -17,9 +17,15 @@ spec:
         image: postgres:13
         env:
         - name: POSTGRES_USER
-          value: opentp
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: username
         - name: POSTGRES_PASSWORD
-          value: samaral
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: password
         - name: POSTGRES_DB
           value: opentp
         ports:

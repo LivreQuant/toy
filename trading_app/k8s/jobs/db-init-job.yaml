@@ -17,22 +17,22 @@ spec:
             echo "Starting database initialization..."
             
             # Wait for database to be fully ready
-            until PGPASSWORD=samaral psql -h postgres -U opentp -d opentp -c "SELECT 1" > /dev/null 2>&1; do
+            until PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -c "SELECT 1" > /dev/null 2>&1; do
               echo "Waiting for PostgreSQL to be ready..."
               sleep 2
             done
             
             # Apply schema files in order
             echo "Applying schema files..."
-            PGPASSWORD=samaral psql -h postgres -U opentp -d opentp -f /schemas/users.sql
-            PGPASSWORD=samaral psql -h postgres -U opentp -d opentp -f /schemas/sessions.sql
-            PGPASSWORD=samaral psql -h postgres -U opentp -d opentp -f /schemas/simulator_sessions.sql
-            PGPASSWORD=samaral psql -h postgres -U opentp -d opentp -f /schemas/auth_tokens.sql
+            PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -f /schemas/users.sql
+            PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -f /schemas/sessions.sql
+            PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -f /schemas/simulator_sessions.sql
+            PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -f /schemas/auth_tokens.sql
             
             # Apply data files
             echo "Applying data files..."
-            PGPASSWORD=samaral psql -h postgres -U opentp -d opentp -f /data/auth_functions.sql
-            PGPASSWORD=samaral psql -h postgres -U opentp -d opentp -f /data/users.sql
+            PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -f /data/auth_functions.sql
+            PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -f /data/users.sql
             
             echo "Database initialization completed successfully."
         volumeMounts:
@@ -40,6 +40,9 @@ spec:
           mountPath: /schemas
         - name: db-data
           mountPath: /data
+        - name: db-credentials
+          mountPath: /db-credentials
+          readOnly: true
       volumes:
       - name: db-schemas
         configMap:
@@ -47,4 +50,7 @@ spec:
       - name: db-data
         configMap:
           name: db-data
+      - name: db-credentials
+        secret:
+          secretName: db-credentials
       restartPolicy: OnFailure
