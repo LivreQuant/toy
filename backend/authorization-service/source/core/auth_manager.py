@@ -14,24 +14,61 @@ class AuthManager:
     def __init__(self, db_manager):
         self.db = db_manager
         self.token_manager = TokenManager()
+        self.stop_cleanup_event = threading.Event()
+        self.cleanup_thread = None
 
-        # Start a background task to clean up expired tokens periodically
-        self.cleanup_thread = threading.Thread(target=self._cleanup_expired_tokens, daemon=True)
+        # Start background task to clean up expired tokens periodically
+        self._start_cleanup_thread()
+
+    def _start_cleanup_thread(self):
+        """Start the cleanup thread"""
+        self.cleanup_thread = threading.Thread(
+            target=self._cleanup_expired_tokens, 
+            daemon=True
+        )
         self.cleanup_thread.start()
+        logger.info("Background token cleanup thread started")
 
     def _cleanup_expired_tokens(self):
         """Background task to clean up expired tokens"""
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
 
-        while True:
+        while not self.stop_cleanup_event.is_set():
             try:
                 # Run cleanup every 6 hours
-                time.sleep(6 * 60 * 60)
-                logger.info("Running expired token cleanup")
-                asyncio.run_coroutine_threadsafe(self.db.cleanup_expired_tokens(), loop)
+                self.stop_cleanup_event.wait(6 * 60 * 60)  # This allows graceful interruption
+                
+                if not self.stop_cleanup_event.is_set():
+                    logger.info("Running expired token cleanup")
+                    # Use run_coroutine_threadsafe to run async method from another thread
+                    future = asyncio.run_coroutine_threadsafe(
+                        self.db.cleanup_expired_tokens(), 
+                        loop
+                    )
+                    future.result(timeout=60)  # Wait up to 60 seconds
+            except asyncio.CancelledError:
+                logger.info("Token cleanup task was cancelled")
+                break
             except Exception as e:
-                logger.error(f"Error in token cleanup: {e}")
+                logger.error(f"Error in token cleanup: {e}", exc_info=True)
+                # Add a small delay to prevent tight error loops
+                time.sleep(60)
+
+        logger.info("Token cleanup thread stopped gracefully")
+        loop.close()
+
+    def stop_cleanup_thread(self):
+        """Gracefully stop the cleanup thread"""
+        logger.info("Signaling token cleanup thread to stop...")
+        self.stop_cleanup_event.set()
+        
+        if self.cleanup_thread and self.cleanup_thread.is_alive():
+            # Wait up to 10 seconds for thread to stop
+            self.cleanup_thread.join(timeout=10)
+            
+            if self.cleanup_thread.is_alive():
+                logger.warning("Token cleanup thread did not stop promptly")
 
     async def login(self, username, password):
         """Handle login request"""
@@ -62,7 +99,7 @@ class AuthManager:
                 'expiresIn': tokens['expiresIn']
             }
         except Exception as e:
-            logger.error(f"Login error: {e}")
+            logger.error(f"Login error: {e}", exc_info=True)
             return {
                 'success': False,
                 'error': "Authentication service error"
@@ -90,7 +127,7 @@ class AuthManager:
                 'success': True
             }
         except Exception as e:
-            logger.error(f"Logout error: {e}")
+            logger.error(f"Logout error: {e}", exc_info=True)
             return {
                 'success': False,
                 'error': str(e)
@@ -153,7 +190,7 @@ class AuthManager:
                 'expiresIn': tokens['expiresIn']
             }
         except Exception as e:
-            logger.error(f"Token refresh error: {e}")
+            logger.error(f"Token refresh error: {e}", exc_info=True)
             return {
                 'success': False,
                 'error': "Authentication service error"
@@ -188,7 +225,7 @@ class AuthManager:
                 'role': validation.get('role', 'user')
             }
         except Exception as e:
-            logger.error(f"Token validation error: {e}")
+            logger.error(f"Token validation error: {e}", exc_info=True)
             return {
                 'valid': False,
                 'error': 'Token validation failed'

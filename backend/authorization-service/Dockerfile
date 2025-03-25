@@ -2,6 +2,10 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+# Create a non-root user
+RUN addgroup --system appuser && \
+    adduser --system --ingroup appuser appuser
+
 # Install system dependencies
 RUN apt-get -o Acquire::Check-Valid-Until=false \
     -o Acquire::Check-Date=false update \
@@ -20,6 +24,7 @@ COPY . .
 
 # Set comprehensive default environment variables
 ENV ENVIRONMENT="development" \
+    PYTHONPATH=/app \
     # Database Configuration
     DB_HOST="postgres" \
     DB_PORT="5432" \
@@ -36,7 +41,14 @@ ENV ENVIRONMENT="development" \
     REST_PORT="8001" \
     AUTH_SERVICE_URL="http://auth-service:8000" \
     # Logging and Security
-    LOG_LEVEL="INFO"
+    LOG_LEVEL="DEBUG"
+
+# Create log directory and set permissions
+RUN mkdir -p /app/logs && \
+    chown -R appuser:appuser /app/logs
+
+# Switch to non-root user
+USER appuser
 
 # Expose REST port
 EXPOSE 8001
@@ -46,4 +58,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8001/health || exit 1
 
 # Run the service
-CMD ["python", "main.py"]
+CMD ["python", "source/main.py"]

@@ -5,3 +5,4 @@ asyncpg>=0.27.0
 grpcio>=1.62.0
 protobuf>=4.21.0
 redis>=4.5.1
+PyJWT>=2.7.0  # Add this line

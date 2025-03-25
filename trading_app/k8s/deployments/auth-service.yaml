@@ -65,11 +65,10 @@ spec:
             port: 8000
           initialDelaySeconds: 15
           periodSeconds: 20
-        # Add init container to wait for database
-        initContainers:
-        - name: wait-for-db
-          image: postgres:13
-          command: ['sh', '-c', 'until pg_isready -h pgbouncer -p 5432; do echo waiting for database; sleep 2; done;']
+      initContainers:
+      - name: wait-for-db
+        image: postgres:13
+        command: ['sh', '-c', 'until pg_isready -h pgbouncer -p 5432; do echo waiting for database; sleep 2; done;']
 ---
 apiVersion: v1
 kind: Service

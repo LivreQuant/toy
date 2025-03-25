@@ -1,12 +1,17 @@
 #!/bin/bash
 echo "Initializing database schemas and data..."
 
+# Get the correct path to the k8s directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BASE_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
+K8S_DIR="$BASE_DIR/k8s"
+
 # Apply database schema and data ConfigMaps
-kubectl apply -f ./k8s/config/db-schemas.yaml
-kubectl apply -f ./k8s/config/db-data.yaml
+kubectl apply -f "$K8S_DIR/config/db-schemas.yaml"
+kubectl apply -f "$K8S_DIR/config/db-data.yaml"
 
 # Initialize database with the job
-kubectl apply -f ./k8s/jobs/db-init-job.yaml
+kubectl apply -f "$K8S_DIR/jobs/db-init-job.yaml"
 
 # Wait for job to complete
 echo "Waiting for database initialization job to complete..."

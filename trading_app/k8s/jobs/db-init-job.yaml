@@ -16,6 +16,12 @@ spec:
           - |
             echo "Starting database initialization..."
             
+            # Wait for database to be fully ready
+            until PGPASSWORD=samaral psql -h postgres -U opentp -d opentp -c "SELECT 1" > /dev/null 2>&1; do
+              echo "Waiting for PostgreSQL to be ready..."
+              sleep 2
+            done
+            
             # Apply schema files in order
             echo "Applying schema files..."
             PGPASSWORD=samaral psql -h postgres -U opentp -d opentp -f /schemas/users.sql
@@ -28,7 +34,7 @@ spec:
             PGPASSWORD=samaral psql -h postgres -U opentp -d opentp -f /data/auth_functions.sql
             PGPASSWORD=samaral psql -h postgres -U opentp -d opentp -f /data/users.sql
             
-            echo "Database initialization completed."
+            echo "Database initialization completed successfully."
         volumeMounts:
         - name: db-schemas
           mountPath: /schemas

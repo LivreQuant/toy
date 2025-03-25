@@ -1,9 +1,14 @@
 #!/bin/bash
 echo "Setting up database resources..."
 
+# Get the correct path to the k8s directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BASE_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
+K8S_DIR="$BASE_DIR/k8s"
+
 # Deploy database
-kubectl apply -f ../../k8s/deployments/postgres-deployment.yaml
-kubectl apply -f ../../k8s/deployments/redis-deployment.yaml
+kubectl apply -f "$K8S_DIR/deployments/postgres-deployment.yaml"
+kubectl apply -f "$K8S_DIR/deployments/redis-deployment.yaml"
 
 # Wait for postgres to be ready
 echo "Waiting for PostgreSQL to be ready..."

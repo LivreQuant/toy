@@ -1,12 +1,14 @@
 #!/bin/bash
 echo "Deploying order service..."
 
-# Fix the initContainers issue in order-service.yaml first!
-# Create a temporary fixed file
-sed 's/initContainers:/spec:\n        initContainers:/' ./k8s/deployments/order-service.yaml > /tmp/fixed-order-service.yaml
+# Get the correct path to the k8s directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BASE_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
+K8S_DIR="$BASE_DIR/k8s"
 
-# Apply the fixed file
-kubectl apply -f /tmp/fixed-order-service.yaml
+# Apply the file
+kubectl apply -f "$K8S_DIR/deployments/order-service.yaml"
 
 # Check status
-kubectl get pods -l app=order-service
+echo "Waiting for order-service pods to start..."
+kubectl get pods -l app=order-service -w
