@@ -15,6 +15,7 @@ spec:
     spec:
       # Add grace period for WebSocket connections to close properly
       terminationGracePeriodSeconds: 60
+      serviceAccountName: session-service-account  # Add this line
       containers:
       - name: session-manager
         image: opentp/session-manager:latest

@@ -1,4 +1,4 @@
-# reset-minikube.ps1
+# 07-reset-minikube.ps1
 param (
     [switch]$KeepData,
     [switch]$Full
@@ -18,13 +18,13 @@ if ($Full) {
     minikube addons enable metrics-server
     
     # Re-run initial setup
-    .\scripts\setup-local-env.ps1
+    .\scripts\01-setup-local-env.ps1
     
     # Build all images
-    .\scripts\build-images.ps1
+    .\scripts\02-build-images.ps1
     
     # Deploy everything
-    .\scripts\deploy-services.ps1
+    .\scripts\03-deploy-services.ps1
 } else {
     # Point to Minikube's Docker daemon
     minikube docker-env | Invoke-Expression
@@ -49,7 +49,7 @@ if ($Full) {
         }
         
         # Rebuild and redeploy services
-        .\scripts\build-images.ps1
+        .\scripts\02-build-images.ps1
         kubectl apply -f ./k8s/deployments/auth-service.yaml
         kubectl apply -f ./k8s/deployments/session-manager.yaml
         kubectl apply -f ./k8s/deployments/order-service.yaml

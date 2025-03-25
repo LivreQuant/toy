@@ -1,4 +1,4 @@
-# scripts/build-images.ps1
+# 02-build-images.ps1
 param (
     [Parameter(Mandatory=$false)]
     [string[]]$Services = @("auth", "session", "order", "exchange")
@@ -11,19 +11,19 @@ minikube docker-env | Invoke-Expression
 # Define service paths and image names
 $serviceConfig = @{
     "auth" = @{
-        "path" = "./interface/authorization-service",
+        "path" = "./backend/authorization-service",
         "image" = "opentp/auth-service:latest"
     },
     "session" = @{
-        "path" = "./interface/session-manager-service",
+        "path" = "./backend/session-service",
         "image" = "opentp/session-manager:latest"
     },
     "order" = @{
-        "path" = "./interface/order-service",
+        "path" = "./backend/order-service",
         "image" = "opentp/order-service:latest"
     },
     "exchange" = @{
-        "path" = "./interface/exchange-manager-service",
+        "path" = "./backend/exchange-service",
         "image" = "opentp/exchange-simulator:latest"
     }
 }

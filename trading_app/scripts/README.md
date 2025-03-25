@@ -1,62 +1,134 @@
-# Development Scripts
+# Scripts for Kubernetes Management
 
-This directory contains PowerShell scripts for managing the local Kubernetes development environment.
+This directory contains PowerShell scripts for managing the trading platform's Kubernetes environment. These scripts automate common tasks for setup, deployment, development, and troubleshooting.
 
-## Available Scripts
+## Core Scripts
 
-### Setup and Deployment
+| Script | Purpose | Command |
+|--------|---------|---------|
+| **01-setup-local-env.ps1** | Initializes the Minikube environment, creates namespaces, and generates secrets | `.\scripts\01-setup-local-env.ps1` |
+| **02-build-images.ps1** | Builds Docker images for all services | `.\scripts\02-build-images.ps1` |
+| **03-deploy-services.ps1** | Deploys all services to the Kubernetes cluster | `.\scripts\03-deploy-services.ps1` |
+| **06-reset-service.ps1** | Rebuilds and redeploys a specific service | `.\scripts\06-reset-service.ps1 -Service auth` |
+| **07-reset-minikube.ps1** | Resets or completely rebuilds the Minikube environment | `.\scripts\07-reset-minikube.ps1 -KeepData` |
+| **08-apply-all-configs.ps1** | Applies all configuration updates to the cluster | `.\scripts\08-apply-all-configs.ps1` |
+| **09-circuit-breaker.ps1** | Tests circuit breaker functionality by isolating a service | `.\scripts\09-circuit-breaker.ps1 -Service auth -DurationSeconds 30` |
+| **setup-all.ps1** | All-in-one setup script that runs steps 1-3 | `.\scripts\setup-all.ps1` |
 
-- **setup-local-env.ps1**: Initialize the Minikube environment
-- **build-images.ps1**: Build Docker images for all services
-- **deploy-services.ps1**: Deploy all services to Minikube
+## Utility Scripts
 
-### Development Workflow
+| Script | Purpose | Command |
+|--------|---------|---------|
+| **debug-commands.ps1** | Loads helpful debug functions | `. .\scripts\debug-commands.ps1` |
+| **10-simulate-network-issues.ps1** | Simulates network problems to test resilience | `.\scripts\10-simulate-network-issues.ps1 -Service session -IssueType latency` |
 
-- **dev-workflow.ps1**: Streamlined development workflow
-- **reset-service.ps1**: Reset a specific service
-- **reset-minikube.ps1**: Reset the entire Minikube environment
-
-### Debugging
-
-- **debug-commands.ps1**: Helpful commands for debugging
-
-## Usage Examples
+## Quick Reference Guide
 
 ### Initial Setup
 
 ```powershell
-# Start with a fresh environment
-.\setup-local-env.ps1
+# Complete one-step setup
+.\scripts\setup-all.ps1
 
-# Build and deploy all services
-.\deploy-services.ps1
-Regular Development
-powershellCopy# Make code changes to a service, then rebuild and redeploy just that service
-.\reset-service.ps1 -Service auth
+# OR step-by-step setup
+.\scripts\01-setup-local-env.ps1
+.\scripts\02-build-images.ps1
+.\scripts\03-deploy-services.ps1
+```
 
-# Check the logs for the service
-kubectl logs -l app=auth-service
-Debugging
-powershellCopy# Load debugging commands
-. .\debug-commands.ps1
+### Development Workflow
 
-# Now you can use functions like:
+```powershell
+# Update and restart a specific service
+.\scripts\06-reset-service.ps1 -Service auth
+
+# Apply configuration changes
+.\scripts\08-apply-all-configs.ps1
+```
+
+### Debugging
+
+```powershell
+# Load debugging commands
+. .\scripts\debug-commands.ps1
+
+# Use debugging functions
 Check-Pods
 Get-PodLogs -PodName auth-service-xyz123
-Port-Forward -Service auth-service -LocalPort 8000 -ServicePort 8000
-Resetting the Environment
-powershellCopy# Quick restart of all services
-.\reset-minikube.ps1 -KeepData
+Enter-Pod -PodName auth-service-xyz123
+```
 
-# Complete rebuild of everything
-.\reset-minikube.ps1
-Adding New Services
-To add a new service to the environment:
+### Testing Resilience
 
-Create a deployment YAML file in k8s/deployments/
-Add the service to the build-images.ps1 script
-Add the service to the deploy-services.ps1 script
-Add the service to the service maps in reset-service.ps1 and dev-workflow.ps1
+```powershell
+# Test circuit breaker
+.\scripts\09-circuit-breaker.ps1 -Service auth -DurationSeconds 30
 
-Copy
-This provides a comprehensive file structure and the missing files you requested. I've organized everything in a logical manner to help you easily develop, test, and manage your Kubernetes environment for the trading platform.
+# Simulate network issues
+.\scripts\10-simulate-network-issues.ps1 -Service session -IssueType latency -DurationSeconds 30
+```
+
+### Shutdown and Cleanup
+
+```powershell
+# Temporarily stop Minikube
+minikube stop
+
+# Reset services but keep data
+.\scripts\07-reset-minikube.ps1 -KeepData
+
+# Complete reset (deletes all data)
+.\scripts\07-reset-minikube.ps1 -Full
+
+# Delete Minikube entirely
+minikube delete
+```
+
+## Notes for Exchange Simulator
+
+For the exchange simulator service, which is dynamically managed by the session-manager:
+
+```powershell
+# Only rebuild the exchange simulator image (doesn't deploy)
+.\scripts\06-reset-service.ps1 -Service exchange
+
+# Then restart the session-manager to pick up changes
+kubectl rollout restart deployment session-manager
+```
+
+## Minikube Commands
+
+```powershell
+# Start Minikube
+minikube start --driver=docker --cpus=4 --memory=8g --disk-size=20g
+
+# Get Minikube IP
+minikube ip
+
+# Open Minikube dashboard
+minikube dashboard
+
+# Stop Minikube
+minikube stop
+```
+
+## Tips
+
+1. After starting Minikube, add its IP to your hosts file:
+   ```
+   <minikube-ip> trading.local
+   ```
+
+2. When developing multiple services, rebuild only the ones you're working on:
+   ```powershell
+   .\scripts\02-build-images.ps1 -Services @("auth", "session")
+   ```
+
+3. Use the debug commands to troubleshoot:
+   ```powershell
+   Get-ServiceLogs -Service auth
+   Check-Volumes
+   Port-Forward -Service auth-service -LocalPort 8000 -ServicePort 8000
+   ```
+
+4. When using the exchange simulator, remember that instances are created on-demand by the session-manager service. You only need to rebuild the image; you don't deploy it directly.

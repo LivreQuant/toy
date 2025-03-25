@@ -1,4 +1,4 @@
-# scripts/setup-local-env.ps1
+# 01-setup-local-env.ps1
 param (
     [switch]$ForceRecreate
 )
@@ -106,6 +106,6 @@ Write-Output "Setup complete! Your local Kubernetes environment is ready."
 Write-Output "Minikube IP: $minikubeIp"
 Write-Output ""
 Write-Output "Next steps:"
-Write-Output "1. Run 'scripts/build-images.ps1' to build service images"
-Write-Output "2. Run 'scripts/deploy-services.ps1' to deploy all services"
+Write-Output "1. Run '02-build-images.ps1' to build service images"
+Write-Output "2. Run '03-deploy-services.ps1' to deploy all services"
 Write-Output "3. Access the application at http://trading.local"

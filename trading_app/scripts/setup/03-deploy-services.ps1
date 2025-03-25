@@ -1,4 +1,4 @@
-# scripts/deploy-services.ps1
+# 03-deploy-services.ps1
 param (
     [switch]$SkipBuild,
     [switch]$SkipInfrastructure
@@ -12,7 +12,7 @@ minikube docker-env | Invoke-Expression
 # Build images if not skipped
 if (-not $SkipBuild) {
     Write-Output "Building service images..."
-    .\scripts\build-images.ps1
+    .\scripts\02-build-images.ps1
 }
 
 # Deploy infrastructure if not skipped
@@ -62,7 +62,6 @@ if (-not $SkipInfrastructure) {
         Write-Output "PostgreSQL is ready."
         
         # Database initialization ConfigMaps and Job
-        # ADD THESE LINES HERE:
         Write-Output "Applying database schema and data ConfigMaps..."
         kubectl apply -f ./k8s/config/db-schemas.yaml
         kubectl apply -f ./k8s/config/db-data.yaml
@@ -76,12 +75,12 @@ if (-not $SkipInfrastructure) {
     }
 }
 
-# Deploy application services
+# Deploy application services (excluding exchange service which is managed by session-service)
 Write-Output "Deploying application services..."
 kubectl apply -f ./k8s/deployments/auth-service.yaml
+kubectl apply -f ./k8s/deployments/session-manager-rbac.yaml
 kubectl apply -f ./k8s/deployments/session-manager.yaml
 kubectl apply -f ./k8s/deployments/order-service.yaml
-kubectl apply -f ./k8s/deployments/exchange-simulator.yaml
 
 # Deploy ingress
 kubectl apply -f ./k8s/ingress.yaml
