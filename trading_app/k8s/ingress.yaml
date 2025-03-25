@@ -15,84 +15,72 @@ metadata:
     nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
     nginx.ingress.kubernetes.io/proxy-body-size: "8m"
-    # WebSocket connection upgrade
-    nginx.ingress.kubernetes.io/configuration-snippet: |
-      location /ws {
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-      }
-      # Connection draining settings for graceful pod termination
-      proxy_next_upstream error timeout http_502 http_503 http_504 non_idempotent;
-      proxy_next_upstream_tries 3;
-      proxy_next_upstream_timeout 15s;
+    # WebSocket headers (replacing configuration-snippet)
+    nginx.ingress.kubernetes.io/enable-websocket: "true"
 spec:
   rules:
   - host: trading.local
     http:
       paths:
       - path: /api/auth/(.*)
-        pathType: Prefix
+        pathType: ImplementationSpecific
         backend:
           service:
             name: auth-service
             port:
               number: 8000
       - path: /api/session/(.*)
-        pathType: Prefix
+        pathType: ImplementationSpecific
         backend:
           service:
             name: session-manager
             port:
               number: 8080
       - path: /api/orders/(.*)
-        pathType: Prefix
+        pathType: ImplementationSpecific
         backend:
           service:
             name: order-service
             port:
               number: 8001
       - path: /ws/?(.*)
-        pathType: Prefix
+        pathType: ImplementationSpecific
         backend:
           service:
             name: session-manager
             port:
               number: 8088
       - path: /api/stream/(.*)
-        pathType: Prefix
+        pathType: ImplementationSpecific
         backend:
           service:
             name: session-manager
             port:
               number: 8088
-      # Admin dashboard and monitoring paths remain unchanged
+      # Admin dashboard and monitoring paths
       - path: /admin/?(.*)
-        pathType: Prefix
+        pathType: ImplementationSpecific
         backend:
           service:
             name: admin-dashboard
             port:
               number: 80
       - path: /prometheus/?(.*)
-        pathType: Prefix
+        pathType: ImplementationSpecific
         backend:
           service:
             name: prometheus
             port:
               number: 9090
       - path: /grafana/?(.*)
-        pathType: Prefix
+        pathType: ImplementationSpecific
         backend:
           service:
             name: grafana
             port:
               number: 3000
       - path: /minio/?(.*)
-        pathType: Prefix
+        pathType: ImplementationSpecific
         backend:
           service:
             name: minio
