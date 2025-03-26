@@ -62,7 +62,7 @@ check_pod_status() {
         if [ -z "$pods" ]; then
             echo "No pods found for $service_name"
             return 1
-        }
+        fi
 
         # Check pod statuses
         error_pods=$(echo "$pods" | grep -E "Error|CrashLoopBackOff")
@@ -108,3 +108,7 @@ if ! check_pod_status "session-manager"; then
 fi
 
 echo "Session manager deployment completed successfully"
+
+# Check status
+echo "Waiting for session-service pods to start..."
+kubectl get pods -l app=session-service

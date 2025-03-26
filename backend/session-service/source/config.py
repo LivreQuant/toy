@@ -105,11 +105,11 @@ class Config(BaseModel):
             environment=os.getenv('ENVIRONMENT', 'development'),
             log_level=os.getenv('LOG_LEVEL', 'INFO'),
             db=DatabaseConfig(
-                host=os.getenv('DB_HOST', 'postgres'),
+                host=os.getenv('DB_HOST', 'postgres'), #'localhost'),
                 port=int(os.getenv('DB_PORT', '5432')),
-                database=os.getenv('DB_NAME', 'sessions'),
-                user=os.getenv('DB_USER', 'postgres'),
-                password=os.getenv('DB_PASSWORD', 'postgres'),
+                database=os.getenv('DB_NAME', 'opentp'),
+                user=os.getenv('DB_USER', 'opentp'),
+                password=os.getenv('DB_PASSWORD', 'samaral'),
                 min_connections=int(os.getenv('DB_MIN_CONNECTIONS', '2')),
                 max_connections=int(os.getenv('DB_MAX_CONNECTIONS', '10'))
             ),

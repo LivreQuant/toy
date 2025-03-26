@@ -147,3 +147,40 @@ data:
     GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA simulator TO opentp;
     ALTER DEFAULT PRIVILEGES IN SCHEMA simulator GRANT ALL ON TABLES TO opentp;
     ALTER DEFAULT PRIVILEGES IN SCHEMA simulator GRANT ALL ON SEQUENCES TO opentp;
+
+  trading.sql: |
+    -- Trading Schema
+    CREATE SCHEMA IF NOT EXISTS trading;
+    
+    -- Create orders table if not exists
+    CREATE TABLE IF NOT EXISTS trading.orders (
+        order_id UUID PRIMARY KEY,
+        user_id VARCHAR(100) NOT NULL,
+        session_id VARCHAR(100) NOT NULL,
+        symbol VARCHAR(20) NOT NULL,
+        side VARCHAR(10) NOT NULL,
+        quantity NUMERIC(18,8) NOT NULL,
+        price NUMERIC(18,8),
+        order_type VARCHAR(20) NOT NULL,
+        status VARCHAR(20) NOT NULL,
+        filled_quantity NUMERIC(18,8) NOT NULL DEFAULT 0,
+        avg_price NUMERIC(18,8) NOT NULL DEFAULT 0,
+        simulator_id VARCHAR(100),
+        created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+        updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
+        request_id VARCHAR(100),
+        error_message TEXT
+    );
+    
+    -- Create indexes
+    CREATE INDEX IF NOT EXISTS idx_orders_user_id ON trading.orders(user_id);
+    CREATE INDEX IF NOT EXISTS idx_orders_session_id ON trading.orders(session_id);
+    CREATE INDEX IF NOT EXISTS idx_orders_status ON trading.orders(status);
+    CREATE INDEX IF NOT EXISTS idx_orders_created_at ON trading.orders(created_at);
+    
+    -- Grant permissions
+    GRANT USAGE ON SCHEMA trading TO opentp;
+    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA trading TO opentp;
+    GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA trading TO opentp;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA trading GRANT ALL ON TABLES TO opentp;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA trading GRANT ALL ON SEQUENCES TO opentp;

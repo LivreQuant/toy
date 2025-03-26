@@ -9,13 +9,14 @@ from aiohttp import web
 
 logger = logging.getLogger('rest_handlers')
 
-def get_token_from_request(request):
+
+async def get_token_from_request(request):
     """
     Extract token from request headers or query parameters
-    
+
     Args:
         request: HTTP request
-        
+
     Returns:
         Token string or None
     """
@@ -23,22 +24,22 @@ def get_token_from_request(request):
     auth_header = request.headers.get('Authorization')
     if auth_header and auth_header.startswith('Bearer '):
         return auth_header[7:]
-    
+
     # Try query parameter
     token = request.query.get('token')
     if token:
         return token
-    
+
     # Try POST body (for JSON requests)
     content_type = request.headers.get('Content-Type', '')
     if 'application/json' in content_type and request.body_exists:
         try:
-            data = request.body_exists and await request.json()
+            data = await request.json()
             if data and 'token' in data:
                 return data['token']
         except:
             pass
-    
+
     return None
 
 async def handle_create_session(request):
@@ -113,7 +114,7 @@ async def handle_get_session(request):
     session_id = request.match_info['session_id']
     
     # Get token
-    token = get_token_from_request(request)
+    token = await get_token_from_request(request)
     if not token:
         return web.json_response({
             'success': False,
@@ -159,7 +160,7 @@ async def handle_end_session(request):
     session_id = request.match_info['session_id']
     
     # Get token
-    token = get_token_from_request(request)
+    token = await get_token_from_request(request)
     if not token:
         return web.json_response({
             'success': False,

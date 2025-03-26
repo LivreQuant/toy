@@ -8,8 +8,8 @@ from source.models.order import Order
 from source.models.enums import OrderStatus
 from source.db.order_repository import OrderRepository
 from source.api.clients.auth_client import AuthClient
+from source.api.clients.session_client import SessionClient
 from source.api.clients.exchange_client import ExchangeClient
-from source.utils.redis_client import RedisClient
 from source.utils.metrics import Metrics
 
 logger = logging.getLogger('order_manager')
@@ -21,8 +21,8 @@ class OrderManager:
         self, 
         order_repository: OrderRepository, 
         auth_client: AuthClient,
-        exchange_client: ExchangeClient, 
-        redis_client: RedisClient
+        session_client: SessionClient,
+        exchange_client: ExchangeClient
     ):
         """
         Initialize the order manager
@@ -30,13 +30,13 @@ class OrderManager:
         Args:
             order_repository: Repository for order data
             auth_client: Client for auth service
+            session_client: Client for session service
             exchange_client: Client for exchange service
-            redis_client: Redis client
         """
         self.order_repository = order_repository
         self.auth_client = auth_client
+        self.session_client = session_client
         self.exchange_client = exchange_client
-        self.redis = redis_client
         
         # Initialize metrics
         self.metrics = Metrics()
@@ -76,41 +76,38 @@ class OrderManager:
                 "error": "Authentication error: missing user ID"
             }
 
-        # Check if session exists in Redis
-        try:
-            session_exists = await self.redis.exists(f"session:{session_id}")
-
-            if not session_exists:
-                logger.warning(f"Session {session_id} not found")
-                return {
-                    "valid": False,
-                    "error": "Session not found"
-                }
-
-            # Check if session belongs to user
-            session_user_id = await self.redis.get(f"session:{session_id}:user_id")
-
-            if not session_user_id or session_user_id != user_id:
-                logger.warning(f"Session {session_id} does not belong to user {user_id}")
-                return {
-                    "valid": False,
-                    "error": "Session does not belong to this user"
-                }
-
-            # Check connection quality
-            connection_quality = await self.redis.get(f"connection:{session_id}:quality")
-
-            return {
-                "valid": True,
-                "user_id": user_id,
-                "connection_quality": connection_quality or "good"
-            }
-        except Exception as e:
-            logger.error(f"Error validating session: {e}")
+        # Check session using session service
+        session_result = await self.session_client.get_session_info(session_id, token)
+        
+        if not session_result.get('success', False):
+            logger.warning(f"Session {session_id} validation failed: {session_result.get('error')}")
             return {
                 "valid": False,
-                "error": f"Session validation error: {str(e)}"
+                "error": session_result.get('error', 'Session validation failed')
             }
+        
+        # Get session data from response
+        session_data = session_result.get('session', {})
+        
+        # Verify user owns this session
+        session_user_id = session_data.get('user_id')
+        if not session_user_id or session_user_id != user_id:
+            logger.warning(f"Session {session_id} does not belong to user {user_id}")
+            return {
+                "valid": False,
+                "error": "Session does not belong to this user"
+            }
+        
+        # Get connection quality
+        connection_quality = session_data.get('connection_quality', 'good')
+        
+        return {
+            "valid": True,
+            "user_id": user_id,
+            "connection_quality": connection_quality,
+            "simulator_id": session_data.get('simulator_id'),
+            "simulator_endpoint": session_data.get('simulator_endpoint')
+        }
 
     async def check_duplicate_request(self, user_id: str, request_id: str) -> Optional[Dict[str, Any]]:
         """
@@ -195,6 +192,8 @@ class OrderManager:
             }
 
         user_id = validation.get('user_id')
+        simulator_id = validation.get('simulator_id')
+        simulator_endpoint = validation.get('simulator_endpoint')
 
         # Check for duplicate request
         if request_id:
@@ -247,7 +246,7 @@ class OrderManager:
             await self._cache_request_response(user_id, request_id, response)
             return response
 
-        # Create order object
+        # Create order object - include simulator_id even if it's None
         order = Order(
             symbol=symbol,
             side=side,
@@ -259,7 +258,8 @@ class OrderManager:
             request_id=request_id,
             order_id=str(uuid.uuid4()),  # Generate new order ID
             created_at=time.time(),
-            updated_at=time.time()
+            updated_at=time.time(),
+            simulator_id=simulator_id
         )
 
         # Save order to database
@@ -286,9 +286,20 @@ class OrderManager:
             await self._cache_request_response(user_id, request_id, response)
             return response
 
-        # Submit order to exchange
+        # Check if we have an active simulator - if not, return success but don't forward to exchange
+        if not simulator_id or not simulator_endpoint:
+            logger.info(f"Order {order.order_id} recorded but no active simulator for session {session_id}")
+            response = {
+                "success": True,
+                "orderId": order.order_id,
+                "notice": "Order recorded but not sent to simulator as no active simulator exists"
+            }
+            await self._cache_request_response(user_id, request_id, response)
+            return response
+
+        # If we have a simulator, submit order to exchange
         try:
-            exchange_result = await self.exchange_client.submit_order(order)
+            exchange_result = await self.exchange_client.submit_order(order, simulator_endpoint)
 
             if not exchange_result.get('success'):
                 # Update order status to REJECTED
@@ -361,6 +372,7 @@ class OrderManager:
             }
 
         user_id = validation.get('user_id')
+        simulator_endpoint = validation.get('simulator_endpoint')
 
         # Get order from database
         try:
@@ -396,9 +408,27 @@ class OrderManager:
                 "error": f"Database error: {str(db_error)}"
             }
 
-        # Cancel order in exchange
+        # Check if we have an active simulator - if not, just update the order status
+        if not simulator_endpoint:
+            # Update order status directly
+            order.status = OrderStatus.CANCELED
+            order.updated_at = time.time()
+            success = await self.order_repository.save_order(order)
+            
+            if not success:
+                return {
+                    "success": False,
+                    "error": "Failed to update order status"
+                }
+                
+            return {
+                "success": True,
+                "notice": "Order canceled in database, but not in simulator (no active simulator)"
+            }
+
+        # If we have a simulator, cancel order in exchange
         try:
-            exchange_result = await self.exchange_client.cancel_order(order)
+            exchange_result = await self.exchange_client.cancel_order(order, simulator_endpoint)
 
             if not exchange_result.get('success'):
                 logger.warning(f"Failed to cancel order {order_id}: {exchange_result.get('error')}")
@@ -445,6 +475,7 @@ class OrderManager:
             }
 
         user_id = validation.get('user_id')
+        simulator_endpoint = validation.get('simulator_endpoint')
 
         # Get order from database
         try:
@@ -472,8 +503,8 @@ class OrderManager:
                 "error": f"Database error: {str(db_error)}"
             }
 
-        # For orders in final state, return database status
-        if order.status in [OrderStatus.FILLED, OrderStatus.CANCELED, OrderStatus.REJECTED]:
+        # For orders in final state or no simulator, return database status
+        if order.status in [OrderStatus.FILLED, OrderStatus.CANCELED, OrderStatus.REJECTED] or not simulator_endpoint:
             return {
                 "success": True,
                 "status": order.status.value,
@@ -482,9 +513,9 @@ class OrderManager:
                 "errorMessage": order.error_message
             }
 
-        # For active orders, get latest status from exchange
+        # For active orders with a simulator, get latest status from exchange
         try:
-            exchange_result = await self.exchange_client.get_order_status(order)
+            exchange_result = await self.exchange_client.get_order_status(order, simulator_endpoint)
 
             if not exchange_result.get('success'):
                 logger.warning(f"Failed to get order status from exchange: {exchange_result.get('error')}")

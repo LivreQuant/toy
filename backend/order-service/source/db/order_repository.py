@@ -10,14 +10,15 @@ from source.config import config
 
 logger = logging.getLogger('order_repository')
 
+
 class OrderRepository:
     """Data access layer for orders"""
-    
+
     def __init__(self):
         """Initialize the order repository"""
         self.pool = None
         self._conn_lock = asyncio.Lock()
-    
+
     async def connect(self):
         """Create the database connection pool with retry logic"""
         async with self._conn_lock:
@@ -41,69 +42,30 @@ class OrderRepository:
                         database=config.db_name
                     )
                     logger.info("Database connection established")
-
-                    # Ensure required schema exists
-                    await self._initialize_schema()
                     return
                 except Exception as e:
                     retry_count += 1
                     logger.error(f"Database connection error (attempt {retry_count}/{max_retries}): {e}")
-                    
+
                     if retry_count < max_retries:
                         await asyncio.sleep(retry_delay)
                         retry_delay *= 2  # Exponential backoff
                     else:
                         logger.error("Maximum database connection retries reached")
                         raise
-    
+
     async def close(self):
         """Close database connections"""
         if self.pool:
             await self.pool.close()
             self.pool = None
             logger.info("Closed database connections")
-    
-    async def _initialize_schema(self):
-        """Initialize database schema if needed"""
-        async with self.pool.acquire() as conn:
-            # Create schema
-            await conn.execute('''
-                CREATE SCHEMA IF NOT EXISTS trading;
-                
-                -- Create orders table if not exists
-                CREATE TABLE IF NOT EXISTS trading.orders (
-                    order_id UUID PRIMARY KEY,
-                    user_id VARCHAR(100) NOT NULL,
-                    session_id VARCHAR(100) NOT NULL,
-                    symbol VARCHAR(20) NOT NULL,
-                    side VARCHAR(10) NOT NULL,
-                    quantity NUMERIC(18,8) NOT NULL,
-                    price NUMERIC(18,8),
-                    order_type VARCHAR(20) NOT NULL,
-                    status VARCHAR(20) NOT NULL,
-                    filled_quantity NUMERIC(18,8) NOT NULL DEFAULT 0,
-                    avg_price NUMERIC(18,8) NOT NULL DEFAULT 0,
-                    simulator_id VARCHAR(100),
-                    created_at TIMESTAMP WITH TIME ZONE NOT NULL,
-                    updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
-                    request_id VARCHAR(100),
-                    error_message TEXT
-                );
-                
-                -- Create indexes
-                CREATE INDEX IF NOT EXISTS idx_orders_user_id ON trading.orders(user_id);
-                CREATE INDEX IF NOT EXISTS idx_orders_session_id ON trading.orders(session_id);
-                CREATE INDEX IF NOT EXISTS idx_orders_status ON trading.orders(status);
-                CREATE INDEX IF NOT EXISTS idx_orders_created_at ON trading.orders(created_at);
-            ''')
-            
-            logger.info("Database schema initialized")
-    
+
     async def save_order(self, order: Order) -> bool:
         """Save a new order or update existing order"""
         if not self.pool:
             await self.connect()
-        
+
         query = """
         INSERT INTO trading.orders (
             order_id, user_id, session_id, symbol, side, quantity, price, 
@@ -146,12 +108,12 @@ class OrderRepository:
         except Exception as e:
             logger.error(f"Error saving order: {e}")
             return False
-    
+
     async def get_order(self, order_id: str) -> Optional[Order]:
         """Get an order by ID"""
         if not self.pool:
             await self.connect()
-        
+
         query = """
         SELECT 
             order_id, user_id, session_id, symbol, side, quantity, price, 
@@ -171,18 +133,18 @@ class OrderRepository:
 
                 # Convert row to dict
                 order_dict = dict(row)
-                
+
                 # Create order object
                 return Order.from_dict(order_dict)
         except Exception as e:
             logger.error(f"Error retrieving order: {e}")
             return None
-    
+
     async def get_user_orders(self, user_id: str, limit: int = 50, offset: int = 0) -> List[Order]:
         """Get orders for a specific user"""
         if not self.pool:
             await self.connect()
-        
+
         query = """
         SELECT 
             order_id, user_id, session_id, symbol, side, quantity, price, 
@@ -204,7 +166,7 @@ class OrderRepository:
                 for row in rows:
                     # Convert row to dict
                     order_dict = dict(row)
-                    
+
                     # Create order object
                     orders.append(Order.from_dict(order_dict))
 
@@ -212,12 +174,12 @@ class OrderRepository:
         except Exception as e:
             logger.error(f"Error retrieving user orders: {e}")
             return []
-    
+
     async def get_session_orders(self, session_id: str, limit: int = 50, offset: int = 0) -> List[Order]:
         """Get orders for a specific session"""
         if not self.pool:
             await self.connect()
-        
+
         query = """
         SELECT 
             order_id, user_id, session_id, symbol, side, quantity, price, 
@@ -239,7 +201,7 @@ class OrderRepository:
                 for row in rows:
                     # Convert row to dict
                     order_dict = dict(row)
-                    
+
                     # Create order object
                     orders.append(Order.from_dict(order_dict))
 
@@ -247,15 +209,15 @@ class OrderRepository:
         except Exception as e:
             logger.error(f"Error retrieving session orders: {e}")
             return []
-    
+
     async def update_order_status(self, order_id: str, status: OrderStatus,
-                                filled_quantity: Optional[float] = None, 
-                                avg_price: Optional[float] = None,
-                                error_message: Optional[str] = None) -> bool:
+                                  filled_quantity: Optional[float] = None,
+                                  avg_price: Optional[float] = None,
+                                  error_message: Optional[str] = None) -> bool:
         """Update an order's status"""
         if not self.pool:
             await self.connect()
-        
+
         # Build dynamic update query
         query_parts = ["UPDATE trading.orders SET status = $1"]
         params = [status.value]
@@ -289,7 +251,7 @@ class OrderRepository:
         except Exception as e:
             logger.error(f"Error updating order status: {e}")
             return False
-    
+
     async def check_connection(self) -> bool:
         """Check if database connection is working"""
         if not self.pool:

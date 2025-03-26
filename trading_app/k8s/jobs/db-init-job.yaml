@@ -22,12 +22,36 @@ spec:
               sleep 2
             done
             
-            # Apply schema files in order
+            # Apply schema files in order with proper error checking
             echo "Applying schema files..."
-            PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -f /schemas/users.sql
-            PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -f /schemas/auth_tokens.sql
-            PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -f /schemas/sessions.sql
-            PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -f /schemas/simulator_sessions.sql
+            for schema in users.sql auth_tokens.sql sessions.sql simulator_sessions.sql trading.sql; do
+              echo "Applying $schema..."
+              PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -f /schemas/$schema
+              if [ $? -ne 0 ]; then
+                echo "Error applying $schema"
+                exit 1
+              fi
+            done
+            
+            # Verify the function exists
+            echo "Verifying session.cleanup_expired_sessions exists..."
+            func_exists=$(PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -t -c "SELECT COUNT(*) FROM pg_proc JOIN pg_namespace ON pg_namespace.oid = pg_proc.pronamespace WHERE proname = 'cleanup_expired_sessions' AND nspname = 'session'")
+            if [ "$func_exists" -eq "0" ]; then
+              echo "Function session.cleanup_expired_sessions not found, creating it..."
+              PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -c "
+              CREATE OR REPLACE FUNCTION session.cleanup_expired_sessions() 
+              RETURNS INTEGER AS \$\$
+              DECLARE
+                  deleted_count INTEGER;
+              BEGIN
+                  DELETE FROM session.active_sessions
+                  WHERE expires_at < NOW();
+                  
+                  GET DIAGNOSTICS deleted_count = ROW_COUNT;
+                  RETURN deleted_count;
+              END;
+              \$\$ LANGUAGE plpgsql;"
+            fi
             
             # Apply data files
             echo "Applying data files..."

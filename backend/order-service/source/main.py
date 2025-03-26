@@ -10,87 +10,124 @@ from source.api.rest.routes import setup_app
 from source.config import config
 from source.db.order_repository import OrderRepository
 from source.api.clients.auth_client import AuthClient
+from source.api.clients.session_client import SessionClient
 from source.api.clients.exchange_client import ExchangeClient
-from source.utils.redis_client import RedisClient
 from source.core.order_manager import OrderManager
 
 logger = logging.getLogger('order_service')
+
+
+class GracefulExit(SystemExit):
+    """Special exception for graceful exit"""
+    pass
+
 
 async def main():
     """Initialize and run the order service"""
     # Setup logging
     setup_logging()
-    
+
     logger.info("Starting order service")
-    
+
+    # Resources to clean up on shutdown
+    resources = {
+        'runner': None,
+        'order_repository': None,
+        'auth_client': None,
+        'session_client': None,
+        'exchange_client': None
+    }
+
     try:
-        # Initialize Redis client
-        redis_client = await RedisClient.create()
-        
         # Initialize database
         order_repository = OrderRepository()
         await order_repository.connect()
-        
+        resources['order_repository'] = order_repository
+
         # Initialize API clients
         auth_client = AuthClient(config.auth_service_url)
-        exchange_client = ExchangeClient(redis_client)
-        
+        session_client = SessionClient(config.session_service_url)
+        exchange_client = ExchangeClient()
+        resources['auth_client'] = auth_client
+        resources['session_client'] = session_client
+        resources['exchange_client'] = exchange_client
+
         # Initialize order manager
         order_manager = OrderManager(
-            order_repository, 
-            auth_client, 
-            exchange_client, 
-            redis_client
+            order_repository,
+            auth_client,
+            session_client,
+            exchange_client
         )
-        
+
         # Setup and start REST API
         app, runner, site = await setup_app(order_manager)
-        
-        # Configure signal handlers for graceful shutdown
+        resources['runner'] = runner
+
+        # Set up signal handlers
+        def handle_signal():
+            raise GracefulExit()
+
         loop = asyncio.get_running_loop()
         for sig in (signal.SIGINT, signal.SIGTERM):
-            loop.add_signal_handler(
-                sig, 
-                lambda: asyncio.create_task(shutdown(runner, order_repository, auth_client, exchange_client, redis_client))
-            )
-        
+            loop.add_signal_handler(sig, handle_signal)
+
         logger.info(f"Order service started on port {config.rest_port}")
-        
-        # Keep running until signaled to stop
+
+        # Keep the service running until a signal is received
         while True:
-            await asyncio.sleep(3600)  # Just to keep the event loop running
+            await asyncio.sleep(1)
+
+    except GracefulExit:
+        # Handle graceful exit
+        pass
     except Exception as e:
-        logger.error(f"Failed to start service: {e}")
+        logger.error(f"Failed to start or run service: {e}")
         return 1
-    
+    finally:
+        # Clean up resources
+        await cleanup_resources(resources)
+
     return 0
 
-async def shutdown(runner, order_repository, auth_client, exchange_client, redis_client):
+
+async def cleanup_resources(resources):
+    """Clean up all resources gracefully"""
     logger.info("Shutting down server gracefully...")
 
     # Shutdown REST server
-    await runner.cleanup()
+    if resources['runner']:
+        logger.info("Cleaning up web server...")
+        await resources['runner'].cleanup()
 
-    # Close connections
-    logger.info("Closing database connection...")
-    await order_repository.close()
+    # Close database connection
+    if resources['order_repository']:
+        logger.info("Closing database connection...")
+        await resources['order_repository'].close()
 
-    logger.info("Closing auth client...")
-    await auth_client.close()
+    # Close auth client
+    if resources['auth_client']:
+        logger.info("Closing auth client...")
+        await resources['auth_client'].close()
 
-    logger.info("Closing exchange client...")
-    await exchange_client.close()
+    # Close session client
+    if resources['session_client']:
+        logger.info("Closing session client...")
+        await resources['session_client'].close()
 
-    logger.info("Closing Redis connection...")
-    await redis_client.close()
+    # Close exchange client
+    if resources['exchange_client']:
+        logger.info("Closing exchange client...")
+        await resources['exchange_client'].close()
 
     logger.info("Server shutdown complete")
-    asyncio.get_event_loop().stop()
+
 
 if __name__ == "__main__":
     try:
         exit_code = asyncio.run(main())
         sys.exit(exit_code)
     except KeyboardInterrupt:
+        # This should not be reached now that we handle signals properly
         logger.info("Received keyboard interrupt")
         sys.exit(0)

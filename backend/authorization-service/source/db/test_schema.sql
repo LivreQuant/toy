@@ -157,3 +157,106 @@ GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA auth TO opentp;
 -- Make sure future tables get the same permissions
 ALTER DEFAULT PRIVILEGES IN SCHEMA auth GRANT ALL ON TABLES TO opentp;
 ALTER DEFAULT PRIVILEGES IN SCHEMA auth GRANT ALL ON SEQUENCES TO opentp;
+
+
+
+-- Session Schema
+CREATE SCHEMA IF NOT EXISTS session;
+
+CREATE TABLE IF NOT EXISTS session.active_sessions (
+    session_id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    status TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    last_active TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    token TEXT
+);
+
+-- Add indexes
+CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON session.active_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON session.active_sessions(expires_at);
+
+-- Create session metadata table
+CREATE TABLE IF NOT EXISTS session.session_metadata (
+    session_id TEXT PRIMARY KEY REFERENCES session.active_sessions(session_id) ON DELETE CASCADE,
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb
+);
+
+-- Create cleanup function for expired sessions
+CREATE OR REPLACE FUNCTION session.cleanup_expired_sessions() 
+RETURNS INTEGER AS $$
+DECLARE
+    deleted_count INTEGER;
+BEGIN
+    DELETE FROM session.active_sessions
+    WHERE expires_at < NOW();
+    
+    GET DIAGNOSTICS deleted_count = ROW_COUNT;
+    RETURN deleted_count;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Simulator Schema
+CREATE SCHEMA IF NOT EXISTS simulator;
+
+CREATE TABLE IF NOT EXISTS simulator.instances (
+    simulator_id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL REFERENCES session.active_sessions(session_id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL,
+    status TEXT NOT NULL,
+    endpoint TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    last_active TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    initial_symbols JSONB,
+    initial_cash FLOAT NOT NULL DEFAULT 100000.0
+);
+
+-- Grant permissions
+GRANT USAGE ON SCHEMA session TO opentp;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA session TO opentp;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA session TO opentp;
+ALTER DEFAULT PRIVILEGES IN SCHEMA session GRANT ALL ON TABLES TO opentp;
+ALTER DEFAULT PRIVILEGES IN SCHEMA session GRANT ALL ON SEQUENCES TO opentp;
+
+GRANT USAGE ON SCHEMA simulator TO opentp;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA simulator TO opentp;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA simulator TO opentp;
+ALTER DEFAULT PRIVILEGES IN SCHEMA simulator GRANT ALL ON TABLES TO opentp;
+ALTER DEFAULT PRIVILEGES IN SCHEMA simulator GRANT ALL ON SEQUENCES TO opentp;
+
+-- Trading Schema
+CREATE SCHEMA IF NOT EXISTS trading;
+
+-- Create orders table if not exists
+CREATE TABLE IF NOT EXISTS trading.orders (
+    order_id UUID PRIMARY KEY,
+    user_id VARCHAR(100) NOT NULL,
+    session_id VARCHAR(100) NOT NULL,
+    symbol VARCHAR(20) NOT NULL,
+    side VARCHAR(10) NOT NULL,
+    quantity NUMERIC(18,8) NOT NULL,
+    price NUMERIC(18,8),
+    order_type VARCHAR(20) NOT NULL,
+    status VARCHAR(20) NOT NULL,
+    filled_quantity NUMERIC(18,8) NOT NULL DEFAULT 0,
+    avg_price NUMERIC(18,8) NOT NULL DEFAULT 0,
+    simulator_id VARCHAR(100),
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    request_id VARCHAR(100),
+    error_message TEXT
+);
+
+-- Create indexes
+CREATE INDEX IF NOT EXISTS idx_orders_user_id ON trading.orders(user_id);
+CREATE INDEX IF NOT EXISTS idx_orders_session_id ON trading.orders(session_id);
+CREATE INDEX IF NOT EXISTS idx_orders_status ON trading.orders(status);
+CREATE INDEX IF NOT EXISTS idx_orders_created_at ON trading.orders(created_at);
+
+-- Grant permissions
+GRANT USAGE ON SCHEMA trading TO opentp;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA trading TO opentp;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA trading TO opentp;
+ALTER DEFAULT PRIVILEGES IN SCHEMA trading GRANT ALL ON TABLES TO opentp;
+ALTER DEFAULT PRIVILEGES IN SCHEMA trading GRANT ALL ON SEQUENCES TO opentp;

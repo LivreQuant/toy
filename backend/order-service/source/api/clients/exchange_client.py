@@ -3,10 +3,8 @@ import grpc
 import asyncio
 import time
 from typing import Dict, Any, Optional
-import uuid
 
 from source.utils.circuit_breaker import CircuitBreaker, CircuitOpenError
-from source.utils.redis_client import RedisClient
 from source.models.order import Order
 from source.models.enums import OrderStatus
 from source.api.grpc.exchange_simulator_pb2 import (
@@ -19,14 +17,8 @@ logger = logging.getLogger('exchange_client')
 class ExchangeClient:
     """Client for communicating with exchange simulator via gRPC"""
 
-    def __init__(self, redis_client: RedisClient):
-        """
-        Initialize exchange client
-        
-        Args:
-            redis_client: Redis client for service discovery
-        """
-        self.redis = redis_client
+    def __init__(self):
+        """Initialize exchange client"""
         self.channels = {}  # endpoint -> channel
         self.stubs = {}  # endpoint -> stub
         self._conn_lock = asyncio.Lock()
@@ -64,49 +56,25 @@ class ExchangeClient:
 
             return channel, stub
 
-    async def get_simulator_info(self, session_id: str) -> Optional[Dict[str, str]]:
-        """Get simulator info from Redis"""
-        try:
-            # Get simulator ID for this session
-            simulator_id = await self.redis.get(f"session:{session_id}:simulator")
+    async def close(self):
+        """Close all gRPC channels"""
+        for endpoint, channel in list(self.channels.items()):
+            try:
+                await channel.close()
+            except Exception as e:
+                logger.error(f"Error closing channel to {endpoint}: {e}")
 
-            if not simulator_id:
-                logger.warning(f"No simulator found for session {session_id}")
-                return None
+        self.channels.clear()
+        self.stubs.clear()
 
-            # Get simulator endpoint
-            simulator_endpoint = await self.redis.get(f"simulator:{simulator_id}:endpoint")
-
-            if not simulator_endpoint:
-                logger.warning(f"No endpoint found for simulator {simulator_id}")
-                return None
-
-            return {
-                "simulator_id": simulator_id,
-                "endpoint": simulator_endpoint
-            }
-        except Exception as e:
-            logger.error(f"Error getting simulator info: {e}")
-            return None
-
-    async def submit_order(self, order: Order) -> Dict[str, Any]:
+    async def submit_order(self, order: Order, simulator_endpoint: str) -> Dict[str, Any]:
         """Submit an order to the exchange simulator"""
-        # Get simulator info
-        simulator_info = await self.get_simulator_info(order.session_id)
-
-        if not simulator_info:
-            logger.warning(f"Cannot submit order: No simulator for session {order.session_id}")
-            return {
-                "success": False,
-                "error": "No active simulator found for this session"
-            }
-
         # Use circuit breaker for gRPC call
         try:
             return await self.breaker.execute(
                 self._submit_order_request, 
                 order, 
-                simulator_info["endpoint"]
+                simulator_endpoint
             )
         except CircuitOpenError:
             logger.warning("Exchange service circuit breaker open")
@@ -139,9 +107,6 @@ class ExchangeClient:
 
             # Call gRPC service
             response = await stub.SubmitOrder(request, timeout=5)
-
-            # Update order with simulator ID
-            order.simulator_id = simulator_info["simulator_id"]
 
             if not response.success:
                 logger.warning(f"Order submission failed: {response.error_message}")
@@ -186,24 +151,14 @@ class ExchangeClient:
                 "order_id": order.order_id
             }
 
-    async def cancel_order(self, order: Order) -> Dict[str, Any]:
+    async def cancel_order(self, order: Order, simulator_endpoint: str) -> Dict[str, Any]:
         """Cancel an order on the exchange simulator"""
-        # Get simulator info
-        simulator_info = await self.get_simulator_info(order.session_id)
-
-        if not simulator_info:
-            logger.warning(f"Cannot cancel order: No simulator for session {order.session_id}")
-            return {
-                "success": False,
-                "error": "No active simulator found for this session"
-            }
-
         # Use circuit breaker for gRPC call
         try:
             return await self.breaker.execute(
                 self._cancel_order_request, 
                 order, 
-                simulator_info["endpoint"]
+                simulator_endpoint
             )
         except CircuitOpenError:
             logger.warning("Exchange service circuit breaker open")
@@ -258,24 +213,14 @@ class ExchangeClient:
                 "error": f"Exchange communication error: {str(e)}"
             }
 
-    async def get_order_status(self, order: Order) -> Dict[str, Any]:
+    async def get_order_status(self, order: Order, simulator_endpoint: str) -> Dict[str, Any]:
         """Get order status from the exchange simulator"""
-        # Get simulator info
-        simulator_info = await self.get_simulator_info(order.session_id)
-
-        if not simulator_info:
-            logger.warning(f"Cannot get order status: No simulator for session {order.session_id}")
-            return {
-                "success": False,
-                "error": "No active simulator found for this session"
-            }
-
         # Use circuit breaker for gRPC call
         try:
             return await self.breaker.execute(
                 self._get_order_status_request, 
                 order, 
-                simulator_info["endpoint"]
+                simulator_endpoint
             )
         except CircuitOpenError:
             logger.warning("Exchange service circuit breaker open")
@@ -337,14 +282,3 @@ class ExchangeClient:
                 "success": False,
                 "error": f"Exchange communication error: {str(e)}"
             }
-
-    async def close(self):
-        """Close all gRPC channels"""
-        for endpoint, channel in list(self.channels.items()):
-            try:
-                await channel.close()
-            except Exception as e:
-                logger.error(f"Error closing channel to {endpoint}: {e}")
-
-        self.channels.clear()
-        self.stubs.clear()

@@ -41,13 +41,10 @@ ENV PYTHONUNBUFFERED=1 \
     DB_PASSWORD="samaral" \
     DB_MIN_CONNECTIONS="2" \
     DB_MAX_CONNECTIONS="20" \
-    # Redis Configuration
-    REDIS_HOST="redis" \
-    REDIS_PORT="6379" \
-    REDIS_DB="0" \
     # Service Configuration
     REST_PORT="8001" \
     AUTH_SERVICE_URL="http://auth-service:8000" \
+    SESSION_SERVICE_URL="http://session-service:8080" \
     # Logging and Security
     LOG_LEVEL="INFO"
 
@@ -59,4 +56,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8001/health || exit 1
 
 # Run the service
-CMD ["python", "main.py"]
+CMD ["python", "source/main.py"]
