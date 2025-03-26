@@ -63,6 +63,14 @@ spec:
           value: "10"
         - name: SESSION_TIMEOUT_SECONDS
           value: "3600"
+        - name: OTEL_EXPORTER_JAEGER_ENDPOINT
+          value: "http://jaeger-collector:14268/api/traces"
+        - name: OTEL_EXPORTER_JAEGER_AGENT_HOST
+          value: "jaeger-agent"
+        - name: OTEL_EXPORTER_JAEGER_AGENT_PORT
+          value: "6831"
+        - name: OTEL_SERVICE_NAME
+          value: "session-manager"
         resources:
           requests:
             memory: "256Mi"

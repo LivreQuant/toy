@@ -36,6 +36,14 @@ spec:
           value: "{initial_symbols}"
         - name: INITIAL_CASH
           value: "{initial_cash}"
+        - name: OTEL_EXPORTER_JAEGER_ENDPOINT
+          value: "http://jaeger-collector:14268/api/traces"
+        - name: OTEL_EXPORTER_JAEGER_AGENT_HOST
+          value: "jaeger-agent"
+        - name: OTEL_EXPORTER_JAEGER_AGENT_PORT
+          value: "6831"
+        - name: OTEL_SERVICE_NAME
+          value: "exchange-simulator-{session_id}"
         resources:
           requests:
             memory: "128Mi"

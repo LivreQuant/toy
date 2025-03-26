@@ -45,6 +45,14 @@ spec:
             secretKeyRef:
               name: auth-jwt-secret
               key: JWT_REFRESH_SECRET
+        - name: OTEL_EXPORTER_JAEGER_ENDPOINT
+          value: "http://jaeger-collector:14268/api/traces"
+        - name: OTEL_EXPORTER_JAEGER_AGENT_HOST
+          value: "jaeger-agent"
+        - name: OTEL_EXPORTER_JAEGER_AGENT_PORT
+          value: "6831"
+        - name: OTEL_SERVICE_NAME
+          value: "auth-service"
         resources:  
           requests:
             memory: "128Mi"
