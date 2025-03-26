@@ -14,25 +14,13 @@ RUN apt-get update \
 COPY requirements.txt .
 RUN pip install --no-cache-dir --prefer-binary -r requirements.txt
 
-# Install gRPC tools for protobuf compilation
-RUN pip install --no-cache-dir grpcio-tools
-
-# Copy protos and compile them
-COPY ./protos /app/protos
-RUN mkdir -p /app/source/api/grpc && \
-    python -m grpc_tools.protoc -I./protos \
-    --python_out=./source/api/grpc \
-    --grpc_python_out=./source/api/grpc \
-    ./protos/exchange_simulator.proto \
-    && sed -i 's/import main_dot_exchange__simulator__pb2/import source.api.grpc.exchange_simulator_pb2 as main_dot_exchange__simulator__pb2/g' \
-    ./source/api/grpc/exchange_simulator_pb2_grpc.py
-
-# Copy the source code
+# Copy the source code (which already includes compiled proto files)
 COPY . .
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
     ENVIRONMENT="development" \
+    PYTHONPATH=/app \
     # Database Configuration
     DB_HOST="postgres" \
     DB_PORT="5432" \

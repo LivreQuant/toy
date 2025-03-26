@@ -1,17 +1,13 @@
 #!/bin/bash
 echo "Setting up ingress..."
 
-# Fix the ingress configuration issue
-# 1. Remove the configuration-snippet annotation
-# 2. Fix the path type issue with /minio/?(.*) 
+# Get the correct path to the k8s directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BASE_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
+K8S_DIR="$BASE_DIR/k8s"
 
-# Create a temporary fixed file
-sed -e '/configuration-snippet/,/}/d' \
-    -e 's|pathType: Prefix|pathType: ImplementationSpecific|' \
-    ./k8s/ingress.yaml > /tmp/fixed-ingress.yaml
-
-# Apply the fixed file
-kubectl apply -f /tmp/fixed-ingress.yaml
+# Apply the ingress configuration
+kubectl apply -f $K8S_DIR/ingress.yaml
 
 # Check status
 kubectl get ingress

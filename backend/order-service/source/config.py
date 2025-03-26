@@ -13,7 +13,7 @@ class Config:
     host = os.getenv('HOST', '0.0.0.0')
 
     # Database Configuration
-    db_host = os.getenv('DB_HOST', 'localhost') #'postgres')
+    db_host = os.getenv('DB_HOST', 'postgres')
     db_port = int(os.getenv('DB_PORT', '5432'))
     db_name = os.getenv('DB_NAME', 'opentp')
     db_user = os.getenv('DB_USER', 'opentp')
