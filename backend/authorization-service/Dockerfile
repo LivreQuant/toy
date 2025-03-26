@@ -37,6 +37,7 @@ ENV ENVIRONMENT="development" \
     REDIS_HOST="redis" \
     REDIS_PORT="6379" \
     REDIS_DB="0" \
+    ENABLE_TRACING="true" \
     # Service Configuration
     REST_PORT="8001" \
     AUTH_SERVICE_URL="http://auth-service:8000" \

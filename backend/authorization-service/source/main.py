@@ -11,12 +11,12 @@ from aiohttp import web
 from source.core.auth_manager import AuthManager
 from source.db.db_manager import DatabaseManager
 from source.api.rest_routes import setup_rest_app
+from source.utils.tracing import setup_tracing
 
 
 # Logging setup function
 def setup_logging():
     # Create logs directory if it doesn't exist
-    #log_dir = '/home/samaral/projects/toy/20250325/backend/authorization-service'
     log_dir = '/app/logs'
 
     os.makedirs(log_dir, exist_ok=True)
@@ -53,6 +53,10 @@ logger = setup_logging()
 async def serve():
     """Main service startup and run method"""
     logger.info("Starting authentication service")
+
+    # Initialize distributed tracing
+    setup_tracing()
+    logger.info("Distributed tracing initialized")
 
     db_manager = None
     auth_manager = None

@@ -6,3 +6,9 @@ grpcio>=1.62.0
 protobuf>=4.21.0
 redis>=4.5.1
 PyJWT>=2.7.0  # Add this line
+# JAEGER TRACING
+opentelemetry-api>=1.18.0
+opentelemetry-sdk>=1.18.0
+opentelemetry-exporter-jaeger>=1.18.0
+opentelemetry-instrumentation-aiohttp-client>=0.40b0
+opentelemetry-instrumentation-asyncpg>=0.40b0
