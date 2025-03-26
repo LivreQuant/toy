@@ -22,6 +22,8 @@ spec:
         env:
         - name: JAEGER_DISABLED
           value: "true"
+        - name: JAEGER_AGENT_PORT
+          value: "6831"  # Set to a valid port number instead of a URI
         ports:
         - containerPort: 3000
         volumeMounts:

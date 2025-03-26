@@ -17,7 +17,19 @@ echo
 echo "After updating your hosts file, you can access the application at:"
 echo "    http://trading.local"
 echo 
-echo "After running this command, you can access Jaeger directly at "
+echo "Jaegar Dashboard: After running this command, you can access Jaeger directly at "
 echo "http://localhost:16686 in your browser."
-exho "    kubectl port-forward service/jaeger-query 16686:16686"
+echo "    kubectl port-forward service/jaeger-query 16686:16686"
+echo 
+echo "Kubernetes Dashboard: "
+echo "    minikube dashboard"
+echo 
+echo "Prometheus Dashboard: "
+echo "    http://trading.local/prometheus/graph"
+echo 
+echo "Telepresence Dashboard: "
+echo "    telepresence helm install --namespace default"
+echo "    telepresence version"
+echo "    telepresence connect"
+echo "    telepresence list"
 echo "============================================================"
