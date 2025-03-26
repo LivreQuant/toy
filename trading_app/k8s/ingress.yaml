@@ -79,6 +79,15 @@ spec:
             name: grafana
             port:
               number: 3000
+      # Create a dedicated path for Jaeger static assets
+      - path: /jaeger/static/(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: jaeger-query
+            port:
+              number: 16686
+      # Then the regular Jaeger path
       - path: /jaeger/?(.*)
         pathType: ImplementationSpecific
         backend:

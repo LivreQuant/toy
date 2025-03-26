@@ -3,7 +3,7 @@ SECTION=$1
 
 if [ -z "$SECTION" ]; then
     echo "Usage: $0 <section>"
-    echo "Sections: storage databases pgbouncer db-init auth session order jaeger ingress all"
+    echo "Sections: storage databases pgbouncer db-init auth session order jaeger ingress monitor all"
     exit 1
 fi
 
@@ -56,12 +56,18 @@ case $SECTION in
         echo "Resetting ingress..."
         kubectl delete ingress trading-platform-ingress
         ;;
+    monitor)
+        echo "Resetting monitoring services..."
+        kubectl delete deployment prometheus grafana
+        kubectl delete service prometheus grafana
+        kubectl delete configmap prometheus-config grafana-datasources auth-service-dashboard --ignore-not-found=true
+        ;;
     all)
         echo "Resetting everything..."
         kubectl delete ingress --all
         kubectl delete deployment --all
         kubectl delete service --all --ignore-not-found=true
-        kubectl delete configmap db-schemas db-data opentelemetry-config --ignore-not-found=true
+        kubectl delete configmap db-schemas db-data opentelemetry-config prometheus-config grafana-datasources auth-service-dashboard --ignore-not-found=true
         kubectl delete job --all
         kubectl delete pvc --all
         kubectl delete pv --all

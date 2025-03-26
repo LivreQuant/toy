@@ -16,4 +16,8 @@ echo "    $MINIKUBE_IP trading.local"
 echo
 echo "After updating your hosts file, you can access the application at:"
 echo "    http://trading.local"
+echo 
+echo "After running this command, you can access Jaeger directly at "
+echo "http://localhost:16686 in your browser."
+exho "    kubectl port-forward service/jaeger-query 16686:16686"
 echo "============================================================"
