@@ -33,10 +33,7 @@ ENV ENVIRONMENT="development" \
     DB_PASSWORD="samaral" \
     DB_MIN_CONNECTIONS="1" \
     DB_MAX_CONNECTIONS="10" \
-    # Redis Configuration
-    REDIS_HOST="redis" \
-    REDIS_PORT="6379" \
-    REDIS_DB="0" \
+    # Tracing Configuration
     ENABLE_TRACING="true" \
     # Service Configuration
     REST_PORT="8001" \

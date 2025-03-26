@@ -53,6 +53,8 @@ spec:
           value: "6831"
         - name: OTEL_SERVICE_NAME
           value: "auth-service"
+        - name: ENABLE_TRACING
+          value: "true"
         resources:  
           requests:
             memory: "128Mi"

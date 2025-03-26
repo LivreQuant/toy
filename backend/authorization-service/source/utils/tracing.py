@@ -2,6 +2,7 @@
 import logging
 import os
 from contextlib import contextmanager
+
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
@@ -10,12 +11,15 @@ from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 from opentelemetry.instrumentation.aiohttp_client import AioHttpClientInstrumentor
 from opentelemetry.instrumentation.asyncpg import AsyncPGInstrumentor
 
+from source.config import Config
+
+
 logger = logging.getLogger('tracing')
 
 def setup_tracing():
     """Initialize OpenTelemetry tracing with Jaeger exporter"""
     # Check if tracing is enabled (default to true)
-    if os.getenv('ENABLE_TRACING', 'true').lower() != 'true':
+    if not Config.ENABLE_TRACING:
         logger.info("Tracing is disabled, using no-op tracer")
         # Set up a no-op tracer provider
         provider = TracerProvider()
