@@ -11,13 +11,18 @@ spec:
     metadata:
       labels:
         app: auth-service
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
     spec:
       containers:
       - name: auth-service
         image: opentp/auth-service:latest
         imagePullPolicy: Never
         ports:
-        - containerPort: 8001  # Change this to 8001
+        - containerPort: 8001  # REST service
+        - containerPort: 9090  # Prometheus metrics
         env:
         - name: DB_HOST
           value: pgbouncer

@@ -28,6 +28,12 @@ case $SECTION in
         kubectl delete job db-init-job
         kubectl delete configmap db-schemas db-data
         ;;
+    jaeger)
+        echo "Resetting Jaeger..."
+        kubectl delete service jaeger-query jaeger-collector jaeger-agent
+        kubectl delete deployment jaeger
+        kubectl delete configmap opentelemetry-config --ignore-not-found=true
+        ;;
     auth)
         echo "Resetting auth service..."
         kubectl delete service auth-service
@@ -45,12 +51,6 @@ case $SECTION in
         echo "Resetting order service..."
         kubectl delete service order-service
         kubectl delete deployment order-service
-        ;;
-    jaeger)
-        echo "Resetting Jaeger..."
-        kubectl delete service jaeger-query jaeger-collector jaeger-agent
-        kubectl delete deployment jaeger
-        kubectl delete configmap opentelemetry-config --ignore-not-found=true
         ;;
     ingress)
         echo "Resetting ingress..."

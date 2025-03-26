@@ -35,6 +35,7 @@ ENV ENVIRONMENT="development" \
     DB_MAX_CONNECTIONS="10" \
     # Tracing Configuration
     ENABLE_TRACING="true" \
+    METRICS_PORT="9090" \
     # Service Configuration
     REST_PORT="8001" \
     AUTH_SERVICE_URL="http://auth-service:8000" \
@@ -50,6 +51,9 @@ USER appuser
 
 # Expose REST port
 EXPOSE 8001
+
+# Expose METRIC port
+EXPOSE 9090
 
 # Health check using our HTTP health endpoint
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \

@@ -7,6 +7,8 @@ import time
 from aiohttp import web
 from opentelemetry import trace
 
+from source.utils.tracing import optional_trace_span
+
 logger = logging.getLogger('rest_api')
 
 
@@ -44,7 +46,7 @@ def handle_login(auth_manager):
     tracer = trace.get_tracer("rest_api")
 
     async def login_handler(request):
-        with tracer.optional_trace_span("handle_login") as span:
+        with optional_trace_span(tracer, "handle_login") as span:
             span.set_attribute("http.method", "POST")
             span.set_attribute("http.route", "/api/auth/login")
             
@@ -114,7 +116,7 @@ def handle_logout(auth_manager):
     tracer = trace.get_tracer("rest_api")
 
     async def logout_handler(request):
-        with tracer.optional_trace_span("handle_logout") as span:
+        with optional_trace_span(tracer, "handle_logout") as span:
             span.set_attribute("http.method", "POST")
             span.set_attribute("http.route", "/api/auth/logout")
             
@@ -170,7 +172,7 @@ def handle_refresh_token(auth_manager):
     tracer = trace.get_tracer("rest_api")
 
     async def refresh_token_handler(request):
-        with tracer.optional_trace_span("handle_refresh_token") as span:
+        with optional_trace_span(tracer, "handle_refresh_token") as span:
             span.set_attribute("http.method", "POST")
             span.set_attribute("http.route", "/api/auth/refresh")
             
@@ -238,7 +240,7 @@ def handle_validate_token(auth_manager):
     tracer = trace.get_tracer("rest_api")
 
     async def validate_token_handler(request):
-        with tracer.optional_trace_span("handle_validate_token") as span:
+        with optional_trace_span(tracer, "handle_validate_token") as span:
             span.set_attribute("http.method", "POST")
             span.set_attribute("http.route", "/api/auth/validate")
             
@@ -283,7 +285,7 @@ async def handle_health_check(request):
     """Simple health check endpoint"""
     tracer = trace.get_tracer("rest_api")
     
-    with tracer.optional_trace_span("health_check") as span:
+    with optional_trace_span(tracer, "health_check") as span:
         span.set_attribute("http.method", "GET")
         span.set_attribute("http.route", "/health")
         
@@ -298,7 +300,7 @@ def handle_readiness_check(auth_manager):
     tracer = trace.get_tracer("rest_api")
 
     async def readiness_handler(request):
-        with tracer.optional_trace_span("readiness_check") as span:
+        with optional_trace_span(tracer, "readiness_check") as span:
             span.set_attribute("http.method", "GET")
             span.set_attribute("http.route", "/readiness")
             

@@ -7,11 +7,14 @@ import signal
 import sys
 import traceback
 from aiohttp import web
+import threading
+from prometheus_client import start_http_server
 
 from source.core.auth_manager import AuthManager
 from source.db.db_manager import DatabaseManager
 from source.api.rest_routes import setup_rest_app
 from source.utils.tracing import setup_tracing
+from source.utils.metrics import setup_metrics
 
 
 # Logging setup function
@@ -46,6 +49,23 @@ def setup_logging():
     return logging.getLogger('auth_service')
 
 
+# Add metrics setup function
+def setup_metrics():
+    """Start Prometheus metrics server"""
+    metrics_port = int(os.getenv('METRICS_PORT', '9090'))
+    try:
+        def _start_metrics_server():
+            start_http_server(metrics_port)
+        
+        metrics_thread = threading.Thread(
+            target=_start_metrics_server, 
+            daemon=True
+        )
+        metrics_thread.start()
+        logger.info(f"Prometheus metrics server started on port {metrics_port}")
+    except Exception as e:
+        logger.error(f"Failed to start metrics server: {e}")
+
 # Configure logger
 logger = setup_logging()
 
@@ -57,6 +77,10 @@ async def serve():
     # Initialize distributed tracing
     setup_tracing()
     logger.info("Distributed tracing initialized")
+
+    # Initialize metrics
+    setup_metrics()  # Add this line
+    logger.info("Metrics initialization completed")
 
     db_manager = None
     auth_manager = None

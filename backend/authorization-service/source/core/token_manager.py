@@ -7,6 +7,8 @@ import hashlib
 import logging
 from opentelemetry import trace
 
+from source.utils.tracing import optional_trace_span
+
 logger = logging.getLogger('token_manager')
 
 
@@ -21,7 +23,7 @@ class TokenManager:
 
     def generate_tokens(self, user_id, user_role='user'):
         """Generate access and refresh tokens"""
-        with self.tracer.optional_trace_span("generate_tokens") as span:
+        with optional_trace_span(self.tracer, "generate_tokens") as span:
             span.set_attribute("user.id", str(user_id))
             span.set_attribute("user.role", user_role)
             
@@ -59,7 +61,7 @@ class TokenManager:
 
     def validate_access_token(self, token):
         """Validate an access token"""
-        with self.tracer.optional_trace_span("validate_access_token") as span:
+        with optional_trace_span(self.tracer, "validate_access_token") as span:
             try:
                 payload = jwt.decode(token, self.jwt_secret, algorithms=['HS256'])
 
@@ -98,7 +100,7 @@ class TokenManager:
 
     def validate_refresh_token(self, token):
         """Validate a refresh token"""
-        with self.tracer.optional_trace_span("validate_refresh_token") as span:
+        with optional_trace_span(self.tracer, "validate_refresh_token") as span:
             try:
                 payload = jwt.decode(token, self.refresh_secret, algorithms=['HS256'])
 
@@ -133,7 +135,7 @@ class TokenManager:
 
     def hash_token(self, token):
         """Create a secure hash of a token for storage"""
-        with self.tracer.optional_trace_span("hash_token") as span:
+        with optional_trace_span(self.tracer, "hash_token") as span:
             hashed = hashlib.sha256(token.encode()).hexdigest()
             span.set_attribute("hash_length", len(hashed))
             return hashed

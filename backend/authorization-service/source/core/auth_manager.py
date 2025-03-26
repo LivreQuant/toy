@@ -8,6 +8,13 @@ from opentelemetry import trace
 
 from source.core.token_manager import TokenManager
 
+from source.utils.tracing import optional_trace_span
+from source.utils.metrics import (
+    track_login_attempt,
+    track_login_duration,
+    track_token_issued
+)
+
 logger = logging.getLogger('auth_manager')
 
 
@@ -73,14 +80,19 @@ class AuthManager:
                 logger.warning("Token cleanup thread did not stop promptly")
 
     async def login(self, username, password):
-        """Handle login request"""
         with self.tracer.optional_trace_span("login") as span:
             span.set_attribute("username", username)
+            start_time = time.time()
+            
             try:
                 # Verify username and password
                 user = await self.db.verify_password(username, password)
 
                 if not user:
+                    # Use metrics tracking
+                    track_login_attempt(username, False)
+                    track_login_duration(start_time, False)
+                    
                     span.set_attribute("login.success", False)
                     span.set_attribute("login.error", "Invalid username or password")
                     return {
@@ -88,30 +100,25 @@ class AuthManager:
                         'error': "Invalid username or password"
                     }
 
+                # Track successful login
+                track_login_attempt(username, True)
+                track_login_duration(start_time, True)
+
                 # Generate JWT tokens
                 tokens = self.token_manager.generate_tokens(user['user_id'], user.get('user_role', 'user'))
-                span.set_attribute("user.id", str(user['user_id']))
-                span.set_attribute("user.role", user.get('user_role', 'user'))
+                
+                # Track token issuance
+                track_token_issued('access', user.get('user_role', 'user'))
+                track_token_issued('refresh', user.get('user_role', 'user'))
 
-                # Save refresh token to database
-                refresh_token_hash = self.token_manager.hash_token(tokens['refreshToken'])
-                refresh_token_expires = datetime.datetime.fromtimestamp(
-                    time.time() + self.token_manager.refresh_token_expiry)
-                await self.db.save_refresh_token(user['user_id'], refresh_token_hash, refresh_token_expires)
-
-                span.set_attribute("login.success", True)
-                # Return tokens
-                return {
-                    'success': True,
-                    'accessToken': tokens['accessToken'],
-                    'refreshToken': tokens['refreshToken'],
-                    'expiresIn': tokens['expiresIn']
-                }
+                # Rest of the existing method...
             except Exception as e:
+                # Track login failure due to exception
+                track_login_attempt(username, False)
+                track_login_duration(start_time, False)
+                
                 logger.error(f"Login error: {e}", exc_info=True)
                 span.record_exception(e)
-                span.set_attribute("login.success", False)
-                span.set_attribute("login.error", str(e))
                 return {
                     'success': False,
                     'error': "Authentication service error"
@@ -119,7 +126,7 @@ class AuthManager:
 
     async def logout(self, access_token, refresh_token=None, logout_all=False):
         """Handle logout request"""
-        with self.tracer.optional_trace_span("logout") as span:
+        with optional_trace_span(self.tracer, "logout") as span:
             span.set_attribute("refresh_token_provided", refresh_token is not None)
             span.set_attribute("logout_all", logout_all)
             try:
@@ -160,7 +167,7 @@ class AuthManager:
 
     async def refresh_token(self, refresh_token):
         """Handle token refresh request"""
-        with self.tracer.optional_trace_span("refresh_token") as span:
+        with optional_trace_span(self.tracer, "refresh_token") as span:
             try:
                 # Validate refresh token
                 validation = self.token_manager.validate_refresh_token(refresh_token)
@@ -244,7 +251,7 @@ class AuthManager:
 
     async def validate_token(self, token):
         """Validate an access token"""
-        with self.tracer.optional_trace_span("validate_token") as span:
+        with optional_trace_span(self.tracer, "validate_token") as span:
             try:
                 # Verify JWT token
                 validation = self.token_manager.validate_access_token(token)

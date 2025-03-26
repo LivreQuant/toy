@@ -17,7 +17,7 @@ echo "Starting local Kubernetes environment setup..."
 # Check if script is being run as root
 if [ "$(id -u)" -eq 0 ]; then
     echo "Error: This script should not be run as root or with sudo"
-    echo "The docker driver for minikube cannot be run with root privileges"
+    echo "The KVM driver creates a full virtual machine rather than running inside a container."
     echo "Please run the script as a regular user"
     exit 1
 fi
@@ -33,7 +33,7 @@ if [ $MINIKUBE_STATUS -ne 0 ] || [ "$FORCE_RECREATE" = true ]; then
     fi
     
     echo "Starting Minikube..."
-    minikube start --driver=docker --cpus=4 --memory=8g --disk-size=20g
+    minikube start --driver=kvm2 --cpus=4 --memory=8g --disk-size=20g
     
     # Check if minikube started successfully
     if [ $? -ne 0 ]; then

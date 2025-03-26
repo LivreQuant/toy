@@ -6,6 +6,8 @@ import datetime
 import json
 from opentelemetry import trace
 
+from source.utils.tracing import optional_trace_span
+
 logger = logging.getLogger('database')
 
 
@@ -25,7 +27,7 @@ class DatabaseManager:
 
     async def connect(self):
         """Create the database connection pool"""
-        with self.tracer.optional_trace_span("db_connect") as span:
+        with optional_trace_span(self.tracer, "db_connect") as span:
             if self.pool:
                 return
 
@@ -52,7 +54,7 @@ class DatabaseManager:
 
     async def close(self):
         """Close all database connections"""
-        with self.tracer.optional_trace_span("db_close") as span:
+        with optional_trace_span(self.tracer, "db_close") as span:
             if self.pool:
                 await self.pool.close()
                 self.pool = None
@@ -61,7 +63,7 @@ class DatabaseManager:
 
     async def get_user_by_username(self, username):
         """Get user by username"""
-        with self.tracer.optional_trace_span("db_get_user_by_username") as span:
+        with optional_trace_span(self.tracer, "db_get_user_by_username") as span:
             span.set_attribute("username", username)
             
             if not self.pool:
@@ -83,7 +85,7 @@ class DatabaseManager:
 
     async def get_user_by_id(self, user_id):
         """Get user by ID"""
-        with self.tracer.optional_trace_span("db_get_user_by_id") as span:
+        with optional_trace_span(self.tracer, "db_get_user_by_id") as span:
             span.set_attribute("user_id", str(user_id))
             
             if not self.pool:
@@ -105,7 +107,7 @@ class DatabaseManager:
 
     async def verify_password(self, username, password):
         """Verify user password"""
-        with self.tracer.optional_trace_span("db_verify_password") as span:
+        with optional_trace_span(self.tracer, "db_verify_password") as span:
             span.set_attribute("username", username)
             
             if not self.pool:
@@ -125,7 +127,7 @@ class DatabaseManager:
 
     async def save_refresh_token(self, user_id, token_hash, expires_at):
         """Save a refresh token to the database"""
-        with self.tracer.optional_trace_span("db_save_refresh_token") as span:
+        with optional_trace_span(self.tracer, "db_save_refresh_token") as span:
             span.set_attribute("user_id", str(user_id))
             
             if not self.pool:
@@ -152,7 +154,7 @@ class DatabaseManager:
 
     async def get_refresh_token(self, token_hash):
         """Get refresh token info"""
-        with self.tracer.optional_trace_span("db_get_refresh_token") as span:
+        with optional_trace_span(self.tracer, "db_get_refresh_token") as span:
             span.set_attribute("token_hash_length", len(token_hash))
             
             if not self.pool:
@@ -176,7 +178,7 @@ class DatabaseManager:
 
     async def revoke_refresh_token(self, token_hash):
         """Revoke a refresh token"""
-        with self.tracer.optional_trace_span("db_revoke_refresh_token") as span:
+        with optional_trace_span(self.tracer, "db_revoke_refresh_token") as span:
             span.set_attribute("token_hash_length", len(token_hash))
             
             if not self.pool:
@@ -201,7 +203,7 @@ class DatabaseManager:
 
     async def revoke_all_user_tokens(self, user_id):
         """Revoke all refresh tokens for a user"""
-        with self.tracer.optional_trace_span("db_revoke_all_user_tokens") as span:
+        with optional_trace_span(self.tracer, "db_revoke_all_user_tokens") as span:
             span.set_attribute("user_id", str(user_id))
             
             if not self.pool:
@@ -226,7 +228,7 @@ class DatabaseManager:
 
     async def cleanup_expired_tokens(self):
         """Clean up expired tokens"""
-        with self.tracer.optional_trace_span("db_cleanup_expired_tokens") as span:
+        with optional_trace_span(self.tracer, "db_cleanup_expired_tokens") as span:
             if not self.pool:
                 await self.connect()
 
@@ -245,7 +247,7 @@ class DatabaseManager:
 
     async def check_connection(self):
         """Check if database connection is working"""
-        with self.tracer.optional_trace_span("db_check_connection") as span:
+        with optional_trace_span(self.tracer, "db_check_connection") as span:
             if not self.pool:
                 try:
                     await self.connect()
