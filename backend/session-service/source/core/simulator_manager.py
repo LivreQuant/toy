@@ -6,12 +6,19 @@ import logging
 import time
 import asyncio
 from typing import List, Dict, Any, Optional, Tuple
+from opentelemetry import trace
 
 from source.models.simulator import Simulator, SimulatorStatus
 from source.db.session_store import DatabaseManager
 from source.api.clients.exchange_client import ExchangeClient
 from source.utils.k8s_client import KubernetesClient
 from source.config import config
+
+from source.utils.metrics import (
+    track_simulator_count, track_simulator_operation, track_simulator_creation_time,
+    track_cleanup_operation
+)
+from source.utils.tracing import optional_trace_span
 
 logger = logging.getLogger('simulator_manager')
 
@@ -35,7 +42,11 @@ class SimulatorManager:
         self.k8s_client = KubernetesClient()
         self.max_simulators_per_user = config.simulator.max_per_user
         self.inactivity_timeout = config.simulator.inactivity_timeout
-    
+        self.tracer = trace.get_tracer("simulator_manager")
+
+        # Initialize simulator count
+        track_simulator_count(0)
+
     async def create_simulator(
         self, 
         session_id: str, 
@@ -55,86 +66,122 @@ class SimulatorManager:
         Returns:
             Tuple of (simulator, error_message)
         """
-        # Check user simulator limits
-        existing_simulators = await self.db_manager.get_active_user_simulators(user_id)
-        
-        if len(existing_simulators) >= self.max_simulators_per_user:
-            return None, f"Maximum simulator limit ({self.max_simulators_per_user}) reached"
-        
-        # Check if there's an existing simulator for this session
-        existing_simulator = await self.db_manager.get_simulator_by_session(session_id)
-        if existing_simulator and existing_simulator.status != SimulatorStatus.STOPPED:
-            logger.info(f"Returning existing simulator for session {session_id}")
-            return existing_simulator, ""
-        
-        # Create new simulator
-        simulator = Simulator(
-            session_id=session_id,
-            user_id=user_id,
-            status=SimulatorStatus.CREATING,
-            initial_symbols=initial_symbols or [],
-            initial_cash=initial_cash
-        )
-        
-        try:
-            # Save to database
-            await self.db_manager.create_simulator(simulator)
-            
-            # Create Kubernetes deployment
-            endpoint = await self.k8s_client.create_simulator_deployment(
-                simulator.simulator_id,
-                session_id,
-                user_id,
-                initial_symbols,
-                initial_cash
+        with optional_trace_span(self.tracer, "create_simulator") as span:
+            start_time = time.time()
+
+            span.set_attribute("session_id", session_id)
+            span.set_attribute("user_id", user_id)
+            span.set_attribute("initial_symbols_count", len(initial_symbols or []))
+            span.set_attribute("initial_cash", initial_cash)
+
+            # Check user simulator limits
+            existing_simulators = await self.db_manager.get_active_user_simulators(user_id)
+
+            span.set_attribute("existing_simulators_count", len(existing_simulators))
+
+            if len(existing_simulators) >= self.max_simulators_per_user:
+                error_msg = f"Maximum simulator limit ({self.max_simulators_per_user}) reached"
+                span.set_attribute("error", error_msg)
+                track_simulator_operation("create", "limit_exceeded")
+                return None, error_msg
+
+            # Check if there's an existing simulator for this session
+            existing_simulator = await self.db_manager.get_simulator_by_session(session_id)
+            if existing_simulator and existing_simulator.status != SimulatorStatus.STOPPED:
+                logger.info(f"Returning existing simulator for session {session_id}")
+                span.set_attribute("simulator_id", existing_simulator.simulator_id)
+                span.set_attribute("simulator_status", existing_simulator.status.value)
+                span.set_attribute("reused_existing", True)
+                track_simulator_operation("reuse_existing")
+                return existing_simulator, ""
+
+            # Create new simulator
+            simulator = Simulator(
+                session_id=session_id,
+                user_id=user_id,
+                status=SimulatorStatus.CREATING,
+                initial_symbols=initial_symbols or [],
+                initial_cash=initial_cash
             )
-            
-            # Update simulator with endpoint
-            simulator.endpoint = endpoint
-            simulator.status = SimulatorStatus.STARTING
-            await self.db_manager.update_simulator_endpoint(simulator.simulator_id, endpoint)
-            await self.db_manager.update_simulator_status(simulator.simulator_id, SimulatorStatus.STARTING)
-            
-            # Start the simulator via the exchange manager
-            exchange_manager_endpoint = config.services.exchange_manager_service
-            result = await self.exchange_client.start_simulator(
-                exchange_manager_endpoint,
-                session_id,
-                user_id,
-                initial_symbols,
-                initial_cash
-            )
-            
-            if not result.get('success'):
-                logger.error(f"Failed to start simulator: {result.get('error')}")
-                simulator.status = SimulatorStatus.ERROR
-                await self.db_manager.update_simulator_status(simulator.simulator_id, SimulatorStatus.ERROR)
-                
-                # Clean up Kubernetes resources
-                await self.k8s_client.delete_simulator_deployment(simulator.simulator_id)
-                
-                return None, result.get('error') or "Failed to start simulator"
-            
-            # Update simulator status
-            simulator.status = SimulatorStatus.RUNNING
-            await self.db_manager.update_simulator_status(simulator.simulator_id, SimulatorStatus.RUNNING)
-            
-            logger.info(f"Created simulator {simulator.simulator_id} for session {session_id}")
-            return simulator, ""
-            
-        except Exception as e:
-            logger.error(f"Error creating simulator: {e}")
-            
-            # Update simulator status
-            if simulator:
-                simulator.status = SimulatorStatus.ERROR
-                await self.db_manager.update_simulator_status(simulator.simulator_id, SimulatorStatus.ERROR)
-                
-                # Clean up Kubernetes resources if needed
-                if hasattr(simulator, 'endpoint') and simulator.endpoint:
+
+            try:
+                # Save to database
+                await self.db_manager.create_simulator(simulator)
+                span.set_attribute("simulator_id", simulator.simulator_id)
+
+                # Create Kubernetes deployment
+                endpoint = await self.k8s_client.create_simulator_deployment(
+                    simulator.simulator_id,
+                    session_id,
+                    user_id,
+                    initial_symbols,
+                    initial_cash
+                )
+
+                # Update simulator with endpoint
+                simulator.endpoint = endpoint
+                simulator.status = SimulatorStatus.STARTING
+                await self.db_manager.update_simulator_endpoint(simulator.simulator_id, endpoint)
+                await self.db_manager.update_simulator_status(simulator.simulator_id, SimulatorStatus.STARTING)
+
+                span.set_attribute("simulator_endpoint", endpoint)
+                span.set_attribute("simulator_status", SimulatorStatus.STARTING.value)
+
+                # Start the simulator via the exchange manager
+                exchange_manager_endpoint = config.services.exchange_manager_service
+                result = await self.exchange_client.start_simulator(
+                    exchange_manager_endpoint,
+                    session_id,
+                    user_id,
+                    initial_symbols,
+                    initial_cash
+                )
+
+                if not result.get('success'):
+                    error_msg = result.get('error') or "Failed to start simulator"
+                    logger.error(f"Failed to start simulator: {error_msg}")
+                    span.set_attribute("error", error_msg)
+                    simulator.status = SimulatorStatus.ERROR
+                    await self.db_manager.update_simulator_status(simulator.simulator_id, SimulatorStatus.ERROR)
+
+                    # Clean up Kubernetes resources
                     await self.k8s_client.delete_simulator_deployment(simulator.simulator_id)
-            
-            return None, str(e)
+
+                    return None, error_msg
+
+                # Update simulator status
+                simulator.status = SimulatorStatus.RUNNING
+                await self.db_manager.update_simulator_status(simulator.simulator_id, SimulatorStatus.RUNNING)
+
+                span.set_attribute("simulator_status", SimulatorStatus.RUNNING.value)
+
+                # Calculate creation time and track metrics
+                creation_time = time.time() - start_time
+                track_simulator_creation_time(creation_time)
+                track_simulator_operation("create", "success")
+
+                # Update active simulator count
+                count = await self.db_manager.get_active_simulator_count()
+                track_simulator_count(count)
+
+                logger.info(f"Created simulator {simulator.simulator_id} for session {session_id}")
+                return simulator, ""
+
+            except Exception as e:
+                logger.error(f"Error creating simulator: {e}")
+                span.record_exception(e)
+
+                # Update simulator status
+                if simulator:
+                    simulator.status = SimulatorStatus.ERROR
+                    await self.db_manager.update_simulator_status(simulator.simulator_id, SimulatorStatus.ERROR)
+
+                    # Clean up Kubernetes resources if needed
+                    if hasattr(simulator, 'endpoint') and simulator.endpoint:
+                        await self.k8s_client.delete_simulator_deployment(simulator.simulator_id)
+
+                track_simulator_operation("create", "error")
+                return None, str(e)
     
     async def stop_simulator(self, simulator_id: str) -> Tuple[bool, str]:
         """
@@ -146,40 +193,55 @@ class SimulatorManager:
         Returns:
             Tuple of (success, error_message)
         """
-        # Get simulator details
-        simulator = await self.db_manager.get_simulator(simulator_id)
-        
-        if not simulator:
-            return False, "Simulator not found"
-        
-        try:
-            # Update status
-            simulator.status = SimulatorStatus.STOPPING
-            await self.db_manager.update_simulator_status(simulator.simulator_id, SimulatorStatus.STOPPING)
-            
-            # Stop the simulator
-            result = await self.exchange_client.stop_simulator(
-                simulator.endpoint,
-                simulator.session_id
-            )
-            
-            if not result.get('success'):
-                logger.warning(f"Failed to stop simulator via gRPC: {result.get('error')}")
-                # Continue with cleanup anyway
-            
-            # Delete Kubernetes resources
-            await self.k8s_client.delete_simulator_deployment(simulator.simulator_id)
-            
-            # Update status
-            simulator.status = SimulatorStatus.STOPPED
-            await self.db_manager.update_simulator_status(simulator.simulator_id, SimulatorStatus.STOPPED)
-            
-            logger.info(f"Stopped simulator {simulator_id}")
-            return True, ""
-            
-        except Exception as e:
-            logger.error(f"Error stopping simulator: {e}")
-            return False, str(e)
+        with optional_trace_span(self.tracer, "stop_simulator") as span:
+            span.set_attribute("simulator_id", simulator_id)
+
+            # Get simulator details
+            simulator = await self.db_manager.get_simulator(simulator_id)
+
+            if not simulator:
+                span.set_attribute("error", "Simulator not found")
+                return False, "Simulator not found"
+
+            span.set_attribute("session_id", simulator.session_id)
+            span.set_attribute("simulator_status", simulator.status.value)
+
+            try:
+                # Update status
+                simulator.status = SimulatorStatus.STOPPING
+                await self.db_manager.update_simulator_status(simulator.simulator_id, SimulatorStatus.STOPPING)
+
+                # Stop the simulator
+                result = await self.exchange_client.stop_simulator(
+                    simulator.endpoint,
+                    simulator.session_id
+                )
+
+                if not result.get('success'):
+                    logger.warning(f"Failed to stop simulator via gRPC: {result.get('error')}")
+                    span.set_attribute("warning", f"gRPC stop failed: {result.get('error')}")
+                    # Continue with cleanup anyway
+
+                # Delete Kubernetes resources
+                await self.k8s_client.delete_simulator_deployment(simulator.simulator_id)
+
+                # Update status
+                simulator.status = SimulatorStatus.STOPPED
+                await self.db_manager.update_simulator_status(simulator.simulator_id, SimulatorStatus.STOPPED)
+
+                # Update active simulator count
+                count = await self.db_manager.get_active_simulator_count()
+                track_simulator_count(count)
+
+                logger.info(f"Stopped simulator {simulator_id}")
+                return True, ""
+
+            except Exception as e:
+                logger.error(f"Error stopping simulator: {e}")
+                span.record_exception(e)
+                span.set_attribute("error", str(e))
+                track_simulator_operation("stop", "failure")
+                return False, str(e)
     
     async def get_simulator_status(self, simulator_id: str) -> Dict[str, Any]:
         """

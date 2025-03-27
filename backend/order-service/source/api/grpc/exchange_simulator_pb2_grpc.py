@@ -49,6 +49,11 @@ class ExchangeSimulatorStub(object):
                 request_serializer=main_dot_services_dot_exchange__simulator__pb2.GetOrderStatusRequest.SerializeToString,
                 response_deserializer=main_dot_services_dot_exchange__simulator__pb2.GetOrderStatusResponse.FromString,
                 )
+        self.GetSimulatorStatus = channel.unary_unary(
+                '/exchange.ExchangeSimulator/GetSimulatorStatus',
+                request_serializer=main_dot_services_dot_exchange__simulator__pb2.GetSimulatorStatusRequest.SerializeToString,
+                response_deserializer=main_dot_services_dot_exchange__simulator__pb2.GetSimulatorStatusResponse.FromString,
+                )
 
 
 class ExchangeSimulatorServicer(object):
@@ -103,6 +108,13 @@ class ExchangeSimulatorServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def GetSimulatorStatus(self, request, context):
+        """Add this to your service definition
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_ExchangeSimulatorServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -140,6 +152,11 @@ def add_ExchangeSimulatorServicer_to_server(servicer, server):
                     servicer.GetOrderStatus,
                     request_deserializer=main_dot_services_dot_exchange__simulator__pb2.GetOrderStatusRequest.FromString,
                     response_serializer=main_dot_services_dot_exchange__simulator__pb2.GetOrderStatusResponse.SerializeToString,
+            ),
+            'GetSimulatorStatus': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetSimulatorStatus,
+                    request_deserializer=main_dot_services_dot_exchange__simulator__pb2.GetSimulatorStatusRequest.FromString,
+                    response_serializer=main_dot_services_dot_exchange__simulator__pb2.GetSimulatorStatusResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -267,5 +284,22 @@ class ExchangeSimulator(object):
         return grpc.experimental.unary_unary(request, target, '/exchange.ExchangeSimulator/GetOrderStatus',
             main_dot_services_dot_exchange__simulator__pb2.GetOrderStatusRequest.SerializeToString,
             main_dot_services_dot_exchange__simulator__pb2.GetOrderStatusResponse.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def GetSimulatorStatus(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/exchange.ExchangeSimulator/GetSimulatorStatus',
+            main_dot_services_dot_exchange__simulator__pb2.GetSimulatorStatusRequest.SerializeToString,
+            main_dot_services_dot_exchange__simulator__pb2.GetSimulatorStatusResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)

@@ -84,6 +84,19 @@ class KubernetesConfig(BaseModel):
     in_cluster: bool = Field(default=True)
 
 
+class TracingConfig(BaseModel):
+    """Tracing configuration"""
+    enabled: bool = Field(default=True)
+    exporter_endpoint: str = Field(default="http://jaeger-collector:14268/api/traces")
+    service_name: str = Field(default="session-service")
+
+class MetricsConfig(BaseModel):
+    """Metrics configuration"""
+    enabled: bool = Field(default=True)
+    port: int = Field(default=9090)
+    endpoint: str = Field(default="/metrics")
+
+
 class Config(BaseModel):
     """Main configuration class"""
     environment: str = Field(default="development")
@@ -97,6 +110,8 @@ class Config(BaseModel):
     sse: SSEConfig = Field(default_factory=SSEConfig)
     simulator: SimulatorConfig = Field(default_factory=SimulatorConfig)
     kubernetes: KubernetesConfig = Field(default_factory=KubernetesConfig)
+    tracing: TracingConfig = Field(default_factory=TracingConfig)
+    metrics: MetricsConfig = Field(default_factory=MetricsConfig)
 
     @classmethod
     def from_env(cls) -> 'Config':
@@ -147,7 +162,17 @@ class Config(BaseModel):
                 namespace=os.getenv('KUBERNETES_NAMESPACE', 'default'),
                 pod_name=os.getenv('POD_NAME', os.getenv('HOSTNAME', 'unknown')),
                 in_cluster=os.getenv('K8S_IN_CLUSTER', 'true').lower() == 'true'
-            )
+            ),
+            tracing=TracingConfig(
+                enabled=os.getenv('ENABLE_TRACING', 'true').lower() == 'true',
+                exporter_endpoint=os.getenv('OTEL_EXPORTER_JAEGER_ENDPOINT', 'http://jaeger-collector:14268/api/traces'),
+                service_name=os.getenv('OTEL_SERVICE_NAME', 'session-service')
+            ),
+            metrics=MetricsConfig(
+                enabled=os.getenv('ENABLE_METRICS', 'true').lower() == 'true',
+                port=int(os.getenv('METRICS_PORT', '9090')),
+                endpoint=os.getenv('METRICS_ENDPOINT', '/metrics')
+            ),
         )
 
 

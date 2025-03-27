@@ -9,8 +9,18 @@ import json
 import time
 import uuid
 import asyncpg
+from opentelemetry import trace
 from typing import Dict, List, Any, Optional, Tuple
 
+from source.utils.metrics import (
+    track_db_operation,
+    track_db_error,
+    track_session_operation,
+    track_session_count,
+    track_cleanup_operation,
+    TimedOperation
+)
+from source.utils.tracing import optional_trace_span
 from source.models.session import Session, SessionStatus
 from source.models.simulator import Simulator, SimulatorStatus
 from source.config import config
@@ -26,42 +36,53 @@ class DatabaseManager:
         self.pool = None
         self.db_config = config.db
         self._conn_lock = asyncio.Lock()
+        self.tracer = trace.get_tracer("db_manager")
 
     async def connect(self):
         """Connect to the database"""
-        async with self._conn_lock:
-            if self.pool is not None:
-                return
+        with optional_trace_span(self.tracer, "db_connect") as span:
+            span.set_attribute("db.system", "postgresql")
+            span.set_attribute("db.name", self.db_config.database)
+            span.set_attribute("db.user", self.db_config.user)
+            span.set_attribute("db.host", self.db_config.host)
 
-            max_retries = 5
-            retry_count = 0
-            retry_delay = 1.0
-
-            while retry_count < max_retries:
-                try:
-                    self.pool = await asyncpg.create_pool(
-                        host=self.db_config.host,
-                        port=self.db_config.port,
-                        user=self.db_config.user,
-                        password=self.db_config.password,
-                        database=self.db_config.database,
-                        min_size=self.db_config.min_connections,
-                        max_size=self.db_config.max_connections
-                    )
-
-                    logger.info("Connected to database")
+            async with self._conn_lock:
+                if self.pool is not None:
                     return
 
-                except Exception as e:
-                    retry_count += 1
-                    logger.error(f"Database connection error (attempt {retry_count}/{max_retries}): {e}")
+                max_retries = 5
+                retry_count = 0
+                retry_delay = 1.0
 
-                    if retry_count < max_retries:
-                        await asyncio.sleep(retry_delay)
-                        retry_delay *= 2  # Exponential backoff
-                    else:
-                        logger.error("Maximum database connection retries reached")
-                        raise
+                while retry_count < max_retries:
+                    try:
+                        self.pool = await asyncpg.create_pool(
+                            host=self.db_config.host,
+                            port=self.db_config.port,
+                            user=self.db_config.user,
+                            password=self.db_config.password,
+                            database=self.db_config.database,
+                            min_size=self.db_config.min_connections,
+                            max_size=self.db_config.max_connections
+                        )
+
+                        logger.info("Connected to database")
+                        return
+
+                    except Exception as e:
+                        retry_count += 1
+                        logger.error(f"Database connection error (attempt {retry_count}/{max_retries}): {e}")
+                        span.record_exception(e)
+                        span.set_attribute("retry_count", retry_count)
+
+                        if retry_count < max_retries:
+                            await asyncio.sleep(retry_delay)
+                            retry_delay *= 2  # Exponential backoff
+                        else:
+                            logger.error("Maximum database connection retries reached")
+                            span.set_attribute("success", False)
+                            track_db_error("connect")
+                            raise
 
     async def cleanup_inactive_simulators(self, inactivity_timeout: int) -> int:
         """
@@ -73,26 +94,35 @@ class DatabaseManager:
         Returns:
             Number of simulators marked as stopped
         """
-        if not self.pool:
-            await self.connect()
+        with optional_trace_span(self.tracer, "db_cleanup_inactive_simulators") as span:
+            span.set_attribute("inactivity_timeout", inactivity_timeout)
 
-        try:
-            async with self.pool.acquire() as conn:
-                # Mark simulators as STOPPED if they've been inactive
-                result = await conn.execute('''
-                    UPDATE simulator.instances
-                    SET status = $1
-                    WHERE status != $1
-                    AND last_active < NOW() - INTERVAL '1 second' * $2
-                ''', SimulatorStatus.STOPPED.value, inactivity_timeout)
+            if not self.pool:
+                await self.connect()
 
-                count = int(result.split()[-1]) if result else 0
-                if count > 0:
-                    logger.info(f"Marked {count} inactive simulators as STOPPED")
-                return count
-        except Exception as e:
-            logger.error(f"Error cleaning up inactive simulators: {e}")
-            return 0
+            try:
+                with TimedOperation(track_db_operation, "cleanup_inactive_simulators"):
+                    async with self.pool.acquire() as conn:
+                        # Mark simulators as STOPPED if they've been inactive
+                        result = await conn.execute('''
+                            UPDATE simulator.instances
+                            SET status = $1
+                            WHERE status != $1
+                            AND last_active < NOW() - INTERVAL '1 second' * $2
+                        ''', SimulatorStatus.STOPPED.value, inactivity_timeout)
+
+                        count = int(result.split()[-1]) if result else 0
+                        span.set_attribute("simulators_cleaned", count)
+
+                        if count > 0:
+                            logger.info(f"Marked {count} inactive simulators as STOPPED")
+                            track_cleanup_operation("simulators", count)
+                        return count
+            except Exception as e:
+                logger.error(f"Error cleaning up inactive simulators: {e}")
+                span.record_exception(e)
+                track_db_error("cleanup_inactive_simulators")
+                return 0
 
     async def get_active_user_simulators(self, user_id: str) -> List[Simulator]:
         """
@@ -104,36 +134,39 @@ class DatabaseManager:
         Returns:
             List of active simulators
         """
-        if not self.pool:
-            await self.connect()
+        with optional_trace_span(self.tracer, "db_get_active_user_simulators") as span:
+            span.set_attribute("user_id", user_id)
 
-        try:
-            async with self.pool.acquire() as conn:
-                rows = await conn.fetch('''
-                    SELECT * FROM simulator.instances
-                    WHERE user_id = $1
-                    AND status != $2
-                ''', user_id, SimulatorStatus.STOPPED.value)
+            if not self.pool:
+                await self.connect()
 
-                simulators = []
-                for row in rows:
-                    simulator = Simulator(
-                        simulator_id=row['simulator_id'],
-                        session_id=row['session_id'],
-                        user_id=row['user_id'],
-                        status=SimulatorStatus(row['status']),
-                        endpoint=row['endpoint'],
-                        created_at=row['created_at'].timestamp(),
-                        last_active=row['last_active'].timestamp(),
-                        initial_symbols=row['initial_symbols'] or [],
-                        initial_cash=row['initial_cash']
-                    )
-                    simulators.append(simulator)
+            try:
+                async with self.pool.acquire() as conn:
+                    rows = await conn.fetch('''
+                        SELECT * FROM simulator.instances
+                        WHERE user_id = $1
+                        AND status != $2
+                    ''', user_id, SimulatorStatus.STOPPED.value)
 
-                return simulators
-        except Exception as e:
-            logger.error(f"Error getting active user simulators: {e}")
-            return []
+                    simulators = []
+                    for row in rows:
+                        simulator = Simulator(
+                            simulator_id=row['simulator_id'],
+                            session_id=row['session_id'],
+                            user_id=row['user_id'],
+                            status=SimulatorStatus(row['status']),
+                            endpoint=row['endpoint'],
+                            created_at=row['created_at'].timestamp(),
+                            last_active=row['last_active'].timestamp(),
+                            initial_symbols=row['initial_symbols'] or [],
+                            initial_cash=row['initial_cash']
+                        )
+                        simulators.append(simulator)
+
+                    return simulators
+            except Exception as e:
+                logger.error(f"Error getting active user simulators: {e}")
+                return []
 
     async def get_simulator_by_session(self, session_id: str) -> Optional[Simulator]:
         """
@@ -145,33 +178,36 @@ class DatabaseManager:
         Returns:
             Simulator or None
         """
-        if not self.pool:
-            await self.connect()
+        with optional_trace_span(self.tracer, "db_simulator_by_session") as span:
+            span.set_attribute("session_id", session_id)
 
-        try:
-            async with self.pool.acquire() as conn:
-                row = await conn.fetchrow('''
-                    SELECT * FROM simulator.instances
-                    WHERE session_id = $1
-                ''', session_id)
+            if not self.pool:
+                await self.connect()
 
-                if not row:
-                    return None
+            try:
+                async with self.pool.acquire() as conn:
+                    row = await conn.fetchrow('''
+                        SELECT * FROM simulator.instances
+                        WHERE session_id = $1
+                    ''', session_id)
 
-                return Simulator(
-                    simulator_id=row['simulator_id'],
-                    session_id=row['session_id'],
-                    user_id=row['user_id'],
-                    status=SimulatorStatus(row['status']),
-                    endpoint=row['endpoint'],
-                    created_at=row['created_at'].timestamp(),
-                    last_active=row['last_active'].timestamp(),
-                    initial_symbols=row['initial_symbols'] or [],
-                    initial_cash=row['initial_cash']
-                )
-        except Exception as e:
-            logger.error(f"Error getting simulator by session: {e}")
-            return None
+                    if not row:
+                        return None
+
+                    return Simulator(
+                        simulator_id=row['simulator_id'],
+                        session_id=row['session_id'],
+                        user_id=row['user_id'],
+                        status=SimulatorStatus(row['status']),
+                        endpoint=row['endpoint'],
+                        created_at=row['created_at'].timestamp(),
+                        last_active=row['last_active'].timestamp(),
+                        initial_symbols=row['initial_symbols'] or [],
+                        initial_cash=row['initial_cash']
+                    )
+            except Exception as e:
+                logger.error(f"Error getting simulator by session: {e}")
+                return None
 
     async def cleanup_expired_sessions(self) -> int:
         """
@@ -180,18 +216,20 @@ class DatabaseManager:
         Returns:
             Number of sessions deleted
         """
-        if not self.pool:
-            await self.connect()
+        with optional_trace_span(self.tracer, "db_cleanup_expired_sessions") as span:
 
-        try:
-            async with self.pool.acquire() as conn:
-                # Call the database function
-                result = await conn.fetchval("SELECT session.cleanup_expired_sessions()")
-                logger.info(f"Cleaned up {result} expired sessions")
-                return result
-        except Exception as e:
-            logger.error(f"Error cleaning up expired sessions: {e}")
-            return 0
+            if not self.pool:
+                await self.connect()
+
+            try:
+                async with self.pool.acquire() as conn:
+                    # Call the database function
+                    result = await conn.fetchval("SELECT session.cleanup_expired_sessions()")
+                    logger.info(f"Cleaned up {result} expired sessions")
+                    return result
+            except Exception as e:
+                logger.error(f"Error cleaning up expired sessions: {e}")
+                return 0
 
     async def close(self):
         """Close database connections"""
@@ -224,61 +262,124 @@ class DatabaseManager:
         Returns:
             Tuple of (session_id, is_new)
         """
+        with optional_trace_span(self.tracer, "db_create_session") as span:
+            span.set_attribute("user_id", user_id)
+            span.set_attribute("ip_address", ip_address)
+
+            if not self.pool:
+                await self.connect()
+
+            try:
+                with TimedOperation(track_db_operation, "create_session"):
+                    # First check if user has an active session
+                    async with self.pool.acquire() as conn:
+                        active_session = await conn.fetchrow('''
+                            SELECT session_id 
+                            FROM session.active_sessions 
+                            WHERE user_id = $1 AND expires_at > NOW()
+                            LIMIT 1
+                        ''', user_id)
+
+                        if active_session:
+                            # Update existing session activity
+                            session_id = active_session['session_id']
+                            await self.update_session_activity(session_id)
+                            span.set_attribute("session_id", session_id)
+                            span.set_attribute("is_new", False)
+                            track_session_operation("reuse_existing")
+                            return session_id, False
+
+                        # Create new session
+                        session_id = str(uuid.uuid4())
+                        current_time = time.time()
+                        expires_at = current_time + config.session.timeout_seconds
+
+                        # Insert session record
+                        await conn.execute('''
+                            INSERT INTO session.active_sessions 
+                            (session_id, user_id, status, created_at, last_active, expires_at)
+                            VALUES ($1, $2, $3, to_timestamp($4), to_timestamp($5), to_timestamp($6))
+                        ''',
+                                           session_id,
+                                           user_id,
+                                           SessionStatus.ACTIVE.value,
+                                           current_time,
+                                           current_time,
+                                           expires_at
+                                           )
+
+                        # Initialize metadata with pod information
+                        metadata = {
+                            'pod_name': config.kubernetes.pod_name,
+                            'ip_address': ip_address,
+                            'created_at': current_time,
+                            'updated_at': current_time
+                        }
+
+                        # Insert metadata
+                        await conn.execute('''
+                            INSERT INTO session.session_metadata
+                            (session_id, metadata)
+                            VALUES ($1, $2)
+                        ''', session_id, json.dumps(metadata))
+
+                        span.set_attribute("session_id", session_id)
+                        span.set_attribute("is_new", True)
+                        track_session_operation("create")
+
+                        # Update active session count
+                        session_count = await self._get_active_session_count(conn)
+                        track_session_count(session_count)
+
+                        return session_id, True
+
+            except Exception as e:
+                logger.error(f"Error creating session: {e}")
+                span.record_exception(e)
+                track_db_error("create_session")
+                raise
+
+    async def get_active_session_count(self) -> int:
+        """Get count of active sessions"""
         if not self.pool:
             await self.connect()
 
         try:
-            # First check if user has an active session
             async with self.pool.acquire() as conn:
-                active_session = await conn.fetchrow('''
-                    SELECT session_id 
-                    FROM session.active_sessions 
-                    WHERE user_id = $1 AND expires_at > NOW()
-                    LIMIT 1
-                ''', user_id)
-
-                if active_session:
-                    # Update existing session activity
-                    session_id = active_session['session_id']
-                    await self.update_session_activity(session_id)
-                    return session_id, False
-
-                # Create new session
-                session_id = str(uuid.uuid4())
-                current_time = time.time()
-                expires_at = current_time + config.session.timeout_seconds
-
-                # Insert session record
-                await conn.execute('''
-                    INSERT INTO session.active_sessions 
-                    (session_id, user_id, status, created_at, last_active, expires_at)
-                    VALUES ($1, $2, $3, to_timestamp($4), to_timestamp($5), to_timestamp($6))
-                ''',
-                                   session_id,
-                                   user_id,
-                                   SessionStatus.ACTIVE.value,
-                                   current_time,
-                                   current_time,
-                                   expires_at
-                                   )
-
-                # Initialize metadata with pod information
-                metadata = {
-                    'pod_name': config.kubernetes.pod_name,
-                    'ip_address': ip_address,
-                    'created_at': current_time,
-                    'updated_at': current_time
-                }
-
-                # Insert metadata
-                await conn.execute('''
-                    INSERT INTO session.session_metadata
-                    (session_id, metadata)
-                    VALUES ($1, $2)
-                ''', session_id, json.dumps(metadata))
-
-                return session_id, True
-
+                count = await conn.fetchval('''
+                    SELECT COUNT(*) 
+                    FROM session.active_sessions
+                    WHERE expires_at > NOW()
+                ''')
+                return count or 0
         except Exception as e:
-            logger.error(f"Error creating session: {e}")
-            raise
+            logger.error(f"Error getting active session count: {e}")
+            return 0
+
+    async def get_active_simulator_count(self) -> int:
+        """Get count of active simulators"""
+        if not self.pool:
+            await self.connect()
+
+        try:
+            async with self.pool.acquire() as conn:
+                count = await conn.fetchval('''
+                    SELECT COUNT(*) 
+                    FROM simulator.instances
+                    WHERE status NOT IN ($1, $2)
+                ''', SimulatorStatus.STOPPED.value, SimulatorStatus.ERROR.value)
+                return count or 0
+        except Exception as e:
+            logger.error(f"Error getting active simulator count: {e}")
+            return 0
+
+    async def _get_active_session_count(self, conn):
+        """Helper to get active session count for metrics"""
+        try:
+            count = await conn.fetchval('''
+                SELECT COUNT(*) FROM session.active_sessions
+                WHERE expires_at > NOW()
+            ''')
+            return count or 0
+        except Exception:
+            return 0

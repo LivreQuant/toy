@@ -5,8 +5,9 @@ Manages user sessions, authentication, and coordinates with simulator manager.
 import logging
 import time
 import asyncio
-import uuid
+import json
 from typing import Dict, Any, Optional, Tuple, List
+from opentelemetry import trace
 
 from source.models.session import Session, SessionStatus, SimulatorStatus
 from source.db.session_store import DatabaseManager
@@ -14,6 +15,12 @@ from source.api.clients.auth_client import AuthClient
 from source.api.clients.exchange_client import ExchangeClient
 from source.core.simulator_manager import SimulatorManager
 from source.config import config
+
+from source.utils.metrics import (
+    track_session_count, track_session_operation, track_session_ended,
+    track_simulator_count, track_simulator_operation, track_connection_quality
+)
+from source.utils.tracing import optional_trace_span
 
 logger = logging.getLogger('session_manager')
 
@@ -47,7 +54,10 @@ class SessionManager:
         
         # Background tasks
         self.cleanup_task = None
-    
+
+        # Create tracer
+        self.tracer = trace.get_tracer("session_manager")
+
     async def start_cleanup_task(self):
         """Start background cleanup task"""
         self.cleanup_task = asyncio.create_task(self._cleanup_loop())
@@ -91,44 +101,67 @@ class SessionManager:
         Returns:
             Tuple of (session_id, is_new)
         """
-        # Validate token
-        validation = await self.auth_client.validate_token(token)
-        
-        if not validation.get('valid', False):
-            logger.warning(f"Invalid token for user {user_id}")
-            return None, False
-        
-        # Make sure user in token matches provided user_id
-        token_user_id = validation.get('user_id')
-        if token_user_id != user_id:
-            logger.warning(f"Token user_id {token_user_id} doesn't match provided user_id {user_id}")
-            return None, False
-        
-        # Create session in database
-        try:
-            session_id, is_new = await self.db_manager.create_session(user_id, ip_address)
-            
-            if is_new:
-                # Set additional metadata
-                await self.db_manager.update_session_metadata(session_id, {
-                    'pod_name': self.pod_name,
-                    'ip_address': ip_address
-                })
-                
-                # Publish session creation event if Redis is available
-                if self.redis:
-                    await self.redis.publish('session_events', json.dumps({
-                        'type': 'session_created',
-                        'session_id': session_id,
-                        'user_id': user_id,
+        with optional_trace_span(self.tracer, "create_session") as span:
+            span.set_attribute("user_id", user_id)
+            span.set_attribute("ip_address", ip_address)
+
+            # Validate token
+            validation = await self.auth_client.validate_token(token)
+
+            if not validation.get('valid', False):
+                logger.warning(f"Invalid token for user {user_id}")
+                span.set_attribute("token_valid", False)
+                return None, False
+
+            # Make sure user in token matches provided user_id
+            token_user_id = validation.get('user_id')
+            span.set_attribute("token_user_id", token_user_id)
+
+            if token_user_id != user_id:
+                logger.warning(f"Token user_id {token_user_id} doesn't match provided user_id {user_id}")
+                span.set_attribute("user_id_match", False)
+                span.set_attribute("error", "User ID mismatch")
+                return None, False
+
+            # Create session in database
+            try:
+                session_id, is_new = await self.db_manager.create_session(user_id, ip_address)
+
+                if is_new:
+                    # Set additional metadata
+                    await self.db_manager.update_session_metadata(session_id, {
                         'pod_name': self.pod_name,
-                        'timestamp': time.time()
-                    }))
-            
-            return session_id, is_new
-        except Exception as e:
-            logger.error(f"Error creating session: {e}")
-            return None, False
+                        'ip_address': ip_address
+                    })
+
+                    # Track session creation
+                    track_session_operation("create_new")
+
+                    # Publish session creation event if Redis is available
+                    if self.redis:
+                        await self.redis.publish('session_events', json.dumps({
+                            'type': 'session_created',
+                            'session_id': session_id,
+                            'user_id': user_id,
+                            'pod_name': self.pod_name,
+                            'timestamp': time.time()
+                        }))
+                else:
+                    # Track session reuse
+                    track_session_operation("create_existing")
+
+                span.set_attribute("session_id", session_id)
+                span.set_attribute("is_new", is_new)
+
+                # Update active session count metric
+                active_sessions = await self.db_manager.get_active_session_count()
+                track_session_count(active_sessions)
+
+                return session_id, is_new
+            except Exception as e:
+                logger.error(f"Error creating session: {e}")
+                span.record_exception(e)
+                return None, False
     
     async def get_session(self, session_id: str) -> Optional[Dict[str, Any]]:
         """
@@ -206,40 +239,63 @@ class SessionManager:
         Returns:
             Tuple of (success, error_message)
         """
-        # Validate session
-        user_id = await self.validate_session(session_id, token)
-        
-        if not user_id:
-            return False, "Invalid session or token"
-        
-        try:
-            # Get current session details
-            session = await self.db_manager.get_session(session_id)
-            
-            # Stop simulator if active
-            if session.metadata.simulator_id:
-                await self.simulator_manager.stop_simulator(session.metadata.simulator_id)
-            
-            # End session in database
-            success = await self.db_manager.end_session(session_id)
-            
-            if not success:
-                return False, "Failed to end session"
-            
-            # Publish session end event if Redis is available
-            if self.redis:
-                await self.redis.publish('session_events', json.dumps({
-                    'type': 'session_ended',
-                    'session_id': session_id,
-                    'user_id': user_id,
-                    'pod_name': self.pod_name,
-                    'timestamp': time.time()
-                }))
-            
-            return True, ""
-        except Exception as e:
-            logger.error(f"Error ending session: {e}")
-            return False, str(e)
+        with optional_trace_span(self.tracer, "end_session") as span:
+            span.set_attribute("session_id", session_id)
+
+            # Validate session
+            user_id = await self.validate_session(session_id, token)
+            span.set_attribute("user_id", user_id)
+            span.set_attribute("session_valid", user_id is not None)
+
+            if not user_id:
+                span.set_attribute("error", "Invalid session or token")
+                return False, "Invalid session or token"
+
+            try:
+                # Get current session details
+                session = await self.db_manager.get_session(session_id)
+                session_created_at = session.created_at
+
+                # Stop simulator if active
+                if session.metadata.simulator_id:
+                    simulator_id = session.metadata.simulator_id
+                    span.set_attribute("simulator_id", simulator_id)
+
+                    await self.simulator_manager.stop_simulator(session.metadata.simulator_id)
+                    track_simulator_operation("stop_on_session_end")
+
+                # End session in database
+                success = await self.db_manager.end_session(session_id)
+
+                if not success:
+                    span.set_attribute("error", "Failed to end session")
+                    return False, "Failed to end session"
+
+                # Calculate session lifetime and record metric
+                lifetime = time.time() - session_created_at
+                track_session_ended(lifetime, "completed")
+                track_session_operation("end")
+
+                # Update active session count
+                active_sessions = await self.db_manager.get_active_session_count()
+                track_session_count(active_sessions)
+
+                # Publish session end event if Redis is available
+                if self.redis:
+                    await self.redis.publish('session_events', json.dumps({
+                        'type': 'session_ended',
+                        'session_id': session_id,
+                        'user_id': user_id,
+                        'pod_name': self.pod_name,
+                        'timestamp': time.time()
+                    }))
+
+                return True, ""
+            except Exception as e:
+                logger.error(f"Error ending session: {e}")
+                span.record_exception(e)
+                span.set_attribute("error", str(e))
+                return False, str(e)
     
     async def update_connection_quality(
         self, 
@@ -258,35 +314,52 @@ class SessionManager:
         Returns:
             Tuple of (quality, reconnect_recommended)
         """
-        # Validate session
-        user_id = await self.validate_session(session_id, token)
-        
-        if not user_id:
-            return "unknown", False
-        
-        try:
-            # Get session details
-            session = await self.db_manager.get_session(session_id)
-            
-            # Update metrics
-            quality, reconnect_recommended = session.update_connection_quality(
-                metrics.get('latency_ms', 0),
-                metrics.get('missed_heartbeats', 0),
-                metrics.get('connection_type', 'websocket')
-            )
-            
-            # Update database
-            await self.db_manager.update_session_metadata(session_id, {
-                'connection_quality': quality,
-                'heartbeat_latency': metrics.get('latency_ms'),
-                'missed_heartbeats': metrics.get('missed_heartbeats')
-            })
-            
-            return quality, reconnect_recommended
-        except Exception as e:
-            logger.error(f"Error updating connection quality: {e}")
-            return "unknown", False
-    
+        with optional_trace_span(self.tracer, "update_connection_quality") as span:
+            span.set_attribute("session_id", session_id)
+            span.set_attribute("latency_ms", metrics.get('latency_ms', 0))
+            span.set_attribute("missed_heartbeats", metrics.get('missed_heartbeats', 0))
+            span.set_attribute("connection_type", metrics.get('connection_type', 'websocket'))
+
+            # Validate session
+            user_id = await self.validate_session(session_id, token)
+            span.set_attribute("user_id", user_id)
+            span.set_attribute("session_valid", user_id is not None)
+
+            if not user_id:
+                span.set_attribute("error", "Invalid session or token")
+                return "unknown", False
+
+            try:
+                # Get session details
+                session = await self.db_manager.get_session(session_id)
+
+                # Update metrics
+                quality, reconnect_recommended = session.update_connection_quality(
+                    metrics.get('latency_ms', 0),
+                    metrics.get('missed_heartbeats', 0),
+                    metrics.get('connection_type', 'websocket')
+                )
+
+                # Update database
+                await self.db_manager.update_session_metadata(session_id, {
+                    'connection_quality': quality,
+                    'heartbeat_latency': metrics.get('latency_ms'),
+                    'missed_heartbeats': metrics.get('missed_heartbeats')
+                })
+
+                # Track connection quality metric
+                track_connection_quality(quality)
+
+                span.set_attribute("quality", quality)
+                span.set_attribute("reconnect_recommended", reconnect_recommended)
+
+                return quality, reconnect_recommended
+            except Exception as e:
+                logger.error(f"Error updating connection quality: {e}")
+                span.record_exception(e)
+                span.set_attribute("error", str(e))
+                return "unknown", False
+
     async def start_simulator(self, session_id: str, token: str) -> Tuple[Optional[str], Optional[str], str]:
         """
         Start a simulator for a session

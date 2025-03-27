@@ -7,13 +7,23 @@ import asyncio
 import time
 import grpc
 from typing import Dict, List, Any, Optional, AsyncGenerator
+from opentelemetry import trace
 
 from source.utils.circuit_breaker import CircuitBreaker, CircuitOpenError
 from source.config import config
 
+from source.utils.metrics import track_external_request, track_circuit_breaker_state, track_circuit_breaker_failure
+from source.utils.tracing import optional_trace_span
+
 # These would be generated from your proto files
-import source.api.grpc.exchange_simulator_pb2
-import source.api.grpc.exchange_simulator_pb2_grpc
+from source.api.grpc.exchange_simulator_pb2 import (
+    StartSimulatorRequest,
+    StopSimulatorRequest,
+    StreamRequest,
+    HeartbeatRequest,
+    GetSimulatorStatusRequest
+)
+from source.api.grpc.exchange_simulator_pb2_grpc import ExchangeSimulatorStub
 
 logger = logging.getLogger('exchange_client')
 
@@ -32,7 +42,18 @@ class ExchangeClient:
             failure_threshold=3,
             reset_timeout_ms=30000  # 30 seconds
         )
-    
+
+        # Register callback for circuit breaker state changes
+        self.circuit_breaker.on_state_change(self._on_circuit_state_change)
+
+        # Create tracer
+        self.tracer = trace.get_tracer("exchange_client")
+
+    def _on_circuit_state_change(self, name, old_state, new_state, info):
+        """Handle circuit breaker state changes"""
+        logger.info(f"Circuit breaker '{name}' state change: {old_state.value} -> {new_state.value}")
+        track_circuit_breaker_state("exchange_service", new_state.value)
+
     async def get_channel(self, endpoint: str):
         """Get or create a gRPC channel to the endpoint"""
         async with self._conn_lock:
@@ -51,7 +72,7 @@ class ExchangeClient:
             
             # Create channel
             channel = grpc.aio.insecure_channel(endpoint, options=options)
-            stub = exchange_simulator_pb2_grpc.ExchangeSimulatorStub(channel)
+            stub = ExchangeSimulatorStub(channel)
             
             # Store for reuse
             self.channels[endpoint] = channel
@@ -92,19 +113,30 @@ class ExchangeClient:
         Returns:
             Dict with start results
         """
-        try:
-            # Execute request with circuit breaker
-            return await self.circuit_breaker.execute(
-                self._start_simulator_request, 
-                endpoint, session_id, user_id, initial_symbols, initial_cash
-            )
-        except CircuitOpenError as e:
-            logger.warning(f"Circuit open for exchange service: {e}")
-            return {'success': False, 'error': 'Exchange service unavailable'}
-        except Exception as e:
-            logger.error(f"Error starting simulator: {e}")
-            return {'success': False, 'error': str(e)}
-    
+        with optional_trace_span(self.tracer, "start_simulator") as span:
+            span.set_attribute("endpoint", endpoint)
+            span.set_attribute("session_id", session_id)
+            span.set_attribute("user_id", user_id)
+            span.set_attribute("initial_symbols_count", len(initial_symbols or []))
+            span.set_attribute("initial_cash", initial_cash)
+
+            try:
+                # Execute request with circuit breaker
+                return await self.circuit_breaker.execute(
+                    self._start_simulator_request,
+                    endpoint, session_id, user_id, initial_symbols, initial_cash
+                )
+            except CircuitOpenError as e:
+                logger.warning(f"Circuit open for exchange service: {e}")
+                span.set_attribute("error", "Exchange service unavailable")
+                span.set_attribute("circuit_open", True)
+                return {'success': False, 'error': 'Exchange service unavailable'}
+            except Exception as e:
+                logger.error(f"Error starting simulator: {e}")
+                span.record_exception(e)
+                span.set_attribute("error", str(e))
+                return {'success': False, 'error': str(e)}
+
     async def _start_simulator_request(
         self, 
         endpoint: str,
@@ -116,7 +148,7 @@ class ExchangeClient:
         """Make the actual start simulator request"""
         _, stub = await self.get_channel(endpoint)
         
-        request = exchange_simulator_pb2.StartSimulatorRequest(
+        request = StartSimulatorRequest(
             session_id=session_id,
             user_id=user_id,
             initial_symbols=initial_symbols or [],
@@ -162,7 +194,7 @@ class ExchangeClient:
         """Make the actual stop simulator request"""
         _, stub = await self.get_channel(endpoint)
         
-        request = exchange_simulator_pb2.StopSimulatorRequest(
+        request = StopSimulatorRequest(
             session_id=session_id
         )
         
@@ -205,7 +237,7 @@ class ExchangeClient:
         """Make the actual heartbeat request"""
         _, stub = await self.get_channel(endpoint)
 
-        request = exchange_simulator_pb2.HeartbeatRequest(
+        request = HeartbeatRequest(
             session_id=session_id,
             client_id=client_id,
             client_timestamp=int(time.time() * 1000)
@@ -243,7 +275,7 @@ class ExchangeClient:
         """
         _, stub = await self.get_channel(endpoint)
 
-        request = exchange_simulator_pb2.StreamDataRequest(
+        request = StreamRequest(
             session_id=session_id,
             client_id=client_id,
             symbols=symbols or []
@@ -346,7 +378,7 @@ class ExchangeClient:
         """Make the actual simulator status request"""
         _, stub = await self.get_channel(endpoint)
 
-        request = exchange_simulator_pb2.GetSimulatorStatusRequest(
+        request = GetSimulatorStatusRequest(
             session_id=session_id
         )
 

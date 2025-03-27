@@ -90,7 +90,14 @@ class SessionServer:
         self.app['websocket_manager'] = self.websocket_manager
         self.app['sse_adapter'] = self.sse_adapter
         self.app['redis'] = self.redis
-        
+
+        # Add middleware for metrics and tracing
+        from source.api.rest.handlers import metrics_middleware
+        from source.utils.middleware import tracing_middleware
+
+        self.app.middlewares.append(metrics_middleware)
+        self.app.middlewares.append(tracing_middleware)
+
         # Set up routes
         setup_rest_routes(self.app)
         
@@ -103,6 +110,8 @@ class SessionServer:
         # Add health check endpoints
         self.app.router.add_get('/health', self.health_check)
         self.app.router.add_get('/readiness', self.readiness_check)
+        self.app.router.add_get('/metrics', self.metrics_endpoint)  # Expose Prometheus metrics
+
         
         # Set up CORS
         self._setup_cors()
@@ -114,7 +123,18 @@ class SessionServer:
         
         self.initialized = True
         logger.info("Server initialization complete")
-    
+
+    # source/api/server.py (add to the class)
+    async def metrics_endpoint(self, request):
+        """Prometheus metrics endpoint"""
+        from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+
+        metrics_data = generate_latest()
+        return web.Response(
+            body=metrics_data,
+            content_type=CONTENT_TYPE_LATEST
+        )
+
     async def _init_redis(self) -> aioredis.Redis:
         """Initialize Redis connection"""
         redis_client = aioredis.Redis(

@@ -23,6 +23,9 @@ service ExchangeSimulator {
   
   // Get order status
   rpc GetOrderStatus(GetOrderStatusRequest) returns (GetOrderStatusResponse);
+
+  // Add this to your service definition
+  rpc GetSimulatorStatus(GetSimulatorStatusRequest) returns (GetSimulatorStatusResponse);
 }
 
 message StartSimulatorRequest {
@@ -153,5 +156,16 @@ message GetOrderStatusResponse {
   Status status = 1;
   double filled_quantity = 2;
   double avg_price = 3;
+  string error_message = 4;
+}
+
+message GetSimulatorStatusRequest {
+  string session_id = 1;
+}
+
+message GetSimulatorStatusResponse {
+  string status = 1;
+  string simulator_id = 2;
+  int64 uptime_seconds = 3;
   string error_message = 4;
 }

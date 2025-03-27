@@ -71,6 +71,8 @@ spec:
           value: "6831"
         - name: OTEL_SERVICE_NAME
           value: "session-manager"
+        - name: ENABLE_TRACING
+          value: "true"
         resources:
           requests:
             memory: "256Mi"

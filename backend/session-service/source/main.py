@@ -9,9 +9,11 @@ import signal
 import sys
 import os
 
-from source.config import Config
+from source.config import config
 from source.api.server import SessionServer
 from source.utils.logging import setup_logging
+from source.utils.tracing import setup_tracing
+from source.utils.metrics import setup_metrics
 
 logger = logging.getLogger('session_service')
 
@@ -22,6 +24,16 @@ async def main():
     setup_logging()
 
     logger.info("Starting session service")
+
+    # Initialize tracing
+    if config.tracing.enabled:
+        logger.info("Initializing distributed tracing")
+        setup_tracing()
+
+    # Initialize metrics
+    if config.metrics.enabled:
+        logger.info("Initializing metrics collection")
+        setup_metrics(config.metrics.port)
 
     # Create server instance
     server = SessionServer()
