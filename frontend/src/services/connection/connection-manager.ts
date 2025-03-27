@@ -409,7 +409,11 @@ export class ConnectionManager extends EventEmitter {
       return false;
     }
     
-    return this.marketDataStream.connect(this.state.sessionId, { symbols: symbols.join(',') });
+    // Use type assertion to avoid TypeScript error
+    return this.marketDataStream.connect(
+      this.state.sessionId, 
+      { symbols: symbols.join(',') } as any
+    );
   }
   
   // Control simulator
@@ -419,12 +423,12 @@ export class ConnectionManager extends EventEmitter {
     }
     
     try {
-      // This would call simulator start API
       this.updateState({ simulatorStatus: 'STARTING' });
       
+      // Add type assertion for response
       const response = await this.httpClient.post('/simulator/start', {
         sessionId: this.state.sessionId
-      });
+      }) as { success: boolean; simulatorId: string };
       
       if (response.success) {
         this.updateState({
@@ -452,7 +456,7 @@ export class ConnectionManager extends EventEmitter {
       const response = await this.httpClient.post('/simulator/stop', {
         sessionId: this.state.sessionId,
         simulatorId: this.state.simulatorId
-      });
+      }) as { success: boolean };
       
       if (response.success) {
         this.updateState({

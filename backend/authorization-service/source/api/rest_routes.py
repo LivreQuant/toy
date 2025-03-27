@@ -7,6 +7,8 @@ import time
 from aiohttp import web
 from opentelemetry import trace
 
+from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+
 from source.utils.tracing import optional_trace_span
 
 logger = logging.getLogger('rest_api')
@@ -24,6 +26,9 @@ def setup_rest_app(auth_manager):
     app.router.add_get('/health', handle_health_check)
     app.router.add_get('/readiness', handle_readiness_check(auth_manager))
 
+    # Add this new route for metrics
+    app.router.add_get('/metrics', handle_metrics)
+
     # Set up CORS
     cors = aiohttp_cors.setup(app, defaults={
         "*": aiohttp_cors.ResourceOptions(
@@ -40,6 +45,13 @@ def setup_rest_app(auth_manager):
 
     return app
 
+# Then add this new handler function:
+async def handle_metrics(request):
+    """Expose Prometheus metrics"""
+    return web.Response(
+        body=generate_latest(),
+        content_type=CONTENT_TYPE_LATEST
+    )
 
 def handle_login(auth_manager):
     """Login route handler"""
@@ -288,6 +300,12 @@ async def handle_health_check(request):
     with optional_trace_span(tracer, "health_check") as span:
         span.set_attribute("http.method", "GET")
         span.set_attribute("http.route", "/health")
+        
+        # Check if monitoring services are properly configured
+        monitoring_status = {
+            "metrics": os.getenv('METRICS_PORT', '9090').isdigit(),  # Check if metrics port is configured
+            "tracing": os.getenv('ENABLE_TRACING', 'true').lower() == 'true'
+        }
         
         return web.json_response({
             'status': 'UP',

@@ -7,8 +7,6 @@ import signal
 import sys
 import traceback
 from aiohttp import web
-import threading
-from prometheus_client import start_http_server
 
 from source.core.auth_manager import AuthManager
 from source.db.db_manager import DatabaseManager
@@ -48,23 +46,6 @@ def setup_logging():
 
     return logging.getLogger('auth_service')
 
-
-# Add metrics setup function
-def setup_metrics():
-    """Start Prometheus metrics server"""
-    metrics_port = int(os.getenv('METRICS_PORT', '9090'))
-    try:
-        def _start_metrics_server():
-            start_http_server(metrics_port)
-        
-        metrics_thread = threading.Thread(
-            target=_start_metrics_server, 
-            daemon=True
-        )
-        metrics_thread.start()
-        logger.info(f"Prometheus metrics server started on port {metrics_port}")
-    except Exception as e:
-        logger.error(f"Failed to start metrics server: {e}")
 
 # Configure logger
 logger = setup_logging()

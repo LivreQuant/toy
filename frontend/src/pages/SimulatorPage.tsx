@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useConnection } from '../contexts/ConnectionContext';
 import MarketData from '../components/Simulator/MarketData';
 import LoadingScreen from '../components/Common/LoadingScreen';
+import './SimulatorPage.css';
 
 const SimulatorPage: React.FC = () => {
   const { 
@@ -106,100 +107,6 @@ const SimulatorPage: React.FC = () => {
           </div>
         </div>
       </div>
-      
-      <style jsx>{`
-        .simulator-page {
-          padding: 20px;
-          max-width: 1400px;
-          margin: 0 auto;
-        }
-        
-        .simulator-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 20px;
-        }
-        
-        .control-button {
-          padding: 10px 20px;
-          border: none;
-          border-radius: 4px;
-          font-weight: bold;
-          cursor: pointer;
-          transition: background-color 0.2s;
-        }
-        
-        .start-button {
-          background-color: #2ecc71;
-          color: white;
-        }
-        
-        .start-button:hover:not([disabled]) {
-          background-color: #27ae60;
-        }
-        
-        .stop-button {
-          background-color: #e74c3c;
-          color: white;
-        }
-        
-        .stop-button:hover:not([disabled]) {
-          background-color: #c0392b;
-        }
-        
-        .control-button[disabled] {
-          opacity: 0.5;
-          cursor: not-allowed;
-        }
-        
-        .simulator-content {
-          display: grid;
-          grid-template-columns: 2fr 1fr;
-          gap: 20px;
-        }
-        
-        .order-entry-container {
-          background-color: white;
-          border-radius: 8px;
-          box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-          padding: 20px;
-        }
-        
-        .order-entry-title {
-          margin-top: 0;
-          margin-bottom: 15px;
-          font-size: 1.5rem;
-          color: #333;
-          border-bottom: 1px solid #eee;
-          padding-bottom: 10px;
-        }
-        
-        .no-symbol-selected {
-          padding: 30px 20px;
-          text-align: center;
-          color: #666;
-          background-color: #f9f9f9;
-          border-radius: 6px;
-          border: 1px dashed #ddd;
-        }
-        
-        .order-form-placeholder {
-          padding: 20px;
-          background-color: #f8f9fa;
-          border: 1px dashed #ccc;
-          border-radius: 5px;
-          text-align: center;
-          color: #666;
-          margin-top: 20px;
-        }
-        
-        @media (max-width: 900px) {
-          .simulator-content {
-            grid-template-columns: 1fr;
-          }
-        }
-      `}</style>
     </div>
   );
 };

@@ -67,7 +67,7 @@ export class MarketDataStream extends EventEmitter {
     
     // Forward connection events
     ['connected', 'disconnected', 'reconnecting', 'circuit_trip', 'circuit_closed'].forEach(event => {
-      this.sseClient.on(event, (data) => this.emit(event, data));
+      this.sseClient.on(event, (data: any) => this.emit(event, data));
     });
   }
   

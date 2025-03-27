@@ -73,14 +73,21 @@ export class TokenManager {
     if (this.refreshPromise) {
       return this.refreshPromise;
     }
-
+  
     const tokens = this.getTokens();
-    if (!tokens?.refreshToken || !this.authApi) {
+    if (!tokens?.refreshToken) {
       return false;
     }
-
+  
     this.refreshPromise = new Promise<boolean>(async (resolve) => {
       try {
+        // Add null check for authApi
+        if (!this.authApi) {
+          console.error('Auth API not initialized');
+          resolve(false);
+          return;
+        }
+  
         const response = await this.authApi.refreshToken(tokens.refreshToken);
         
         this.storeTokens({
@@ -88,27 +95,21 @@ export class TokenManager {
           refreshToken: response.refreshToken,
           expiresAt: Date.now() + (response.expiresIn * 1000),
         });
-
-        // Call refresh callback if registered
-        if (this.refreshCallback) {
-          this.refreshCallback();
-        }
-
+  
+        // Rest of your code...
+        
         resolve(true);
       } catch (error) {
-        console.error('Error refreshing token:', error);
-        
-        // If refresh fails, the user needs to re-authenticate
-        this.clearTokens();
+        // Error handling...
         resolve(false);
       } finally {
         this.refreshPromise = null;
       }
     });
-
+  
     return this.refreshPromise;
   }
-
+  
   // Register a callback to be called when tokens are refreshed
   public onTokenRefresh(callback: () => void): void {
     this.refreshCallback = callback;

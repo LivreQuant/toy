@@ -5,6 +5,8 @@ import { HttpClient } from './http-client';
 export interface SessionResponse {
   success: boolean;
   sessionId: string;
+  simulatorId?: string;
+  simulatorStatus?: string;
   podName?: string;
   errorMessage?: string;
 }
