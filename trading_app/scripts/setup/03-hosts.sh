@@ -26,6 +26,10 @@ echo "    minikube dashboard"
 echo 
 echo "Prometheus Dashboard: "
 echo "    http://trading.local/prometheus/graph"
+echo "    kubectl port-forward pod/prometheus-6b7d756b96-vl28s 9090:9090"
+echo 
+echo "Grafana Dashboard: "
+echo "    kubectl port-forward pod/grafana-7588589797-lnj2z 3000:3000"
 echo 
 echo "Telepresence Dashboard: "
 echo "    telepresence helm install --namespace default"

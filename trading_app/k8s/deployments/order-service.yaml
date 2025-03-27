@@ -12,13 +12,18 @@ spec:
     metadata:
       labels:
         app: order-service
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9091"
+        prometheus.io/path: "/metrics"
     spec:
       containers:
       - name: order-service
         image: opentp/order-service:latest
         imagePullPolicy: Never
         ports:
-        - containerPort: 8001
+        - containerPort: 8001  # REST service
+        - containerPort: 9091  # Prometheus metrics
         env:
         - name: DB_HOST
           value: pgbouncer  # Using connection pooling
@@ -48,6 +53,12 @@ spec:
           value: "6831"
         - name: OTEL_SERVICE_NAME
           value: "order-service"
+        - name: ENABLE_TRACING
+          value: "true"
+        - name: ENABLE_METRICS
+          value: "true"
+        - name: METRICS_PORT
+          value: "9091"
         resources:
           requests:
             memory: "128Mi"
@@ -80,6 +91,10 @@ spec:
   selector:
     app: order-service
   ports:
-  - port: 8001
+  - name: http
+    port: 8001
     targetPort: 8001
+  - name: metrics
+    port: 9091
+    targetPort: 9091
   type: ClusterIP

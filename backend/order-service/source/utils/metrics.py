@@ -1,128 +1,183 @@
-import time
+# source/utils/metrics.py
 import logging
-import asyncio
-from typing import Dict, Any, Optional, Callable
-import functools
-
-from source.config import config
+import os
+import threading
+import time
+from prometheus_client import Counter, Histogram, Gauge, start_http_server
 
 logger = logging.getLogger('metrics')
 
-# Placeholder for metrics implementation
-# In a real implementation, this would use a library like prometheus_client
-class Metrics:
-    """Simple metrics collection and reporting"""
-    
-    _instance = None
-    _counters = {}
-    _gauges = {}
-    _histograms = {}
-    
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super(Metrics, cls).__new__(cls)
-            cls._instance._enabled = config.enable_metrics
-        return cls._instance
-    
-    def increment_counter(self, name: str, value: int = 1, tags: Optional[Dict[str, str]] = None) -> None:
-        """Increment a counter metric"""
-        if not self._enabled:
-            return
-        
-        key = self._get_key(name, tags)
-        self._counters[key] = self._counters.get(key, 0) + value
-    
-    def set_gauge(self, name: str, value: float, tags: Optional[Dict[str, str]] = None) -> None:
-        """Set a gauge metric"""
-        if not self._enabled:
-            return
-        
-        key = self._get_key(name, tags)
-        self._gauges[key] = value
-    
-    def observe_histogram(self, name: str, value: float, tags: Optional[Dict[str, str]] = None) -> None:
-        """Add a value to a histogram metric"""
-        if not self._enabled:
-            return
-        
-        key = self._get_key(name, tags)
-        if key not in self._histograms:
-            self._histograms[key] = []
-        self._histograms[key].append(value)
-    
-    def _get_key(self, name: str, tags: Optional[Dict[str, str]] = None) -> str:
-        """Create a unique key for a metric"""
-        if not tags:
-            return name
-        
-        tag_str = ",".join(f"{k}={v}" for k, v in sorted(tags.items()))
-        return f"{name}[{tag_str}]"
-    
-    def get_metrics(self) -> Dict[str, Any]:
-        """Get all metrics for reporting"""
-        if not self._enabled:
-            return {}
-        
-        return {
-            "counters": self._counters.copy(),
-            "gauges": self._gauges.copy(),
-            "histograms": {k: self._summarize_histogram(v) for k, v in self._histograms.items()}
-        }
-    
-    def _summarize_histogram(self, values: list) -> Dict[str, float]:
-        """Summarize histogram values"""
-        if not values:
-            return {"count": 0}
-        
-        sorted_values = sorted(values)
-        return {
-            "count": len(values),
-            "min": sorted_values[0],
-            "max": sorted_values[-1],
-            "avg": sum(values) / len(values),
-            "p50": sorted_values[len(sorted_values) // 2],
-            "p90": sorted_values[int(len(sorted_values) * 0.9)],
-            "p99": sorted_values[int(len(sorted_values) * 0.99)]
-        }
+# Order Lifecycle Metrics
+ORDER_CREATED = Counter(
+    'order_created_total',
+    'Total number of orders created',
+    ['order_type', 'symbol', 'side']
+)
 
-def timed(metric_name: str, tags: Optional[Dict[str, str]] = None):
-    """Decorator to measure function execution time"""
-    def decorator(func: Callable):
-        @functools.wraps(func)
-        async def async_wrapper(*args, **kwargs):
-            start_time = time.time()
-            result = await func(*args, **kwargs)
-            elapsed_ms = (time.time() - start_time) * 1000
-            
-            # Add metric
-            metrics = Metrics()
-            metrics.observe_histogram(
-                f"{metric_name}_duration_ms", 
-                elapsed_ms,
-                tags
-            )
-            
-            return result
-        
-        @functools.wraps(func)
-        def sync_wrapper(*args, **kwargs):
-            start_time = time.time()
-            result = func(*args, **kwargs)
-            elapsed_ms = (time.time() - start_time) * 1000
-            
-            # Add metric
-            metrics = Metrics()
-            metrics.observe_histogram(
-                f"{metric_name}_duration_ms", 
-                elapsed_ms,
-                tags
-            )
-            
-            return result
-        
-        if asyncio.iscoroutinefunction(func):
-            return async_wrapper
-        else:
-            return sync_wrapper
-    
-    return decorator
+ORDER_SUBMITTED = Counter(
+    'order_submitted_total',
+    'Total number of orders submitted to exchange',
+    ['order_type', 'symbol', 'side']
+)
+
+ORDER_SUBMISSION_LATENCY = Histogram(
+    'order_submission_latency_seconds',
+    'Latency of order submission process',
+    ['order_type', 'success']
+)
+
+ORDER_STATUS_CHANGES = Counter(
+    'order_status_changes_total',
+    'Total number of order status changes',
+    ['from_status', 'to_status']
+)
+
+# User Activity Metrics
+USER_ORDER_COUNT = Counter(
+    'user_order_count_total',
+    'Total number of orders per user',
+    ['user_id']
+)
+
+SESSION_ORDER_COUNT = Counter(
+    'session_order_count_total',
+    'Total number of orders per session',
+    ['session_id']
+)
+
+# External Service Metrics
+AUTH_REQUEST_LATENCY = Histogram(
+    'auth_request_latency_seconds',
+    'Latency of authentication service requests',
+    ['endpoint', 'success']
+)
+
+SESSION_REQUEST_LATENCY = Histogram(
+    'session_request_latency_seconds',
+    'Latency of session service requests',
+    ['endpoint', 'success']
+)
+
+EXCHANGE_REQUEST_LATENCY = Histogram(
+    'exchange_request_latency_seconds',
+    'Latency of exchange service requests',
+    ['operation', 'success']
+)
+
+# Database Metrics
+DB_OPERATION_LATENCY = Histogram(
+    'db_operation_latency_seconds',
+    'Latency of database operations',
+    ['operation', 'success']
+)
+
+DB_CONNECTION_COUNT = Gauge(
+    'db_connection_count',
+    'Number of open database connections'
+)
+
+# Circuit Breaker Metrics
+CIRCUIT_STATE = Gauge(
+    'circuit_breaker_state',
+    'Circuit breaker state (0=closed, 1=open, 2=half-open)',
+    ['service']
+)
+
+CIRCUIT_FAILURE_COUNT = Counter(
+    'circuit_breaker_failures_total',
+    'Total number of circuit breaker failures',
+    ['service']
+)
+
+
+def setup_metrics():
+    """Start Prometheus metrics server"""
+    enable_metrics = os.getenv('ENABLE_METRICS', 'true').lower() == 'true'
+    if not enable_metrics:
+        logger.info("Metrics are disabled")
+        return
+
+    metrics_port = int(os.getenv('METRICS_PORT', '9090'))
+    try:
+        def _start_metrics_server():
+            start_http_server(metrics_port)
+
+        metrics_thread = threading.Thread(
+            target=_start_metrics_server,
+            daemon=True
+        )
+        metrics_thread.start()
+        logger.info(f"Prometheus metrics server started on port {metrics_port}")
+    except Exception as e:
+        logger.error(f"Failed to start metrics server: {e}")
+
+
+# Helper functions to track metrics
+def track_order_created(order_type, symbol, side):
+    """Track order creation"""
+    ORDER_CREATED.labels(order_type=order_type, symbol=symbol, side=side).inc()
+
+
+def track_order_submitted(order_type, symbol, side):
+    """Track order submission to exchange"""
+    ORDER_SUBMITTED.labels(order_type=order_type, symbol=symbol, side=side).inc()
+
+
+def track_order_submission_latency(order_type, success, duration_seconds):
+    """Track order submission latency"""
+    ORDER_SUBMISSION_LATENCY.labels(order_type=order_type, success=str(success).lower()).observe(duration_seconds)
+
+
+def track_order_status_change(from_status, to_status):
+    """Track order status changes"""
+    ORDER_STATUS_CHANGES.labels(from_status=from_status, to_status=to_status).inc()
+
+
+def track_user_order(user_id):
+    """Track orders per user"""
+    USER_ORDER_COUNT.labels(user_id=user_id).inc()
+
+
+def track_session_order(session_id):
+    """Track orders per session"""
+    SESSION_ORDER_COUNT.labels(session_id=session_id).inc()
+
+
+def track_auth_request(endpoint, success, duration_seconds):
+    """Track auth service request latency"""
+    AUTH_REQUEST_LATENCY.labels(endpoint=endpoint, success=str(success).lower()).observe(duration_seconds)
+
+
+def track_session_request(endpoint, success, duration_seconds):
+    """Track session service request latency"""
+    SESSION_REQUEST_LATENCY.labels(endpoint=endpoint, success=str(success).lower()).observe(duration_seconds)
+
+
+def track_exchange_request(operation, success, duration_seconds):
+    """Track exchange service request latency"""
+    EXCHANGE_REQUEST_LATENCY.labels(operation=operation, success=str(success).lower()).observe(duration_seconds)
+
+
+def track_db_operation(operation, success, duration_seconds):
+    """Track database operation latency"""
+    DB_OPERATION_LATENCY.labels(operation=operation, success=str(success).lower()).observe(duration_seconds)
+
+
+def set_db_connection_count(count):
+    """Set the current database connection count"""
+    DB_CONNECTION_COUNT.set(count)
+
+
+def set_circuit_state(service, state):
+    """Set circuit breaker state (0=closed, 1=open, 2=half-open)"""
+    state_value = {
+        'CLOSED': 0,
+        'OPEN': 1,
+        'HALF_OPEN': 2
+    }.get(state, -1)
+    CIRCUIT_STATE.labels(service=service).set(state_value)
+
+
+def track_circuit_failure(service):
+    """Track circuit breaker failures"""
+    CIRCUIT_FAILURE_COUNT.labels(service=service).inc()

@@ -33,11 +33,19 @@ ENV PYTHONUNBUFFERED=1 \
     REST_PORT="8001" \
     AUTH_SERVICE_URL="http://auth-service:8000" \
     SESSION_SERVICE_URL="http://session-service:8080" \
+    # Tracing Configuration
+    ENABLE_TRACING="true" \
+    METRICS_PORT="9091" \
+    OTEL_SERVICE_NAME="order-service" \
+    OTEL_EXPORTER_JAEGER_ENDPOINT="http://jaeger-collector:14268/api/traces" \
     # Logging and Security
     LOG_LEVEL="INFO"
 
 # Expose REST port
 EXPOSE 8001
+
+# Expose metrics port
+EXPOSE 9091
 
 # Health check using our HTTP health endpoint
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \

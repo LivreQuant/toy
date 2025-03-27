@@ -8,12 +8,9 @@ from source.utils.validation import ValidationError, validate_required_fields, v
 from source.models.enums import OrderSide, OrderType
 from source.models.order import Order
 from source.core.order_manager import OrderManager
-from source.utils.metrics import Metrics
+from source.utils.metrics import track_order_submission_latency
 
 logger = logging.getLogger('rest_controllers')
-
-# Initialize metrics
-metrics = Metrics()
 
 def get_token(request):
     """Extract token from request headers or query parameters"""
@@ -42,7 +39,6 @@ class OrderController:
             token = get_token(request)
 
             if not token:
-                metrics.increment_counter("order_submission_error", tags={"reason": "auth_missing"})
                 return web.json_response({
                     "success": False,
                     "error": "Authentication token is required"
@@ -52,7 +48,6 @@ class OrderController:
             try:
                 data = await request.json()
             except json.JSONDecodeError:
-                metrics.increment_counter("order_submission_error", tags={"reason": "invalid_json"})
                 return web.json_response({
                     "success": False,
                     "error": "Invalid JSON in request body"
@@ -72,7 +67,6 @@ class OrderController:
                 validate_enum_field(data, 'side', OrderSide)
                 validate_enum_field(data, 'type', OrderType)
             except ValidationError as e:
-                metrics.increment_counter("order_submission_error", tags={"reason": "validation"})
                 return web.json_response({
                     "success": False,
                     "error": str(e),
@@ -83,13 +77,8 @@ class OrderController:
             result = await self.order_manager.submit_order(data, token)
 
             # Record metrics
-            elapsed_ms = (time.time() - start_time) * 1000
-            metrics.observe_histogram("order_submission_time_ms", elapsed_ms)
-            
-            if result.get('success'):
-                metrics.increment_counter("order_submission_success")
-            else:
-                metrics.increment_counter("order_submission_error", tags={"reason": "business_logic"})
+            elapsed_seconds = time.time() - start_time
+            track_order_submission_latency(data.get('type', 'UNKNOWN'), result.get('success', False), elapsed_seconds)
 
             # Determine status code
             status_code = 200 if result.get('success') else 400
@@ -98,7 +87,6 @@ class OrderController:
 
         except Exception as e:
             logger.error(f"Error handling order submission: {e}")
-            metrics.increment_counter("order_submission_error", tags={"reason": "server_error"})
             return web.json_response({
                 "success": False,
                 "error": "Server error processing order"
@@ -239,25 +227,20 @@ class OrderController:
             # Check database connection
             db_ready = await self.order_manager.order_repository.check_connection()
 
-            # Check Redis connection
-            redis_ready = await self.order_manager.redis.ping()
-
-            if db_ready and redis_ready:
+            if db_ready:
                 return web.json_response({
                     'status': 'READY',
                     'timestamp': int(time.time()),
                     'checks': {
-                        'database': 'UP',
-                        'redis': 'UP'
+                        'database': 'UP'
                     }
                 })
             else:
                 return web.json_response({
                     'status': 'NOT READY',
-                    'reason': 'One or more dependencies are not available',
+                    'reason': 'Database is not available',
                     'checks': {
-                        'database': 'UP' if db_ready else 'DOWN',
-                        'redis': 'UP' if redis_ready else 'DOWN'
+                        'database': 'DOWN'
                     }
                 }, status=503)
         except Exception as e:

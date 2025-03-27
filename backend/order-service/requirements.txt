@@ -1,3 +1,4 @@
+# requirements.txt
 aiohttp==3.8.5
 aiohttp-cors==0.7.0
 asyncio==3.4.3
@@ -9,3 +10,11 @@ redis==4.6.0
 typing-extensions==4.9.0
 pydantic==2.5.2
 ujson==5.8.0
+# PROMETHEUS TRACING
+prometheus-client>=0.16.0
+# JAEGER TRACING
+opentelemetry-api>=1.18.0
+opentelemetry-sdk>=1.18.0
+opentelemetry-exporter-jaeger>=1.18.0
+opentelemetry-instrumentation-aiohttp-client>=0.40b0
+opentelemetry-instrumentation-asyncpg>=0.40b0

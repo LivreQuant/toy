@@ -13,6 +13,8 @@ from source.api.clients.auth_client import AuthClient
 from source.api.clients.session_client import SessionClient
 from source.api.clients.exchange_client import ExchangeClient
 from source.core.order_manager import OrderManager
+from source.utils.metrics import setup_metrics
+from source.utils.tracing import setup_tracing
 
 logger = logging.getLogger('order_service')
 
@@ -28,6 +30,14 @@ async def main():
     setup_logging()
 
     logger.info("Starting order service")
+
+    # Initialize tracing
+    setup_tracing()
+    logger.info("Distributed tracing initialized")
+
+    # Initialize metrics
+    setup_metrics()
+    logger.info("Metrics collection initialized")
 
     # Resources to clean up on shutdown
     resources = {
