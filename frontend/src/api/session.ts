@@ -1,6 +1,8 @@
 
 // src/api/session.ts
 import { HttpClient } from './http-client';
+import { TokenManager } from '../services/auth/token-manager';
+
 
 export interface SessionResponse {
   success: boolean;
@@ -20,13 +22,24 @@ export interface SessionStateResponse {
 
 export class SessionApi {
   private client: HttpClient;
+  private tokenManager: TokenManager;  // Add this property
   
-  constructor(client: HttpClient) {
+  constructor(client: HttpClient, tokenManager: TokenManager) {  // Update constructor
     this.client = client;
+    this.tokenManager = tokenManager;  // Store the token manager
   }
   
   async createSession(): Promise<SessionResponse> {
-    return this.client.post<SessionResponse>('/sessions/', {});
+    // Get token from tokenManager
+    const token = await this.tokenManager.getAccessToken();
+    
+    // Get user ID (you might need to store this after login)
+    const userId = "testuser"; // Or retrieve from storage
+    
+    return this.client.post<SessionResponse>('/sessions/', {
+      userId: userId,
+      token: token
+    });
   }
   
   async getSession(sessionId: string): Promise<SessionResponse> {

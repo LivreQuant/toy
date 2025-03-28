@@ -70,7 +70,7 @@ export class ConnectionManager extends EventEmitter {
     this.httpClient = new HttpClient(tokenManager);
     
     // Create API clients
-    this.sessionApi = new SessionApi(this.httpClient);
+    this.sessionApi = new SessionApi(this.httpClient, this.tokenManager);
     this.ordersApi = new OrdersApi(this.httpClient);
     
     // Create WebSocket manager

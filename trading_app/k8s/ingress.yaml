@@ -36,7 +36,7 @@ spec:
             name: auth-service
             port:
               number: 8000
-      - path: /api/sessions/(.*)
+      - path: /api/sessions(/|$)(.*)
         pathType: ImplementationSpecific
         backend:
           service:
