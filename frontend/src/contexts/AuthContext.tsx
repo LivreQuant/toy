@@ -3,6 +3,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { TokenManager } from '../services/auth/token-manager';
 import { AuthApi } from '../api/auth';
 import { HttpClient } from '../api/http-client';
+import { SessionStore } from '../services/session/session-store';
 
 interface AuthContextType {
   isAuthenticated: boolean;
@@ -74,6 +75,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         expiresAt: Date.now() + (response.expiresIn * 1000)
       });
       
+      // Also store the user ID if it's available in the response
+      if (response.userId) {
+        localStorage.setItem('user_id', response.userId.toString());
+      }
+      
       setIsAuthenticated(true);
       return true;
     } catch (err) {
@@ -97,6 +103,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } finally {
       // Always clear tokens regardless of API call success
       tokenManager.clearTokens();
+      
+      // Add this line to clear the session as well
+      SessionStore.clearSession();
+      
       setIsAuthenticated(false);
       setIsLoading(false);
     }

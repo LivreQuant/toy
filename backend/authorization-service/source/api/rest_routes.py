@@ -291,6 +291,8 @@ def handle_validate_token(auth_manager):
                 result = await auth_manager.validate_token(token)
                 span.set_attribute("token.valid", result.get('valid', False))
                 
+                logger.error(f"VALIDATE RETURNING RESULT: {result}")
+
                 return web.json_response(result)
             except Exception as e:
                 logger.error(f"Validate token handler error: {e}")

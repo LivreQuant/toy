@@ -28,15 +28,15 @@ export class SessionApi {
     this.client = client;
     this.tokenManager = tokenManager;  // Store the token manager
   }
-  
+
   async createSession(): Promise<SessionResponse> {
     // Get token from tokenManager
     const token = await this.tokenManager.getAccessToken();
     
     // Get user ID (you might need to store this after login)
-    const userId = "testuser"; // Or retrieve from storage
+    const userId = localStorage.getItem('user_id'); 
     
-    return this.client.post<SessionResponse>('/sessions/', {
+    return this.client.post<SessionResponse>('/sessions', {
       userId: userId,
       token: token
     });

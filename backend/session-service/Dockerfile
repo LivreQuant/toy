@@ -3,11 +3,12 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # Install system dependencies
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
-        gcc \
-        postgresql-client \
-        curl \
+RUN apt-get -o Acquire::Check-Valid-Until=false \
+    -o Acquire::Check-Date=false update \
+    && apt-get -y --no-install-recommends install \
+    gcc \
+    postgresql-client \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install dependencies

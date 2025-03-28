@@ -135,7 +135,7 @@ class Config(BaseModel):
                 password=os.getenv('REDIS_PASSWORD', None)
             ),
             services=ServiceConfig(
-                auth_service_url=os.getenv('AUTH_SERVICE_URL', 'http://auth-service:8001'),
+                auth_service_url=os.getenv('AUTH_SERVICE_URL', 'http://auth-service:8000'),
                 exchange_manager_service=os.getenv('EXCHANGE_MANAGER_SERVICE', 'exchange-manager-service:50055')
             ),
             server=ServerConfig(

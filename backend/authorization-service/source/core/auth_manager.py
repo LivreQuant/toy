@@ -272,6 +272,9 @@ class AuthManager:
             try:
                 # Verify JWT token
                 validation = self.token_manager.validate_access_token(token)
+
+                logger.debug(f"Validate token received: {token}...")
+                logger.debug(f"Validation result: {validation}")
                 
                 span.set_attribute("token_valid", validation.get('valid', False))
                 if not validation.get('valid'):

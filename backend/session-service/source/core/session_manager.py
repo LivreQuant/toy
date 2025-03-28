@@ -117,6 +117,8 @@ class SessionManager:
             token_user_id = validation.get('user_id')
             span.set_attribute("token_user_id", token_user_id)
 
+            logger.warning(f"COMPARE: {token_user_id} | {user_id}")
+
             if token_user_id != user_id:
                 logger.warning(f"Token user_id {token_user_id} doesn't match provided user_id {user_id}")
                 span.set_attribute("user_id_match", False)
@@ -197,13 +199,15 @@ class SessionManager:
         """
         # Validate token
         validation = await self.auth_client.validate_token(token)
+
+        logger.info(f"VALIDATION RESULTS: {validation}")
         
         if not validation.get('valid', False):
             logger.warning(f"Invalid token for session {session_id}")
             return None
         
         # Get user ID from token validation
-        user_id = validation.get('user_id')
+        user_id = validation.get('userId')
         
         # Get session from database
         session = await self.db_manager.get_session(session_id)

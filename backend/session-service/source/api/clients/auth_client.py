@@ -94,6 +94,7 @@ class AuthClient:
             session = await self._get_session()
             headers = {'Authorization': f'Bearer {token}'}
 
+            logger.info(f"REQUEST AUTH VALID: {self.base_url}/api/auth/validate")
             try:
                 async with session.post(
                     f'{self.base_url}/api/auth/validate',
@@ -106,6 +107,8 @@ class AuthClient:
                     duration = time.time() - start_time
                     track_external_request("auth_service", "validate_token", response.status, duration)
 
+                    logger.info(f"RECIEVE VALIDATION: {response}")
+                    
                     span.set_attribute("http.status_code", response.status)
                     span.set_attribute("token_valid", data.get('valid', False))
 
