@@ -2,6 +2,7 @@
 import { TokenManager } from '../auth/token-manager';
 import { BackoffStrategy } from '../../utils/backoff-strategy';
 import { EventEmitter } from '../../utils/event-emitter';
+import { config } from '../../config';
 
 export interface WebSocketOptions {
   heartbeatInterval?: number;
@@ -34,9 +35,9 @@ export class WebSocketManager extends EventEmitter {
   private circuitBreakerResetTime: number;
   private circuitBreakerTrippedAt: number = 0;
   
-  constructor(url: string, tokenManager: TokenManager, options: WebSocketOptions = {}) {
+  constructor(tokenManager: TokenManager, options: WebSocketOptions = {}) {
     super();
-    this.url = url;
+    this.url = config.wsBaseUrl;
     this.tokenManager = tokenManager;
     this.backoffStrategy = new BackoffStrategy(1000, 30000);
     this.maxReconnectAttempts = options.reconnectMaxAttempts || 15;

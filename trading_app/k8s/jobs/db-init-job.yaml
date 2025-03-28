@@ -22,6 +22,14 @@ spec:
               sleep 2
             done
             
+            # Apply extensions first
+            echo "Applying database extensions..."
+            PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -f /schemas/extensions.sql
+            if [ $? -ne 0 ]; then
+              echo "Error applying extensions"
+              exit 1
+            fi
+            
             # Apply schema files in order with proper error checking
             echo "Applying schema files..."
             for schema in users.sql auth_tokens.sql sessions.sql simulator_sessions.sql trading.sql; do

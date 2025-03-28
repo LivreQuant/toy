@@ -80,16 +80,21 @@ class AuthManager:
                 logger.warning("Token cleanup thread did not stop promptly")
 
     async def login(self, username, password):
-        with self.tracer.optional_trace_span("login") as span:
+        with optional_trace_span(self.tracer, "login") as span:
             span.set_attribute("username", username)
             start_time = time.time()
             
+            logger.debug(f"Login attempt for username: {username}")
+            
             try:
                 # Verify username and password
+                logger.debug("Calling verify_password")
                 user = await self.db.verify_password(username, password)
+                logger.debug(f"verify_password returned: {user}")
 
                 if not user:
                     # Use metrics tracking
+                    logger.debug("Authentication failed: No user data returned")
                     track_login_attempt(username, False)
                     track_login_duration(start_time, False)
                     
@@ -100,24 +105,36 @@ class AuthManager:
                         'error': "Invalid username or password"
                     }
 
+                logger.debug(f"User authenticated successfully: {user}")
+                
                 # Track successful login
                 track_login_attempt(username, True)
                 track_login_duration(start_time, True)
 
                 # Generate JWT tokens
+                logger.debug("Generating JWT tokens")
                 tokens = self.token_manager.generate_tokens(user['user_id'], user.get('user_role', 'user'))
+                logger.debug("Tokens generated successfully")
                 
                 # Track token issuance
                 track_token_issued('access', user.get('user_role', 'user'))
                 track_token_issued('refresh', user.get('user_role', 'user'))
 
-                # Rest of the existing method...
+                return {
+                    'success': True,
+                    'accessToken': tokens['accessToken'],
+                    'refreshToken': tokens['refreshToken'],
+                    'expiresIn': tokens['expiresIn'],
+                    'userId': user['user_id'],
+                    'userRole': user.get('user_role', 'user')
+                }
+                
             except Exception as e:
                 # Track login failure due to exception
+                logger.error(f"Login error: {e}", exc_info=True)
                 track_login_attempt(username, False)
                 track_login_duration(start_time, False)
                 
-                logger.error(f"Login error: {e}", exc_info=True)
                 span.record_exception(e)
                 return {
                     'success': False,

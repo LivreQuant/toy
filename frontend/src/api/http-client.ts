@@ -1,5 +1,6 @@
 // src/api/http-client.ts
 import { TokenManager } from '../services/auth/token-manager';
+import { config } from '../config';
 
 export interface RequestOptions extends RequestInit {
   skipAuth?: boolean;
@@ -11,8 +12,8 @@ export class HttpClient {
   private readonly tokenManager: TokenManager;
   private readonly maxRetries: number = 3;
   
-  constructor(baseUrl: string, tokenManager: TokenManager) {
-    this.baseUrl = baseUrl;
+  constructor(tokenManager: TokenManager) {
+    this.baseUrl = config.apiBaseUrl;
     this.tokenManager = tokenManager;
   }
   

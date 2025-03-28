@@ -4,6 +4,10 @@ kind: ConfigMap
 metadata:
   name: db-schemas
 data:
+  extensions.sql: |
+    -- PostgreSQL Extensions
+    CREATE EXTENSION IF NOT EXISTS pgcrypto;
+    
   users.sql: |
     -- Users Schema
     CREATE SCHEMA IF NOT EXISTS auth;

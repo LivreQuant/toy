@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { ConnectionManager, ConnectionState } from '../services/connection/connection-manager';
 import { TokenManager } from '../services/auth/token-manager';
 import { useAuth } from './AuthContext';
+import { config } from '../config';
 
 interface ConnectionContextType {
   connectionManager: ConnectionManager;
@@ -29,12 +30,7 @@ const ConnectionContext = createContext<ConnectionContextType | undefined>(undef
 export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { tokenManager, isAuthenticated } = useAuth();
   const [connectionManager] = useState<ConnectionManager>(() => 
-    new ConnectionManager(
-      '/api',                             // REST API endpoint
-      `wss://${window.location.host}/ws`, // WebSocket endpoint
-      '/api/stream/market-data',          // SSE endpoint
-      tokenManager
-    )
+    new ConnectionManager(tokenManager)
   );
   
   const [connectionState, setConnectionState] = useState<ConnectionState>(connectionManager.getState());

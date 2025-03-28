@@ -24,7 +24,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [tokenManager] = useState<TokenManager>(() => new TokenManager());
   
   // Create HTTP client
-  const [httpClient] = useState<HttpClient>(() => new HttpClient('/api', tokenManager));
+  const [httpClient] = useState<HttpClient>(() => new HttpClient(tokenManager));
   
   // Create auth API client
   const [authApi] = useState<AuthApi>(() => new AuthApi(httpClient));

@@ -106,24 +106,36 @@ class DatabaseManager:
                 return result
 
     async def verify_password(self, username, password):
-        """Verify user password"""
         with optional_trace_span(self.tracer, "db_verify_password") as span:
             span.set_attribute("username", username)
             
+            logger.debug(f"Starting verify_password for username: {username}")
+            
             if not self.pool:
+                logger.debug("Database pool not initialized, connecting...")
                 await self.connect()
 
             query = """
                 SELECT * FROM auth.verify_password($1, $2)
             """
             span.set_attribute("db.statement", query)
+            logger.debug(f"Executing query: {query} with username={username}")
 
-            async with self.pool.acquire() as conn:
-                row = await conn.fetchrow(query, username, password)
-                result = dict(row) if row else None
-                span.set_attribute("success", result is not None)
-                span.set_attribute("authentication_success", result is not None)
-                return result
+            try:
+                async with self.pool.acquire() as conn:
+                    logger.debug("Acquired database connection")
+                    row = await conn.fetchrow(query, username, password)
+                    logger.debug(f"Query result: {row}")
+                    
+                    result = dict(row) if row else None
+                    logger.debug(f"Processed result: {result}")
+                    
+                    span.set_attribute("success", result is not None)
+                    span.set_attribute("authentication_success", result is not None)
+                    return result
+            except Exception as e:
+                logger.error(f"Error in verify_password: {e}", exc_info=True)
+                raise
 
     async def save_refresh_token(self, user_id, token_hash, expires_at):
         """Save a refresh token to the database"""

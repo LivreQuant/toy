@@ -7,6 +7,8 @@ import { SessionApi } from '../../api/session';
 import { OrdersApi } from '../../api/order';
 import { HttpClient } from '../../api/http-client';
 import { SessionStore } from '../session/session-store';
+import { config } from '../../config';
+
 
 export type ConnectionQuality = 'good' | 'degraded' | 'poor';
 
@@ -43,9 +45,6 @@ export class ConnectionManager extends EventEmitter {
   private portfolio: PortfolioUpdate | null = null;
   
   constructor(
-    apiBaseUrl: string,
-    wsUrl: string,
-    sseUrl: string,
     tokenManager: TokenManager
   ) {
     super();
@@ -68,14 +67,14 @@ export class ConnectionManager extends EventEmitter {
     };
     
     // Create HTTP client
-    this.httpClient = new HttpClient(apiBaseUrl, tokenManager);
+    this.httpClient = new HttpClient(tokenManager);
     
     // Create API clients
     this.sessionApi = new SessionApi(this.httpClient);
     this.ordersApi = new OrdersApi(this.httpClient);
     
     // Create WebSocket manager
-    this.wsManager = new WebSocketManager(wsUrl, tokenManager, {
+    this.wsManager = new WebSocketManager(tokenManager, {
       heartbeatInterval: 15000,
       reconnectMaxAttempts: 15,
       circuitBreakerThreshold: 5,
@@ -84,7 +83,6 @@ export class ConnectionManager extends EventEmitter {
     
     // Create Market Data stream
     this.marketDataStream = new MarketDataStream(tokenManager, {
-      baseUrl: sseUrl,
       reconnectMaxAttempts: 15
     });
     
@@ -426,7 +424,7 @@ export class ConnectionManager extends EventEmitter {
       this.updateState({ simulatorStatus: 'STARTING' });
       
       // Add type assertion for response
-      const response = await this.httpClient.post('/simulator/start', {
+      const response = await this.httpClient.post('/api/simulator/start', {
         sessionId: this.state.sessionId
       }) as { success: boolean; simulatorId: string };
       
@@ -453,7 +451,7 @@ export class ConnectionManager extends EventEmitter {
     try {
       this.updateState({ simulatorStatus: 'STOPPING' });
       
-      const response = await this.httpClient.post('/simulator/stop', {
+      const response = await this.httpClient.post('/api/simulator/stop', {
         sessionId: this.state.sessionId,
         simulatorId: this.state.simulatorId
       }) as { success: boolean };

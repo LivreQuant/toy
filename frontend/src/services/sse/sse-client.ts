@@ -2,6 +2,7 @@
 import { EventEmitter } from '../../utils/event-emitter';
 import { TokenManager } from '../auth/token-manager';
 import { BackoffStrategy } from '../../utils/backoff-strategy';
+import { config } from '../../config';
 
 export interface SSEOptions {
   reconnectMaxAttempts?: number;
@@ -27,9 +28,9 @@ export class SSEClient extends EventEmitter {
   private circuitBreakerResetTime: number;
   private circuitBreakerTrippedAt: number = 0;
   
-  constructor(baseUrl: string, tokenManager: TokenManager, options: SSEOptions = {}) {
+  constructor(tokenManager: TokenManager, options: SSEOptions = {}) {
     super();
-    this.baseUrl = baseUrl;
+    this.baseUrl = config.sseBaseUrl;
     this.tokenManager = tokenManager;
     this.maxReconnectAttempts = options.reconnectMaxAttempts || 15;
     this.backoffStrategy = new BackoffStrategy(1000, 30000);

@@ -34,7 +34,7 @@ def setup_rest_app(auth_manager):
         "*": aiohttp_cors.ResourceOptions(
             allow_credentials=True,
             expose_headers="*",
-            allow_headers="*",
+            allow_headers=["Content-Type", "Authorization", "X-Requested-With", "Origin", "Accept"],
             allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"]
         )
     })
@@ -63,14 +63,17 @@ def handle_login(auth_manager):
             span.set_attribute("http.route", "/api/auth/login")
             
             try:
+                logger.debug("Processing login request")
                 # Parse request body
                 data = await request.json()
                 username = data.get('username')
                 password = data.get('password')
                 
+                logger.debug(f"Login request for username: {username}")
                 span.set_attribute("username", username)
                 
                 if not username or not password:
+                    logger.debug(f"Missing credentials: username={username is not None}, password={password is not None}")
                     span.set_attribute("error", "Missing username or password")
                     return web.json_response({
                         'success': False,
@@ -78,10 +81,13 @@ def handle_login(auth_manager):
                     }, status=400)
 
                 # Call auth manager
+                logger.debug("Calling auth_manager.login")
                 result = await auth_manager.login(username, password)
+                logger.debug(f"Login result: {result}")
                 
                 span.set_attribute("login.success", result.get('success', False))
                 if not result.get('success', False):
+                    logger.debug(f"Login failed: {result.get('error', 'Authentication failed')}")
                     span.set_attribute("login.error", result.get('error', 'Authentication failed'))
 
                 if not result['success']:
@@ -90,6 +96,9 @@ def handle_login(auth_manager):
                         'error': result.get('error', 'Authentication failed')
                     }, status=401)
 
+                # Process successful login
+                logger.debug("Login successful, preparing response")
+                
                 # Set secure cookie with access token (optional)
                 response = web.json_response(result)
 
@@ -103,16 +112,19 @@ def handle_login(auth_manager):
                         samesite='Strict',
                         max_age=result['expiresIn']
                     )
-
+                
+                logger.debug("Login response prepared")
                 return response
+                
             except json.JSONDecodeError:
+                logger.error("Invalid JSON in login request")
                 span.set_attribute("error", "Invalid JSON in request")
                 return web.json_response({
                     'success': False,
                     'error': 'Invalid JSON in request'
                 }, status=400)
             except Exception as e:
-                logger.error(f"Login handler error: {e}")
+                logger.error(f"Login handler error: {e}", exc_info=True)
                 span.record_exception(e)
                 span.set_attribute("error", str(e))
                 return web.json_response({
@@ -121,7 +133,6 @@ def handle_login(auth_manager):
                 }, status=500)
 
     return login_handler
-
 
 def handle_logout(auth_manager):
     """Logout route handler"""

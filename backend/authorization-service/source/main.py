@@ -24,7 +24,7 @@ def setup_logging():
 
     # Configure root logger
     logger = logging.getLogger()
-    logger.setLevel(getattr(logging, os.getenv('LOG_LEVEL', 'DEBUG')))
+    logger.setLevel(getattr(logging, os.getenv('LOG_LEVEL', 'DEBUG')))  # Set default to DEBUG
 
     # Console handler
     console_handler = logging.StreamHandler(sys.stdout)

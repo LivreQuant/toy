@@ -51,9 +51,8 @@ export class MarketDataStream extends EventEmitter {
   
   constructor(tokenManager: TokenManager, options: MarketDataOptions = {}) {
     super();
-    const baseUrl = options.baseUrl || '/api/v1/market-data';
     
-    this.sseClient = new SSEClient(baseUrl, tokenManager, {
+    this.sseClient = new SSEClient(tokenManager, {
       reconnectMaxAttempts: options.reconnectMaxAttempts || 15
     });
     
