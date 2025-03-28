@@ -40,7 +40,13 @@ export class SSEClient extends EventEmitter {
     this.circuitBreakerResetTime = options.circuitBreakerResetTimeMs || 60000; // 1 minute
   }
   
-  public async connect(sessionId: string, params: Record<string, string> = {}): Promise<boolean> {
+  public async connect(sessionId: string, params: Record<string, string> = {}): Promise<boolean> {  // Check for token first
+    const token = await this.tokenManager.getAccessToken();
+    if (!token) {
+      this.emit('error', { error: 'No authentication token available' });
+      return false;
+    }
+    
     if (this.eventSource && this.eventSource.readyState === EventSource.OPEN) {
       return true;
     }

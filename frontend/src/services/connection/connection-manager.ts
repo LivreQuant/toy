@@ -161,10 +161,21 @@ export class ConnectionManager extends EventEmitter {
   
   // Connect all necessary connections for a session
   public async connect(): Promise<boolean> {
+    console.log('Attempting to connect and create session...');
+
     if (this.state.isConnected || this.state.isConnecting) {
       return this.state.isConnected;
     }
-    
+      
+    // Check if we have a valid token first
+    const token = await this.tokenManager.getAccessToken();
+    if (!token) {
+      this.updateState({ 
+        error: 'Authentication required before connecting'
+      });
+      return false;
+    }
+
     this.updateState({ isConnecting: true, error: null });
     
     try {
@@ -172,8 +183,16 @@ export class ConnectionManager extends EventEmitter {
       let sessionId = SessionStore.getSessionId();
       
       if (!sessionId) {
+        console.log('No existing session found, creating new session...');
+
         // Create a new session
         const response = await this.sessionApi.createSession();
+        
+        console.log('Session creation response:', {
+          success: response.success,
+          sessionId: response.sessionId,
+          errorMessage: response.errorMessage
+        });
         
         if (!response.success) {
           throw new Error(response.errorMessage || 'Failed to create session');
@@ -210,10 +229,24 @@ export class ConnectionManager extends EventEmitter {
         isConnected: true, 
         isConnecting: false 
       });
+        
+      // Connect to market data stream after successful connection
+      await this.marketDataStream.connect(sessionId);
       
       return true;
     } catch (error) {
-      console.error('Connection error:', error);
+      console.error('Full session creation error:', error);
+
+      if (error instanceof Error) {
+        console.error('Error name:', error.name);
+        console.error('Error message:', error.message);
+        
+        // If it's a network error, log additional details
+        if (error.name === 'TypeError') {
+          console.error('Potential network or CORS issue detected');
+        }
+      }
+
       this.updateState({ 
         isConnecting: false, 
         error: error instanceof Error ? error.message : 'Connection failed' 
@@ -287,15 +320,12 @@ export class ConnectionManager extends EventEmitter {
         isConnected: true,
         isConnecting: false,
         sessionId: response.sessionId,
-        simulatorId: response.simulatorId,
-        simulatorStatus: response.simulatorStatus,
         error: null
       });
       
       // Store in session storage
       SessionStore.saveSession({
         sessionId: response.sessionId,
-        simulatorId: response.simulatorId,
         reconnectAttempts: 0
       });
       

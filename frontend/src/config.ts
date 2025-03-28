@@ -13,9 +13,9 @@ interface AppConfig {
     
     // For local development with Minikube
     const devConfig: AppConfig = {
-      apiBaseUrl: process.env.REACT_APP_API_BASE_URL || 'https://trading.local/api',
-      wsBaseUrl: process.env.REACT_APP_WS_BASE_URL || 'wss://trading.local/ws',
-      sseBaseUrl: process.env.REACT_APP_SSE_BASE_URL || 'https://trading.local/api/stream',
+      apiBaseUrl: process.env.REACT_APP_API_BASE_URL || 'http://trading.local/api',
+      wsBaseUrl: process.env.REACT_APP_WS_BASE_URL || 'ws://trading.local/ws',
+      sseBaseUrl: process.env.REACT_APP_SSE_BASE_URL || 'http://trading.local/api/stream',
       environment: 'development'
     };
     

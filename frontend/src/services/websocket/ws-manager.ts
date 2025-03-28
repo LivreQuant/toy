@@ -50,6 +50,13 @@ export class WebSocketManager extends EventEmitter {
   }
   
   public async connect(sessionId: string): Promise<boolean> {
+    // First check if token is available
+    const token = await this.tokenManager.getAccessToken();
+    if (!token) {
+      this.emit('error', { error: 'No authentication token available' });
+      return false;
+    }
+
     if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
       return true;
     }
@@ -83,7 +90,7 @@ export class WebSocketManager extends EventEmitter {
     this.isConnecting = true;
     this.sessionId = sessionId;
     
-    try {
+    try {      
       const token = await this.tokenManager.getAccessToken();
       if (!token) {
         this.isConnecting = false;

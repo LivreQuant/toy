@@ -1,4 +1,3 @@
-
 // src/contexts/ConnectionContext.tsx
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { ConnectionManager, ConnectionState } from '../services/connection/connection-manager';
@@ -61,11 +60,15 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     connectionManager.on('orders', handleOrders);
     connectionManager.on('portfolio', handlePortfolio);
     
-    // Connect if authenticated
-    if (isAuthenticated) {
+    // Connection management based on authentication state
+     if (isAuthenticated && !connectionState.isConnected && !connectionState.isConnecting) {
+      // Connect automatically when authenticated and not already connected/connecting
       connectionManager.connect().catch(err => {
-        console.error('Failed to connect on mount:', err);
+        console.error('Failed to auto-connect after authentication:', err);
       });
+    } else if (!isAuthenticated && (connectionState.isConnected || connectionState.isConnecting)) {
+      // Disconnect when authentication is lost
+      connectionManager.disconnect();
     }
     
     return () => {
@@ -75,9 +78,13 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       connectionManager.off('portfolio', handlePortfolio);
       // Don't disconnect on unmount as this is a top-level provider
     };
-  }, [connectionManager, isAuthenticated]);
+  }, [connectionManager, isAuthenticated, connectionState.isConnected, connectionState.isConnecting]);
   
   const connect = async () => {
+    if (!isAuthenticated) {
+      console.warn('Cannot connect - user is not authenticated');
+      return false;
+    }
     return connectionManager.connect();
   };
   
@@ -86,22 +93,41 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
   
   const reconnect = async () => {
+    if (!isAuthenticated) {
+      console.warn('Cannot reconnect - user is not authenticated');
+      return false;
+    }
     return connectionManager.reconnect();
   };
 
   const startSimulator = async () => {
+    if (!isAuthenticated || !connectionState.isConnected) {
+      console.warn('Cannot start simulator - user is not authenticated or not connected');
+      return false;
+    }
     return connectionManager.startSimulator();
   };
   
   const stopSimulator = async () => {
+    if (!isAuthenticated || !connectionState.isConnected) {
+      console.warn('Cannot stop simulator - user is not authenticated or not connected');
+      return false;
+    }
     return connectionManager.stopSimulator();
   };
   
   const submitOrder = async (order: any) => {
+    if (!isAuthenticated || !connectionState.isConnected) {
+      return { success: false, error: 'Not authenticated or connected' };
+    }
     return connectionManager.submitOrder(order);
   };
   
   const streamMarketData = async (symbols: string[]) => {
+    if (!isAuthenticated || !connectionState.isConnected) {
+      console.warn('Cannot stream market data - user is not authenticated or not connected');
+      return false;
+    }
     return connectionManager.streamMarketData(symbols);
   };
   

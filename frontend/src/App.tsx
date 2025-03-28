@@ -50,7 +50,12 @@ const AppRouter: React.FC = () => {
 
 // Connection status with current state
 const ConnectionStatusWrapper: React.FC = () => {
+  const { isAuthenticated } = useAuth();
   const { isConnected, isConnecting, connectionQuality, connectionState } = useConnection();
+  // Only show connection status if authenticated
+  if (!isAuthenticated) {
+    return null;
+  }
   
   return (
     <ConnectionStatus 
@@ -62,19 +67,9 @@ const ConnectionStatusWrapper: React.FC = () => {
   );
 };
 
-// Require authentication wrapper
+// Require authentication wrapper - simplified to not trigger connections
 const RequireAuth: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, isLoading } = useAuth();
-  const { connect, isConnected, isConnecting } = useConnection();
-  
-  React.useEffect(() => {
-    // Connect if authenticated and not already connected
-    if (isAuthenticated && !isConnected && !isConnecting) {
-      connect().catch(err => {
-        console.error('Failed to connect in RequireAuth:', err);
-      });
-    }
-  }, [isAuthenticated, isConnected, isConnecting, connect]);
   
   if (isLoading) {
     return <LoadingScreen message="Checking authentication..." />;
@@ -83,12 +78,8 @@ const RequireAuth: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
-  
-  // Even if authenticated, wait for connection (optional, depends on your UX approach)
-  if (isConnecting) {
-    return <LoadingScreen message="Establishing secure connection..." />;
-  }
-  
+
+  // Simply return children - connection is managed by ConnectionContext
   return <>{children}</>;
 };
 

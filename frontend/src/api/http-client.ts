@@ -70,6 +70,20 @@ export class HttpClient {
     try {
       const response = await fetch(url, requestOptions);
       
+      // Log full response for debugging
+      console.log('Full response:', {
+        status: response.status,
+        statusText: response.statusText,
+        headers: Object.fromEntries(response.headers.entries())
+      });
+      
+      if (!response.ok) {
+        // More detailed error handling
+        const errorText = await response.text();
+        console.error('Error response:', errorText);
+        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+      }
+      
       // Handle 401 Unauthorized - Token might be expired
       if (response.status === 401 && !options.skipAuth && retryCount < 1) {
         // Try to refresh the token

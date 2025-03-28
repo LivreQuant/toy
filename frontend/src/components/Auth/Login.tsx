@@ -32,6 +32,19 @@ const Login: React.FC = () => {
         throw new Error('Login failed. Please try again.');
       }
     } catch (err) {
+      console.error('Full login error:', err);
+      
+      // More detailed error logging
+      if (err instanceof Error) {
+        console.error('Error name:', err.name);
+        console.error('Error message:', err.message);
+        
+        // If it's a network error, log additional details
+        if (err.name === 'TypeError' && err.message.includes('NetworkError')) {
+          console.error('Potential network or CORS issue detected');
+        }
+      }
+      
       setError(err instanceof Error ? err.message : 'Login failed. Please try again.');
     } finally {
       setIsLoading(false);

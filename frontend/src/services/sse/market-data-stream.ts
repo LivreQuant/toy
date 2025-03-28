@@ -48,10 +48,12 @@ export class MarketDataStream extends EventEmitter {
   private marketData: Record<string, MarketData> = {};
   private orders: Record<string, OrderUpdate> = {};
   private portfolio: PortfolioUpdate | null = null;
+  private tokenManager: TokenManager;
   
   constructor(tokenManager: TokenManager, options: MarketDataOptions = {}) {
     super();
     
+    this.tokenManager = tokenManager;
     this.sseClient = new SSEClient(tokenManager, {
       reconnectMaxAttempts: options.reconnectMaxAttempts || 15
     });
@@ -71,8 +73,16 @@ export class MarketDataStream extends EventEmitter {
   }
   
   public async connect(sessionId: string, symbols?: string[]): Promise<boolean> {
+    // Validate authentication first
+    const token = await this.tokenManager.getAccessToken();
+    if (!token) {
+      this.emit('error', { error: 'Authentication required for market data stream' });
+      return false;
+    }
+    
     this.sessionId = sessionId;
     
+    // Update symbols if provided
     if (symbols) {
       this.symbols = symbols;
     }
@@ -81,6 +91,9 @@ export class MarketDataStream extends EventEmitter {
     if (this.symbols.length > 0) {
       params.symbols = this.symbols.join(',');
     }
+    
+    // Add client ID
+    params.clientId = `market-data-${Date.now()}`;
     
     return this.sseClient.connect(sessionId, params);
   }

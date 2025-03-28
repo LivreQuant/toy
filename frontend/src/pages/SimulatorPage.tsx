@@ -17,14 +17,14 @@ const SimulatorPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   
   useEffect(() => {
-    if (isConnected) {
+    if (isConnected && connectionState.simulatorStatus === 'RUNNING') {
       // Start streaming market data for some default symbols
       const defaultSymbols = ['AAPL', 'MSFT', 'AMZN', 'GOOGL', 'FB'];
       streamMarketData(defaultSymbols).catch(err => {
         console.error('Failed to stream market data:', err);
       });
     }
-  }, [isConnected, streamMarketData]);
+  }, [isConnected, connectionState.simulatorStatus, streamMarketData]);
   
   const handleStartSimulator = async () => {
     setIsLoading(true);
