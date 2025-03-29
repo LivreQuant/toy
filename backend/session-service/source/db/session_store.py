@@ -11,6 +11,7 @@ import uuid
 import asyncpg
 from opentelemetry import trace
 from typing import Dict, List, Any, Optional, Tuple
+from source.models.session import Session, SessionStatus, SessionMetadata
 
 from source.utils.metrics import (
     track_db_operation,
@@ -167,7 +168,126 @@ class DatabaseManager:
             except Exception as e:
                 logger.error(f"Error getting active user simulators: {e}")
                 return []
+            
+    async def update_session_metadata(self, session_id: str, metadata_updates: Dict[str, Any]) -> bool:
+        """
+        Update session metadata
+        
+        Args:
+            session_id: Session ID
+            metadata_updates: Dictionary of metadata fields to update
+            
+        Returns:
+            Success flag
+        """
+        with optional_trace_span(self.tracer, "db_update_session_metadata") as span:
+            span.set_attribute("session_id", session_id)
+            
+            if not self.pool:
+                await self.connect()
+                
+            try:
+                with TimedOperation(track_db_operation, "update_session_metadata"):
+                    async with self.pool.acquire() as conn:
+                        # First, get current metadata
+                        current_metadata = await conn.fetchval('''
+                            SELECT metadata FROM session.session_metadata
+                            WHERE session_id = $1
+                        ''', session_id)
+                        
+                        # Merge with updates
+                        if current_metadata:
+                            # Convert to dict if it's a string
+                            if isinstance(current_metadata, str):
+                                current_metadata = json.loads(current_metadata)
+                                
+                            # Update with new values
+                            merged_metadata = {**current_metadata, **metadata_updates}
+                        else:
+                            # Create new metadata
+                            merged_metadata = metadata_updates
+                        
+                        # Always include timestamp
+                        merged_metadata['updated_at'] = time.time()
+                        
+                        # Update in database
+                        await conn.execute('''
+                            INSERT INTO session.session_metadata (session_id, metadata)
+                            VALUES ($1, $2)
+                            ON CONFLICT (session_id) 
+                            DO UPDATE SET metadata = $2
+                        ''', session_id, json.dumps(merged_metadata))
+                        
+                        return True
+                        
+            except Exception as e:
+                logger.error(f"Error updating session metadata: {e}")
+                span.record_exception(e)
+                track_db_error("update_session_metadata")
+                return False
+            
+    async def get_session(self, session_id: str) -> Optional[Session]:
+        """
+        Get a session by ID
+        
+        Args:
+            session_id: Session ID
+            
+        Returns:
+            Session or None if not found
+        """
+        with optional_trace_span(self.tracer, "db_get_session") as span:
+            span.set_attribute("session_id", session_id)
 
+            if not self.pool:
+                await self.connect()
+                
+            try:
+                with TimedOperation(track_db_operation, "get_session"):
+                    async with self.pool.acquire() as conn:
+                        # Get session data
+                        session_row = await conn.fetchrow('''
+                            SELECT * FROM session.active_sessions 
+                            WHERE session_id = $1 AND expires_at > NOW()
+                        ''', session_id)
+                        
+                        if not session_row:
+                            return None
+                        
+                        # Get session metadata
+                        metadata_row = await conn.fetchrow('''
+                            SELECT metadata FROM session.session_metadata
+                            WHERE session_id = $1
+                        ''', session_id)
+                        
+                        # Create session object
+                        session = Session(
+                            session_id=session_row['session_id'],
+                            user_id=session_row['user_id'],
+                            status=SessionStatus(session_row['status']),
+                            created_at=session_row['created_at'].timestamp(),
+                            last_active=session_row['last_active'].timestamp(),
+                            expires_at=session_row['expires_at'].timestamp()
+                        )
+                        
+                        # Add metadata if exists
+                        if metadata_row and metadata_row['metadata']:
+                            metadata_dict = metadata_row['metadata']
+                            # Convert the raw metadata dict to SessionMetadata properly
+                            if isinstance(metadata_dict, dict):
+                                session.metadata = SessionMetadata(**metadata_dict)
+                            else:
+                                # Handle case where metadata might be a JSON string
+                                session.metadata = SessionMetadata.parse_raw(metadata_dict)
+                        
+                        return session
+                        
+            except Exception as e:
+                logger.error(f"Error getting session: {e}")
+                span.record_exception(e)
+                track_db_error("get_session")
+                return None
+            
     async def get_simulator_by_session(self, session_id: str) -> Optional[Simulator]:
         """
         Get simulator for a session
@@ -255,6 +375,43 @@ class DatabaseManager:
             logger.error(f"Database connection check failed: {e}")
             return False
 
+    async def update_session_activity(self, session_id: str) -> bool:
+        """
+        Update the last_active and expires_at time for a session
+        
+        Args:
+            session_id: The session ID
+            
+        Returns:
+            Success status
+        """
+        with optional_trace_span(self.tracer, "db_update_session_activity") as span:
+            span.set_attribute("session_id", session_id)
+            
+            if not self.pool:
+                await self.connect()
+            
+            try:
+                with TimedOperation(track_db_operation, "update_session_activity"):
+                    current_time = time.time()
+                    # Calculate new expiry time
+                    expires_at = current_time + config.session.timeout_seconds
+                    
+                    async with self.pool.acquire() as conn:
+                        # Update session activity and expiry
+                        result = await conn.execute('''
+                            UPDATE session.active_sessions
+                            SET last_active = to_timestamp($1), expires_at = to_timestamp($2)
+                            WHERE session_id = $3
+                        ''', current_time, expires_at, session_id)
+                        
+                        return 'UPDATE 1' in result
+            except Exception as e:
+                logger.error(f"Error updating session activity: {e}")
+                span.record_exception(e)
+                track_db_error("update_session_activity")
+                return False
+            
     async def create_session(self, user_id: str, ip_address: Optional[str] = None) -> Tuple[str, bool]:
         """
         Create a new session for a user

@@ -56,14 +56,14 @@ spec:
           service:
             name: session-manager
             port:
-              number: 8088
+              number: 8080
       - path: /api/stream/(.*)
         pathType: ImplementationSpecific
         backend:
           service:
             name: session-manager
             port:
-              number: 8088
+              number: 8080
       # Admin dashboard and monitoring paths
       - path: /admin/?(.*)
         pathType: ImplementationSpecific

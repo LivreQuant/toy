@@ -113,8 +113,10 @@ class SessionManager:
                 span.set_attribute("token_valid", False)
                 return None, False
 
+            logger.warning(f"COMPARE: {validation}")
+
             # Make sure user in token matches provided user_id
-            token_user_id = validation.get('user_id')
+            token_user_id = validation.get('userId')
             span.set_attribute("token_user_id", token_user_id)
 
             logger.warning(f"COMPARE: {token_user_id} | {user_id}")
