@@ -160,9 +160,10 @@ export class ConnectionManager extends EventEmitter {
   }
   
   // Connect all necessary connections for a session
+
   public async connect(): Promise<boolean> {
     console.log('Attempting to connect and create session...');
-
+  
     if (this.state.isConnected || this.state.isConnecting) {
       return this.state.isConnected;
     }
@@ -175,16 +176,16 @@ export class ConnectionManager extends EventEmitter {
       });
       return false;
     }
-
+  
     this.updateState({ isConnecting: true, error: null });
     
     try {
-      // Check if we have a stored session
+      // Step 1: Get or create session
       let sessionId = SessionStore.getSessionId();
       
       if (!sessionId) {
         console.log('No existing session found, creating new session...');
-
+  
         // Create a new session
         const response = await this.sessionApi.createSession();
         
@@ -204,17 +205,24 @@ export class ConnectionManager extends EventEmitter {
       
       this.updateState({ sessionId });
       
-      // Connect WebSocket
+      // Step 2: Check session readiness
+      console.log('Checking session readiness...');
+      const isReady = await this.checkSessionReadiness(sessionId);
+      if (!isReady) {
+        throw new Error('Session failed readiness check');
+      }
+      
+      // Step 3: Connect WebSocket
+      console.log('Establishing WebSocket connection...');
       const wsConnected = await this.wsManager.connect(sessionId);
       
       if (!wsConnected) {
         throw new Error('Failed to establish WebSocket connection');
       }
       
-      // Connect to market data stream
-      await this.marketDataStream.connect(sessionId);
+      console.log('WebSocket connection established successfully');
       
-      // Get session state to determine if simulator is already running
+      // Step 4: Get session state to determine if simulator is already running
       const sessionState = await this.sessionApi.getSessionState(sessionId);
       
       // Update state with simulator info
@@ -229,14 +237,15 @@ export class ConnectionManager extends EventEmitter {
         isConnected: true, 
         isConnecting: false 
       });
-        
-      // Connect to market data stream after successful connection
+      
+      // Step 5: Connect to market data stream after WebSocket is connected
+      console.log('Establishing market data stream...');
       await this.marketDataStream.connect(sessionId);
       
       return true;
     } catch (error) {
       console.error('Full session creation error:', error);
-
+  
       if (error instanceof Error) {
         console.error('Error name:', error.name);
         console.error('Error message:', error.message);
@@ -246,13 +255,46 @@ export class ConnectionManager extends EventEmitter {
           console.error('Potential network or CORS issue detected');
         }
       }
-
+  
       this.updateState({ 
         isConnecting: false, 
         error: error instanceof Error ? error.message : 'Connection failed' 
       });
       return false;
     }
+  }
+  
+  // Add a new method to check session readiness
+  private async checkSessionReadiness(sessionId: string): Promise<boolean> {
+    const maxAttempts = 5;
+    const retryDelay = 1000; // 1 second
+    
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const ready = await this.sessionApi.checkSessionReady(sessionId);
+        
+        if (ready.success) {
+          console.log('Session is ready');
+          return true;
+        }
+        
+        console.log(`Session not ready yet (attempt ${attempt}/${maxAttempts}): ${ready.status}`);
+        
+        if (attempt < maxAttempts) {
+          // Wait before trying again
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
+        }
+      } catch (error) {
+        console.error(`Error checking session readiness (attempt ${attempt}/${maxAttempts}):`, error);
+        
+        if (attempt < maxAttempts) {
+          // Wait before trying again
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
+        }
+      }
+    }
+    
+    return false;
   }
   
   public disconnect(): void {

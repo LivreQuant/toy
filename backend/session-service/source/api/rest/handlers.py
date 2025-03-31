@@ -67,6 +67,138 @@ async def get_token_from_request(request):
 
     return None
 
+async def handle_get_session_state(request):
+    """
+    Handle session state request to get simulator status and other session info
+    
+    Args:
+        request: HTTP request
+        
+    Returns:
+        JSON response with session state
+    """
+    with optional_trace_span(_tracer, "handle_get_session_state") as span:
+        session_manager = request.app['session_manager']
+        
+        # Get session ID and token from query params
+        session_id = request.query.get('sessionId')
+        token = request.query.get('token')
+        
+        span.set_attribute("session_id", session_id)
+        span.set_attribute("has_token", token is not None)
+        
+        if not session_id or not token:
+            span.set_attribute("error", "Missing sessionId or token")
+            return web.json_response({
+                'success': False,
+                'error': 'Missing sessionId or token'
+            }, status=400)
+        
+        # Validate session
+        user_id = await session_manager.validate_session(session_id, token)
+        span.set_attribute("user_id", user_id)
+        span.set_attribute("session_valid", user_id is not None)
+        
+        if not user_id:
+            span.set_attribute("error", "Invalid session or token")
+            return web.json_response({
+                'success': False,
+                'error': 'Invalid session or token'
+            }, status=401)
+        
+        # Get session details
+        session = await session_manager.get_session(session_id)
+        span.set_attribute("session_found", session is not None)
+        
+        if not session:
+            span.set_attribute("error", "Session not found")
+            return web.json_response({
+                'success': False,
+                'error': 'Session not found'
+            }, status=404)
+        
+        # Extract relevant state info
+        response_data = {
+            'success': True,
+            'sessionId': session_id,
+            'sessionCreatedAt': session.get('created_at', 0),
+            'lastActive': session.get('last_active', 0),
+        }
+        
+        # Add simulator info if available
+        simulator_id = None
+        simulator_status = 'UNKNOWN'
+        
+        if session.get('metadata') and isinstance(session.get('metadata'), dict):
+            metadata = session.get('metadata')
+            simulator_id = metadata.get('simulator_id')
+            simulator_status = metadata.get('simulator_status', 'UNKNOWN')
+        
+        response_data['simulatorId'] = simulator_id
+        response_data['simulatorStatus'] = simulator_status
+        
+        return web.json_response(response_data)
+
+# source/api/rest/handlers.py
+async def handle_session_ready(request):
+    """Session readiness check endpoint"""
+    session_manager = request.app['session_manager']
+    
+    # Get session ID from URL
+    session_id = request.match_info['session_id']
+    
+    # Get token from query params
+    token = request.query.get('token')
+    
+    if not token:
+        return web.json_response({
+            'success': False,
+            'status': 'unauthorized',
+            'message': 'Missing token'
+        }, status=401)
+    
+    # Validate session
+    user_id = await session_manager.validate_session(session_id, token)
+    
+    if not user_id:
+        return web.json_response({
+            'success': False,
+            'status': 'invalid',
+            'message': 'Invalid session or token'
+        }, status=401)
+    
+    # Get session details
+    session = await session_manager.get_session(session_id)
+    
+    if not session:
+        return web.json_response({
+            'success': False,
+            'status': 'not_found',
+            'message': 'Session not found'
+        }, status=404)
+    
+    # Return session readiness status
+    return web.json_response({
+        'success': True,
+        'status': 'ready',
+        'message': 'Session is ready for connection'
+    })
+
+async def handle_list_routes(request):
+    """Debug endpoint to list all registered routes"""
+    all_routes = []
+    for route in request.app.router.routes():
+        info = {
+            "method": route.method,
+            "path": route.resource.canonical if hasattr(route.resource, "canonical") else str(route.resource),
+            "handler": route.handler.__name__ if hasattr(route.handler, "__name__") else str(route.handler)
+        }
+        all_routes.append(info)
+    
+    return web.json_response({
+        "routes": all_routes,
+        "count": len(all_routes)
+    })
 
 async def handle_create_session(request):
     """

@@ -20,6 +20,12 @@ export interface SessionStateResponse {
   lastActive: number;
 }
 
+export interface SessionReadyResponse {
+  success: boolean;
+  status: string;
+  message?: string;
+}
+
 export class SessionApi {
   private client: HttpClient;
   private tokenManager: TokenManager;  // Add this property
@@ -71,5 +77,12 @@ export class SessionApi {
       '/sessions/connection-quality', 
       { sessionId, latencyMs, missedHeartbeats, connectionType }
     );
+  }
+
+  // Add this new method
+  async checkSessionReady(sessionId: string): Promise<SessionReadyResponse> {
+    const token = await this.tokenManager.getAccessToken();
+    
+    return this.client.get<SessionReadyResponse>(`/sessions/${sessionId}/ready?token=${token}`);
   }
 }

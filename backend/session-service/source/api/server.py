@@ -112,7 +112,6 @@ class SessionServer:
         self.app.router.add_get('/readiness', self.readiness_check)
         self.app.router.add_get('/metrics', self.metrics_endpoint)  # Expose Prometheus metrics
 
-        
         # Set up CORS
         self._setup_cors()
         

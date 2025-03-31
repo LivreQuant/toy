@@ -15,7 +15,7 @@ interface AppConfig {
     const devConfig: AppConfig = {
       apiBaseUrl: process.env.REACT_APP_API_BASE_URL || 'http://trading.local/api',
       wsBaseUrl: process.env.REACT_APP_WS_BASE_URL || 'ws://trading.local/ws',
-      sseBaseUrl: process.env.REACT_APP_SSE_BASE_URL || 'http://trading.local/api/stream',
+      sseBaseUrl: process.env.REACT_APP_SSE_BASE_URL || 'http://trading.local/stream',
       environment: 'development'
     };
     
@@ -23,7 +23,7 @@ interface AppConfig {
     const prodConfig: AppConfig = {
       apiBaseUrl: process.env.REACT_APP_API_BASE_URL || 'https://api.your-trading-domain.com/api',
       wsBaseUrl: process.env.REACT_APP_WS_BASE_URL || 'wss://api.your-trading-domain.com/ws',
-      sseBaseUrl: process.env.REACT_APP_SSE_BASE_URL || 'https://api.your-trading-domain.com/api/stream',
+      sseBaseUrl: process.env.REACT_APP_SSE_BASE_URL || 'https://api.your-trading-domain.com/stream',
       environment: 'production'
     };
     
@@ -31,7 +31,7 @@ interface AppConfig {
     const testConfig: AppConfig = {
       apiBaseUrl: process.env.REACT_APP_API_BASE_URL || 'http://localhost:8080/api',
       wsBaseUrl: process.env.REACT_APP_WS_BASE_URL || 'ws://localhost:8080/ws',
-      sseBaseUrl: process.env.REACT_APP_SSE_BASE_URL || 'http://localhost:8080/api/stream',
+      sseBaseUrl: process.env.REACT_APP_SSE_BASE_URL || 'http://localhost:8080/stream',
       environment: 'test'
     };
     

@@ -6,7 +6,7 @@ metadata:
   annotations:
     # CORS
     nginx.ingress.kubernetes.io/enable-cors: "true"
-    nginx.ingress.kubernetes.io/cors-allow-origin: "http://localhost:3001"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "http://localhost:3000"
     nginx.ingress.kubernetes.io/cors-allow-methods: "GET, PUT, POST, DELETE, PATCH, OPTIONS"
     nginx.ingress.kubernetes.io/cors-allow-headers: "DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Authorization,Origin,Accept"
     nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
@@ -57,7 +57,7 @@ spec:
             name: session-manager
             port:
               number: 8080
-      - path: /api/stream/(.*)
+      - path: /stream/(.*)
         pathType: ImplementationSpecific
         backend:
           service:
