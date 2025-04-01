@@ -47,6 +47,9 @@ class WebSocketProtocol:
             else:
                 message = data
             
+            # Update session activity on any message
+            await self.session_manager.update_session_activity(session_id)
+            
             # Get message type
             message_type = message.get('type')
             
@@ -89,6 +92,9 @@ class WebSocketProtocol:
         
         if client_timestamp:
             latency = server_timestamp - client_timestamp
+        
+        # Update session activity
+        await self.session_manager.update_session_activity(session_id)
         
         # Send heartbeat response
         await ws.send_json({

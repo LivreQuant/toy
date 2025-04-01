@@ -51,15 +51,17 @@ export class SessionApi {
   async getSession(sessionId: string): Promise<SessionResponse> {
     return this.client.get<SessionResponse>(`/sessions/get?sessionId=${sessionId}`);
   }
-  
-  async keepAlive(sessionId: string): Promise<{ success: boolean }> {
-    return this.client.post<{ success: boolean }>('/sessions/keep-alive', { sessionId });
-  }
-  
+
   async getSessionState(sessionId: string): Promise<SessionStateResponse> {
-    return this.client.get<SessionStateResponse>(`/sessions/state?sessionId=${sessionId}`);
+    // Get token from tokenManager
+    const token = await this.tokenManager.getAccessToken();
+    
+    // Include token in the query parameters
+    return this.client.get<SessionStateResponse>(
+        `/sessions/state?sessionId=${sessionId}&token=${token}`
+    );
   }
-  
+
   async reconnectSession(sessionId: string, reconnectAttempt: number): Promise<SessionResponse> {
     return this.client.post<SessionResponse>('/sessions/reconnect', { 
       sessionId, 

@@ -95,15 +95,15 @@ export class ConnectionManager extends EventEmitter {
     this.wsManager.on('connected', () => {
       this.updateState({ isConnected: true, error: null });
       this.emit('connected', { connected: true });
-      this.startHeartbeat();
-      this.startKeepAlive();
+      //this.startHeartbeat();
+      //this.startKeepAlive();
     });
     
     this.wsManager.on('disconnected', () => {
       this.updateState({ isConnected: false });
       this.emit('disconnected');
-      this.stopHeartbeat();
-      this.stopKeepAlive();
+      //this.stopHeartbeat();
+      //this.stopKeepAlive();
     });
     
     this.wsManager.on('reconnecting', (data: any) => {
@@ -238,6 +238,9 @@ export class ConnectionManager extends EventEmitter {
         isConnecting: false 
       });
       
+      // Start heartbeat for WebSocket
+      this.startHeartbeat();
+      
       // Step 5: Connect to market data stream after WebSocket is connected
       console.log('Establishing market data stream...');
       await this.marketDataStream.connect(sessionId);
@@ -263,7 +266,7 @@ export class ConnectionManager extends EventEmitter {
       return false;
     }
   }
-  
+
   // Add a new method to check session readiness
   private async checkSessionReadiness(sessionId: string): Promise<boolean> {
     const maxAttempts = 5;
@@ -304,9 +307,8 @@ export class ConnectionManager extends EventEmitter {
     // Disconnect market data stream
     this.marketDataStream.disconnect();
     
-    // Stop timers
+    // Stop heartbeat timer
     this.stopHeartbeat();
-    this.stopKeepAlive();
     
     // Clear session store
     SessionStore.clearSession();
@@ -344,8 +346,8 @@ export class ConnectionManager extends EventEmitter {
       // Disconnect existing connections
       this.wsManager.disconnect();
       this.marketDataStream.disconnect();
-      this.stopHeartbeat();
-      this.stopKeepAlive();
+      //this.stopHeartbeat();
+      //this.stopKeepAlive();
       
       // Connect WebSocket
       const wsConnected = await this.wsManager.connect(response.sessionId);
@@ -430,33 +432,7 @@ export class ConnectionManager extends EventEmitter {
       this.heartbeatInterval = null;
     }
   }
-  
-  // Start keep-alive for REST API connection
-  private startKeepAlive(): void {
-    this.stopKeepAlive();
     
-    this.keepAliveInterval = window.setInterval(async () => {
-      if (!this.state.isConnected || !this.state.sessionId) return;
-      
-      try {
-        // Send keep-alive to server
-        await this.sessionApi.keepAlive(this.state.sessionId);
-        
-        // Update session store
-        SessionStore.updateActivity();
-      } catch (error) {
-        console.error('Keep-alive error:', error);
-      }
-    }, 30000); // Every 30 seconds
-  }
-  
-  private stopKeepAlive(): void {
-    if (this.keepAliveInterval !== null) {
-      clearInterval(this.keepAliveInterval);
-      this.keepAliveInterval = null;
-    }
-  }
-  
   private updateState(updates: Partial<ConnectionState>): void {
     const prevState = { ...this.state };
     this.state = { ...this.state, ...updates };
@@ -496,7 +472,7 @@ export class ConnectionManager extends EventEmitter {
       this.updateState({ simulatorStatus: 'STARTING' });
       
       // Add type assertion for response
-      const response = await this.httpClient.post('/api/simulator/start', {
+      const response = await this.httpClient.post('/simulator/start', {
         sessionId: this.state.sessionId
       }) as { success: boolean; simulatorId: string };
       
@@ -523,7 +499,7 @@ export class ConnectionManager extends EventEmitter {
     try {
       this.updateState({ simulatorStatus: 'STOPPING' });
       
-      const response = await this.httpClient.post('/api/simulator/stop', {
+      const response = await this.httpClient.post('/simulator/stop', {
         sessionId: this.state.sessionId,
         simulatorId: this.state.simulatorId
       }) as { success: boolean };

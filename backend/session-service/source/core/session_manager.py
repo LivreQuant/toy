@@ -233,7 +233,24 @@ class SessionManager:
         await self.db_manager.update_session_activity(session_id)
         
         return user_id
-    
+        
+    async def update_session_activity(self, session_id: str) -> bool:
+        """
+        Update the session activity timestamp
+        
+        Args:
+            session_id: The session ID
+        
+        Returns:
+            Success status
+        """
+        try:
+            # Update session activity in database
+            return await self.db_manager.update_session_activity(session_id)
+        except Exception as e:
+            logger.error(f"Error updating session activity: {e}")
+            return False
+
     async def end_session(self, session_id: str, token: str) -> Tuple[bool, str]:
         """
         End a session
