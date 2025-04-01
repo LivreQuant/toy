@@ -59,6 +59,9 @@ export class MarketDataStream extends EventEmitter {
     });
     
     this.symbols = options.symbols || [];
+  
+    // Set up event listeners in the constructor
+    this.sseClient.on('message', this.handleServerEvent.bind(this));
     
     // Set up event listeners
     this.sseClient.on('market-data', this.handleMarketData.bind(this));
@@ -80,24 +83,59 @@ export class MarketDataStream extends EventEmitter {
       return false;
     }
     
+    console.log('MarketDataStream - Connecting with session ID:', sessionId);
     this.sessionId = sessionId;
     
     // Update symbols if provided
     if (symbols) {
+      console.log('MarketDataStream - Using symbols:', symbols);
       this.symbols = symbols;
     }
     
     const params: Record<string, string> = {};
     if (this.symbols.length > 0) {
       params.symbols = this.symbols.join(',');
+      console.log('MarketDataStream - Symbol parameter:', params.symbols);
     }
     
     // Add client ID
     params.clientId = `market-data-${Date.now()}`;
+    console.log('MarketDataStream - Client ID:', params.clientId);
     
     return this.sseClient.connect(sessionId, params);
   }
   
+
+  private handleServerEvent(data: any): void {
+    try {
+        // Assuming the data is already parsed by SSEClient
+        if (data.data) {
+            // Update market data
+            if (data.data.market_data) {
+                const marketDataMap: Record<string, MarketData> = {};
+                data.data.market_data.forEach((item: MarketData) => {
+                    marketDataMap[item.symbol] = item;
+                });
+                this.marketData = marketDataMap;
+            }
+            
+            // Update portfolio if available
+            if (data.data.portfolio) {
+                this.portfolio = data.data.portfolio;
+            }
+            
+            // Emit events
+            this.emit('market-data-updated', this.marketData);
+            
+            if (this.portfolio) {
+                this.emit('portfolio-updated', this.portfolio);
+            }
+        }
+    } catch (error) {
+        console.error('Error parsing SSE data:', error);
+    }
+  }
+
   public disconnect(): void {
     this.sseClient.close();
   }

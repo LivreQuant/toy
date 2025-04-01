@@ -30,6 +30,7 @@ export class SSEClient extends EventEmitter {
   
   constructor(tokenManager: TokenManager, options: SSEOptions = {}) {
     super();
+    console.log("BASE URL: ", config.sseBaseUrl, config.apiBaseUrl)
     this.baseUrl = config.sseBaseUrl;
     this.tokenManager = tokenManager;
     this.maxReconnectAttempts = options.reconnectMaxAttempts || 15;
@@ -46,7 +47,7 @@ export class SSEClient extends EventEmitter {
       this.emit('error', { error: 'No authentication token available' });
       return false;
     }
-    
+      
     if (this.eventSource && this.eventSource.readyState === EventSource.OPEN) {
       return true;
     }
@@ -88,15 +89,22 @@ export class SSEClient extends EventEmitter {
         this.emit('connection_failed', { error: 'No valid token available' });
         return false;
       }
+
+      // Log the base URL used
+      console.log('SSE Client - Base URL:', this.baseUrl);
       
       // Build URL with all parameters
       let url = `${this.baseUrl}?sessionId=${sessionId}&token=${token}`;
+      console.log('SSE Client - Constructed URL:', url);
       
       // Add any additional parameters
       Object.entries(params).forEach(([key, value]) => {
         url += `&${key}=${encodeURIComponent(value)}`;
+        console.log(`SSE Client - Added parameter: ${key}=${value}`);
       });
       
+      console.log('SSE Client - Final URL:', url);
+
       // Close existing EventSource if any
       this.close();
       

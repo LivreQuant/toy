@@ -57,7 +57,7 @@ spec:
             name: session-manager
             port:
               number: 8080
-      - path: /stream/(.*)
+      - path: /stream/?(.*)
         pathType: ImplementationSpecific
         backend:
           service:

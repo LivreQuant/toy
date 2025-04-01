@@ -9,6 +9,7 @@ import time
 from typing import Dict, Any, Set, Optional
 from opentelemetry import trace
 from aiohttp import web
+import random
 
 from source.utils.metrics import track_sse_connection_count, track_sse_message
 from source.utils.tracing import optional_trace_span
@@ -35,10 +36,10 @@ class SSEAdapter:
 
         # Initialize metrics
         track_sse_connection_count(0)
-    
+
     async def handle_stream(self, request):
         """
-        Handle an SSE stream request
+        Handle an SSE stream request with fake data
         
         Args:
             request: HTTP request
@@ -46,163 +47,184 @@ class SSEAdapter:
         Returns:
             StreamResponse
         """
-        with optional_trace_span(self.tracer, "handle_sse_stream") as span:
-            # Get parameters
-            session_id = request.query.get('sessionId')
-            token = request.query.get('token')
-            symbols_param = request.query.get('symbols', '')
-            symbols = symbols_param.split(',') if symbols_param else []
+        logger.info(f"SSE stream connection attempt received with query params: {request.query}")
+        
+        # Get parameters
+        session_id = request.query.get('sessionId')
+        token = request.query.get('token')
+        symbols_param = request.query.get('symbols', '')
+        symbols = symbols_param.split(',') if symbols_param else []
 
-            span.set_attribute("session_id", session_id)
-            span.set_attribute("has_token", token is not None)
-            span.set_attribute("symbols_count", len(symbols))
+        logger.info(f"SSE params - sessionId: {session_id}, token: {'present' if token else 'missing'}, symbols: {symbols}")
 
-            if not session_id or not token:
-                span.set_attribute("error", "Missing sessionId or token")
-                return web.json_response({
-                    'error': 'Missing sessionId or token'
-                }, status=400)
+        if not session_id or not token:
+            logger.error("SSE request missing sessionId or token")
+            return web.json_response({
+                'error': 'Missing sessionId or token'
+            }, status=400)
 
-            # Validate session
-            user_id = await self.session_manager.validate_session(session_id, token)
-            span.set_attribute("user_id", user_id)
-            span.set_attribute("session_valid", user_id is not None)
+        # Validate session
+        logger.info(f"Validating session {session_id} for SSE connection")
+        user_id = await self.session_manager.validate_session(session_id, token)
+        logger.info(f"Session validation result: user_id={user_id}")
 
-            if not user_id:
-                span.set_attribute("error", "Invalid session or token")
-                return web.json_response({
-                    'error': 'Invalid session or token'
-                }, status=401)
+        if not user_id:
+            logger.error(f"Invalid session or token for SSE connection: {session_id}")
+            return web.json_response({
+                'error': 'Invalid session or token'
+            }, status=401)
 
-            # Get session details
-            session = await self.session_manager.get_session(session_id)
+        # Set up SSE response
+        logger.info(f"Setting up SSE response for session {session_id}")
+        response = web.StreamResponse()
+        response.headers['Content-Type'] = 'text/event-stream'
+        response.headers['Cache-Control'] = 'no-cache'
+        response.headers['Connection'] = 'keep-alive'
+        response.headers['X-Accel-Buffering'] = 'no'  # Disable Nginx buffering
 
-            # Check if simulator is running
-            simulator_id = session.get('simulator_id')
-            simulator_endpoint = session.get('simulator_endpoint')
+        # Prepare response
+        logger.info("Preparing SSE response")
+        await response.prepare(request)
+        logger.info("SSE response prepared")
 
-            span.set_attribute("simulator_id", simulator_id)
-            span.set_attribute("simulator_available", simulator_id is not None and simulator_endpoint is not None)
+        # Track connection
+        client_id = request.query.get('clientId', f"sse-{time.time()}")
+        logger.info(f"SSE client tracking: client_id={client_id}")
 
-            if not simulator_id or not simulator_endpoint:
-                span.set_attribute("error", "No active simulator for this session")
-                return web.json_response({
-                    'error': 'No active simulator for this session'
-                }, status=400)
+        # Generate fake symbols if none provided
+        if not symbols:
+            symbols = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'FB']
+        
+        # Send initial event
+        try:
+            # Send connected event
+            logger.info(f"Sending 'connected' event to client {client_id}")
+            sse_data = f"event: connected\ndata: {json.dumps({'sessionId': session_id, 'clientId': client_id})}\n\n"
+            await response.write(sse_data.encode())
 
-            # Set up SSE response
-            response = web.StreamResponse()
-            response.headers['Content-Type'] = 'text/event-stream'
-            response.headers['Cache-Control'] = 'no-cache'
-            response.headers['Connection'] = 'keep-alive'
-            response.headers['X-Accel-Buffering'] = 'no'  # Disable Nginx buffering
-
-            # Prepare response
-            await response.prepare(request)
-
-            # Track connection
-            client_id = request.query.get('clientId', f"sse-{time.time()}")
-            span.set_attribute("client_id", client_id)
-
-            # Get or create stream handler
-            if session_id in self.active_streams:
-                stream = self.active_streams[session_id]
-                span.set_attribute("stream_created", False)
-            else:
-                # Create new stream handler
-                stream = StreamHandler(
-                    self.exchange_client,
-                    session_id,
-                    user_id,
-                    simulator_id,
-                    simulator_endpoint,
-                    self.tracer
-                )
-                self.active_streams[session_id] = stream
-                span.set_attribute("stream_created", True)
-
-                # Start the stream
-                await stream.start(symbols)
-
-            # Register this client
-            stream.add_client(client_id, response)
-
-            # Update session metadata
-            sse_count = stream.client_count()
-            await self.session_manager.db_manager.update_session_metadata(session_id, {
-                'sse_connections': sse_count,
-                'last_sse_connection': time.time()
-            })
-
-            # Update metrics
-            track_sse_connection_count(self._get_total_connections())
-
-            # Send initial event
-            try:
-                # Send connected event
-                sse_data = f"event: connected\ndata: {json.dumps({'sessionId': session_id, 'clientId': client_id})}\n\n"
-                await response.write(sse_data.encode())
-                track_sse_message("connected")
-
-                # Get initial data snapshot
-                initial_data = await stream.get_initial_data()
-
-                if initial_data:
-                    sse_data = f"event: market-data\ndata: {json.dumps(initial_data)}\n\n"
-                    await response.write(sse_data.encode())
-                    track_sse_message("market-data")
-
-                # Update Redis if available
-                if self.redis:
-                    await self.redis.set(
-                        f"connection:{session_id}:sse_count",
-                        sse_count,
-                        ex=3600  # 1 hour expiry
-                    )
-
-                # Keep connection open
-                while not response.task.done():
-                    # Check if client disconnected
-                    if request.transport is None or request.transport.is_closing():
-                        break
-
-                    # Wait for a while
-                    await asyncio.sleep(1)
-
-            except asyncio.CancelledError:
-                # Normal disconnection
-                pass
-            except Exception as e:
-                logger.error(f"Error in SSE stream for session {session_id}: {e}")
-                span.record_exception(e)
-            finally:
-                # Unregister client
-                stream.remove_client(client_id)
-
-                # Check if we need to close the stream
-                if stream.client_count() == 0:
-                    await stream.stop()
-                    self.active_streams.pop(session_id, None)
-
-                # Update session metadata
-                sse_count = stream.client_count()
-                await self.session_manager.db_manager.update_session_metadata(session_id, {
-                    'sse_connections': sse_count,
-                    'last_sse_disconnection': time.time()
+            # Send initial fake data
+            logger.info("Sending initial fake market data")
+            initial_data = {
+                'timestamp': int(time.time() * 1000),
+                'market_data': []
+            }
+            
+            # Generate fake data for each symbol
+            for symbol in symbols:
+                initial_data['market_data'].append({
+                    'symbol': symbol,
+                    'price': round(random.uniform(100, 1000), 2),
+                    'change': round(random.uniform(-5, 5), 2),
+                    'bid': round(random.uniform(95, 995), 2),
+                    'ask': round(random.uniform(105, 1005), 2),
+                    'bidSize': random.randint(100, 1000),
+                    'askSize': random.randint(100, 1000),
+                    'volume': random.randint(10000, 100000),
+                    'timestamp': int(time.time() * 1000)
                 })
+            
+            sse_data = f"event: market-data\ndata: {json.dumps(initial_data)}\n\n"
+            await response.write(sse_data.encode())
+            
+            # Keep sending updates periodically
+            logger.info(f"Entering fake data generation loop for client {client_id}")
+            update_count = 0
+            
+            while not response.task.done():
+                # Check if client disconnected
+                if request.transport is None or request.transport.is_closing():
+                    logger.info(f"Client transport closed for {client_id}")
+                    break
+                    
+                # Generate updated fake data every second
+                await asyncio.sleep(1)
+                update_count += 1
+                
+                # Only send updates every 1-3 seconds
+                if update_count % random.randint(1, 3) == 0:
+                    update_data = {
+                        'timestamp': int(time.time() * 1000),
+                        'market_data': []
+                    }
+                    
+                    # Update each symbol with slightly changed values
+                    for symbol in symbols:
+                        price = round(random.uniform(100, 1000), 2)
+                        update_data['market_data'].append({
+                            'symbol': symbol,
+                            'price': price,
+                            'change': round(random.uniform(-5, 5), 2),
+                            'bid': round(price * 0.99, 2),
+                            'ask': round(price * 1.01, 2),
+                            'bidSize': random.randint(100, 1000),
+                            'askSize': random.randint(100, 1000),
+                            'volume': random.randint(10000, 100000),
+                            'timestamp': int(time.time() * 1000)
+                        })
+                    
+                    logger.debug(f"Sending market data update #{update_count}")
+                    sse_data = f"event: market-data\ndata: {json.dumps(update_data)}\n\n"
+                    await response.write(sse_data.encode())
 
-                # Update metrics
-                track_sse_connection_count(self._get_total_connections())
+        except asyncio.CancelledError:
+            # Normal disconnection
+            logger.info(f"SSE connection cancelled for client {client_id}")
+        except Exception as e:
+            logger.error(f"Error in SSE stream for session {session_id}: {e}", exc_info=True)
+        
+        logger.info(f"SSE stream connection completed for client {client_id}")
+        return response
 
-                # Update Redis if available
-                if self.redis:
-                    await self.redis.set(
-                        f"connection:{session_id}:sse_count",
-                        sse_count,
-                        ex=3600  # 1 hour expiry
-                    )
+    async def _send_mock_data(self, response):
+        """Send mock data when no simulator is available"""
+        mock_symbols = ['AAPL', 'GOOGL', 'MSFT', 'AMZN']
+        
+        while True:
+            mock_data = {
+                'timestamp': int(time.time() * 1000),
+                'data': {
+                    'market_data': [{
+                        'symbol': symbol,
+                        'price': round(random.uniform(50, 500), 2),
+                        'change': round(random.uniform(-5, 5), 2),
+                        'volume': random.randint(1000, 100000)
+                    } for symbol in mock_symbols],
+                    'portfolio': {
+                        'cash': round(random.uniform(50000, 200000), 2),
+                        'equity': round(random.uniform(100000, 500000), 2),
+                        'positions': [{
+                            'symbol': symbol,
+                            'quantity': random.randint(10, 500),
+                            'avg_price': round(random.uniform(50, 500), 2),
+                            'market_value': round(random.uniform(5000, 50000), 2)
+                        } for symbol in mock_symbols]
+                    }
+                }
+            }
+            
+            sse_data = f"data: {json.dumps(mock_data)}\n\n"
+            await response.write(sse_data.encode())
+            
+            await asyncio.sleep(5)  # Send mock data every 5 seconds
 
-            return response
+    async def _stream_simulator_data(self, session_id, simulator_endpoint, response):
+        """Stream real simulator data"""
+        client_id = f"sse-{time.time()}"
+        
+        async for data in self.exchange_client.stream_exchange_data(
+            simulator_endpoint, session_id, client_id
+        ):
+            # Flatten the nested structure into a single stream
+            unified_data = {
+                'timestamp': data['timestamp'],
+                'data': {
+                    'market_data': data.get('market_data', []),
+                    'portfolio': data.get('portfolio')
+                }
+            }
+            
+            sse_data = f"data: {json.dumps(unified_data)}\n\n"
+            await response.write(sse_data.encode())    
 
     def _get_total_connections(self):
         """Get total SSE connections across all streams"""
@@ -321,7 +343,7 @@ class StreamHandler:
     async def get_initial_data(self):
         """Get initial data snapshot for a new client"""
         return self.latest_data
-    
+
     async def _run_stream(self, symbols=None):
         """
         Run the gRPC stream
@@ -336,18 +358,26 @@ class StreamHandler:
             try:
                 # Generate a client ID for this stream
                 client_id = f"sse-stream-{self.simulator_id}"
+                logger.info(f"Starting exchange stream for client {client_id} with symbols: {symbols}")
                 span.set_attribute("client_id", client_id)
 
                 # Start the stream
-                async for data in self.exchange_client.stream_exchange_data(
+                logger.info(f"Connecting to exchange stream at endpoint {self.endpoint}")
+                stream_gen = self.exchange_client.stream_market_data(
                     self.endpoint,
                     self.session_id,
                     client_id,
                     symbols
-                ):
+                )
+                
+                logger.info("Stream generator created, starting async iteration")
+                
+                async for data in stream_gen:
                     if not self.running:
+                        logger.info("Stream handler no longer running, breaking loop")
                         break
 
+                    logger.debug(f"Received data from exchange stream: {data.get('timestamp')}")
                     # Update latest data
                     self.latest_data = data
                     track_sse_message("market-data")
@@ -355,19 +385,23 @@ class StreamHandler:
                     # Put data in queue for distribution
                     try:
                         self.queue.put_nowait(data)
+                        logger.debug("Data added to distribution queue")
                     except asyncio.QueueFull:
                         # Queue is full (backpressure), drop oldest item
+                        logger.warning("Distribution queue full, dropping oldest item")
                         try:
                             _ = self.queue.get_nowait()
                             self.queue.put_nowait(data)
-                        except Exception:
-                            pass
+                            logger.debug("Oldest item dropped, new data added")
+                        except Exception as e:
+                            logger.error(f"Error handling queue backpressure: {e}")
 
             except asyncio.CancelledError:
                 # Normal cancellation
+                logger.info("Stream task cancelled")
                 raise
             except Exception as e:
-                logger.error(f"Error in exchange stream: {e}")
+                logger.error(f"Error in exchange stream: {e}", exc_info=True)
                 span.record_exception(e)
 
                 # Put error in queue
@@ -377,9 +411,10 @@ class StreamHandler:
                         'timestamp': int(time.time() * 1000)
                     }
                     self.queue.put_nowait(error_data)
-                except:
-                    pass
-    
+                    logger.info("Error info added to distribution queue")
+                except Exception as inner_e:
+                    logger.error(f"Failed to add error to queue: {inner_e}")
+                    
     async def _distribute_data(self):
         """Distribute data to all connected clients"""
         while True:

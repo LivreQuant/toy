@@ -38,3 +38,4 @@ def setup_rest_routes(app):
     app.router.add_post('/api/simulators', handle_start_simulator)
     app.router.add_delete('/api/simulators/{simulator_id}', handle_stop_simulator)
     app.router.add_get('/api/simulators/{simulator_id}', handle_get_simulator_status)
+    

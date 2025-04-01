@@ -48,3 +48,11 @@ interface AppConfig {
   
   // Export configuration
   export const config = getConfig();
+
+
+console.log('Configuration loaded:', {
+  apiBaseUrl: config.apiBaseUrl,
+  wsBaseUrl: config.wsBaseUrl,
+  sseBaseUrl: config.sseBaseUrl,
+  environment: config.environment,
+});

@@ -54,6 +54,57 @@ class ExchangeClient:
         logger.info(f"Circuit breaker '{name}' state change: {old_state.value} -> {new_state.value}")
         track_circuit_breaker_state("exchange_service", new_state.value)
 
+    async def stream_market_data(
+            self,
+            endpoint: str,
+            session_id: str,
+            client_id: str,
+            symbols: List[str] = None
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        """
+        Stream market data from the exchange simulator
+
+        Args:
+            endpoint: The endpoint of the simulator
+            session_id: The session ID
+            client_id: The client ID
+            symbols: Optional list of symbols to stream (passed through from frontend)
+
+        Yields:
+            Dict with market data updates
+        """
+        logger.info(f"Starting market data stream for session {session_id}, client {client_id}, symbols: {symbols}")
+        
+        _, stub = await self.get_channel(endpoint)
+
+        request = StreamRequest(
+            session_id=session_id,
+            client_id=client_id,
+            symbols=symbols or []
+        )
+
+        # This streaming endpoint doesn't use circuit breaker to allow long-running streams
+        try:
+            logger.info(f"Establishing gRPC stream to {endpoint} for session {session_id}")
+            stream = stub.StreamMarketData(request)
+            logger.info(f"gRPC stream established successfully for session {session_id}")
+
+            async for data in stream:
+                logger.debug(f"Received market data update for session {session_id}")
+                # Simply forward the data structure received from the exchange
+                # Convert protobuf message to dictionary with minimal transformation
+                yield self._convert_stream_data(data)
+
+        except grpc.aio.AioRpcError as e:
+            if e.code() == grpc.StatusCode.CANCELLED:
+                logger.info(f"Stream cancelled for session {session_id}")
+            else:
+                logger.error(f"gRPC error in market data stream: {e.code()} - {e.details()}")
+            raise
+        except Exception as e:
+            logger.error(f"Error in market data stream: {e}")
+            raise
+        
     async def get_channel(self, endpoint: str):
         """Get or create a gRPC channel to the endpoint"""
         async with self._conn_lock:

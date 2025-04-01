@@ -454,7 +454,10 @@ export class ConnectionManager extends EventEmitter {
     if (!this.state.sessionId || !this.state.isConnected) {
       return false;
     }
-    
+      
+    console.log('ConnectionManager - Streaming market data, session ID:', this.state.sessionId);
+    console.log('ConnectionManager - Symbols:', symbols);
+
     // Use type assertion to avoid TypeScript error
     return this.marketDataStream.connect(
       this.state.sessionId, 
