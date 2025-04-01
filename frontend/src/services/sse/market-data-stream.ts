@@ -1,4 +1,3 @@
-// src/services/sse/market-data-stream.ts
 import { SSEClient } from './sse-client';
 import { TokenManager } from '../auth/token-manager';
 import { EventEmitter } from '../../utils/event-emitter';
@@ -76,6 +75,12 @@ export class MarketDataStream extends EventEmitter {
   }
   
   public async connect(sessionId: string, symbols?: string[]): Promise<boolean> {
+    console.log('MarketDataStream - Connecting', { 
+      sessionId, 
+      symbols, 
+      clientId: `market-data-${Date.now()}` 
+    });
+  
     // Validate authentication first
     const token = await this.tokenManager.getAccessToken();
     if (!token) {
@@ -93,46 +98,59 @@ export class MarketDataStream extends EventEmitter {
     }
     
     const params: Record<string, string> = {};
-    if (this.symbols.length > 0) {
-      params.symbols = this.symbols.join(',');
-      console.log('MarketDataStream - Symbol parameter:', params.symbols);
+    if (symbols && symbols.length > 0) {
+        params.symbols = symbols.join(',');
+        console.log('MarketDataStream - Symbol parameter:', params.symbols);
     }
-    
+
     // Add client ID
     params.clientId = `market-data-${Date.now()}`;
     console.log('MarketDataStream - Client ID:', params.clientId);
     
-    return this.sseClient.connect(sessionId, params);
+    try {
+        const connected = await this.sseClient.connect(sessionId, params);
+        console.log('MarketDataStream - Connection Result:', connected);
+        return connected;
+    } catch (error) {
+        console.error('MarketDataStream - Connection Error:', error);
+        return false;
+    }
   }
   
-
   private handleServerEvent(data: any): void {
     try {
-        // Assuming the data is already parsed by SSEClient
-        if (data.data) {
+        console.log('Received SSE data:', data);
+
+        // Check if data is in the expected format
+        if (data && data.data) {
+            console.log('Parsed SSE data:', data.data);
+
             // Update market data
             if (data.data.market_data) {
+                console.log('Market Data:', data.data.market_data);
                 const marketDataMap: Record<string, MarketData> = {};
                 data.data.market_data.forEach((item: MarketData) => {
+                    console.log('Individual Market Data Item:', item);
                     marketDataMap[item.symbol] = item;
                 });
                 this.marketData = marketDataMap;
+                
+                // Emit market data update
+                this.emit('market-data-updated', this.marketData);
+                console.log('Emitted market data:', this.marketData);
             }
             
             // Update portfolio if available
             if (data.data.portfolio) {
+                console.log('Portfolio Data:', data.data.portfolio);
                 this.portfolio = data.data.portfolio;
-            }
-            
-            // Emit events
-            this.emit('market-data-updated', this.marketData);
-            
-            if (this.portfolio) {
                 this.emit('portfolio-updated', this.portfolio);
             }
+        } else {
+            console.warn('Received SSE data in unexpected format:', data);
         }
     } catch (error) {
-        console.error('Error parsing SSE data:', error);
+        console.error('Error parsing SSE data:', error, 'Raw data:', data);
     }
   }
 

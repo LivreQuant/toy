@@ -85,7 +85,6 @@ const SimulatorPage: React.FC = () => {
       
       <div className="simulator-content">
         <div className="market-data-section">
-          <MarketData onSymbolSelect={handleSymbolSelect} />
         </div>
         
         <div className="order-entry-section">

@@ -1,82 +1,79 @@
 // src/components/Simulator/MarketData.tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useConnection } from '../../contexts/ConnectionContext';
 import './MarketData.css';
 
-interface MarketDataProps {
-  onSymbolSelect?: (symbol: string) => void;
+// Enhanced interface to match the new SSE data structure
+interface MarketDataItem {
+  symbol: string;
+  price: number;
+  change: number;
+  bid: number;
+  ask: number;
+  bidSize: number;
+  askSize: number;
+  volume: number;
+  timestamp: number;
 }
 
-const MarketData: React.FC<MarketDataProps> = ({ onSymbolSelect }) => {
-  const { isConnected, marketData, connectionQuality } = useConnection();
-  const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
-  
-  const handleSymbolClick = (symbol: string) => {
-    setSelectedSymbol(symbol);
-    if (onSymbolSelect) {
-      onSymbolSelect(symbol);
+const MarketData: React.FC = () => {
+  const { isConnected, marketData } = useConnection();
+  const [marketDataList, setMarketDataList] = useState<MarketDataItem[]>([]);
+
+  // Convert marketData object to list whenever it updates
+  useEffect(() => {
+    if (marketData) {
+      const dataList = Object.values(marketData);
+      setMarketDataList(dataList);
     }
-  };
-  
+  }, [marketData]);
+
   if (!isConnected) {
     return (
       <div className="market-data-container">
-        <h2 className="market-data-title">Market Data</h2>
+        <h2>Market Data</h2>
         <div className="market-data-disconnected">
           Not connected to market data stream
         </div>
       </div>
     );
   }
-  
-  if (Object.keys(marketData).length === 0) {
-    return (
-      <div className="market-data-container">
-        <h2 className="market-data-title">Market Data</h2>
-        <div className="market-data-loading">
-          Loading market data...
-        </div>
-      </div>
-    );
-  }
-  
+
   return (
     <div className="market-data-container">
-      <h2 className="market-data-title">Market Data</h2>
-      
-      <div className="market-data-grid">
-        {Object.values(marketData).map(item => (
-          <div 
-            key={item.symbol} 
-            className={`market-data-card ${selectedSymbol === item.symbol ? 'selected' : ''}`}
-            onClick={() => handleSymbolClick(item.symbol)}
-          >
-            <div className="symbol-row">
-              <div className="symbol">{item.symbol}</div>
-              <div className={`price`}>
-                ${item.lastPrice.toFixed(2)}
-              </div>
-            </div>
-            
-            <div className="bid-ask-row">
-              <div className="bid">
-                <span className="label">Bid:</span>
-                <span className="value">${item.bid.toFixed(2)} × {item.bidSize}</span>
-              </div>
-              <div className="ask">
-                <span className="label">Ask:</span>
-                <span className="value">${item.ask.toFixed(2)} × {item.askSize}</span>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-      
-      {connectionQuality === 'poor' && (
-        <div className="market-data-warning">
-          Poor connection quality - data may be delayed
-        </div>
-      )}
+      <h2>Market Data</h2>
+      <table className="market-data-table">
+        <thead>
+          <tr>
+            <th>Symbol</th>
+            <th>Price</th>
+            <th>Change</th>
+            <th>Bid</th>
+            <th>Ask</th>
+            <th>Bid Size</th>
+            <th>Ask Size</th>
+            <th>Volume</th>
+            <th>Timestamp</th>
+          </tr>
+        </thead>
+        <tbody>
+          {marketDataList.map((item) => (
+            <tr key={item.symbol}>
+              <td>{item.symbol}</td>
+              <td>${item.price.toFixed(2)}</td>
+              <td style={{ color: item.change >= 0 ? 'green' : 'red' }}>
+                {item.change.toFixed(2)}
+              </td>
+              <td>${item.bid.toFixed(2)}</td>
+              <td>${item.ask.toFixed(2)}</td>
+              <td>{item.bidSize}</td>
+              <td>{item.askSize}</td>
+              <td>{item.volume}</td>
+              <td>{new Date(item.timestamp).toLocaleString()}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 };

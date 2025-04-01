@@ -451,18 +451,27 @@ export class ConnectionManager extends EventEmitter {
   
   // Stream market data for specific symbols
   public async streamMarketData(symbols: string[] = []): Promise<boolean> {
+    console.group('🚀 Streaming Market Data');
+    console.log('Symbols:', symbols);
+    
     if (!this.state.sessionId || !this.state.isConnected) {
+      console.error('Cannot stream - No active session');
+      console.groupEnd();
       return false;
     }
       
     console.log('ConnectionManager - Streaming market data, session ID:', this.state.sessionId);
     console.log('ConnectionManager - Symbols:', symbols);
 
-    // Use type assertion to avoid TypeScript error
-    return this.marketDataStream.connect(
+    const result = await this.marketDataStream.connect(
       this.state.sessionId, 
       { symbols: symbols.join(',') } as any
     );
+
+    console.log('Stream Connection Result:', result);
+    console.groupEnd();
+    
+    return result;
   }
   
   // Control simulator

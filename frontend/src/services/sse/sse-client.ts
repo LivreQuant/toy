@@ -1,4 +1,3 @@
-// src/services/sse/sse-client.ts
 import { EventEmitter } from '../../utils/event-emitter';
 import { TokenManager } from '../auth/token-manager';
 import { BackoffStrategy } from '../../utils/backoff-strategy';
@@ -30,7 +29,10 @@ export class SSEClient extends EventEmitter {
   
   constructor(tokenManager: TokenManager, options: SSEOptions = {}) {
     super();
-    console.log("BASE URL: ", config.sseBaseUrl, config.apiBaseUrl)
+    console.warn('🚨 SSE CLIENT CONSTRUCTOR', {
+      baseUrl: config.sseBaseUrl,
+      options
+    });
     this.baseUrl = config.sseBaseUrl;
     this.tokenManager = tokenManager;
     this.maxReconnectAttempts = options.reconnectMaxAttempts || 15;
@@ -41,18 +43,27 @@ export class SSEClient extends EventEmitter {
     this.circuitBreakerResetTime = options.circuitBreakerResetTimeMs || 60000; // 1 minute
   }
   
-  public async connect(sessionId: string, params: Record<string, string> = {}): Promise<boolean> {  // Check for token first
+  public async connect(sessionId: string, params: Record<string, string> = {}): Promise<boolean> {
+    console.group('🔍 SSE CONNECTION ATTEMPT');
+    console.warn('Connection Params:', { sessionId, params });
+
     const token = await this.tokenManager.getAccessToken();
     if (!token) {
+      console.error('❌ NO ACCESS TOKEN AVAILABLE');
       this.emit('error', { error: 'No authentication token available' });
+      console.groupEnd();
       return false;
     }
       
     if (this.eventSource && this.eventSource.readyState === EventSource.OPEN) {
+      console.warn('🟢 Already connected');
+      console.groupEnd();
       return true;
     }
     
     if (this.isConnecting) {
+      console.warn('🔄 Connection in progress');
+      console.groupEnd();
       return new Promise<boolean>(resolve => {
         this.once('connected', () => resolve(true));
         this.once('connection_failed', () => resolve(false));
@@ -63,18 +74,16 @@ export class SSEClient extends EventEmitter {
     if (this.circuitBreakerState === 'OPEN') {
       const currentTime = Date.now();
       if (currentTime - this.circuitBreakerTrippedAt < this.circuitBreakerResetTime) {
-        // Circuit is open, fast fail the connection attempt
+        console.error('🔴 Circuit is OPEN');
         this.emit('circuit_open', { 
-          message: 'Connection attempts temporarily suspended due to repeated failures',
+          message: 'Connection attempts temporarily suspended',
           resetTimeMs: this.circuitBreakerResetTime - (currentTime - this.circuitBreakerTrippedAt)
         });
+        console.groupEnd();
         return false;
       } else {
-        // Allow one attempt to try to reconnect (half-open state)
         this.circuitBreakerState = 'HALF_OPEN';
-        this.emit('circuit_half_open', { 
-          message: 'Trying one connection attempt after circuit breaker timeout'
-        });
+        console.warn('🟠 Transitioning to HALF_OPEN state');
       }
     }
     
@@ -82,63 +91,48 @@ export class SSEClient extends EventEmitter {
     this.sessionId = sessionId;
     
     try {
-      const token = await this.tokenManager.getAccessToken();
-      if (!token) {
-        this.isConnecting = false;
-        this.handleConnectionFailure();
-        this.emit('connection_failed', { error: 'No valid token available' });
-        return false;
-      }
-
-      // Log the base URL used
-      console.log('SSE Client - Base URL:', this.baseUrl);
-      
-      // Build URL with all parameters
-      let url = `${this.baseUrl}?sessionId=${sessionId}&token=${token}`;
-      console.log('SSE Client - Constructed URL:', url);
-      
-      // Add any additional parameters
-      Object.entries(params).forEach(([key, value]) => {
-        url += `&${key}=${encodeURIComponent(value)}`;
-        console.log(`SSE Client - Added parameter: ${key}=${value}`);
+      // Construct URL manually with extensive logging
+      const urlParams = new URLSearchParams({
+        sessionId,
+        token,
+        ...params
       });
+      const fullUrl = `${this.baseUrl}?${urlParams.toString()}`;
       
-      console.log('SSE Client - Final URL:', url);
+      console.warn('📡 Full SSE Connection URL:', fullUrl);
 
-      // Close existing EventSource if any
-      this.close();
+      // Create EventSource with maximum debugging
+      this.eventSource = new EventSource(fullUrl);
       
-      // Create EventSource
-      this.eventSource = new EventSource(url);
-      
+      console.warn('🌐 EventSource Created:', {
+        readyState: this.eventSource.readyState,
+        url: this.eventSource.url
+      });
+
       return new Promise<boolean>((resolve) => {
-        if (!this.eventSource) {
-          this.isConnecting = false;
-          this.handleConnectionFailure();
-          this.emit('connection_failed', { error: 'Failed to create EventSource' });
-          resolve(false);
-          return;
-        }
-        
-        // Set up event handlers
-        this.eventSource.onopen = () => {
+        this.eventSource!.onopen = () => {
+          console.group('🟢 SSE CONNECTION OPENED');
+          console.warn('Open Event');
+          
           this.isConnecting = false;
           this.reconnectAttempt = 0;
           this.backoffStrategy.reset();
           
-          // Reset circuit breaker on successful connection
+          // Reset circuit breaker
           this.consecutiveFailures = 0;
           if (this.circuitBreakerState === 'HALF_OPEN') {
             this.circuitBreakerState = 'CLOSED';
-            this.emit('circuit_closed', { message: 'Circuit breaker reset after successful connection' });
+            console.warn('🔓 Circuit breaker reset');
           }
           
           this.emit('connected', { connected: true });
           resolve(true);
+          console.groupEnd();
         };
         
-        this.eventSource.onerror = (error) => {
-          console.error('SSE connection error:', error);
+        this.eventSource!.onerror = (error) => {
+          console.group('🔴 SSE CONNECTION ERROR');
+          console.error('Error Event:', error);
           
           if (this.eventSource?.readyState === EventSource.CLOSED) {
             this.handleDisconnect();
@@ -150,56 +144,67 @@ export class SSEClient extends EventEmitter {
             this.emit('connection_failed', { error: 'SSE connection error' });
             resolve(false);
           }
+          console.groupEnd();
         };
         
-        // Listen for message event
-        this.eventSource.onmessage = (event) => {
-          try {
-            const data = JSON.parse(event.data);
-            this.emit('message', data);
-          } catch (error) {
-            console.error('Error parsing SSE message:', error);
-          }
-        };
-        
-        // Set up timeout for initial connection
-        const connectionTimeout = window.setTimeout(() => {
-          if (this.isConnecting) {
-            this.isConnecting = false;
-            this.handleConnectionFailure();
-            this.close();
-            this.emit('connection_failed', { error: 'SSE connection timeout' });
-            resolve(false);
-          }
-        }, 10000); // 10 second timeout
-        
-        // Clear timeout on successful connection
-        this.once('connected', () => {
-          clearTimeout(connectionTimeout);
-        });
-        
-        // Set up custom event listeners
-        const eventTypes = ['market-data', 'order-update', 'portfolio-update', 'error'];
-        eventTypes.forEach(eventType => {
-          this.eventSource?.addEventListener(eventType, (event: MessageEvent) => {
-            try {
-              const data = JSON.parse(event.data);
-              this.emit(eventType, data);
-            } catch (error) {
-              console.error(`Error parsing SSE ${eventType} event:`, error);
-            }
-          });
-        });
+        // Verbose message handling
+        this.setupVerboseMessageListeners();
       });
     } catch (error) {
-      console.error('SSE connection error:', error);
+      console.group('❌ SSE CONNECTION FAILED');
+      console.error('Connection Error:', error);
       this.isConnecting = false;
       this.handleConnectionFailure();
       this.emit('connection_failed', { error });
+      console.groupEnd();
       return false;
     }
   }
-  
+
+  private setupVerboseMessageListeners(): void {
+    console.warn('🕵️ Setting up VERBOSE Event Listeners');
+
+    // Global message listener
+    this.eventSource?.addEventListener('message', (event: MessageEvent) => {
+      console.group('🌍 GLOBAL SSE MESSAGE');
+      console.warn('Raw Event:', {
+        type: event.type,
+        data: event.data,
+        origin: event.origin
+      });
+      
+      try {
+        const parsedData = JSON.parse(event.data);
+        console.warn('Parsed Data:', parsedData);
+      } catch (parseError) {
+        console.error('❌ PARSING ERROR:', parseError);
+        console.warn('Unparseable Data:', event.data);
+      }
+      
+      console.groupEnd();
+    });
+
+    // Specific market-data event listener
+    this.eventSource?.addEventListener('market-data', (event: MessageEvent) => {
+      console.group('📊 MARKET DATA EVENT');
+      console.warn('Raw Market Data Event:', {
+        type: event.type,
+        data: event.data
+      });
+      
+      try {
+        console.log('Raw market-data event:', event);
+        const data = JSON.parse(event.data);
+        console.log('Parsed market-data:', data);
+        this.emit('message', { type: 'market-data', data });
+      } catch (error) {
+          console.error(`Error parsing SSE market-data event:`, error, 'Raw event:', event);
+      }
+      
+      console.groupEnd();
+    });
+  }
+
   private handleConnectionFailure() {
     // Increment failure counter
     this.consecutiveFailures++;

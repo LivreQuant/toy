@@ -39,7 +39,7 @@ class SSEAdapter:
 
     async def handle_stream(self, request):
         """
-        Handle an SSE stream request with fake data
+        Handle an SSE stream request with both fake and real data support
         
         Args:
             request: HTTP request
@@ -91,84 +91,112 @@ class SSEAdapter:
         client_id = request.query.get('clientId', f"sse-{time.time()}")
         logger.info(f"SSE client tracking: client_id={client_id}")
 
-        # Generate fake symbols if none provided
-        if not symbols:
-            symbols = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'FB']
+        # Get session to check simulator status
+        session = await self.session_manager.get_session(session_id)
         
-        # Send initial event
-        try:
-            # Send connected event
-            logger.info(f"Sending 'connected' event to client {client_id}")
-            sse_data = f"event: connected\ndata: {json.dumps({'sessionId': session_id, 'clientId': client_id})}\n\n"
-            await response.write(sse_data.encode())
-
-            # Send initial fake data
-            logger.info("Sending initial fake market data")
-            initial_data = {
+        # Generate fake market data function
+        def generate_fake_market_data():
+            fake_symbols = symbols if symbols else ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'FB']
+            return {
                 'timestamp': int(time.time() * 1000),
-                'market_data': []
+                'market_data': [
+                    {
+                        'symbol': symbol,
+                        'price': round(random.uniform(100, 1000), 2),
+                        'change': round(random.uniform(-5, 5), 2),
+                        'bid': round(random.uniform(95, 995), 2),
+                        'ask': round(random.uniform(105, 1005), 2),
+                        'bidSize': random.randint(100, 1000),
+                        'askSize': random.randint(100, 1000),
+                        'volume': random.randint(10000, 100000),
+                        'timestamp': int(time.time() * 1000)
+                    } for symbol in fake_symbols
+                ]
+            }
+
+        try:
+            # Predefined symbols for testing
+            test_symbols = ['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'FB']
+            
+            # Send initial full snapshot
+            initial_snapshot = {
+                'timestamp': int(time.time() * 1000),
+                'type': 'full_snapshot',
+                'market_data': [
+                    {
+                        'symbol': symbol,
+                        'price': round(random.uniform(100, 1000), 2),
+                        'change': round(random.uniform(-5, 5), 2),
+                        'volume': random.randint(10000, 100000),
+                        'bid': round(random.uniform(50, 500), 2),
+                        'ask': round(random.uniform(50, 500), 2),
+                        'bidSize': random.randint(100, 1000),
+                        'askSize': random.randint(100, 1000),
+                        'timestamp': int(time.time() * 1000)
+                    } for symbol in test_symbols
+                ],
+                'portfolio': {
+                    'cashBalance': round(random.uniform(50000, 200000), 2),
+                    'totalValue': round(random.uniform(100000, 500000), 2),
+                    'positions': [
+                        {
+                            'symbol': symbol,
+                            'quantity': random.randint(10, 500),
+                            'averageCost': round(random.uniform(50, 500), 2),
+                            'marketValue': round(random.uniform(5000, 50000), 2)
+                        } for symbol in test_symbols
+                    ]
+                },
+                'order_updates': []
             }
             
-            # Generate fake data for each symbol
-            for symbol in symbols:
-                initial_data['market_data'].append({
-                    'symbol': symbol,
-                    'price': round(random.uniform(100, 1000), 2),
-                    'change': round(random.uniform(-5, 5), 2),
-                    'bid': round(random.uniform(95, 995), 2),
-                    'ask': round(random.uniform(105, 1005), 2),
-                    'bidSize': random.randint(100, 1000),
-                    'askSize': random.randint(100, 1000),
-                    'volume': random.randint(10000, 100000),
-                    'timestamp': int(time.time() * 1000)
-                })
-            
-            sse_data = f"event: market-data\ndata: {json.dumps(initial_data)}\n\n"
+            # Send initial snapshot
+            sse_data = f"event: market-data\ndata: {json.dumps(initial_snapshot)}\n\n"
             await response.write(sse_data.encode())
             
-            # Keep sending updates periodically
-            logger.info(f"Entering fake data generation loop for client {client_id}")
-            update_count = 0
-            
-            while not response.task.done():
-                # Check if client disconnected
-                if request.transport is None or request.transport.is_closing():
-                    logger.info(f"Client transport closed for {client_id}")
-                    break
-                    
-                # Generate updated fake data every second
-                await asyncio.sleep(1)
-                update_count += 1
-                
-                # Only send updates every 1-3 seconds
-                if update_count % random.randint(1, 3) == 0:
-                    update_data = {
-                        'timestamp': int(time.time() * 1000),
-                        'market_data': []
-                    }
-                    
-                    # Update each symbol with slightly changed values
-                    for symbol in symbols:
-                        price = round(random.uniform(100, 1000), 2)
-                        update_data['market_data'].append({
+            # Streaming loop with changing data
+            while True:
+                # Generate updated snapshot
+                update_snapshot = {
+                    'timestamp': int(time.time() * 1000),
+                    'type': 'full_snapshot',
+                    'market_data': [
+                        {
                             'symbol': symbol,
-                            'price': price,
+                            'price': round(random.uniform(100, 1000), 2),
                             'change': round(random.uniform(-5, 5), 2),
-                            'bid': round(price * 0.99, 2),
-                            'ask': round(price * 1.01, 2),
+                            'volume': random.randint(10000, 100000),
+                            'bid': round(random.uniform(50, 500), 2),
+                            'ask': round(random.uniform(50, 500), 2),
                             'bidSize': random.randint(100, 1000),
                             'askSize': random.randint(100, 1000),
-                            'volume': random.randint(10000, 100000),
                             'timestamp': int(time.time() * 1000)
-                        })
-                    
-                    logger.debug(f"Sending market data update #{update_count}")
-                    sse_data = f"event: market-data\ndata: {json.dumps(update_data)}\n\n"
-                    await response.write(sse_data.encode())
+                        } for symbol in test_symbols
+                    ],
+                    'portfolio': {
+                        'cashBalance': round(random.uniform(50000, 200000), 2),
+                        'totalValue': round(random.uniform(100000, 500000), 2),
+                        'positions': [
+                            {
+                                'symbol': symbol,
+                                'quantity': random.randint(10, 500),
+                                'averageCost': round(random.uniform(50, 500), 2),
+                                'marketValue': round(random.uniform(5000, 50000), 2)
+                            } for symbol in test_symbols
+                        ]
+                    },
+                    'order_updates': []
+                }
+                
+                # Send full snapshot
+                sse_data = f"event: market-data\ndata: {json.dumps(update_snapshot)}\n\n"
+                await response.write(sse_data.encode())
+                
+                # Wait before next update
+                await asyncio.sleep(10)  # Adjust interval as needed
 
         except asyncio.CancelledError:
-            # Normal disconnection
-            logger.info(f"SSE connection cancelled for client {client_id}")
+            logger.info(f"SSE stream cancelled for session {session_id}")
         except Exception as e:
             logger.error(f"Error in SSE stream for session {session_id}: {e}", exc_info=True)
         

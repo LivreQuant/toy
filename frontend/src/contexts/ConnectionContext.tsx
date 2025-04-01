@@ -44,6 +44,7 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     };
     
     const handleMarketData = (data: any) => {
+      console.log('Connection Context - Received Market Data:', data);
       setMarketData(data);
     };
     
@@ -79,6 +80,7 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       // Don't disconnect on unmount as this is a top-level provider
     };
   }, [connectionManager, isAuthenticated, connectionState.isConnected, connectionState.isConnecting]);
+  
   
   const connect = async () => {
     if (!isAuthenticated) {
