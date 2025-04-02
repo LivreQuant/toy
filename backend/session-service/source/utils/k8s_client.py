@@ -78,12 +78,35 @@ class KubernetesClient:
             client.V1EnvVar(name="SESSION_ID", value=session_id),
             client.V1EnvVar(name="USER_ID", value=user_id),
             client.V1EnvVar(name="INITIAL_CASH", value=str(initial_cash)),
+            
+            # Database connection variables
+            client.V1EnvVar(name="DB_HOST", value="postgres"),
+            client.V1EnvVar(name="DB_PORT", value="5432"),
+            client.V1EnvVar(name="DB_NAME", value="opentp"),
+            client.V1EnvVar(
+                name="DB_USER",
+                value_from=client.V1EnvVarSource(
+                    secret_key_ref=client.V1SecretKeySelector(
+                        name="db-credentials",
+                        key="username"
+                    )
+                )
+            ),
+            client.V1EnvVar(
+                name="DB_PASSWORD",
+                value_from=client.V1EnvVarSource(
+                    secret_key_ref=client.V1SecretKeySelector(
+                        name="db-credentials",
+                        key="password"
+                    )
+                )
+            ),
         ]
         
         # Add initial symbols if provided
         if initial_symbols:
             env_vars.append(client.V1EnvVar(
-                name="INITIAL_SYMBOLS", 
+                name="INITIAL_SYMBOLS",
                 value=",".join(initial_symbols)
             ))
         
@@ -320,7 +343,7 @@ class KubernetesClient:
         self.initialize()
         
         try:
-            # Get all simulator deployments
+            # Get all simulator deployments with more detailed filtering
             deployment_list = self.apps_v1.list_namespaced_deployment(
                 namespace=self.namespace,
                 label_selector="app=exchange-simulator,managed-by=session-service"
@@ -330,18 +353,113 @@ class KubernetesClient:
             now = time.time()
             
             for deployment in deployment_list.items:
+                simulator_id = deployment.metadata.labels.get("simulator_id")
+                session_id = deployment.metadata.labels.get("session_id")
+                
+                if not simulator_id or not session_id:
+                    logger.warning(f"Found deployment without proper labels: {deployment.metadata.name}")
+                    continue
+                
+                # First check simulator status via service endpoint if accessible
+                status = "UNKNOWN"
+                try:
+                    service_name = f"simulator-{simulator_id}"
+                    endpoint = f"{service_name}.{self.namespace}.svc.cluster.local:50055"
+                    # Try to get status (timeout quickly)
+                    status_response = await asyncio.wait_for(
+                        self._check_simulator_health(endpoint, session_id),
+                        timeout=2.0
+                    )
+                    status = status_response.get('status', 'UNKNOWN')
+                except (asyncio.TimeoutError, Exception) as e:
+                    logger.info(f"Simulator {simulator_id} health check failed: {e}")
+                    # If we can't reach it, assume it's not healthy
+                    status = "UNREACHABLE"
+                
                 # Check creation time
                 created_time = deployment.metadata.creation_timestamp.timestamp()
                 age_seconds = now - created_time
                 
+                should_delete = False
+                
+                # Delete if too old
                 if age_seconds > older_than_seconds:
-                    simulator_id = deployment.metadata.labels.get("simulator_id")
-                    if simulator_id:
-                        await self.delete_simulator_deployment(simulator_id)
-                        deleted_count += 1
+                    logger.info(f"Simulator {simulator_id} is too old (age: {age_seconds:.1f}s)")
+                    should_delete = True
+                # Delete if unreachable
+                elif status == "UNREACHABLE":
+                    logger.info(f"Simulator {simulator_id} is unreachable")
+                    should_delete = True
+                # Delete if pod reports ERROR state
+                elif status == "ERROR":
+                    logger.info(f"Simulator {simulator_id} reports ERROR state")
+                    should_delete = True
+                
+                if should_delete:
+                    await self.delete_simulator_deployment(simulator_id)
+                    deleted_count += 1
             
             logger.info(f"Cleaned up {deleted_count} inactive simulator deployments")
             return deleted_count
         except Exception as e:
             logger.error(f"Error cleaning up inactive simulators: {e}")
             return 0
+
+    async def _check_simulator_health(self, endpoint: str, session_id: str) -> dict:
+        """Check simulator health via gRPC"""
+        try:
+            # This would use your ExchangeClient, but keeping it here for simplicity
+            channel = grpc.aio.insecure_channel(endpoint)
+            stub = ExchangeSimulatorStub(channel)
+            
+            request = GetSimulatorStatusRequest(session_id=session_id)
+            response = await stub.GetSimulatorStatus(request, timeout=2.0)
+            
+            await channel.close()
+            
+            return {
+                'status': response.status,
+                'uptime_seconds': response.uptime_seconds,
+                'error': response.error_message if response.status == 'ERROR' else None
+            }
+        except Exception as e:
+            logger.error(f"Error checking simulator health: {e}")
+            return {'status': 'UNREACHABLE', 'error': str(e)}
+
+    async def list_simulator_deployments(self) -> List[Dict[str, Any]]:
+        """
+        List all simulator deployments
+        
+        Returns:
+            List of simulator deployment details
+        """
+        self.initialize()
+        
+        try:
+            # Get deployments with matching labels
+            deployment_list = self.apps_v1.list_namespaced_deployment(
+                namespace=self.namespace,
+                label_selector="app=exchange-simulator"
+            )
+            
+            simulators = []
+            for deployment in deployment_list.items:
+                simulator_id = deployment.metadata.labels.get("simulator_id")
+                session_id = deployment.metadata.labels.get("session_id")
+                user_id = deployment.metadata.labels.get("user_id")
+                
+                if not simulator_id:
+                    continue
+                    
+                simulators.append({
+                    "simulator_id": simulator_id,
+                    "session_id": session_id,
+                    "user_id": user_id,
+                    "status": "RUNNING" if deployment.status.available_replicas == 1 else "PENDING",
+                    "created_at": deployment.metadata.creation_timestamp.timestamp() if deployment.metadata.creation_timestamp else 0
+                })
+            
+            return simulators
+        except Exception as e:
+            logger.error(f"Error listing simulator deployments: {e}")
+            return []

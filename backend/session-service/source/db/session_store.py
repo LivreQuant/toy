@@ -221,6 +221,33 @@ class DatabaseManager:
                 track_db_error("get_active_sessions")
                 return []
 
+    async def update_simulator_last_active(self, simulator_id: str, timestamp: float) -> bool:
+        """
+        Update the last_active time for a simulator
+        
+        Args:
+            simulator_id: Simulator ID
+            timestamp: New last_active timestamp
+            
+        Returns:
+            Success flag
+        """
+        if not self.pool:
+            await self.connect()
+            
+        try:
+            async with self.pool.acquire() as conn:
+                result = await conn.execute('''
+                    UPDATE simulator.instances
+                    SET last_active = to_timestamp($1)
+                    WHERE simulator_id = $2
+                ''', timestamp, simulator_id)
+                
+                return 'UPDATE 1' in result
+        except Exception as e:
+            logger.error(f"Error updating simulator last_active: {e}")
+            return False
+        
     async def update_session_status(self, session_id: str, status: str) -> bool:
         """Update session status"""
         with optional_trace_span(self.tracer, "db_update_session_status") as span:

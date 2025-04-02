@@ -62,7 +62,68 @@ class SessionManager:
     async def start_cleanup_task(self):
         """Start background cleanup task"""
         self.cleanup_task = asyncio.create_task(self._cleanup_loop())
-    
+        # Add heartbeat task
+        self.heartbeat_task = asyncio.create_task(self._simulator_heartbeat_loop())
+        
+    async def _simulator_heartbeat_loop(self):
+        """Send periodic heartbeats to active simulators"""
+        while True:
+            try:
+                # Get all active simulator endpoints
+                active_sessions = await self.db_manager.get_active_sessions()
+                
+                heartbeat_tasks = []
+                for session in active_sessions:
+                    # Check if session has an active simulator
+                    sim_id = getattr(session.metadata, 'simulator_id', None)
+                    sim_endpoint = getattr(session.metadata, 'simulator_endpoint', None)
+                    
+                    if sim_id and sim_endpoint:
+                        task = asyncio.create_task(
+                            self._send_simulator_heartbeat(
+                                session.session_id, 
+                                sim_id, 
+                                sim_endpoint
+                            )
+                        )
+                        heartbeat_tasks.append(task)
+                
+                # Wait for all heartbeats to complete
+                if heartbeat_tasks:
+                    await asyncio.gather(*heartbeat_tasks, return_exceptions=True)
+                    
+                # Sleep until next heartbeat cycle (every 15 seconds)
+                await asyncio.sleep(15)
+                
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"Error in simulator heartbeat loop: {e}")
+                await asyncio.sleep(5)  # Shorter sleep on error
+
+    async def _send_simulator_heartbeat(self, session_id, simulator_id, endpoint):
+        """Send heartbeat to a specific simulator"""
+        try:
+            result = await self.exchange_client.heartbeat(
+                endpoint, 
+                session_id, 
+                f"heartbeat-{self.pod_name}"
+            )
+            
+            # Update last heartbeat timestamp if successful
+            if result.get('success'):
+                await self.db_manager.update_simulator_last_active(
+                    simulator_id,
+                    time.time()
+                )
+                return True
+            else:
+                logger.warning(f"Failed to send heartbeat to simulator {simulator_id}: {result.get('error')}")
+                return False
+        except Exception as e:
+            logger.error(f"Error sending heartbeat to simulator {simulator_id}: {e}")
+            return False
+
     async def stop_cleanup_task(self):
         """Stop background cleanup task"""
         if self.cleanup_task:
@@ -71,7 +132,15 @@ class SessionManager:
                 await self.cleanup_task
             except asyncio.CancelledError:
                 pass
-    
+        
+        # Cancel heartbeat task as well
+        if hasattr(self, 'heartbeat_task') and self.heartbeat_task:
+            self.heartbeat_task.cancel()
+            try:
+                await self.heartbeat_task
+            except asyncio.CancelledError:
+                pass
+
     async def _cleanup_loop(self):
         """Background loop for periodic cleanup tasks"""
         while True:
@@ -176,6 +245,43 @@ class SessionManager:
             
             return True
 
+    async def _run_simulator_heartbeat_task(self):
+        """Background task to send heartbeats to all active simulators"""
+        while True:
+            try:
+                # Get all active sessions with simulators
+                active_sessions = await self.db_manager.get_active_sessions_with_simulators()
+                
+                for session in active_sessions:
+                    if not session.metadata.simulator_id or not session.metadata.simulator_endpoint:
+                        continue
+                        
+                    # Send heartbeat with TTL
+                    result = await self.exchange_client.send_heartbeat_with_ttl(
+                        session.metadata.simulator_endpoint,
+                        session.session_id,
+                        f"heartbeat-{self.pod_name}",
+                        ttl_seconds=60  # Simulator will shutdown if no heartbeat for 60 seconds
+                    )
+                    
+                    # Update metadata if successful
+                    if result.get('success'):
+                        await self.db_manager.update_session_metadata(session.session_id, {
+                            'last_simulator_heartbeat': time.time()
+                        })
+                    else:
+                        # Log error and mark for investigation
+                        logger.warning(f"Failed to send heartbeat to simulator {session.metadata.simulator_id}: {result.get('error')}")
+                
+                # Wait before next heartbeat round
+                await asyncio.sleep(15)  # Send heartbeats every 15 seconds
+                
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"Error in simulator heartbeat task: {e}")
+                await asyncio.sleep(5)  # Shorter interval on error
+                
     async def create_session(self, user_id: str, token: str, ip_address: Optional[str] = None) -> Tuple[Optional[str], bool]:
         """
         Create a new session for a user
@@ -366,14 +472,32 @@ class SessionManager:
                 session = await self.db_manager.get_session(session_id)
                 session_created_at = session.created_at
 
-                # Stop simulator if active
+                # Enhanced simulator shutdown with graceful cleanup steps
                 if session.metadata.simulator_id:
                     simulator_id = session.metadata.simulator_id
                     span.set_attribute("simulator_id", simulator_id)
-
-                    await self.simulator_manager.stop_simulator(session.metadata.simulator_id)
-                    track_simulator_operation("stop_on_session_end")
-
+                    
+                    # 1. First try to stop gracefully via gRPC
+                    if session.metadata.simulator_endpoint:
+                        try:
+                            await self.exchange_client.stop_simulator(
+                                session.metadata.simulator_endpoint,
+                                session_id
+                            )
+                            logger.info(f"Successfully stopped simulator {simulator_id} via gRPC")
+                        except Exception as e:
+                            logger.warning(f"Failed to stop simulator via gRPC: {e}")
+                    
+                    # 2. Delete the K8s resources regardless of gRPC success
+                    try:
+                        await self.simulator_manager.k8s_client.delete_simulator_deployment(simulator_id)
+                        logger.info(f"Deleted K8s resources for simulator {simulator_id}")
+                    except Exception as e:
+                        logger.error(f"Failed to delete simulator K8s resources: {e}")
+                    
+                    # 3. Update database to mark simulator as stopped
+                    await self.db_manager.update_simulator_status(simulator_id, SimulatorStatus.STOPPED)
+                
                 # End session in database
                 success = await self.db_manager.end_session(session_id)
 

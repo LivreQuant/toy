@@ -3,10 +3,19 @@ import time
 import uuid
 import grpc
 import asyncio
+import random
 from typing import AsyncGenerator
 
-import exchange_simulator_pb2
-import exchange_simulator_pb2_grpc
+from source.api.grpc.exchange_simulator_pb2 import (
+    StartSimulatorResponse,
+    StopSimulatorResponse,
+    HeartbeatResponse,
+    ExchangeDataUpdate,
+    MarketData,
+    Position,
+    PortfolioStatus
+)
+from source.api.grpc.exchange_simulator_pb2_grpc import ExchangeSimulatorServicer
 
 from source.core.market_data import MarketDataGenerator
 from source.core.order_manager import OrderManager
@@ -16,7 +25,7 @@ from source.config import config
 
 logger = logging.getLogger(__name__)
 
-class ExchangeSimulatorService(exchange_simulator_pb2_grpc.ExchangeSimulatorServicer):
+class ExchangeSimulatorService(ExchangeSimulatorServicer):
     def __init__(
         self, 
         market_data: MarketDataGenerator, 
@@ -46,7 +55,7 @@ class ExchangeSimulatorService(exchange_simulator_pb2_grpc.ExchangeSimulatorServ
             'created_at': time.time()
         }
 
-        return exchange_simulator_pb2.StartSimulatorResponse(
+        return StartSimulatorResponse(
             success=True,
             simulator_id=simulator_id
         )
@@ -57,18 +66,54 @@ class ExchangeSimulatorService(exchange_simulator_pb2_grpc.ExchangeSimulatorServ
 
         if session_id in self.active_sessions:
             del self.active_sessions[session_id]
-            return exchange_simulator_pb2.StopSimulatorResponse(success=True)
+            return StopSimulatorResponse(success=True)
         
-        return exchange_simulator_pb2.StopSimulatorResponse(
+        return StopSimulatorResponse(
             success=False, 
             error_message="Session not found"
+        )
+        
+    async def Heartbeat(self, request, context):
+        """
+        Heartbeat to verify connection
+        
+        Enhanced to track session service connection health
+        """
+        session_id = request.session_id
+        client_id = request.client_id
+        client_timestamp = request.client_timestamp
+        
+        # Update last heartbeat time for TTL checking
+        self.last_session_heartbeat = time.time()
+        
+        # Check if session exists (optional validation)
+        if session_id not in self.active_sessions:
+            context.set_code(grpc.StatusCode.NOT_FOUND)
+            context.set_details(f"Session {session_id} not found")
+            return HeartbeatResponse(
+                success=False,
+                server_timestamp=int(time.time() * 1000)
+            )
+        
+        # Log periodic heartbeats at debug level
+        if hasattr(self, 'heartbeat_counter'):
+            self.heartbeat_counter += 1
+            if self.heartbeat_counter % 10 == 0:  # Log every 10th heartbeat
+                logger.debug(f"Received heartbeat #{self.heartbeat_counter} for session {session_id}")
+        else:
+            self.heartbeat_counter = 1
+            logger.info(f"Received first heartbeat for session {session_id}")
+        
+        return HeartbeatResponse(
+            success=True,
+            server_timestamp=int(time.time() * 1000)
         )
 
     async def StreamExchangeData(
         self, 
         request, 
         context
-    ) -> AsyncGenerator[exchange_simulator_pb2.ExchangeDataUpdate, None]:
+    ) -> AsyncGenerator[ExchangeDataUpdate, None]:
         """Stream market data and portfolio updates"""
         session_id = request.session_id
         symbols = list(request.symbols) or config.simulator.default_symbols
@@ -90,13 +135,13 @@ class ExchangeSimulatorService(exchange_simulator_pb2_grpc.ExchangeSimulatorServ
                 portfolio = self.portfolio_manager.get_portfolio(session_id)
                 
                 # Prepare data update
-                update = exchange_simulator_pb2.ExchangeDataUpdate(
+                update = ExchangeDataUpdate(
                     timestamp=int(time.time() * 1000)
                 )
 
                 # Add market data
                 for market_data in market_prices:
-                    pb_market_data = exchange_simulator_pb2.MarketData(
+                    pb_market_data = MarketData(
                         symbol=market_data['symbol'],
                         bid=market_data['bid'],
                         ask=market_data['ask'],
@@ -122,7 +167,7 @@ class ExchangeSimulatorService(exchange_simulator_pb2_grpc.ExchangeSimulatorServ
                 # Add order updates and portfolio
                 if portfolio:
                     # Add portfolio data
-                    portfolio_pb = exchange_simulator_pb2.PortfolioStatus(
+                    portfolio_pb = PortfolioStatus(
                         cash_balance=portfolio.cash_balance,
                         total_value=portfolio.get_total_value(
                             {md['symbol']: md['last_price'] for md in market_prices}
@@ -131,7 +176,7 @@ class ExchangeSimulatorService(exchange_simulator_pb2_grpc.ExchangeSimulatorServ
 
                     # Add positions
                     for symbol, position in portfolio.positions.items():
-                        position_pb = exchange_simulator_pb2.Position(
+                        position_pb = Position(
                             symbol=symbol,
                             quantity=int(position['quantity']),
                             average_cost=position['avg_cost'],

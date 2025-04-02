@@ -1,10 +1,11 @@
+# In backend/exchange-service/Dockerfile
 FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies - add libpq-dev for PostgreSQL
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends gcc curl && \
+    apt-get install -y --no-install-recommends gcc curl libpq-dev && \
     rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install dependencies
@@ -24,7 +25,13 @@ RUN python -m grpc_tools.protoc \
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
     ENVIRONMENT=production \
-    LOG_LEVEL=INFO
+    LOG_LEVEL=INFO \
+    DB_HOST=postgres \
+    DB_PORT=5432 \
+    DB_NAME=opentp \
+    DB_USER=opentp
+
+# Note: DB_PASSWORD will be passed at runtime
 
 # Expose ports
 EXPOSE 50055 9090
