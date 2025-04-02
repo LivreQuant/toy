@@ -1,9 +1,11 @@
 // src/contexts/ConnectionContext.tsx
-import React, { createContext, useContext, useState, useEffect } from 'react';
+
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { ConnectionManager, ConnectionState } from '../services/connection/connection-manager';
 import { TokenManager } from '../services/auth/token-manager';
 import { useAuth } from './AuthContext';
 import { config } from '../config';
+import { SessionStore } from '../services/session/session-store';
 
 interface ConnectionContextType {
   connectionManager: ConnectionManager;
@@ -13,6 +15,8 @@ interface ConnectionContextType {
   reconnect: () => Promise<boolean>;
   isConnected: boolean;
   isConnecting: boolean;
+  isRecovering: boolean;
+  recoveryAttempt: number;
   connectionQuality: string;
   error: string | null;
   startSimulator: () => Promise<boolean>;
@@ -22,6 +26,7 @@ interface ConnectionContextType {
   orders: Record<string, any>;
   portfolio: any;
   streamMarketData: (symbols: string[]) => Promise<boolean>;
+  manualReconnect: () => Promise<boolean>;
 }
 
 const ConnectionContext = createContext<ConnectionContextType | undefined>(undefined);
@@ -36,6 +41,10 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [marketData, setMarketData] = useState<Record<string, any>>({});
   const [orders, setOrders] = useState<Record<string, any>>({});
   const [portfolio, setPortfolio] = useState<any>(null);
+  
+  // Add new state for recovery tracking
+  const [isRecovering, setIsRecovering] = useState<boolean>(false);
+  const [recoveryAttempt, setRecoveryAttempt] = useState<number>(0);
   
   useEffect(() => {
     // Handle connection state changes
@@ -56,10 +65,30 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       setPortfolio(data);
     };
     
+    // Add recovery event listeners
+    const handleRecoveryAttempt = (data: any) => {
+      setIsRecovering(true);
+      setRecoveryAttempt(data.attempt);
+    };
+    
+    const handleRecoverySuccess = () => {
+      setIsRecovering(false);
+      setRecoveryAttempt(0);
+    };
+    
+    const handleRecoveryFailed = () => {
+      setIsRecovering(false);
+    };
+    
     connectionManager.on('state_change', handleStateChange);
     connectionManager.on('market_data', handleMarketData);
     connectionManager.on('orders', handleOrders);
     connectionManager.on('portfolio', handlePortfolio);
+    
+    // Register recovery event listeners
+    connectionManager.on('recovery_attempt', handleRecoveryAttempt);
+    connectionManager.on('recovery_success', handleRecoverySuccess);
+    connectionManager.on('recovery_failed', handleRecoveryFailed);
     
     // Connection management based on authentication state
      if (isAuthenticated && !connectionState.isConnected && !connectionState.isConnecting) {
@@ -77,6 +106,9 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       connectionManager.off('market_data', handleMarketData);
       connectionManager.off('orders', handleOrders);
       connectionManager.off('portfolio', handlePortfolio);
+      connectionManager.off('recovery_attempt', handleRecoveryAttempt);
+      connectionManager.off('recovery_success', handleRecoverySuccess);
+      connectionManager.off('recovery_failed', handleRecoveryFailed);
       // Don't disconnect on unmount as this is a top-level provider
     };
   }, [connectionManager, isAuthenticated, connectionState.isConnected, connectionState.isConnecting]);
@@ -102,6 +134,16 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return connectionManager.reconnect();
   };
 
+  // Add function for manual reconnection
+  const manualReconnect = useCallback(async () => {
+    if (connectionManager.attemptRecovery) {
+      return connectionManager.attemptRecovery('manual_user_request');
+    } else {
+      // Fallback to standard reconnect if attemptRecovery is not available
+      return reconnect();
+    }
+  }, [connectionManager, reconnect]);
+  
   const startSimulator = async () => {
     if (!isAuthenticated || !connectionState.isConnected) {
       console.warn('Cannot start simulator - user is not authenticated or not connected');
@@ -142,6 +184,8 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       reconnect,
       isConnected: connectionState.isConnected,
       isConnecting: connectionState.isConnecting,
+      isRecovering,
+      recoveryAttempt,
       connectionQuality: connectionState.connectionQuality,
       error: connectionState.error,
       startSimulator,
@@ -150,7 +194,8 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       marketData,
       orders,
       portfolio,
-      streamMarketData
+      streamMarketData,
+      manualReconnect
     }}>
       {children}
     </ConnectionContext.Provider>

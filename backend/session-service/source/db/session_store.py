@@ -168,6 +168,148 @@ class DatabaseManager:
             except Exception as e:
                 logger.error(f"Error getting active user simulators: {e}")
                 return []
+
+    async def get_active_sessions(self) -> List[Session]:
+        """Get all active sessions"""
+        with optional_trace_span(self.tracer, "db_get_active_sessions") as span:
+            if not self.pool:
+                await self.connect()
+            
+            try:
+                with TimedOperation(track_db_operation, "get_active_sessions"):
+                    async with self.pool.acquire() as conn:
+                        # Get active sessions
+                        session_rows = await conn.fetch('''
+                            SELECT s.* FROM session.active_sessions s
+                            WHERE s.status = $1 AND s.expires_at > NOW()
+                        ''', SessionStatus.ACTIVE.value)
+                        
+                        sessions = []
+                        for row in session_rows:
+                            # Create session
+                            session = Session(
+                                session_id=row['session_id'],
+                                user_id=row['user_id'],
+                                status=SessionStatus(row['status']),
+                                created_at=row['created_at'].timestamp(),
+                                last_active=row['last_active'].timestamp(),
+                                expires_at=row['expires_at'].timestamp()
+                            )
+                            
+                            # Get metadata for this session
+                            metadata_row = await conn.fetchrow('''
+                                SELECT metadata FROM session.session_metadata
+                                WHERE session_id = $1
+                            ''', row['session_id'])
+                            
+                            # Add metadata if exists
+                            if metadata_row and metadata_row['metadata']:
+                                metadata_dict = metadata_row['metadata']
+                                if isinstance(metadata_dict, dict):
+                                    session.metadata = SessionMetadata(**metadata_dict)
+                                else:
+                                    session.metadata = SessionMetadata.parse_raw(metadata_dict)
+                            
+                            sessions.append(session)
+                        
+                        span.set_attribute("session_count", len(sessions))
+                        return sessions
+            
+            except Exception as e:
+                logger.error(f"Error getting active sessions: {e}")
+                span.record_exception(e)
+                track_db_error("get_active_sessions")
+                return []
+
+    async def update_session_status(self, session_id: str, status: str) -> bool:
+        """Update session status"""
+        with optional_trace_span(self.tracer, "db_update_session_status") as span:
+            span.set_attribute("session_id", session_id)
+            span.set_attribute("status", status)
+            
+            if not self.pool:
+                await self.connect()
+            
+            try:
+                with TimedOperation(track_db_operation, "update_session_status"):
+                    async with self.pool.acquire() as conn:
+                        result = await conn.execute('''
+                            UPDATE session.active_sessions
+                            SET status = $1
+                            WHERE session_id = $2
+                        ''', status, session_id)
+                        
+                        return 'UPDATE 1' in result
+            except Exception as e:
+                logger.error(f"Error updating session status: {e}")
+                span.record_exception(e)
+                track_db_error("update_session_status")
+                return False
+
+    async def get_sessions_with_criteria(self, criteria: Dict[str, Any]) -> List[Session]:
+        """Get sessions matching specified criteria"""
+        with optional_trace_span(self.tracer, "db_get_sessions_with_criteria") as span:
+            if not self.pool:
+                await self.connect()
+            
+            try:
+                query_parts = ["SELECT s.*, m.metadata FROM session.active_sessions s"]
+                query_parts.append("LEFT JOIN session.session_metadata m ON s.session_id = m.session_id")
+                
+                conditions = []
+                params = []
+                param_idx = 1
+                
+                # Add conditions based on criteria
+                if 'last_active_before' in criteria:
+                    conditions.append(f"s.last_active < to_timestamp(${param_idx})")
+                    params.append(criteria['last_active_before'])
+                    param_idx += 1
+                    
+                if 'status' in criteria:
+                    conditions.append(f"s.status = ${param_idx}")
+                    params.append(criteria['status'])
+                    param_idx += 1
+                
+                if conditions:
+                    query_parts.append("WHERE " + " AND ".join(conditions))
+                
+                query = " ".join(query_parts)
+                span.set_attribute("query", query)
+                
+                with TimedOperation(track_db_operation, "get_sessions_with_criteria"):
+                    async with self.pool.acquire() as conn:
+                        rows = await conn.fetch(query, *params)
+                        
+                        sessions = []
+                        for row in rows:
+                            # Create session from row data
+                            session = Session(
+                                session_id=row['session_id'],
+                                user_id=row['user_id'],
+                                status=SessionStatus(row['status']),
+                                created_at=row['created_at'].timestamp(),
+                                last_active=row['last_active'].timestamp(),
+                                expires_at=row['expires_at'].timestamp()
+                            )
+                            
+                            # Add metadata if exists
+                            if row['metadata']:
+                                metadata_dict = row['metadata']
+                                if isinstance(metadata_dict, dict):
+                                    session.metadata = SessionMetadata(**metadata_dict)
+                                else:
+                                    session.metadata = SessionMetadata.parse_raw(metadata_dict)
+                            
+                            sessions.append(session)
+                        
+                        return sessions
+            
+            except Exception as e:
+                logger.error(f"Error getting sessions with criteria: {e}")
+                span.record_exception(e)
+                track_db_error("get_sessions_with_criteria")
+                return []
             
     async def update_session_metadata(self, session_id: str, metadata_updates: Dict[str, Any]) -> bool:
         """

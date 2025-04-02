@@ -10,8 +10,20 @@ export interface SessionData {
   export class SessionStore {
     private static readonly SESSION_KEY = 'trading_simulator_session';
     private static readonly SESSION_EXPIRY = 8 * 60 * 60 * 1000; // 8 hours in milliseconds
+    private static readonly LAST_ACTIVE_KEY = 'trading_session_last_active';
+    private static readonly BROWSER_ID_KEY = 'trading_browser_id';
+      
+    // Generate a unique browser instance ID if not exists
+    public static getBrowserId(): string {
+      let browserId = localStorage.getItem(this.BROWSER_ID_KEY);
+      if (!browserId) {
+        browserId = `browser_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+        localStorage.setItem(this.BROWSER_ID_KEY, browserId);
+      }
+      return browserId;
+    }
     
-    // Save session data
+    // Save session with broadcast to other tabs
     public static saveSession(data: Partial<SessionData>): void {
       const existingData = this.getSession() || {
         reconnectAttempts: 0,
@@ -26,8 +38,45 @@ export interface SessionData {
       
       try {
         localStorage.setItem(this.SESSION_KEY, JSON.stringify(updatedData));
+        localStorage.setItem(this.LAST_ACTIVE_KEY, Date.now().toString());
+        
+        // Notify other tabs about session update
+        this.broadcastSessionUpdate(updatedData);
       } catch (e) {
         console.error('Failed to save session data', e);
+      }
+    }
+    
+    // Listen for session changes from other tabs
+    public static initSessionListener(callback: (session: SessionData) => void): () => void {
+      const handleStorageChange = (e: StorageEvent) => {
+        if (e.key === this.SESSION_KEY && e.newValue) {
+          try {
+            const sessionData = JSON.parse(e.newValue) as SessionData;
+            callback(sessionData);
+          } catch (err) {
+            console.error('Error parsing session data from storage event', err);
+          }
+        }
+      };
+      
+      window.addEventListener('storage', handleStorageChange);
+      
+      // Return function to remove the listener
+      return () => window.removeEventListener('storage', handleStorageChange);
+    }
+
+    private static broadcastSessionUpdate(data: SessionData): void {
+      // Use BroadcastChannel API if available
+      if ('BroadcastChannel' in window) {
+        const channel = new BroadcastChannel('trading_session_updates');
+        channel.postMessage({
+          type: 'session_updated',
+          data: data,
+          timestamp: Date.now(),
+          browserId: this.getBrowserId()
+        });
+        channel.close();
       }
     }
     

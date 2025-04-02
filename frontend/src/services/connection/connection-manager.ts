@@ -9,6 +9,7 @@ import { HttpClient } from '../../api/http-client';
 import { SessionStore } from '../session/session-store';
 import { config } from '../../config';
 
+import { RecoveryManager } from './recovery-manager';
 
 export type ConnectionQuality = 'good' | 'degraded' | 'poor';
 
@@ -31,6 +32,7 @@ export class ConnectionManager extends EventEmitter {
   private tokenManager: TokenManager;
   private wsManager: WebSocketManager;
   private marketDataStream: MarketDataStream;
+  private recoveryManager: RecoveryManager;
   private sessionApi: SessionApi;
   private ordersApi: OrdersApi;
   private httpClient: HttpClient;
@@ -49,6 +51,25 @@ export class ConnectionManager extends EventEmitter {
   ) {
     super();
     
+    // Create Recovery Manager after other components are initialized
+    this.recoveryManager = new RecoveryManager(this);
+    
+    // Forward recovery events
+    this.recoveryManager.on('recovery_attempt', (data) => {
+      this.emit('recovery_attempt', data);
+    });
+    
+    this.recoveryManager.on('recovery_success', (data) => {
+      this.emit('recovery_success', data);
+    });
+    
+    this.recoveryManager.on('recovery_failed', (data) => {
+      this.emit('recovery_failed', data);
+    });
+    
+    this.recoveryManager.on('network_offline', () => {
+      this.emit('network_offline');
+    });
     this.tokenManager = tokenManager;
     
     // Initialize state
@@ -90,6 +111,11 @@ export class ConnectionManager extends EventEmitter {
     this.setupEventListeners();
   }
   
+  // Add this method for manual recovery trigger
+  public async attemptRecovery(reason: string = 'manual'): Promise<boolean> {
+    return this.recoveryManager.attemptRecovery(reason);
+  }
+
   private setupEventListeners(): void {
     // WebSocket event listeners
     this.wsManager.on('connected', () => {
@@ -244,6 +270,13 @@ export class ConnectionManager extends EventEmitter {
       // Step 5: Connect to market data stream after WebSocket is connected
       console.log('Establishing market data stream...');
       await this.marketDataStream.connect(sessionId);
+        
+      // Add this at the end of the method:
+      if (this.state.isConnected) {
+        // After successful connection, update timestamp in session storage
+        // to coordinate with other tabs
+        SessionStore.updateActivity();
+      }
       
       return true;
     } catch (error) {
@@ -265,6 +298,12 @@ export class ConnectionManager extends EventEmitter {
       });
       return false;
     }
+  }
+
+  // Add cleanup for recovery manager
+  public dispose(): void {
+    this.disconnect();
+    this.recoveryManager.dispose();
   }
 
   // Add a new method to check session readiness
@@ -322,6 +361,9 @@ export class ConnectionManager extends EventEmitter {
       simulatorStatus: 'UNKNOWN',
       error: null
     });
+    
+    // Clean up recovery manager
+    this.recoveryManager.dispose();
   }
   
   public async reconnect(): Promise<boolean> {

@@ -20,6 +20,7 @@ from source.core.session_manager import SessionManager
 from source.api.rest.routes import setup_rest_routes
 from source.api.websocket.manager import WebSocketManager
 from source.api.sse.adapter import SSEAdapter
+from source.models.simulator import SimulatorStatus
 
 # Import Redis for pub/sub if available
 try:
@@ -304,6 +305,9 @@ class SessionServer:
         logger.info("Shutting down server")
         self.running = False
         
+        # New: Force cleanup of this pod's sessions
+        await self._cleanup_pod_sessions()
+        
         # Unregister pod from Redis
         if self.redis:
             try:
@@ -346,7 +350,67 @@ class SessionServer:
         
         logger.info("Server shutdown complete")
         self.shutdown_event.set()
-    
+
+    async def _cleanup_pod_sessions(self):
+        """Clean up sessions associated with this pod before shutdown"""
+        try:
+            # Get all sessions associated with this pod
+            pod_sessions = await self.session_manager.db_manager.get_sessions_with_criteria({
+                'pod_name': config.kubernetes.pod_name
+            })
+            
+            if not pod_sessions:
+                logger.info("No sessions to clean up for this pod")
+                return
+                
+            logger.info(f"Cleaning up {len(pod_sessions)} sessions before pod termination")
+            
+            # Start with stopping simulators to free resources
+            simulator_tasks = []
+            for session in pod_sessions:
+                if session.metadata.simulator_id and session.metadata.simulator_status != SimulatorStatus.STOPPED.value:
+                    task = asyncio.create_task(
+                        self.session_manager.stop_simulator(session.session_id, None, force=True)
+                    )
+                    simulator_tasks.append(task)
+            
+            # Wait for simulator shutdowns with timeout
+            if simulator_tasks:
+                done, pending = await asyncio.wait(
+                    simulator_tasks, 
+                    timeout=5.0,  # Give it 5 seconds max
+                    return_when=asyncio.ALL_COMPLETED
+                )
+                
+                for task in pending:
+                    task.cancel()
+                
+                logger.info(f"Completed {len(done)}/{len(simulator_tasks)} simulator shutdowns")
+            
+            # Inform clients about session transfers
+            for session in pod_sessions:
+                # Update metadata to mark this pod as leaving
+                await self.session_manager.db_manager.update_session_metadata(
+                    session.session_id,
+                    {
+                        'pod_terminating': True,
+                        'termination_time': time.time()
+                    }
+                )
+                
+                # Notify clients via WebSocket that they should reconnect
+                if self.websocket_manager:
+                    await self.websocket_manager.broadcast_to_session(
+                        session.session_id,
+                        {
+                            'type': 'pod_terminating', 
+                            'message': 'Service instance is shutting down, please reconnect'
+                        }
+                    )
+        
+        except Exception as e:
+            logger.error(f"Error cleaning up pod sessions: {e}")
+            
     async def wait_for_shutdown(self):
         """Wait for server shutdown to complete"""
         await self.shutdown_event.wait()

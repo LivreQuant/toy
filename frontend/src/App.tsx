@@ -11,6 +11,7 @@ import ErrorBoundary from './components/Common/ErrorBoundary';
 import LoadingScreen from './components/Common/LoadingScreen';
 import { useAuth } from './contexts/AuthContext';
 import { useConnection } from './contexts/ConnectionContext';
+import ConnectionRecoveryDialog from './components/Common/ConnectionRecoveryDialog';
 
 const App: React.FC = () => {
   return (
@@ -18,6 +19,7 @@ const App: React.FC = () => {
       <AuthProvider>
         <ConnectionProvider>
           <AppRouter />
+          <ConnectionRecoveryDialog />
         </ConnectionProvider>
       </AuthProvider>
     </ErrorBoundary>

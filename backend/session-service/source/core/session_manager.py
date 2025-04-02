@@ -18,7 +18,8 @@ from source.config import config
 
 from source.utils.metrics import (
     track_session_count, track_session_operation, track_session_ended,
-    track_simulator_count, track_simulator_operation, track_connection_quality
+    track_simulator_count, track_simulator_operation, track_connection_quality,
+    track_cleanup_operation
 )
 from source.utils.tracing import optional_trace_span
 
@@ -81,6 +82,9 @@ class SessionManager:
                 # Cleanup inactive simulators
                 await self.simulator_manager.cleanup_inactive_simulators()
                 
+                # Enhanced: Cleanup zombie sessions
+                await self._cleanup_zombie_sessions()
+                
                 # Sleep until next cleanup cycle (every 15 minutes)
                 await asyncio.sleep(900)
             except asyncio.CancelledError:
@@ -88,7 +92,90 @@ class SessionManager:
             except Exception as e:
                 logger.error(f"Error in cleanup loop: {e}")
                 await asyncio.sleep(60)  # Shorter interval on error
-    
+
+    async def _cleanup_zombie_sessions(self):
+        """Identify and cleanup sessions that are still active but clients haven't connected in a long time"""
+        try:
+            # Define thresholds for zombie detection
+            heartbeat_missing_threshold = time.time() - (config.websocket.heartbeat_interval * 10)
+            connection_missing_threshold = time.time() - 3600  # 1 hour with no connections
+                
+            # Get all active sessions
+            active_sessions = await self.db_manager.get_active_sessions()
+            
+            zombie_count = 0
+            for session in active_sessions:
+                # Skip sessions with recent activity
+                if session.last_active > heartbeat_missing_threshold:
+                    continue
+                    
+                # Skip sessions with recent WebSocket or SSE connections
+                last_ws_connection = session.metadata.last_ws_connection if hasattr(session.metadata, 'last_ws_connection') else 0
+                last_sse_connection = session.metadata.last_sse_connection if hasattr(session.metadata, 'last_sse_connection') else 0
+                
+                if max(last_ws_connection, last_sse_connection) > connection_missing_threshold:
+                    continue
+                    
+                # This session appears to be a zombie
+                logger.info(f"Cleaning up zombie session {session.session_id}, "
+                        f"last active: {session.last_active}")
+                
+                # Stop any running simulators
+                if hasattr(session.metadata, 'simulator_id') and session.metadata.simulator_id:
+                    try:
+                        await self.stop_simulator(session.session_id, None, force=True)
+                    except Exception as e:
+                        logger.error(f"Error stopping simulator for zombie session: {e}")
+                
+                # Mark session as expired
+                await self.db_manager.update_session_status(session.session_id, SessionStatus.EXPIRED.value)
+                zombie_count += 1
+            
+            if zombie_count > 0:
+                logger.info(f"Cleaned up {zombie_count} zombie sessions")
+                track_cleanup_operation("zombie_sessions", zombie_count)
+        
+        except Exception as e:
+            logger.error(f"Error cleaning up zombie sessions: {e}")
+            
+    async def transfer_session_ownership(self, session_id: str, new_pod_name: str) -> bool:
+        """Transfer ownership of a session to another pod during migration"""
+        with optional_trace_span(self.tracer, "transfer_session_ownership") as span:
+            span.set_attribute("session_id", session_id)
+            span.set_attribute("new_pod_name", new_pod_name)
+            
+            session = await self.db_manager.get_session(session_id)
+            if not session:
+                span.set_attribute("error", "Session not found")
+                return False
+                
+            # Record handoff in progress
+            await self.db_manager.update_session_metadata(session_id, {
+                'pod_transferred': True,
+                'previous_pod': session.metadata.pod_name,
+                'pod_name': new_pod_name,
+                'transfer_timestamp': time.time()
+            })
+            
+            # Notify clients of migration via WebSocket
+            if self.websocket_manager:
+                await self.websocket_manager.broadcast_to_session(session_id, {
+                    'type': 'session_migration',
+                    'new_pod': new_pod_name
+                })
+            
+            # Publish migration event to Redis for other pods
+            if self.redis:
+                await self.redis.publish('session_events', json.dumps({
+                    'type': 'session_migrated',
+                    'session_id': session_id,
+                    'previous_pod': session.metadata.pod_name,
+                    'new_pod': new_pod_name,
+                    'timestamp': time.time()
+                }))
+            
+            return True
+
     async def create_session(self, user_id: str, token: str, ip_address: Optional[str] = None) -> Tuple[Optional[str], bool]:
         """
         Create a new session for a user
@@ -449,58 +536,82 @@ class SessionManager:
         except Exception as e:
             logger.error(f"Error starting simulator: {e}")
             return None, None, str(e)
-    
-    async def stop_simulator(self, session_id: str, token: str) -> Tuple[bool, str]:
+
+    async def stop_simulator(self, session_id: str, token: str = None, force: bool = False) -> Tuple[bool, str]:
         """
         Stop the simulator for a session
         
         Args:
             session_id: The session ID
-            token: Authentication token
+            token: Authentication token (optional if force=True)
+            force: Force stop without token validation
             
         Returns:
             Tuple of (success, error_message)
         """
-        # Validate session
-        user_id = await self.validate_session(session_id, token)
-        
-        if not user_id:
-            return False, "Invalid session or token"
-        
-        try:
-            # Get session
-            session = await self.db_manager.get_session(session_id)
+        with optional_trace_span(self.tracer, "stop_simulator") as span:
+            span.set_attribute("session_id", session_id)
+            span.set_attribute("force", force)
             
-            # Check if there's an active simulator
-            if not session.metadata.simulator_id:
-                return False, "No active simulator for this session"
+            # Validate session if not forcing
+            user_id = None
+            if not force:
+                if not token:
+                    span.set_attribute("error", "Missing token")
+                    return False, "Missing authentication token"
+                    
+                user_id = await self.validate_session(session_id, token)
+                if not user_id:
+                    span.set_attribute("error", "Invalid session")
+                    return False, "Invalid session or token"
             
-            # Stop simulator
-            success, error = await self.simulator_manager.stop_simulator(session.metadata.simulator_id)
-            
-            if not success:
-                return False, error
-            
-            # Update session metadata
-            await self.db_manager.update_session_metadata(session_id, {
-                'simulator_status': SimulatorStatus.STOPPED.value
-            })
-            
-            # Publish simulator stopped event if Redis is available
-            if self.redis:
-                await self.redis.publish('session_events', json.dumps({
-                    'type': 'simulator_stopped',
-                    'session_id': session_id,
-                    'simulator_id': session.metadata.simulator_id,
-                    'pod_name': self.pod_name,
-                    'timestamp': time.time()
-                }))
-            
-            return True, ""
-        except Exception as e:
-            logger.error(f"Error stopping simulator: {e}")
-            return False, str(e)
-    
+            try:
+                # Get session
+                session = await self.db_manager.get_session(session_id)
+                
+                if not session:
+                    span.set_attribute("error", "Session not found")
+                    return False, "Session not found"
+                
+                # If forcing, get user_id from session
+                if force and not user_id:
+                    user_id = session.user_id
+                    span.set_attribute("user_id", user_id)
+                
+                # Check if there's an active simulator
+                if not session.metadata.simulator_id:
+                    span.set_attribute("error", "No active simulator")
+                    return False, "No active simulator for this session"
+                
+                # Stop simulator
+                success, error = await self.simulator_manager.stop_simulator(session.metadata.simulator_id)
+                
+                if not success and not force:
+                    span.set_attribute("error", error)
+                    return False, error
+                
+                # Update session metadata
+                await self.db_manager.update_session_metadata(session_id, {
+                    'simulator_status': SimulatorStatus.STOPPED.value
+                })
+                
+                # Publish simulator stopped event if Redis is available
+                if self.redis:
+                    await self.redis.publish('session_events', json.dumps({
+                        'type': 'simulator_stopped',
+                        'session_id': session_id,
+                        'simulator_id': session.metadata.simulator_id,
+                        'pod_name': self.pod_name,
+                        'timestamp': time.time(),
+                        'forced': force
+                    }))
+                
+                return True, ""
+            except Exception as e:
+                logger.error(f"Error stopping simulator: {e}")
+                span.record_exception(e)
+                return False, str(e)
+
     async def reconnect_session(self, session_id: str, token: str, attempt: int = 1) -> Tuple[Optional[Dict[str, Any]], str]:
         """
         Reconnect to a session, potentially restarting a simulator

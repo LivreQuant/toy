@@ -1,25 +1,30 @@
+// src/components/Common/ConnectionStatus.tsx
+
 import React from 'react';
 import './ConnectionStatus.css';
+import { useConnection } from '../../contexts/ConnectionContext';
 
-interface ConnectionStatusProps {
-  isConnected: boolean;
-  isConnecting: boolean;
-  connectionQuality: string;
-  simulatorStatus: string;
-}
-
-const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
-  isConnected,
-  isConnecting,
-  connectionQuality,
-  simulatorStatus
-}) => {
+const ConnectionStatus: React.FC = () => {
+  const { 
+    isConnected, 
+    isConnecting, 
+    isRecovering,
+    recoveryAttempt,
+    connectionQuality, 
+    simulatorStatus,
+    manualReconnect
+  } = useConnection();
+  
   // Determine connection status
   let statusIcon = '❓';
   let statusClass = 'unknown';
-  let statusText = 'Unknown';
+  let statusText = 'Unknown Connection Status';
   
-  if (!isConnected && isConnecting) {
+  if (isRecovering) {
+    statusIcon = '🔄';
+    statusClass = 'recovering';
+    statusText = `Reconnecting (Attempt ${recoveryAttempt})...`;
+  } else if (!isConnected && isConnecting) {
     statusIcon = '🔄';
     statusClass = 'connecting';
     statusText = 'Connecting...';
@@ -41,35 +46,14 @@ const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
     statusText = 'Connection Poor';
   }
   
-  // Determine simulator status
-  let simulatorStatusText = '';
-  let simulatorStatusClass = '';
-  
-  switch (simulatorStatus) {
-    case 'RUNNING':
-      simulatorStatusText = 'Simulator Running';
-      simulatorStatusClass = 'running';
-      break;
-    case 'STARTING':
-      simulatorStatusText = 'Simulator Starting...';
-      simulatorStatusClass = 'starting';
-      break;
-    case 'STOPPING':
-      simulatorStatusText = 'Simulator Stopping...';
-      simulatorStatusClass = 'stopping';
-      break;
-    case 'STOPPED':
-      simulatorStatusText = 'Simulator Stopped';
-      simulatorStatusClass = 'stopped';
-      break;
-    case 'ERROR':
-      simulatorStatusText = 'Simulator Error';
-      simulatorStatusClass = 'error';
-      break;
-    default:
-      simulatorStatusText = 'Simulator Status Unknown';
-      simulatorStatusClass = 'unknown';
-  }
+  // Handle reconnect button click
+  const handleReconnect = async () => {
+    try {
+      await manualReconnect();
+    } catch (error) {
+      console.error('Manual reconnection failed:', error);
+    }
+  };
   
   return (
     <div className={`connection-indicator ${statusClass}`}>
@@ -77,13 +61,42 @@ const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
       <div className="indicator-text">
         <div className="status-text">{statusText}</div>
         {simulatorStatus && (
-          <div className={`simulator-status ${simulatorStatusClass}`}>
-            {simulatorStatusText}
+          <div className={`simulator-status ${simulatorStatus.toLowerCase()}`}>
+            {getSimulatorStatusText(simulatorStatus)}
           </div>
         )}
       </div>
+      
+      {/* Add reconnect button when disconnected */}
+      {!isConnected && !isConnecting && !isRecovering && (
+        <button 
+          className="reconnect-button" 
+          onClick={handleReconnect}
+        >
+          Reconnect
+        </button>
+      )}
+      
+      {/* Show progress when recovering */}
+      {isRecovering && (
+        <div className="recovery-progress">
+          <div className="recovery-spinner"></div>
+        </div>
+      )}
     </div>
   );
 };
+
+// Helper function to get readable simulator status text
+function getSimulatorStatusText(status: string): string {
+  switch (status) {
+    case 'RUNNING': return 'Simulator Running';
+    case 'STARTING': return 'Simulator Starting...';
+    case 'STOPPING': return 'Simulator Stopping...';
+    case 'STOPPED': return 'Simulator Stopped';
+    case 'ERROR': return 'Simulator Error';
+    default: return 'Simulator Status Unknown';
+  }
+}
 
 export default ConnectionStatus;
