@@ -1,151 +1,118 @@
-#!/usr/bin/env python3
-import os
-import signal
 import asyncio
 import logging
-import time
-from aiohttp import web
-import grpc
-import importlib
-
-from source.utils.logging_setup import setup_logging
-from source.utils.config import config
-from source.core.exchange_simulator import ExchangeSimulator
-from source.api.grpc.service import ExchangeSimulatorService
-from source.api.health.endpoints import health_check, readiness_check, metrics_endpoint
-
-# Dynamically import generated protocol buffer modules
+import signal
 import sys
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import grpc
+import os
+from concurrent import futures
+
+from source.config import config
+from source.utils.logging import setup_logging
+from source.utils.metrics import setup_metrics
+from source.utils.tracing import setup_tracing
+
+from source.core.market_data import MarketDataGenerator
+from source.core.order_manager import OrderManager
+from source.core.portfolio_manager import PortfolioManager
+
+from source.api.grpc.service import ExchangeSimulatorService
 import exchange_simulator_pb2_grpc
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('exchange_simulator')
 
-class Server:
-    """Main server class"""
-    
+class ExchangeServer:
     def __init__(self):
-        """Initialize server"""
-        self.simulator = None
+        # Initialize core components
+        self.market_data = MarketDataGenerator()
+        self.order_manager = OrderManager(self.market_data)
+        self.portfolio_manager = PortfolioManager()
+
+        # Initialize gRPC server
         self.grpc_server = None
-        self.web_server = None
         self.running = False
-        self.shutdown_event = asyncio.Event()
-        self.start_time = time.time()
-    
-    async def setup(self):
-        """Set up server components"""
-        logger.info("Setting up exchange simulator server")
-        
-        # Create simulator
-        self.simulator = ExchangeSimulator()
-        
-        # Set up gRPC server
+
+    async def start(self):
+        """Start the gRPC server"""
+        # Create gRPC server
         self.grpc_server = grpc.aio.server(
+            futures.ThreadPoolExecutor(max_workers=10),
             options=[
-                ('grpc.max_send_message_length', 10 * 1024 * 1024),
-                ('grpc.max_receive_message_length', 10 * 1024 * 1024),
-                ('grpc.keepalive_time_ms', 10000),
-                ('grpc.keepalive_timeout_ms', 5000),
-                ('grpc.keepalive_permit_without_calls', 1)
+                ('grpc.max_send_message_length', 100 * 1024 * 1024),
+                ('grpc.max_receive_message_length', 100 * 1024 * 1024),
             ]
         )
-        
-        # Add service to gRPC server
-        servicer = ExchangeSimulatorService(self.simulator)
-        exchange_simulator_pb2_grpc.add_ExchangeSimulatorServicer_to_server(servicer, self.grpc_server)
-        
-        # Add gRPC port
-        grpc_address = f"{config.host}:{config.port}"
-        self.grpc_server.add_insecure_port(grpc_address)
-        
-        # Set up HTTP server for health checks
-        app = web.Application()
-        app['simulator'] = self.simulator
-        app['start_time'] = self.start_time
-        
-        # Add routes
-        app.router.add_get('/health', health_check)
-        app.router.add_get('/readiness', readiness_check)
-        app.router.add_get('/metrics', metrics_endpoint)
-        
-        # Start HTTP server
-        self.web_runner = web.AppRunner(app)
-        await self.web_runner.setup()
-        
-        # Use a different port for HTTP
-        http_port = config.port + 1  # Use next port for HTTP
-        http_site = web.TCPSite(self.web_runner, config.host, http_port)
-        await http_site.start()
-        logger.info(f"HTTP server started on {config.host}:{http_port}")
-    
-    async def start(self):
-        """Start the server"""
-        if self.running:
-            return
-        
-        # Start gRPC server
+
+        # Create service
+        simulator_service = ExchangeSimulatorService(
+            self.market_data, 
+            self.order_manager, 
+            self.portfolio_manager
+        )
+
+        # Add service to server
+        exchange_simulator_pb2_grpc.add_ExchangeSimulatorServicer_to_server(
+            simulator_service, 
+            self.grpc_server
+        )
+
+        # Bind server to port
+        listen_addr = f'{config.server.host}:{config.server.grpc_port}'
+        self.grpc_server.add_insecure_port(listen_addr)
+
+        # Start server
         await self.grpc_server.start()
-        logger.info(f"gRPC server started on {config.host}:{config.port}")
-        
         self.running = True
-    
+        logger.info(f"gRPC server started on {listen_addr}")
+
     async def stop(self):
-        """Stop the server"""
-        if not self.running:
-            return
-        
-        logger.info("Shutting down server...")
-        self.running = False
-        
-        # Shutdown simulator
-        if self.simulator:
-            self.simulator.shutdown()
-        
-        # Shutdown gRPC server
+        """Gracefully stop the server"""
         if self.grpc_server:
-            await self.grpc_server.stop(5)  # 5 seconds grace
-        
-        # Shutdown HTTP server
-        if hasattr(self, 'web_runner'):
-            await self.web_runner.cleanup()
-        
-        logger.info("Server shutdown complete")
-        self.shutdown_event.set()
-    
-    async def wait_for_termination(self):
-        """Wait for server to terminate"""
-        if self.grpc_server:
-            await self.grpc_server.wait_for_termination()
+            logger.info("Shutting down gRPC server...")
+            await self.grpc_server.stop(0)
+            self.running = False
 
 async def main():
-    """Main entry point"""
-    # Set up logging
+    # Setup logging
     setup_logging()
-    
+    logger.info("Starting Exchange Simulator")
+
+    # Setup tracing
+    if config.tracing.enabled:
+        setup_tracing()
+
+    # Setup metrics
+    if config.metrics.enabled:
+        setup_metrics()
+
     # Create server
-    server = Server()
-    
-    # Set up signal handlers
+    server = ExchangeServer()
+
+    # Setup signal handlers
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(
             sig, lambda: asyncio.create_task(server.stop())
         )
-    
+
     try:
-        # Set up and start server
-        await server.setup()
+        # Start server
         await server.start()
-        
-        # Wait for termination
-        await server.wait_for_termination()
+
+        # Keep server running
+        while server.running:
+            await asyncio.sleep(1)
+
     except Exception as e:
-        logger.error(f"Error starting server: {e}")
+        logger.error(f"Server error: {e}")
+    finally:
         await server.stop()
-        return 1
-    
-    return 0
 
 if __name__ == "__main__":
+    try:
+        # Use uvloop if available for better performance
+        import uvloop
+        asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+    except ImportError:
+        pass
+
     asyncio.run(main())
