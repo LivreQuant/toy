@@ -2,11 +2,11 @@
 import { EventEmitter } from '../../utils/event-emitter';
 import { TokenManager } from '../auth/token-manager';
 import { WebSocketManager } from '../websocket/ws-manager';
-import { MarketDataStream, MarketData, OrderUpdate, PortfolioUpdate } from '../sse/market-data-stream';
+import { MarketDataStream, MarketData, OrderUpdate, PortfolioUpdate } from '../sse/exchange-data-stream';
 import { SessionApi } from '../../api/session';
 import { OrdersApi } from '../../api/order';
 import { HttpClient } from '../../api/http-client';
-import { SessionStore } from '../session/session-store';
+import { SessionStore } from '../session/session-manager';
 import { config } from '../../config';
 
 import { RecoveryManager } from './recovery-manager';
@@ -527,21 +527,19 @@ export class ConnectionManager extends EventEmitter {
   
   // Control simulator
   public async startSimulator(): Promise<boolean> {
-    if (!this.state.sessionId) {
+    if (!this.state.isConnected) {
+      console.warn('Cannot start simulator - not connected');
       return false;
     }
     
     try {
       this.updateState({ simulatorStatus: 'STARTING' });
       
-      // Add type assertion for response
-      const response = await this.httpClient.post('/simulator/start', {
-        sessionId: this.state.sessionId
-      }) as { success: boolean; simulatorId: string };
+      // Just make the request - token is handled by HttpClient
+      const response = await this.httpClient.post<{success: boolean}>('/simulators');
       
       if (response.success) {
         this.updateState({
-          simulatorId: response.simulatorId,
           simulatorStatus: 'RUNNING'
         });
         return true;
@@ -550,27 +548,26 @@ export class ConnectionManager extends EventEmitter {
       return false;
     } catch (error) {
       console.error('Failed to start simulator:', error);
+      this.updateState({ simulatorStatus: 'ERROR' });
       return false;
     }
   }
-  
+
   public async stopSimulator(): Promise<boolean> {
-    if (!this.state.sessionId || !this.state.simulatorId) {
+    if (!this.state.isConnected) {
+      console.warn('Cannot stop simulator - not connected');
       return false;
     }
     
     try {
       this.updateState({ simulatorStatus: 'STOPPING' });
       
-      const response = await this.httpClient.post('/simulator/stop', {
-        sessionId: this.state.sessionId,
-        simulatorId: this.state.simulatorId
-      }) as { success: boolean };
+      // Just make the request - no IDs needed
+      const response = await this.httpClient.delete<{success: boolean}>('/simulators');
       
       if (response.success) {
         this.updateState({
-          simulatorStatus: 'STOPPED',
-          simulatorId: null
+          simulatorStatus: 'STOPPED'
         });
         return true;
       }
@@ -581,7 +578,24 @@ export class ConnectionManager extends EventEmitter {
       return false;
     }
   }
-  
+
+  public async getSimulatorStatus(): Promise<string> {
+    try {
+      const response = await this.httpClient.get<{success: boolean, status: string}>('/simulators');
+      
+      if (response.success) {
+        // Update local state
+        this.updateState({ simulatorStatus: response.status });
+        return response.status;
+      }
+      
+      return 'UNKNOWN';
+    } catch (error) {
+      console.error('Failed to get simulator status:', error);
+      return 'ERROR';
+    }
+  }
+
   // Submit order
   public async submitOrder(order: {
     symbol: string;

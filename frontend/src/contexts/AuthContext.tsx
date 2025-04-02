@@ -3,8 +3,9 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { TokenManager } from '../services/auth/token-manager';
 import { AuthApi } from '../api/auth';
 import { HttpClient } from '../api/http-client';
-import { SessionStore } from '../services/session/session-store';
+import { SessionStore } from '../services/session/session-manager';
 import { ConnectionManager } from '../services/connection/connection-manager';
+import { SessionApi } from '../api/session';
 
 interface AuthContextType {
   isAuthenticated: boolean;
@@ -27,6 +28,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Create auth API client
   const authApi = new AuthApi(httpClient);
   
+  // Create session API client
+  const sessionApi = new SessionApi(httpClient, tokenManager);
+
   // Create connection manager
   const connectionManager = new ConnectionManager(tokenManager);
 
@@ -80,18 +84,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setError(null);
     
     try {
-      const response = await authApi.login(username, password);
+      // First authenticate the user
+      const authResponse = await authApi.login(username, password);
       
       // Store tokens
       tokenManager.storeTokens({
-        accessToken: response.accessToken,
-        refreshToken: response.refreshToken,
-        expiresAt: Date.now() + (response.expiresIn * 1000)
+        accessToken: authResponse.accessToken,
+        refreshToken: authResponse.refreshToken,
+        expiresAt: Date.now() + (authResponse.expiresIn * 1000),
+        userId: authResponse.userId  // Store userId with the tokens
       });
       
-      // Also store the user ID if it's available in the response
-      if (response.userId) {
-        localStorage.setItem('user_id', response.userId.toString());
+      // Now automatically create/get a session
+      const sessionResponse = await sessionApi.createSession();
+      
+      if (sessionResponse.success) {
+        // Store session ID in local storage (not exposed to UI)
+        SessionStore.setSessionId(sessionResponse.sessionId);
       }
       
       setIsAuthenticated(true);

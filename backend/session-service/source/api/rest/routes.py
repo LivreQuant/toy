@@ -30,12 +30,10 @@ def setup_rest_routes(app):
     app.router.add_post('/api/sessions/{session_id}/reconnect', handle_reconnect_session)
     
     app.router.add_get('/debug/routes', handle_list_routes)
-
-    # Also add a session state endpoint for getting simulator status
     app.router.add_get('/api/sessions/state', handle_get_session_state)
 
-    # Simulator routes
+    # Simulator routes - updated to not use simulator_id in URLs
     app.router.add_post('/api/simulators', handle_start_simulator)
-    app.router.add_delete('/api/simulators/{simulator_id}', handle_stop_simulator)
-    app.router.add_get('/api/simulators/{simulator_id}', handle_get_simulator_status)
+    app.router.add_delete('/api/simulators', handle_stop_simulator)
+    app.router.add_get('/api/simulators', handle_get_simulator_status)
     

@@ -661,6 +661,26 @@ class SessionManager:
             logger.error(f"Error starting simulator: {e}")
             return None, None, str(e)
 
+    async def get_user_from_token(self, token: str) -> Optional[str]:
+        """Extract user ID from token"""
+        validation = await self.auth_client.validate_token(token)
+        if validation.get('valid', False):
+            return validation.get('userId')
+        return None
+        
+    async def get_or_create_user_session(self, user_id: str, token: str) -> Optional[str]:
+        """Get user's active session or create a new one"""
+        # Check for existing active session
+        active_sessions = await self.db_manager.get_active_user_sessions(user_id)
+        
+        # Return first active session if exists
+        if active_sessions:
+            return active_sessions[0].session_id
+            
+        # Create new session
+        session_id, _ = await self.create_session(user_id, token)
+        return session_id
+
     async def stop_simulator(self, session_id: str, token: str = None, force: bool = False) -> Tuple[bool, str]:
         """
         Stop the simulator for a session
@@ -703,12 +723,14 @@ class SessionManager:
                     span.set_attribute("user_id", user_id)
                 
                 # Check if there's an active simulator
-                if not session.metadata.simulator_id:
+                simulator_id = session.metadata.simulator_id if hasattr(session.metadata, 'simulator_id') else None
+                
+                if not simulator_id:
                     span.set_attribute("error", "No active simulator")
                     return False, "No active simulator for this session"
                 
                 # Stop simulator
-                success, error = await self.simulator_manager.stop_simulator(session.metadata.simulator_id)
+                success, error = await self.simulator_manager.stop_simulator(simulator_id)
                 
                 if not success and not force:
                     span.set_attribute("error", error)
@@ -716,7 +738,8 @@ class SessionManager:
                 
                 # Update session metadata
                 await self.db_manager.update_session_metadata(session_id, {
-                    'simulator_status': SimulatorStatus.STOPPED.value
+                    'simulator_status': SimulatorStatus.STOPPED.value,
+                    'simulator_id': None  # Clear simulator ID
                 })
                 
                 # Publish simulator stopped event if Redis is available
@@ -724,7 +747,7 @@ class SessionManager:
                     await self.redis.publish('session_events', json.dumps({
                         'type': 'simulator_stopped',
                         'session_id': session_id,
-                        'simulator_id': session.metadata.simulator_id,
+                        'simulator_id': simulator_id,
                         'pod_name': self.pod_name,
                         'timestamp': time.time(),
                         'forced': force
@@ -735,7 +758,7 @@ class SessionManager:
                 logger.error(f"Error stopping simulator: {e}")
                 span.record_exception(e)
                 return False, str(e)
-
+            
     async def reconnect_session(self, session_id: str, token: str, attempt: int = 1) -> Tuple[Optional[Dict[str, Any]], str]:
         """
         Reconnect to a session, potentially restarting a simulator

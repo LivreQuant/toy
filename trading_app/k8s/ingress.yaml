@@ -46,6 +46,13 @@ spec:
             name: session-manager
             port:
               number: 8080
+      - path: /api/simulators(/|$)(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: session-manager
+            port:
+              number: 8080
       - path: /api/orders/(.*)
         pathType: ImplementationSpecific
         backend:

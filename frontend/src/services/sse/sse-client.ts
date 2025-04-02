@@ -1,5 +1,7 @@
+// src/services/sse/sse-client.ts
 import { EventEmitter } from '../../utils/event-emitter';
 import { TokenManager } from '../auth/token-manager';
+import { SessionManager } from '../session/session-manager';
 import { BackoffStrategy } from '../../utils/backoff-strategy';
 import { config } from '../../config';
 
@@ -7,6 +9,7 @@ export interface SSEOptions {
   reconnectMaxAttempts?: number;
   circuitBreakerThreshold?: number;
   circuitBreakerResetTimeMs?: number;
+  debugMode?: boolean;
 }
 
 export class SSEClient extends EventEmitter {
@@ -19,6 +22,7 @@ export class SSEClient extends EventEmitter {
   private maxReconnectAttempts: number;
   private backoffStrategy: BackoffStrategy;
   private isConnecting: boolean = false;
+  private debugMode: boolean;
   
   // Circuit breaker properties
   private consecutiveFailures: number = 0;
@@ -29,41 +33,53 @@ export class SSEClient extends EventEmitter {
   
   constructor(tokenManager: TokenManager, options: SSEOptions = {}) {
     super();
-    console.warn('🚨 SSE CLIENT CONSTRUCTOR', {
-      baseUrl: config.sseBaseUrl,
-      options
-    });
     this.baseUrl = config.sseBaseUrl;
     this.tokenManager = tokenManager;
     this.maxReconnectAttempts = options.reconnectMaxAttempts || 15;
     this.backoffStrategy = new BackoffStrategy(1000, 30000);
+    this.debugMode = options.debugMode || false;
     
     // Circuit breaker configuration
     this.circuitBreakerThreshold = options.circuitBreakerThreshold || 5;
     this.circuitBreakerResetTime = options.circuitBreakerResetTimeMs || 60000; // 1 minute
+    
+    if (this.debugMode) {
+      console.warn('🚨 SSE CLIENT INITIALIZED', {
+        baseUrl: this.baseUrl,
+        options
+      });
+    }
   }
   
   public async connect(sessionId: string, params: Record<string, string> = {}): Promise<boolean> {
-    console.group('🔍 SSE CONNECTION ATTEMPT');
-    console.warn('Connection Params:', { sessionId, params });
+    if (this.debugMode) {
+      console.group('🔍 SSE CONNECTION ATTEMPT');
+      console.warn('Connection Params:', { sessionId, params });
+    }
 
     const token = await this.tokenManager.getAccessToken();
     if (!token) {
-      console.error('❌ NO ACCESS TOKEN AVAILABLE');
+      if (this.debugMode) {
+        console.error('❌ NO ACCESS TOKEN AVAILABLE');
+        console.groupEnd();
+      }
       this.emit('error', { error: 'No authentication token available' });
-      console.groupEnd();
       return false;
     }
       
     if (this.eventSource && this.eventSource.readyState === EventSource.OPEN) {
-      console.warn('🟢 Already connected');
-      console.groupEnd();
+      if (this.debugMode) {
+        console.warn('🟢 Already connected');
+        console.groupEnd();
+      }
       return true;
     }
     
     if (this.isConnecting) {
-      console.warn('🔄 Connection in progress');
-      console.groupEnd();
+      if (this.debugMode) {
+        console.warn('🔄 Connection in progress');
+        console.groupEnd();
+      }
       return new Promise<boolean>(resolve => {
         this.once('connected', () => resolve(true));
         this.once('connection_failed', () => resolve(false));
@@ -74,16 +90,20 @@ export class SSEClient extends EventEmitter {
     if (this.circuitBreakerState === 'OPEN') {
       const currentTime = Date.now();
       if (currentTime - this.circuitBreakerTrippedAt < this.circuitBreakerResetTime) {
-        console.error('🔴 Circuit is OPEN');
+        if (this.debugMode) {
+          console.error('🔴 Circuit is OPEN');
+          console.groupEnd();
+        }
         this.emit('circuit_open', { 
           message: 'Connection attempts temporarily suspended',
           resetTimeMs: this.circuitBreakerResetTime - (currentTime - this.circuitBreakerTrippedAt)
         });
-        console.groupEnd();
         return false;
       } else {
         this.circuitBreakerState = 'HALF_OPEN';
-        console.warn('🟠 Transitioning to HALF_OPEN state');
+        if (this.debugMode) {
+          console.warn('🟠 Transitioning to HALF_OPEN state');
+        }
       }
     }
     
@@ -91,28 +111,38 @@ export class SSEClient extends EventEmitter {
     this.sessionId = sessionId;
     
     try {
-      // Construct URL manually with extensive logging
+      // Add device ID to params
+      const deviceId = SessionManager.getDeviceId();
+      const enhancedParams = { ...params, deviceId };
+      
+      // Construct URL manually
       const urlParams = new URLSearchParams({
         sessionId,
         token,
-        ...params
+        ...enhancedParams
       });
       const fullUrl = `${this.baseUrl}?${urlParams.toString()}`;
       
-      console.warn('📡 Full SSE Connection URL:', fullUrl);
+      if (this.debugMode) {
+        console.warn('📡 Full SSE Connection URL:', fullUrl);
+      }
 
-      // Create EventSource with maximum debugging
+      // Create EventSource
       this.eventSource = new EventSource(fullUrl);
       
-      console.warn('🌐 EventSource Created:', {
-        readyState: this.eventSource.readyState,
-        url: this.eventSource.url
-      });
+      if (this.debugMode) {
+        console.warn('🌐 EventSource Created:', {
+          readyState: this.eventSource.readyState,
+          url: this.eventSource.url
+        });
+      }
 
       return new Promise<boolean>((resolve) => {
         this.eventSource!.onopen = () => {
-          console.group('🟢 SSE CONNECTION OPENED');
-          console.warn('Open Event');
+          if (this.debugMode) {
+            console.group('🟢 SSE CONNECTION OPENED');
+            console.warn('Open Event');
+          }
           
           this.isConnecting = false;
           this.reconnectAttempt = 0;
@@ -122,17 +152,27 @@ export class SSEClient extends EventEmitter {
           this.consecutiveFailures = 0;
           if (this.circuitBreakerState === 'HALF_OPEN') {
             this.circuitBreakerState = 'CLOSED';
-            console.warn('🔓 Circuit breaker reset');
+            if (this.debugMode) {
+              console.warn('🔓 Circuit breaker reset');
+            }
           }
+          
+          // Update session activity
+          SessionManager.updateActivity();
           
           this.emit('connected', { connected: true });
           resolve(true);
-          console.groupEnd();
+          
+          if (this.debugMode) {
+            console.groupEnd();
+          }
         };
         
         this.eventSource!.onerror = (error) => {
-          console.group('🔴 SSE CONNECTION ERROR');
-          console.error('Error Event:', error);
+          if (this.debugMode) {
+            console.group('🔴 SSE CONNECTION ERROR');
+            console.error('Error Event:', error);
+          }
           
           if (this.eventSource?.readyState === EventSource.CLOSED) {
             this.handleDisconnect();
@@ -144,64 +184,116 @@ export class SSEClient extends EventEmitter {
             this.emit('connection_failed', { error: 'SSE connection error' });
             resolve(false);
           }
-          console.groupEnd();
+          
+          if (this.debugMode) {
+            console.groupEnd();
+          }
         };
         
-        // Verbose message handling
-        this.setupVerboseMessageListeners();
+        // Set up message listeners
+        this.setupMessageListeners();
       });
     } catch (error) {
-      console.group('❌ SSE CONNECTION FAILED');
-      console.error('Connection Error:', error);
+      if (this.debugMode) {
+        console.group('❌ SSE CONNECTION FAILED');
+        console.error('Connection Error:', error);
+        console.groupEnd();
+      }
       this.isConnecting = false;
       this.handleConnectionFailure();
       this.emit('connection_failed', { error });
-      console.groupEnd();
       return false;
     }
   }
 
-  private setupVerboseMessageListeners(): void {
-    console.warn('🕵️ Setting up VERBOSE Event Listeners');
-
+  private setupMessageListeners(): void {
+    if (!this.eventSource) return;
+    
     // Global message listener
-    this.eventSource?.addEventListener('message', (event: MessageEvent) => {
-      console.group('🌍 GLOBAL SSE MESSAGE');
-      console.warn('Raw Event:', {
-        type: event.type,
-        data: event.data,
-        origin: event.origin
-      });
+    this.eventSource.addEventListener('message', (event: MessageEvent) => {
+      if (this.debugMode) {
+        console.group('🌍 SSE MESSAGE');
+        console.warn('Raw Event:', {
+          type: event.type,
+          data: event.data,
+          origin: event.origin
+        });
+      }
       
       try {
         const parsedData = JSON.parse(event.data);
-        console.warn('Parsed Data:', parsedData);
+        
+        if (this.debugMode) {
+          console.warn('Parsed Data:', parsedData);
+        }
+        
+        // Update session activity on successful message
+        SessionManager.updateActivity();
+        
+        // Emit the parsed message
+        this.emit('message', { type: 'message', data: parsedData });
       } catch (parseError) {
-        console.error('❌ PARSING ERROR:', parseError);
-        console.warn('Unparseable Data:', event.data);
+        if (this.debugMode) {
+          console.error('❌ PARSING ERROR:', parseError);
+          console.warn('Unparseable Data:', event.data);
+        }
+        this.emit('error', { 
+          error: 'Failed to parse SSE message', 
+          originalError: parseError, 
+          rawData: event.data 
+        });
       }
       
-      console.groupEnd();
+      if (this.debugMode) {
+        console.groupEnd();
+      }
     });
 
-    // Specific market-data event listener
-    this.eventSource?.addEventListener('market-data', (event: MessageEvent) => {
-      console.group('📊 MARKET DATA EVENT');
-      console.warn('Raw Market Data Event:', {
-        type: event.type,
-        data: event.data
+    // Set up listeners for specific event types
+    const eventTypes = [
+      'exchange-data', 'market-data', 'order-update', 'portfolio-update', 
+      'session-update', 'error-event'
+    ];
+    
+    eventTypes.forEach(eventType => {
+      this.eventSource?.addEventListener(eventType, (event: MessageEvent) => {
+        if (this.debugMode) {
+          console.group(`📊 ${eventType.toUpperCase()} EVENT`);
+          console.warn(`Raw ${eventType} Event:`, {
+            type: event.type,
+            data: event.data
+          });
+        }
+        
+        try {
+          const data = JSON.parse(event.data);
+          
+          if (this.debugMode) {
+            console.log(`Parsed ${eventType}:`, data);
+          }
+          
+          // Update session activity
+          SessionManager.updateActivity();
+          
+          // Emit the specific event type
+          this.emit(eventType, data);
+          // Also emit as a general message with type
+          this.emit('message', { type: eventType, data });
+        } catch (error) {
+          if (this.debugMode) {
+            console.error(`Error parsing SSE ${eventType} event:`, error, 'Raw event:', event);
+          }
+          this.emit('error', { 
+            error: `Failed to parse ${eventType} event`, 
+            originalError: error, 
+            rawData: event.data 
+          });
+        }
+        
+        if (this.debugMode) {
+          console.groupEnd();
+        }
       });
-      
-      try {
-        console.log('Raw market-data event:', event);
-        const data = JSON.parse(event.data);
-        console.log('Parsed market-data:', data);
-        this.emit('message', { type: 'market-data', data });
-      } catch (error) {
-          console.error(`Error parsing SSE market-data event:`, error, 'Raw event:', event);
-      }
-      
-      console.groupEnd();
     });
   }
 
@@ -287,5 +379,26 @@ export class SSEClient extends EventEmitter {
     this.circuitBreakerState = 'CLOSED';
     this.consecutiveFailures = 0;
     this.emit('circuit_reset', { message: 'Circuit breaker manually reset' });
+  }
+  
+  public getConnectionStatus(): {
+    connected: boolean;
+    connecting: boolean;
+    circuitBreakerState: string;
+    reconnectAttempt: number;
+    maxReconnectAttempts: number;
+  } {
+    return {
+      connected: !!this.eventSource && this.eventSource.readyState === EventSource.OPEN,
+      connecting: this.isConnecting,
+      circuitBreakerState: this.circuitBreakerState,
+      reconnectAttempt: this.reconnectAttempt,
+      maxReconnectAttempts: this.maxReconnectAttempts
+    };
+  }
+  
+  public dispose(): void {
+    this.close();
+    this.removeAllListeners();
   }
 }

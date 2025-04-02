@@ -365,78 +365,57 @@ async def handle_end_session(request):
     })
 
 
+
 async def handle_start_simulator(request):
-    """
-    Handle simulator start request
-    
-    Args:
-        request: HTTP request
+    """Handle simulator start request without requiring session_id"""
+    session_manager = request.app['session_manager']
+
+    try:
+        # Get token from Authorization header
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return web.json_response({
+                'success': False,
+                'error': 'Missing authorization token'
+            }, status=401)
+            
+        token = auth_header[7:]  # Remove 'Bearer ' prefix
         
-    Returns:
-        JSON response
-    """
-    with optional_trace_span(_tracer, "handle_start_simulator") as span:
-        session_manager = request.app['session_manager']
-        start_time = time.time()
-
-        try:
-            # Parse request body
-            data = await request.json()
-
-            # Extract parameters
-            session_id = data.get('sessionId')
-            token = data.get('token')
-
-            span.set_attribute("session_id", session_id)
-            span.set_attribute("has_token", token is not None)
-
-            if not session_id or not token:
-                span.set_attribute("error", "Missing sessionId or token")
-                return web.json_response({
-                    'success': False,
-                    'error': 'Missing sessionId or token'
-                }, status=400)
-
-            # Start simulator
-            simulator_id, endpoint, error = await session_manager.start_simulator(session_id, token)
-
-            if error:
-                span.set_attribute("error", error)
-                track_simulator_operation("start", "failure")
-                return web.json_response({
-                    'success': False,
-                    'error': error
-                }, status=400)
-
-            span.set_attribute("simulator_id", simulator_id)
-            span.set_attribute("endpoint", endpoint)
-            track_simulator_operation("start", "success")
-
-            return web.json_response({
-                'success': True,
-                'simulatorId': simulator_id,
-                'endpoint': endpoint
-            })
-
-        except json.JSONDecodeError:
-            span.set_attribute("error", "Invalid JSON in request body")
+        # Get user ID from token and find/create their session
+        user_id = await session_manager.get_user_from_token(token)
+        if not user_id:
             return web.json_response({
                 'success': False,
-                'error': 'Invalid JSON in request body'
+                'error': 'Invalid token'
+            }, status=401)
+            
+        # Get or create session for this user
+        session_id = await session_manager.get_or_create_user_session(user_id, token)
+        
+        # Start simulator using the found/created session
+        simulator_id, endpoint, error = await session_manager.start_simulator(session_id, token)
+        
+        if error:
+            return web.json_response({
+                'success': False,
+                'error': error
             }, status=400)
-        except Exception as e:
-            logger.error(f"Error starting simulator: {e}")
-            span.record_exception(e)
-            track_simulator_operation("start", "error")
-            return web.json_response({
-                'success': False,
-                'error': 'Server error'
-            }, status=500)
+        
+        return web.json_response({
+            'success': True,
+            'status': 'STARTING'
+        })
+    except Exception as e:
+        logger.error(f"Error starting simulator: {e}")
+        return web.json_response({
+            'success': False, 
+            'error': 'Server error'
+        }, status=500)
 
 
 async def handle_stop_simulator(request):
     """
-    Handle simulator stop request
+    Handle simulator stop request without requiring simulator_id
     
     Args:
         request: HTTP request
@@ -446,14 +425,11 @@ async def handle_stop_simulator(request):
     """
     session_manager = request.app['session_manager']
 
-    # Get simulator ID from URL
-    simulator_id = request.match_info['simulator_id']
-
     try:
         # Parse request body
         data = await request.json()
 
-        # Extract parameters
+        # Extract parameters - only need session_id and token
         session_id = data.get('sessionId')
         token = data.get('token')
 
@@ -461,14 +437,6 @@ async def handle_stop_simulator(request):
             return web.json_response({
                 'success': False,
                 'error': 'Missing sessionId or token'
-            }, status=400)
-
-        # Check if this is the simulator for the session
-        session = await session_manager.get_session(session_id)
-        if not session or session.get('simulator_id') != simulator_id:
-            return web.json_response({
-                'success': False,
-                'error': 'Simulator does not belong to this session'
             }, status=400)
 
         # Stop simulator
@@ -496,10 +464,9 @@ async def handle_stop_simulator(request):
             'error': 'Server error'
         }, status=500)
 
-
 async def handle_get_simulator_status(request):
     """
-    Handle simulator status request
+    Handle simulator status request without requiring simulator_id
     
     Args:
         request: HTTP request
@@ -509,10 +476,7 @@ async def handle_get_simulator_status(request):
     """
     session_manager = request.app['session_manager']
 
-    # Get simulator ID from URL
-    simulator_id = request.match_info['simulator_id']
-
-    # Get token and session ID
+    # Get token and session ID from query params
     token = request.query.get('token')
     session_id = request.query.get('sessionId')
 
@@ -530,22 +494,29 @@ async def handle_get_simulator_status(request):
             'error': 'Invalid session or token'
         }, status=401)
 
-    # Get simulator status
-    status = await session_manager.simulator_manager.get_simulator_status(simulator_id)
-
-    # Check if simulator belongs to session
+    # Get session to access simulator info
     session = await session_manager.get_session(session_id)
-    if not session or session.get('simulator_id') != simulator_id:
+    if not session:
         return web.json_response({
             'success': False,
-            'error': 'Simulator does not belong to this session'
-        }, status=400)
+            'error': 'Session not found'
+        }, status=404)
+    
+    # Check if this session has a simulator
+    simulator_id = session.get('metadata', {}).get('simulator_id')
+    if not simulator_id:
+        return web.json_response({
+            'success': True,
+            'status': 'NONE'  # No simulator exists
+        })
+
+    # Get status from the simulator manager
+    status = await session_manager.simulator_manager.get_simulator_status(simulator_id)
 
     return web.json_response({
         'success': True,
         'status': status
     })
-
 
 async def handle_reconnect_session(request):
     """

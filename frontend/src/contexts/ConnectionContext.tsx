@@ -5,7 +5,7 @@ import { ConnectionManager, ConnectionState } from '../services/connection/conne
 import { TokenManager } from '../services/auth/token-manager';
 import { useAuth } from './AuthContext';
 import { config } from '../config';
-import { SessionStore } from '../services/session/session-store';
+import { SessionStore } from '../services/session/session-manager';
 
 interface ConnectionContextType {
   connectionManager: ConnectionManager;

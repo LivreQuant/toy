@@ -1,7 +1,7 @@
 // src/services/connection/recovery-manager.ts
 
 import { EventEmitter } from '../../utils/event-emitter';
-import { SessionStore } from '../session/session-store';
+import { SessionStore } from '../session/session-manager';
 import { TokenManager } from '../auth/token-manager';
 
 export enum RecoveryState {

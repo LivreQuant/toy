@@ -25,7 +25,7 @@ const SimulatorPage: React.FC = () => {
       });
     }
   }, [isConnected, connectionState.simulatorStatus, streamMarketData]);
-  
+      
   const handleStartSimulator = async () => {
     setIsLoading(true);
     try {
@@ -36,7 +36,7 @@ const SimulatorPage: React.FC = () => {
       setIsLoading(false);
     }
   };
-  
+
   const handleStopSimulator = async () => {
     setIsLoading(true);
     try {

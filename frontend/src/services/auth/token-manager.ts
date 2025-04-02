@@ -5,6 +5,7 @@ export interface TokenData {
   accessToken: string;
   refreshToken: string;
   expiresAt: number; // timestamp in milliseconds
+  userId: string | number; // Add userId to the token data
 }
 
 export class TokenManager {
@@ -67,6 +68,11 @@ export class TokenManager {
     return tokens.accessToken;
   }
 
+  public getUserId(): string | number | null {
+    const tokens = this.getTokens();
+    return tokens?.userId || null;
+  }
+  
   // Refresh the access token using refresh token
   public async refreshAccessToken(): Promise<boolean> {
     // If already refreshing, return the existing promise
@@ -94,6 +100,7 @@ export class TokenManager {
           accessToken: response.accessToken,
           refreshToken: response.refreshToken,
           expiresAt: Date.now() + (response.expiresIn * 1000),
+          userId: response.userId  // Store userId with the tokens
         });
   
         // Rest of your code...
