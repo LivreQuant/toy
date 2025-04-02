@@ -2,11 +2,11 @@
 import { EventEmitter } from '../../utils/event-emitter';
 import { TokenManager } from '../auth/token-manager';
 import { WebSocketManager } from '../websocket/ws-manager';
-import { MarketDataStream, MarketData, OrderUpdate, PortfolioUpdate } from '../sse/exchange-data-stream';
+import { ExchangeDataStream, MarketData, OrderUpdate, PortfolioUpdate } from '../sse/exchange-data-stream';
 import { SessionApi } from '../../api/session';
 import { OrdersApi } from '../../api/order';
 import { HttpClient } from '../../api/http-client';
-import { SessionStore } from '../session/session-manager';
+import { SessionManager } from '../session/session-manager';
 import { config } from '../../config';
 
 import { RecoveryManager } from './recovery-manager';
@@ -31,7 +31,7 @@ export class ConnectionManager extends EventEmitter {
   private state: ConnectionState;
   private tokenManager: TokenManager;
   private wsManager: WebSocketManager;
-  private marketDataStream: MarketDataStream;
+  private exchangeDataStream: ExchangeDataStream;
   private recoveryManager: RecoveryManager;
   private sessionApi: SessionApi;
   private ordersApi: OrdersApi;
@@ -103,7 +103,7 @@ export class ConnectionManager extends EventEmitter {
     });
     
     // Create Market Data stream
-    this.marketDataStream = new MarketDataStream(tokenManager, {
+    this.exchangeDataStream = new ExchangeDataStream(tokenManager, {
       reconnectMaxAttempts: 15
     });
     
@@ -160,17 +160,17 @@ export class ConnectionManager extends EventEmitter {
     });
     
     // Market data stream listeners
-    this.marketDataStream.on('market-data-updated', (data: Record<string, MarketData>) => {
+    this.exchangeDataStream.on('market-data-updated', (data: Record<string, MarketData>) => {
       this.marketData = data;
       this.emit('market_data', data);
     });
     
-    this.marketDataStream.on('orders-updated', (data: Record<string, OrderUpdate>) => {
+    this.exchangeDataStream.on('orders-updated', (data: Record<string, OrderUpdate>) => {
       this.orders = data;
       this.emit('orders', data);
     });
     
-    this.marketDataStream.on('portfolio-updated', (data: PortfolioUpdate) => {
+    this.exchangeDataStream.on('portfolio-updated', (data: PortfolioUpdate) => {
       this.portfolio = data;
       this.emit('portfolio', data);
     });
@@ -216,7 +216,7 @@ export class ConnectionManager extends EventEmitter {
     
     try {
       // Step 1: Get or create session
-      let sessionId = SessionStore.getSessionId();
+      let sessionId = SessionManager.getSessionId();
       
       if (!sessionId) {
         console.log('No existing session found, creating new session...');
@@ -235,7 +235,7 @@ export class ConnectionManager extends EventEmitter {
         }
         
         sessionId = response.sessionId;
-        SessionStore.setSessionId(sessionId);
+        SessionManager.setSessionId(sessionId);
       }
       
       this.updateState({ sessionId });
@@ -278,13 +278,13 @@ export class ConnectionManager extends EventEmitter {
       
       // Step 5: Connect to market data stream after WebSocket is connected
       console.log('Establishing market data stream...');
-      await this.marketDataStream.connect(sessionId);
+      await this.exchangeDataStream.connect(sessionId);
         
       // Add this at the end of the method:
       if (this.state.isConnected) {
         // After successful connection, update timestamp in session storage
         // to coordinate with other tabs
-        SessionStore.updateActivity();
+        SessionManager.updateActivity();
       }
       
       return true;
@@ -353,13 +353,13 @@ export class ConnectionManager extends EventEmitter {
     this.wsManager.disconnect();
     
     // Disconnect market data stream
-    this.marketDataStream.disconnect();
+    this.exchangeDataStream.disconnect();
     
     // Stop heartbeat timer
     this.stopHeartbeat();
     
     // Clear session store
-    SessionStore.clearSession();
+    SessionManager.clearSession();
     
     // Reset state
     this.updateState({
@@ -377,7 +377,7 @@ export class ConnectionManager extends EventEmitter {
   
   public async reconnect(): Promise<boolean> {
     // Check if we have a session ID
-    const sessionId = this.state.sessionId || SessionStore.getSessionId();
+    const sessionId = this.state.sessionId || SessionManager.getSessionId();
     if (!sessionId) {
       return this.connect();
     }
@@ -385,7 +385,7 @@ export class ConnectionManager extends EventEmitter {
     this.updateState({ isConnecting: true, error: null });
     
     try {
-      const attempts = SessionStore.incrementReconnectAttempts();
+      const attempts = SessionManager.incrementReconnectAttempts();
       
       // Try to reconnect session
       const response = await this.sessionApi.reconnectSession(sessionId, attempts);
@@ -396,7 +396,7 @@ export class ConnectionManager extends EventEmitter {
       
       // Disconnect existing connections
       this.wsManager.disconnect();
-      this.marketDataStream.disconnect();
+      this.exchangeDataStream.disconnect();
       //this.stopHeartbeat();
       //this.stopKeepAlive();
       
@@ -408,7 +408,7 @@ export class ConnectionManager extends EventEmitter {
       }
       
       // Connect to market data stream
-      await this.marketDataStream.connect(response.sessionId);
+      await this.exchangeDataStream.connect(response.sessionId);
       
       // Update state
       this.updateState({
@@ -419,7 +419,7 @@ export class ConnectionManager extends EventEmitter {
       });
       
       // Store in session storage
-      SessionStore.saveSession({
+      SessionManager.saveSession({
         sessionId: response.sessionId,
         reconnectAttempts: 0
       });
@@ -514,7 +514,7 @@ export class ConnectionManager extends EventEmitter {
     console.log('ConnectionManager - Streaming market data, session ID:', this.state.sessionId);
     console.log('ConnectionManager - Symbols:', symbols);
 
-    const result = await this.marketDataStream.connect(
+    const result = await this.exchangeDataStream.connect(
       this.state.sessionId, 
       { symbols: symbols.join(',') } as any
     );

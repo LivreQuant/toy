@@ -4,6 +4,7 @@ import { SessionManager } from '../session/session-manager';
 import { BackoffStrategy } from '../../utils/backoff-strategy';
 import { EventEmitter } from '../../utils/event-emitter';
 import { config } from '../../config';
+import { toastService } from '../notification/toast-service';
 
 export interface WebSocketOptions {
   heartbeatInterval?: number;
@@ -207,6 +208,11 @@ export class WebSocketManager extends EventEmitter {
       // Notify about critical connection issue
       this.notifyConnectionIssue('critical');
     }
+
+    // Critical connection issue toast
+    if (this.consecutiveFailures >= this.circuitBreakerThreshold) {
+      toastService.error('Multiple connection failures. Please check your network.', 10000);
+    }
   }
   
   public disconnect(): void {
@@ -333,6 +339,15 @@ export class WebSocketManager extends EventEmitter {
     if (this.circuitBreakerState !== 'OPEN') {
       this.attemptReconnect();
     }
+
+    // Use toast service to notify user
+    toastService.error('WebSocket connection lost', 7000);
+
+    // Emit specific events for UI
+    this.emit('connection_lost', {
+      reason: event.reason || 'Unexpected disconnection',
+      code: event.code
+    });
   }
   
   private attemptReconnect(): void {
@@ -370,6 +385,9 @@ export class WebSocketManager extends EventEmitter {
         }
       }
     }, delay);
+
+    // Notify user about reconnection attempt
+    toastService.warning(`Reconnecting (Attempt ${this.reconnectAttempt})...`, 5000);
   }
   
   private startHeartbeat(): void {

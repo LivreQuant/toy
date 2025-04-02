@@ -5,7 +5,8 @@ import { ConnectionManager, ConnectionState } from '../services/connection/conne
 import { TokenManager } from '../services/auth/token-manager';
 import { useAuth } from './AuthContext';
 import { config } from '../config';
-import { SessionStore } from '../services/session/session-manager';
+import { SessionManager } from '../services/session/session-manager';
+import { toastService } from '../services/notification/toast-service';
 
 interface ConnectionContextType {
   connectionManager: ConnectionManager;
@@ -113,6 +114,40 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     };
   }, [connectionManager, isAuthenticated, connectionState.isConnected, connectionState.isConnecting]);
   
+  // Add connection event listeners
+  useEffect(() => {
+    // WebSocket connection events
+    const handleWSDisconnect = (data: any) => {
+      toastService.error(`WebSocket Disconnected: ${data.reason}`, 7000);
+    };
+
+    const handleWSReconnecting = (data: any) => {
+      toastService.warning(`Reconnecting WebSocket (Attempt ${data.attempt})...`, 5000);
+    };
+
+    // SSE connection events
+    const handleSSEDisconnect = (data: any) => {
+      toastService.error(`SSE Stream Disconnected: ${data.reason}`, 7000);
+    };
+
+    const handleSSEReconnecting = (data: any) => {
+      toastService.warning(`Reconnecting SSE Stream (Attempt ${data.attempt})...`, 5000);
+    };
+
+    // Add listeners
+    connectionManager.wsManager.on('disconnected', handleWSDisconnect);
+    connectionManager.wsManager.on('reconnecting', handleWSReconnecting);
+    connectionManager.sseManager.on('disconnected', handleSSEDisconnect);
+    connectionManager.sseManager.on('reconnecting', handleSSEReconnecting);
+
+    // Cleanup listeners
+    return () => {
+      connectionManager.wsManager.off('disconnected', handleWSDisconnect);
+      connectionManager.wsManager.off('reconnecting', handleWSReconnecting);
+      connectionManager.sseManager.off('disconnected', handleSSEDisconnect);
+      connectionManager.sseManager.off('reconnecting', handleSSEReconnecting);
+    };
+  }, [connectionManager]);
   
   const connect = async () => {
     if (!isAuthenticated) {

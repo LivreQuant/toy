@@ -3,7 +3,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { TokenManager } from '../services/auth/token-manager';
 import { AuthApi } from '../api/auth';
 import { HttpClient } from '../api/http-client';
-import { SessionStore } from '../services/session/session-manager';
+import { SessionManager } from '../services/session/session-manager';
 import { ConnectionManager } from '../services/connection/connection-manager';
 import { SessionApi } from '../api/session';
 
@@ -100,7 +100,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (sessionResponse.success) {
         // Store session ID in local storage (not exposed to UI)
-        SessionStore.setSessionId(sessionResponse.sessionId);
+        SessionManager.setSessionId(sessionResponse.sessionId);
       }
       
       setIsAuthenticated(true);
@@ -128,7 +128,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       tokenManager.clearTokens();
       
       // Also clear the session
-      SessionStore.clearSession();
+      SessionManager.clearSession();
       
       setIsAuthenticated(false);
       setIsLoading(false);

@@ -1,0 +1,22 @@
+/* ToastNotification.css */
+.toast-container {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 1000;
+  }
+  
+  .toast {
+    padding: 10px;
+    margin: 10px;
+    border-radius: 4px;
+    color: white;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  
+  .toast-error { background-color: #ff4d4f; }
+  .toast-success { background-color: #52c41a; }
+  .toast-warning { background-color: #faad14; }
+  .toast-info { background-color: #1890ff; }

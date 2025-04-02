@@ -4,6 +4,7 @@ import { TokenManager } from '../auth/token-manager';
 import { SessionManager } from '../session/session-manager';
 import { BackoffStrategy } from '../../utils/backoff-strategy';
 import { config } from '../../config';
+import { toastService } from '../services/notification/toast-service';
 
 export interface SSEOptions {
   reconnectMaxAttempts?: number;
@@ -311,6 +312,11 @@ export class SSEClient extends EventEmitter {
         resetTimeMs: this.circuitBreakerResetTime
       });
     }
+
+    // Critical connection issue toast
+    if (this.consecutiveFailures >= this.circuitBreakerThreshold) {
+      toastService.error('Multiple SSE connection failures. Streaming data may be interrupted.', 10000);
+    }
   }
   
   private handleDisconnect(): void {
@@ -322,7 +328,14 @@ export class SSEClient extends EventEmitter {
     // Attempt to reconnect if circuit breaker allows
     if (this.circuitBreakerState !== 'OPEN') {
       this.attemptReconnect();
-    }
+    }    
+    
+    toastService.error('Server-Sent Events connection lost', 7000);
+
+    // Emit specific events for UI
+    this.emit('connection_lost', {
+      reason: 'SSE connection interrupted'
+    });
   }
   
   private attemptReconnect(): void {
@@ -357,6 +370,9 @@ export class SSEClient extends EventEmitter {
         }
       }
     }, delay);
+
+    // Notify user about reconnection attempt
+    toastService.warning(`Reconnecting SSE stream (Attempt ${this.reconnectAttempt})...`, 5000);
   }
   
   public close(): void {
