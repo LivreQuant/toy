@@ -90,8 +90,8 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     connectionManager.on('recovery_success', handleRecoverySuccess);
     connectionManager.on('recovery_failed', handleRecoveryFailed);
     
-    // Connection management based on authentication state
-     if (isAuthenticated && !connectionState.isConnected && !connectionState.isConnecting) {
+    // Only attempt connection when authenticated
+    if (isAuthenticated && !connectionState.isConnected && !connectionState.isConnecting) {
       // Connect automatically when authenticated and not already connected/connecting
       connectionManager.connect().catch(err => {
         console.error('Failed to auto-connect after authentication:', err);

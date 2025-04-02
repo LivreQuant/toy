@@ -4,6 +4,7 @@ import { TokenManager } from '../services/auth/token-manager';
 import { AuthApi } from '../api/auth';
 import { HttpClient } from '../api/http-client';
 import { SessionStore } from '../services/session/session-store';
+import { ConnectionManager } from '../services/connection/connection-manager';
 
 interface AuthContextType {
   isAuthenticated: boolean;
@@ -17,24 +18,37 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // Create token manager first
+  const tokenManager = new TokenManager();
+  
+  // Create HTTP client
+  const httpClient = new HttpClient(tokenManager);
+  
+  // Create auth API client
+  const authApi = new AuthApi(httpClient);
+  
+  // Create connection manager
+  const connectionManager = new ConnectionManager(tokenManager);
+
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  
-  // Create token manager
-  const [tokenManager] = useState<TokenManager>(() => new TokenManager());
-  
-  // Create HTTP client
-  const [httpClient] = useState<HttpClient>(() => new HttpClient(tokenManager));
-  
-  // Create auth API client
-  const [authApi] = useState<AuthApi>(() => new AuthApi(httpClient));
-  
+
   // Set auth API in token manager for refresh
   useEffect(() => {
     tokenManager.setAuthApi(authApi);
-  }, [tokenManager, authApi]);
+  }, []);
   
+  // Track recovery manager's state based on authentication
+  useEffect(() => {
+    connectionManager.updateRecoveryAuthState(isAuthenticated);
+        
+    // Disconnect if not authenticated
+    if (!isAuthenticated) {
+      connectionManager.disconnect();
+    }
+  }, [isAuthenticated]);
+
   // Check if user is authenticated on mount
   useEffect(() => {
     const checkAuth = async () => {
@@ -58,7 +72,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
     
     checkAuth();
-  }, [tokenManager]);
+  }, []);
   
   // Login function
   const login = async (username: string, password: string): Promise<boolean> => {
@@ -104,7 +118,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Always clear tokens regardless of API call success
       tokenManager.clearTokens();
       
-      // Add this line to clear the session as well
+      // Also clear the session
       SessionStore.clearSession();
       
       setIsAuthenticated(false);

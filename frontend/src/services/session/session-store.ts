@@ -66,7 +66,7 @@ export interface SessionData {
       return () => window.removeEventListener('storage', handleStorageChange);
     }
 
-    private static broadcastSessionUpdate(data: SessionData): void {
+    private static broadcastSessionUpdate(data: Partial<SessionData> | SessionData): void {
       // Use BroadcastChannel API if available
       if ('BroadcastChannel' in window) {
         const channel = new BroadcastChannel('trading_session_updates');
@@ -79,7 +79,7 @@ export interface SessionData {
         channel.close();
       }
     }
-    
+
     // Get session data
     public static getSession(): SessionData | null {
       try {

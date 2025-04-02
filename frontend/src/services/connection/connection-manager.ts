@@ -50,20 +50,20 @@ export class ConnectionManager extends EventEmitter {
     tokenManager: TokenManager
   ) {
     super();
-    
-    // Create Recovery Manager after other components are initialized
-    this.recoveryManager = new RecoveryManager(this);
+      
+    // Create Recovery Manager with TokenManager
+    this.recoveryManager = new RecoveryManager(this, tokenManager);
     
     // Forward recovery events
-    this.recoveryManager.on('recovery_attempt', (data) => {
+    this.recoveryManager.on('recovery_attempt', (data: any) => {
       this.emit('recovery_attempt', data);
     });
     
-    this.recoveryManager.on('recovery_success', (data) => {
+    this.recoveryManager.on('recovery_success', (data: any) => {
       this.emit('recovery_success', data);
     });
     
-    this.recoveryManager.on('recovery_failed', (data) => {
+    this.recoveryManager.on('recovery_failed', (data: any) => {
       this.emit('recovery_failed', data);
     });
     
@@ -186,23 +186,32 @@ export class ConnectionManager extends EventEmitter {
   }
   
   // Connect all necessary connections for a session
-
+  public updateRecoveryAuthState(isAuthenticated: boolean): void {
+    // If recoveryManager exists, call its method
+    if (this.recoveryManager) {
+      this.recoveryManager.updateAuthState(isAuthenticated);
+    }
+  }
+  
   public async connect(): Promise<boolean> {
     console.log('Attempting to connect and create session...');
-  
-    if (this.state.isConnected || this.state.isConnecting) {
-      return this.state.isConnected;
-    }
-      
+    
     // Check if we have a valid token first
     const token = await this.tokenManager.getAccessToken();
     if (!token) {
+      console.warn('Cannot connect - user is not authenticated');
       this.updateState({ 
-        error: 'Authentication required before connecting'
+        error: 'Authentication required before connecting',
+        isConnected: false,
+        isConnecting: false
       });
       return false;
     }
-  
+    
+    if (this.state.isConnected || this.state.isConnecting) {
+      return this.state.isConnected;
+    }
+    
     this.updateState({ isConnecting: true, error: null });
     
     try {

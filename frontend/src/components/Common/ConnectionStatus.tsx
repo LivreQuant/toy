@@ -4,14 +4,22 @@ import React from 'react';
 import './ConnectionStatus.css';
 import { useConnection } from '../../contexts/ConnectionContext';
 
-const ConnectionStatus: React.FC = () => {
+interface ConnectionStatusProps {
+  isConnected: boolean;
+  isConnecting: boolean;
+  connectionQuality: string;
+  simulatorStatus: string;
+}
+
+const ConnectionStatus: React.FC<ConnectionStatusProps> = ({ 
+  isConnected, 
+  isConnecting, 
+  connectionQuality, 
+  simulatorStatus
+}) => {
   const { 
-    isConnected, 
-    isConnecting, 
     isRecovering,
     recoveryAttempt,
-    connectionQuality, 
-    simulatorStatus,
     manualReconnect
   } = useConnection();
   
