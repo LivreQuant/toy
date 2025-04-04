@@ -41,24 +41,4 @@ export class OrdersApi {
   async cancelOrder(orderId: string): Promise<{ success: boolean }> {
     return this.client.post<{ success: boolean }>('/orders/cancel', { orderId });
   }
-  
-  async getOrderStatus(orderId: string): Promise<OrderStatusResponse> {
-    return this.client.get<OrderStatusResponse>(`/orders/status?orderId=${orderId}`);
-  }
-  
-  async getOrders(): Promise<Array<{
-    orderId: string;
-    symbol: string;
-    side: OrderSide;
-    type: OrderType;
-    status: OrderStatus;
-    quantity: number;
-    filledQuantity: number;
-    price?: number;
-    avgPrice: number;
-    createdAt: number;
-  }>> {
-    // Get all orders for the current session
-    return this.client.get<any[]>('/orders');
-  }
 }
