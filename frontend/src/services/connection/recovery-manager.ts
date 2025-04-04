@@ -1,5 +1,4 @@
 // src/services/connection/recovery-manager.ts
-
 import { EventEmitter } from '../../utils/event-emitter';
 import { SessionManager } from '../session/session-manager';
 import { TokenManager } from '../auth/token-manager';
@@ -11,13 +10,13 @@ export enum RecoveryState {
   FAILED = 'failed'
 }
 
-// src/services/connection/recovery-manager.ts
 export class RecoveryManager extends EventEmitter {
   private connectionManager: any;
   private tokenManager: TokenManager;
   private recoveryAttempts: number = 0;
   private maxRecoveryAttempts: number = 3;
   private recoveryTimer: number | null = null;
+  private recoveryState: RecoveryState = RecoveryState.IDLE;
 
   constructor(connectionManager: any, tokenManager: TokenManager) {
     super();
@@ -33,7 +32,7 @@ export class RecoveryManager extends EventEmitter {
   }
 
   public async attemptRecovery(reason: string = 'manual'): Promise<boolean> {
-    // Authentication and connection state checks
+    // Authentication check
     if (!this.tokenManager.isAuthenticated()) {
       console.warn('Cannot recover connection - not authenticated');
       return false;
@@ -41,48 +40,77 @@ export class RecoveryManager extends EventEmitter {
 
     const state = this.connectionManager.getState();
     
-    // Prevent unnecessary recovery attempts
+    // Prevent unnecessary recovery attempts if already connected
     if (state.isConnected) {
       console.log('Already connected, skipping recovery');
       return true;
     }
 
-    // Limit recovery attempts
-    if (this.recoveryAttempts >= this.maxRecoveryAttempts) {
-      console.warn('Max recovery attempts reached');
+    // Don't allow multiple concurrent recovery attempts
+    if (this.recoveryState === RecoveryState.ATTEMPTING) {
+      console.log('Recovery already in progress');
       return false;
     }
 
+    // Limit recovery attempts
+    if (this.recoveryAttempts >= this.maxRecoveryAttempts) {
+      console.warn('Max recovery attempts reached');
+      this.emit('recovery_failed');
+      return false;
+    }
+
+    // Start recovery process
+    this.recoveryState = RecoveryState.ATTEMPTING;
     this.recoveryAttempts++;
     console.log(`Attempting connection recovery (${this.recoveryAttempts}/${this.maxRecoveryAttempts}), reason: ${reason}`);
+    
+    // Emit recovery attempt event
+    this.emit('recovery_attempt', { 
+      attempt: this.recoveryAttempts,
+      maxAttempts: this.maxRecoveryAttempts,
+      reason
+    });
 
     try {
+      // First disconnect completely to ensure clean reconnection
+      this.connectionManager.disconnect();
+      
+      // Then reconnect
       const reconnected = await this.connectionManager.connect();
       
       if (reconnected) {
-        this.recoveryAttempts = 0; // Reset attempts on success
+        // Success - reset state
+        this.recoveryAttempts = 0;
+        this.recoveryState = RecoveryState.SUCCEEDED;
+        this.emit('recovery_success');
         return true;
       }
 
-      // If reconnection fails, use exponential backoff
+      // If reconnection fails, use exponential backoff for next attempt
+      this.recoveryState = RecoveryState.FAILED;
       const delay = Math.min(30000, Math.pow(2, this.recoveryAttempts) * 1000);
       
       this.recoveryTimer = window.setTimeout(() => {
+        this.recoveryState = RecoveryState.IDLE;
         this.attemptRecovery('scheduled_retry');
       }, delay);
 
       return false;
     } catch (error) {
       console.error('Recovery attempt failed:', error);
+      this.recoveryState = RecoveryState.FAILED;
+      this.emit('recovery_failed');
       return false;
     }
   }
 
-  // Minimal auth state management
+  // Handle authentication state changes
   public updateAuthState(isAuthenticated: boolean): void {
     if (!isAuthenticated) {
-      this.connectionManager.disconnect();
+      // Clear any recovery attempts if user is no longer authenticated
+      this.dispose();
       this.recoveryAttempts = 0;
+      this.recoveryState = RecoveryState.IDLE;
     }
   }
 }

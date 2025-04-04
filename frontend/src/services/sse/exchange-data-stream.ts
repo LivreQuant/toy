@@ -9,43 +9,9 @@ export interface ExchangeDataOptions {
   debugMode?: boolean;
 }
 
-export interface MarketData {
-  symbol: string;
-  bid: number;
-  ask: number;
-  bidSize: number;
-  askSize: number;
-  lastPrice: number;
-  lastSize: number;
-  timestamp: number;
-}
-
-export interface OrderUpdate {
-  orderId: string;
-  symbol: string;
-  status: string;
-  filledQuantity: number;
-  averagePrice: number;
-}
-
-export interface PortfolioPosition {
-  symbol: string;
-  quantity: number;
-  averageCost: number;
-  marketValue: number;
-}
-
-export interface PortfolioUpdate {
-  positions: PortfolioPosition[];
-  cashBalance: number;
-  totalValue: number;
-}
-
 export class ExchangeDataStream extends EventEmitter {
   private sseManager: SSEManager;
-  private marketData: Record<string, MarketData> = {};
-  private orders: Record<string, OrderUpdate> = {};
-  private portfolio: PortfolioUpdate | null = null;
+  private exchangeData: Record<string, any> = {};
   private tokenManager: TokenManager;
   private webSocketManager: WebSocketManager;
   private debugMode: boolean;
@@ -70,47 +36,30 @@ export class ExchangeDataStream extends EventEmitter {
     this.sseManager.on('exchange-data', this.handleExchangeData.bind(this));
     this.sseManager.on('error', this.handleError.bind(this));
     
-    // Forward connection events from SSE manager
-    ['connected', 'disconnected', 'reconnecting', 'circuit_trip', 'circuit_closed'].forEach(event => {
+    // Forward relevant SSE events
+    ['connected', 'disconnected', 'reconnecting'].forEach(event => {
       this.sseManager.on(event, (data: any) => this.emit(event, data));
-    });
-    
-    // Listen to WebSocket connection events to coordinate
-    this.webSocketManager.on('connected', this.handleWebSocketConnected.bind(this));
-    this.webSocketManager.on('disconnected', this.handleWebSocketDisconnected.bind(this));
-  }
-  
-  private handleWebSocketConnected(): void {
-    // If WebSocket reconnected but SSE is disconnected, try to reconnect SSE
-    if (!this.isConnected()) {
-      if (this.debugMode) {
-        console.log('WebSocket connected, attempting to connect Exchange Data Stream');
-      }
-      this.connect().catch(err => {
-        console.error('Failed to reconnect Exchange Data Stream after WebSocket reconnection:', err);
-      });
-    }
-  }
-  
-  private handleWebSocketDisconnected(): void {
-    // Emit warning that data might be stale if WebSocket is disconnected
-    this.emit('websocket_disconnected', {
-      message: 'WebSocket disconnected, exchange data may be stale',
-      timestamp: Date.now()
     });
   }
   
   public isConnected(): boolean {
+    // First check if WebSocket is connected
+    if (!this.webSocketManager.getConnectionHealth().status === 'connected') {
+      return false;
+    }
+    
+    // Then check SSE connection
     const status = this.sseManager.getConnectionStatus();
     return status.connected;
   }
   
   public async connect(): Promise<boolean> {
-    // Check WebSocket connection first
-    if (!this.webSocketManager.getConnectionHealth().status) {
+    // Always check WebSocket connection first - don't connect SSE if WebSocket is down
+    const wsHealth = this.webSocketManager.getConnectionHealth();
+    if (wsHealth.status !== 'connected') {
       this.emit('error', { 
-        error: 'Cannot connect Exchange Data Stream - WebSocket is not connected',
-        webSocketStatus: this.webSocketManager.getConnectionHealth().status
+        error: 'Cannot connect SSE - WebSocket is not connected',
+        webSocketStatus: wsHealth.status
       });
       return false;
     }
@@ -119,7 +68,7 @@ export class ExchangeDataStream extends EventEmitter {
       console.log('ExchangeDataStream - Connecting to unified data stream');
     }
   
-    // Validate authentication first
+    // Validate authentication
     const token = await this.tokenManager.getAccessToken();
     if (!token) {
       this.emit('error', { error: 'Authentication required for exchange data stream' });
@@ -144,44 +93,11 @@ export class ExchangeDataStream extends EventEmitter {
           console.log('Received exchange data:', data);
         }
 
-        // Update market data
-        if (data.market_data) {
-            if (this.debugMode) {
-              console.log('Market Data:', data.market_data);
-            }
-            const marketDataMap: Record<string, MarketData> = {};
-            data.market_data.forEach((item: MarketData) => {
-                marketDataMap[item.symbol] = item;
-            });
-            this.marketData = marketDataMap;
-            
-            // Emit market data update
-            this.emit('market-data-updated', this.marketData);
-        }
+        // Update exchange data
+        this.exchangeData = { ...data };
         
-        // Update orders if available
-        if (data.order_updates) {
-            if (this.debugMode) {
-              console.log('Order Updates:', data.order_updates);
-            }
-            const orderUpdates = data.order_updates;
-            orderUpdates.forEach((update: OrderUpdate) => {
-                if (update.orderId) {
-                    this.orders[update.orderId] = update;
-                }
-            });
-            
-            this.emit('orders-updated', this.orders);
-        }
-        
-        // Update portfolio if available
-        if (data.portfolio) {
-            if (this.debugMode) {
-              console.log('Portfolio Data:', data.portfolio);
-            }
-            this.portfolio = data.portfolio;
-            this.emit('portfolio-updated', this.portfolio);
-        }
+        // Emit exchange data update
+        this.emit('exchange-data', this.exchangeData);
     } catch (error) {
         console.error('Error processing exchange data:', error, 'Raw data:', data);
     }
@@ -191,16 +107,8 @@ export class ExchangeDataStream extends EventEmitter {
     this.sseManager.close();
   }
   
-  public getMarketData(): Record<string, MarketData> {
-    return { ...this.marketData };
-  }
-  
-  public getOrderUpdates(): Record<string, OrderUpdate> {
-    return { ...this.orders };
-  }
-  
-  public getPortfolio(): PortfolioUpdate | null {
-    return this.portfolio ? { ...this.portfolio } : null;
+  public getExchangeData(): Record<string, any> {
+    return { ...this.exchangeData };
   }
   
   private handleError(error: any): void {

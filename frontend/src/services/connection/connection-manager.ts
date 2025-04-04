@@ -6,7 +6,6 @@ import { ExchangeDataStream } from '../sse/exchange-data-stream';
 import { SessionApi } from '../../api/session';
 import { HttpClient } from '../../api/http-client';
 import { RecoveryManager } from './recovery-manager';
-
 import { ConnectionLifecycleManager } from './connection-lifecycle';
 import { ConnectionDataHandlers } from './connection-data-handlers';
 import { ConnectionSimulatorManager } from './connection-simulator';
@@ -16,17 +15,19 @@ export class ConnectionManager extends EventEmitter {
   private dataHandlers: ConnectionDataHandlers;
   private simulatorManager: ConnectionSimulatorManager;
   private recoveryManager: RecoveryManager;
+  private wsManager: WebSocketManager;
+  private sseManager: ExchangeDataStream;
 
   constructor(tokenManager: TokenManager) {
     super();
 
     const httpClient = new HttpClient(tokenManager);
-    const wsManager = new WebSocketManager(tokenManager);
+    this.wsManager = new WebSocketManager(tokenManager);
     const sessionApi = new SessionApi(httpClient, tokenManager);
-    const sseManager = new ExchangeDataStream(tokenManager, wsManager);
+    this.sseManager = new ExchangeDataStream(tokenManager, this.wsManager);
 
     this.lifecycleManager = new ConnectionLifecycleManager(
-      tokenManager, wsManager, sseManager, sessionApi, httpClient
+      tokenManager, this.wsManager, this.sseManager, sessionApi, httpClient
     );
 
     this.dataHandlers = new ConnectionDataHandlers(httpClient);
@@ -37,55 +38,99 @@ export class ConnectionManager extends EventEmitter {
   }
 
   private setupEventListeners(): void {
-    // Forward lifecycle events
-    this.lifecycleManager.on('connected', () => this.emit('connected'));
-    this.lifecycleManager.on('disconnected', () => this.emit('disconnected'));
-    this.lifecycleManager.on('heartbeat', (data) => this.emit('heartbeat', data));
-
-    // Set up data handlers for SSE events
-    this.lifecycleManager.on('market-data-updated', (data) => {
-      this.dataHandlers.updateMarketData(data);
-      this.emit('market_data', data);
+    // Forward WebSocket connection events to determine overall connection status
+    this.wsManager.on('connected', () => {
+      this.emit('connected');
+      // When WebSocket connects, ensure SSE is also connected
+      this.connectSSE().catch(err => 
+        console.error('Failed to connect SSE after WebSocket connected:', err)
+      );
+    });
+    
+    this.wsManager.on('disconnected', (data) => {
+      this.emit('disconnected', data);
+      // Disconnect SSE when WebSocket disconnects
+      this.sseManager.disconnect();
+    });
+    
+    this.wsManager.on('reconnecting', (data) => {
+      this.emit('reconnecting', data);
+    });
+    
+    this.wsManager.on('heartbeat', (data) => {
+      this.emit('heartbeat', data);
     });
 
-    this.lifecycleManager.on('orders-updated', (data) => {
-      this.dataHandlers.updateOrders(data);
-      this.emit('orders', data);
+    // Set up data handlers for SSE events - using new exchangeData structure
+    this.sseManager.on('exchange-data', (data) => {
+      this.dataHandlers.updateExchangeData(data);
+      this.emit('exchange_data', data);
     });
-
-    this.lifecycleManager.on('portfolio-updated', (data) => {
-      this.dataHandlers.updatePortfolio(data);
-      this.emit('portfolio', data);
+    
+    // Recovery events
+    this.recoveryManager.on('recovery_attempt', (data) => {
+      this.emit('recovery_attempt', data);
+    });
+    
+    this.recoveryManager.on('recovery_success', () => {
+      this.emit('recovery_success');
+    });
+    
+    this.recoveryManager.on('recovery_failed', () => {
+      this.emit('recovery_failed');
     });
   }
+  
+  private async connectSSE(): Promise<boolean> {
+    if (this.wsManager.getConnectionHealth().status === 'connected') {
+      return this.sseManager.connect();
+    }
+    return false;
+  }
 
-  // Lifecycle Methods
+  // Lifecycle Methods - make WebSocket the primary connection
   public async connect(): Promise<boolean> {
-    return this.lifecycleManager.connect();
+    try {
+      // First connect WebSocket
+      const wsConnected = await this.wsManager.connect();
+      if (!wsConnected) {
+        return false;
+      }
+      
+      // Then connect SSE if WebSocket connected
+      await this.connectSSE();
+      
+      return true;
+    } catch (error) {
+      console.error('Connection error:', error);
+      return false;
+    }
   }
 
   public disconnect(): void {
-    this.lifecycleManager.disconnect();
+    this.wsManager.disconnect();
+    this.sseManager.disconnect();
   }
 
   public getState() {
-    return this.lifecycleManager.getState();
+    const wsHealth = this.wsManager.getConnectionHealth();
+    return {
+      isConnected: wsHealth.status === 'connected',
+      isConnecting: wsHealth.status === 'connecting',
+      connectionQuality: wsHealth.quality || 'unknown',
+      sessionId: this.lifecycleManager.getSessionId(),
+      simulatorStatus: this.lifecycleManager.getSimulatorStatus(),
+      simulatorId: this.lifecycleManager.getSimulatorId(),
+      error: wsHealth.error || null
+    };
   }
 
-  // Data Retrieval Methods
-  public getMarketData() {
-    return this.dataHandlers.getMarketData();
+  // Data Retrieval Methods - now only exposing exchangeData
+  public getExchangeData() {
+    return this.dataHandlers.getExchangeData();
   }
 
-  public getOrders() {
-    return this.dataHandlers.getOrders();
-  }
-
-  public getPortfolio() {
-    return this.dataHandlers.getPortfolio();
-  }
-
-  // Order Management Methods
+  // Order Management Methods - submit and cancel orders
   public async submitOrder(order: {
     symbol: string;
     side: 'BUY' | 'SELL';
@@ -94,20 +139,30 @@ export class ConnectionManager extends EventEmitter {
     type: 'MARKET' | 'LIMIT';
   }): Promise<{ success: boolean; orderId?: string; error?: string }> {
     const state = this.getState();
-    if (!state.sessionId) {
+    if (!state.isConnected) {
+      return { success: false, error: 'Not connected to trading servers' };
+    }
+    
+    const sessionId = this.lifecycleManager.getSessionId();
+    if (!sessionId) {
       return { success: false, error: 'No active session' };
     }
 
-    return this.dataHandlers.submitOrder(state.sessionId, order);
+    return this.dataHandlers.submitOrder(sessionId, order);
   }
 
   public async cancelOrder(orderId: string): Promise<{ success: boolean; error?: string }> {
     const state = this.getState();
-    if (!state.sessionId) {
+    if (!state.isConnected) {
+      return { success: false, error: 'Not connected to trading servers' };
+    }
+    
+    const sessionId = this.lifecycleManager.getSessionId();
+    if (!sessionId) {
       return { success: false, error: 'No active session' };
     }
 
-    return this.dataHandlers.cancelOrder(state.sessionId, orderId);
+    return this.dataHandlers.cancelOrder(sessionId, orderId);
   }
 
   // Simulator Methods
@@ -117,7 +172,7 @@ export class ConnectionManager extends EventEmitter {
   } = {}): Promise<{ success: boolean; status?: string; error?: string }> {
     const state = this.getState();
     if (!state.isConnected) {
-      return { success: false, error: 'Not connected' };
+      return { success: false, error: 'Not connected to trading servers' };
     }
 
     return this.simulatorManager.startSimulator(options);
@@ -126,7 +181,7 @@ export class ConnectionManager extends EventEmitter {
   public async stopSimulator(): Promise<{ success: boolean; error?: string }> {
     const state = this.getState();
     if (!state.isConnected) {
-      return { success: false, error: 'Not connected' };
+      return { success: false, error: 'Not connected to trading servers' };
     }
 
     return this.simulatorManager.stopSimulator();
@@ -140,22 +195,32 @@ export class ConnectionManager extends EventEmitter {
   public async attemptRecovery(reason: string = 'manual'): Promise<boolean> {
     return this.recoveryManager.attemptRecovery(reason);
   }
+  
+  // Reconnection method - primarily reconnect WebSocket
+  public async reconnect(): Promise<boolean> {
+    // First disconnect everything cleanly
+    this.disconnect();
+    
+    // Then reconnect
+    return this.connect();
+  }
 
-  // WebSocket and SSE Event Listeners
+  // WebSocket Event Listeners
   public addWSEventListener(event: string, handler: Function): void {
-    this.lifecycleManager.on(event, handler);
+    this.wsManager.on(event, handler);
   }
 
   public removeWSEventListener(event: string, handler: Function): void {
-    this.lifecycleManager.off(event, handler);
+    this.wsManager.off(event, handler);
   }
 
+  // SSE Event Listeners
   public addSSEEventListener(event: string, handler: Function): void {
-    this.lifecycleManager.on(event, handler);
+    this.sseManager.on(event, handler);
   }
 
   public removeSSEEventListener(event: string, handler: Function): void {
-    this.lifecycleManager.off(event, handler);
+    this.sseManager.off(event, handler);
   }
 
   // Cleanup Method

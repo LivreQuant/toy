@@ -1,10 +1,5 @@
 // src/services/connection/connection-events.ts
 import { EventEmitter } from '../../utils/event-emitter';
-import { 
-  MarketData, 
-  OrderUpdate, 
-  PortfolioUpdate 
-} from '../sse/exchange-data-stream';
 
 export interface ConnectionEvents {
   // Lifecycle events
@@ -13,9 +8,9 @@ export interface ConnectionEvents {
   reconnecting: (data: { attempt: number }) => void;
 
   // Data events
-  market_data: (data: Record<string, MarketData>) => void;
-  orders: (data: Record<string, OrderUpdate>) => void;
-  portfolio: (data: PortfolioUpdate) => void;
+  exchange_data: (data: any) => void; // Changed from market_data
+  orders: (data: Record<string, any>) => void;
+  portfolio: (data: any) => void;
 
   // Heartbeat events
   heartbeat: (data: { timestamp: number; latency: number }) => void;
@@ -43,16 +38,12 @@ export class ConnectionEventManager extends EventEmitter {
     this.emit('reconnecting', { attempt });
   }
 
-  public emitMarketData(data: Record<string, MarketData>): void {
-    this.emit('market_data', data);
+  public emitExchangeData(data: any): void { // Changed from emitMarketData
+    this.emit('exchange_data', data);
   }
 
-  public emitOrders(data: Record<string, OrderUpdate>): void {
+  public emitOrders(data: Record<string, any>): void {
     this.emit('orders', data);
-  }
-
-  public emitPortfolio(data: PortfolioUpdate): void {
-    this.emit('portfolio', data);
   }
 
   public emitHeartbeat(timestamp: number, latency: number): void {
