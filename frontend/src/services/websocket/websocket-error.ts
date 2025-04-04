@@ -1,4 +1,5 @@
 import { Logger } from '../../utils/logger';
+import { TokenManager } from '../auth/token-manager';
 
 export class WebSocketError extends Error {
   code: string;
@@ -109,7 +110,7 @@ export class WebSocketErrorHandler {
 
     // Use the centralized token refresh method
     context.tokenManager.refreshAccessToken()
-      .then(refreshed => {
+      .then((refreshed: boolean) => {
         if (refreshed) {
           context.manualReconnect();
         } else {

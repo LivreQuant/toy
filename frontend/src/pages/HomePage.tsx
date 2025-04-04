@@ -29,12 +29,6 @@ const HomePage: React.FC = () => {
             </div>
           </div>
           <div className="status-item">
-            <div className="status-label">Session ID</div>
-            <div className="status-value">
-              {connectionState.sessionId || 'None'}
-            </div>
-          </div>
-          <div className="status-item">
             <div className="status-label">Simulator</div>
             <div className="status-value">
               {connectionState.simulatorStatus || 'Unknown'}

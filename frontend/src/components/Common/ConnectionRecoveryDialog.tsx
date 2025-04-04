@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import './ConnectionRecoveryDialog.css';
 import { useConnection } from '../../contexts/ConnectionContext';
-import { useToast } from '../../contexts/ToastContext';
+import { toastService } from '../../services/notification/toast-service';
 
 interface ConnectionRecoveryDialogProps {
   maxAttempts?: number;
@@ -16,7 +16,6 @@ const ConnectionRecoveryDialog: React.FC<ConnectionRecoveryDialogProps> = () => 
     manualReconnect,
     connectionState
   } = useConnection();
-  const { addToast } = useToast();
   
   const [visible, setVisible] = useState(false);
   
@@ -35,24 +34,12 @@ const ConnectionRecoveryDialog: React.FC<ConnectionRecoveryDialogProps> = () => 
       const success = await manualReconnect();
       
       if (success) {
-        addToast({
-          type: 'success',
-          message: 'Successfully reconnected to trading servers',
-          duration: 5000
-        });
+        toastService.success('Successfully reconnected to trading servers', 5000);
       } else {
-        addToast({
-          type: 'error',
-          message: 'Failed to reconnect. Please check your network.',
-          duration: 7000
-        });
+        toastService.error('Failed to reconnect. Please check your network.', 7000);
       }
     } catch (error) {
-      addToast({
-        type: 'error',
-        message: 'An unexpected error occurred during reconnection',
-        duration: 7000
-      });
+      toastService.error('An unexpected error occurred during reconnection', 7000);
     }
   };
 

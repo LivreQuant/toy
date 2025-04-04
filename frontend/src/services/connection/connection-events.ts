@@ -21,7 +21,6 @@ export interface ConnectionEvents {
   // Simulator events
   simulator_update: (data: { 
     status: string; 
-    simulatorId?: string 
   }) => void;
 }
 
@@ -54,7 +53,7 @@ export class ConnectionEventManager extends EventEmitter {
     this.emit('error', error);
   }
 
-  public emitSimulatorUpdate(status: string, simulatorId?: string): void {
-    this.emit('simulator_update', { status, simulatorId });
+  public emitSimulatorUpdate(status: string): void {
+    this.emit('simulator_update', { status });
   }
 }

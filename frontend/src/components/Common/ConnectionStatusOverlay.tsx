@@ -1,8 +1,8 @@
 // src/components/Common/ConnectionStatusOverlay.tsx
 import React, { useEffect } from 'react';
 import { useConnection } from '../../contexts/ConnectionContext';
-import { useToast } from '../../contexts/ToastContext';
 import './ConnectionStatusOverlay.css';
+import { toastService } from '../../services/notification/toast-service';
 
 const ConnectionStatusOverlay: React.FC = () => {
   const { 
@@ -10,28 +10,18 @@ const ConnectionStatusOverlay: React.FC = () => {
     connectionQuality, 
     connectionState,
     isRecovering,
-    reconnect,
     manualReconnect
   } = useConnection();
-  const { addToast } = useToast();
-  
+
   // React to connection changes and show toasts
   useEffect(() => {
     // Only show initial disconnection toast
     if (!isConnected && !isRecovering) {
-      addToast({
-        type: 'error',
-        message: `Connection Lost. Status: ${connectionState.simulatorStatus}`,
-        duration: 7000
-      });
+      toastService.error(`Connection Lost. Status: ${connectionState.simulatorStatus}`, 7000);
     } else if (connectionQuality === 'degraded') {
-      addToast({
-        type: 'warning',
-        message: 'Connection quality is degraded',
-        duration: 5000
-      });
+      toastService.warning('Connection quality is degraded', 5000);
     }
-  }, [isConnected, connectionQuality, connectionState.simulatorStatus, isRecovering, addToast]);
+  }, [isConnected, connectionQuality, connectionState.simulatorStatus, isRecovering]);
 
   // If connected, don't show the overlay
   if (isConnected) return null;
@@ -69,14 +59,10 @@ const ConnectionStatusOverlay: React.FC = () => {
             Data Stream: {connectionState.sseState?.status || 'unknown'}
           </p>
         </div>
-        
+
         <button onClick={() => {
           manualReconnect();
-          addToast({
-            type: 'info',
-            message: 'Attempting to reconnect...',
-            duration: 3000
-          });
+          toastService.info('Attempting to reconnect...', 3000);
         }}>
           Reconnect
         </button>

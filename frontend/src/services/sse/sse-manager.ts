@@ -3,8 +3,8 @@ import { EventEmitter } from '../../utils/event-emitter';
 import { TokenManager } from '../auth/token-manager';
 import { BackoffStrategy } from '../../utils/backoff-strategy';
 import { config } from '../../config';
-import { toastService } from '../notification/toast-service';
 import { ErrorHandler, ErrorSeverity } from '../../utils/error-handler';
+import { toastService } from '../../services/notification/toast-service';
 import { 
   UnifiedConnectionState, 
   ConnectionServiceType, 

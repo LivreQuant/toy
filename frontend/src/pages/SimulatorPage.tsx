@@ -11,10 +11,7 @@ const SimulatorPage: React.FC = () => {
   } = useConnection();
   
   const handleStartSimulator = async () => {
-    await startSimulator({
-      initialSymbols: ['AAPL', 'MSFT', 'AMZN', 'GOOGL', 'FB'],
-      initialCash: 100000
-    });
+    await startSimulator({});
   };
 
   const handleStopSimulator = async () => {

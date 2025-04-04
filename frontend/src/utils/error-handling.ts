@@ -10,7 +10,7 @@ export enum ErrorSeverity {
 }
 
 export class ErrorHandler {
-  private static logger = new Logger('ErrorHandler');
+  private static logger = Logger.getInstance();
 
   /**
    * Handle connection errors

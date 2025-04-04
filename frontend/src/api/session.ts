@@ -4,13 +4,11 @@ import { SessionManager } from '../services/session/session-manager';
 
 export interface SessionResponse {
   success: boolean;
-  sessionId: string;
   errorMessage?: string;
 }
 
 export interface SessionStateResponse {
   success: boolean;
-  simulatorId: string;
   simulatorStatus: string;
   sessionCreatedAt: number;
   lastActive: number;

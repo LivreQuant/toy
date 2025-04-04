@@ -59,7 +59,7 @@ export class ConnectionManager extends EventEmitter implements ConnectionRecover
 
   private setupEventListeners(): void {
     // Forward unified state changes
-    this.unifiedState.on('state_change', (state) => {
+    this.unifiedState.on('state_change', (state: any) => {
       this.emit('state_change', { current: state });
     });
     
@@ -72,22 +72,22 @@ export class ConnectionManager extends EventEmitter implements ConnectionRecover
       );
     });
     
-    this.wsManager.on('disconnected', (data) => {
+    this.wsManager.on('disconnected', (data: any) => {
       this.emit('disconnected', data);
     });
     
-    this.wsManager.on('heartbeat', (data) => {
+    this.wsManager.on('heartbeat', (data: any) => {
       this.emit('heartbeat', data);
     });
 
     // Set up data handlers for SSE events
-    this.sseManager.on('exchange-data', (data) => {
+    this.sseManager.on('exchange-data', (data: any) => {
       this.dataHandlers.updateExchangeData(data);
       this.emit('exchange_data', data);
     });
     
     // Recovery events
-    this.recoveryManager.on('recovery_attempt', (data) => {
+    this.recoveryManager.on('recovery_attempt', (data: any) => {
       this.emit('recovery_attempt', data);
     });
     
@@ -107,14 +107,19 @@ export class ConnectionManager extends EventEmitter implements ConnectionRecover
     // Clean up managers that implement Disposable
     this.recoveryManager.dispose();
     
-    if (this.wsManager instanceof Disposable) {
+    if ('dispose' in this.wsManager) {
       this.wsManager.dispose();
     }
     
-    if (this.sseManager instanceof Disposable) {
+    if ('dispose' in this.sseManager) {
       this.sseManager.dispose();
     }
-    
+        
+    // Similarly in WebSocketManager
+    if ('dispose' in this.metricTracker) {
+      this.metricTracker.dispose();
+    }
+
     // Clean up auth state monitoring
     if (this.tokenManager) {
       this.tokenManager.removeRefreshListener(this.handleTokenRefresh);

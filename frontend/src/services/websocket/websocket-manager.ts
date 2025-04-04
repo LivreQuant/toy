@@ -242,15 +242,14 @@ export class WebSocketManager extends EventEmitter {
     this.logger.warn('Switching to offline mode');
   }
 
-  public checkSessionReady(sessionId: string): Promise<boolean> {
+  public checkSessionReady(): Promise<boolean> {
     return new Promise((resolve, reject) => {
       const message = {
         type: 'check_session_ready',
-        sessionId: sessionId
       };
 
       const responseHandler = (response: any) => {
-        if (response.type === 'session_ready_response' && response.sessionId === sessionId) {
+        if (response.type === 'session_ready_response') {
           resolve(response.ready);
           this.messageHandler.off('message', responseHandler);
         }

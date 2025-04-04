@@ -96,17 +96,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
       
       // Now automatically create/get a session
-      const sessionResponse = await sessionApi.createSession(authResponse.userId);
+      const sessionResponse = await sessionApi.createSession();
         
       if (!sessionResponse.success) {
         throw new Error(sessionResponse.errorMessage || 'Failed to create session');
       }
-      
-      if (sessionResponse.success) {
-        // Store session ID in local storage (not exposed to UI)
-        SessionManager.setSessionId(sessionResponse.sessionId);
-      }
-      
+            
       setIsAuthenticated(true);
       return true;
     } catch (err) {

@@ -5,7 +5,6 @@ import { SessionManager } from '../session/session-manager';
 import { WebSocketManager } from '../websocket/websocket-manager';
 import { ExchangeDataStream } from '../sse/exchange-data-stream';
 import { SessionApi } from '../../api/session';
-import { HttpClient } from '../../api/http-client';
 import { ConnectionStateManager } from './connection-state';
 import { ConnectionQuality } from './connection-state';
 
@@ -15,7 +14,6 @@ export class ConnectionLifecycleManager extends EventEmitter {
   private wsManager: WebSocketManager;
   private sseManager: ExchangeDataStream;
   private sessionApi: SessionApi;
-  private httpClient: HttpClient;
   private heartbeatInterval: number | null = null;
 
   constructor(
@@ -23,7 +21,6 @@ export class ConnectionLifecycleManager extends EventEmitter {
     wsManager: WebSocketManager,
     sseManager: ExchangeDataStream,
     sessionApi: SessionApi,
-    httpClient: HttpClient
   ) {
     super();
     this.stateManager = new ConnectionStateManager();
@@ -31,7 +28,6 @@ export class ConnectionLifecycleManager extends EventEmitter {
     this.wsManager = wsManager;
     this.sseManager = sseManager;
     this.sessionApi = sessionApi;
-    this.httpClient = httpClient;
 
     this.setupEventListeners();
   }
@@ -122,11 +118,23 @@ export class ConnectionLifecycleManager extends EventEmitter {
     this.stateManager.updateState({ isConnecting: true, error: null });
 
     try {
-      const sessionId = await this.createOrGetSession();
-      await this.checkSessionReadiness(sessionId);
-      await this.connectWebSocket(sessionId);
-      await this.connectMarketDataStream(sessionId);
-
+      // Create or validate session first
+      await this.ensureSession();
+      
+      // Connect main WebSocket 
+      const wsConnected = await this.wsManager.connect();
+      if (!wsConnected) {
+        throw new Error('Failed to establish WebSocket connection');
+      }
+      
+      // Only connect SSE after WebSocket is successful
+      await this.sseManager.connect();
+      
+      this.stateManager.updateState({ 
+        isConnected: true, 
+        isConnecting: false 
+      });
+      
       return true;
     } catch (error) {
       this.handleConnectionError(error);
@@ -134,60 +142,21 @@ export class ConnectionLifecycleManager extends EventEmitter {
     }
   }
 
-  private async createOrGetSession(): Promise<string> {
-    let sessionId = SessionManager.getSessionId();
-    
-    if (!sessionId) {
+  private async ensureSession(): Promise<void> {
+    try {
+      // Create session if needed - session ID is managed internally by the API
       const response = await this.sessionApi.createSession();
       
       if (!response.success) {
         throw new Error(response.errorMessage || 'Failed to create session');
       }
       
-      sessionId = response.sessionId;
-      SessionManager.setSessionId(sessionId);
+      // We don't need to explicitly store or pass the session ID anymore
+      // The backend will associate the connection with the session
+    } catch (error) {
+      console.error('Session initialization error:', error);
+      throw new Error('Failed to initialize session');
     }
-
-    return sessionId;
-  }
-
-  private async checkSessionReadiness(sessionId: string): Promise<void> {
-    const maxAttempts = 5;
-    const retryDelay = 1000;
-
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      try {
-        const ready = await this.sessionApi.checkSessionReady(sessionId);
-        
-        if (ready.success) return;
-        
-        if (attempt < maxAttempts) {
-          await new Promise(resolve => setTimeout(resolve, retryDelay));
-        }
-      } catch (error) {
-        if (attempt === maxAttempts) {
-          throw new Error('Session readiness check failed');
-        }
-        await new Promise(resolve => setTimeout(resolve, retryDelay));
-      }
-    }
-  }
-
-  private async connectWebSocket(sessionId: string): Promise<void> {
-    const wsConnected = await this.wsManager.connect(sessionId);
-    
-    if (!wsConnected) {
-      throw new Error('Failed to establish WebSocket connection');
-    }
-  }
-
-  private async connectMarketDataStream(sessionId: string): Promise<void> {
-    await this.sseManager.connect(sessionId);
-    
-    this.stateManager.updateState({ 
-      isConnected: true, 
-      isConnecting: false 
-    });
   }
 
   private handleConnectionError(error: any): void {
@@ -203,7 +172,6 @@ export class ConnectionLifecycleManager extends EventEmitter {
     this.wsManager.disconnect();
     this.sseManager.disconnect();
     this.stopHeartbeat();
-    SessionManager.clearSession();
     this.stateManager.reset();
   }
 
