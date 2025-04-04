@@ -14,7 +14,7 @@ export class ConnectionSimulatorManager {
     initialCash?: number
   } = {}): Promise<{ success: boolean; status?: string; error?: string }> {
     try {
-      const response = await this.simulatorApi.startSimulator({});
+      const response = await this.simulatorApi.startSimulator();
       
       return { 
         success: response.success,

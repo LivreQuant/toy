@@ -17,7 +17,6 @@ import { ConnectionSimulatorManager } from './connection-simulator';
 
 export class ConnectionManager extends EventEmitter implements ConnectionRecoveryInterface {
   private unifiedState: UnifiedConnectionState;
-  private lifecycleManager: ConnectionLifecycleManager;
   private dataHandlers: ConnectionDataHandlers;
   private simulatorManager: ConnectionSimulatorManager;
   private recoveryManager: RecoveryManager;
