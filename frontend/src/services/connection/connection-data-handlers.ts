@@ -18,7 +18,7 @@ export class ConnectionDataHandlers {
     return { ...this.exchangeData };
   }
 
-  public async submitOrder(sessionId: string, order: {
+  public async submitOrder(order: {
     symbol: string;
     side: 'BUY' | 'SELL';
     quantity: number;
@@ -49,7 +49,7 @@ export class ConnectionDataHandlers {
     }
   }
 
-  public async cancelOrder(sessionId: string, orderId: string): Promise<{ success: boolean; error?: string }> {
+  public async cancelOrder(orderId: string): Promise<{ success: boolean; error?: string }> {
     try {
       const response = await this.ordersApi.cancelOrder(orderId);
       

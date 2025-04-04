@@ -6,6 +6,7 @@ import { ExchangeDataStream } from '../sse/exchange-data-stream';
 import { SessionApi } from '../../api/session';
 import { HttpClient } from '../../api/http-client';
 import { RecoveryManager } from './recovery-manager';
+export { ConnectionState } from './connection-state';
 import { ConnectionLifecycleManager } from './connection-lifecycle';
 import { ConnectionDataHandlers } from './connection-data-handlers';
 import { ConnectionSimulatorManager } from './connection-simulator';
@@ -38,10 +39,8 @@ export class ConnectionManager extends EventEmitter {
   }
 
   private setupEventListeners(): void {
-    // Forward WebSocket connection events to determine overall connection status
     this.wsManager.on('connected', () => {
       this.emit('connected');
-      // When WebSocket connects, ensure SSE is also connected
       this.connectSSE().catch(err => 
         console.error('Failed to connect SSE after WebSocket connected:', err)
       );
@@ -49,7 +48,6 @@ export class ConnectionManager extends EventEmitter {
     
     this.wsManager.on('disconnected', (data) => {
       this.emit('disconnected', data);
-      // Disconnect SSE when WebSocket disconnects
       this.sseManager.disconnect();
     });
     
@@ -61,13 +59,11 @@ export class ConnectionManager extends EventEmitter {
       this.emit('heartbeat', data);
     });
 
-    // Set up data handlers for SSE events - using new exchangeData structure
     this.sseManager.on('exchange-data', (data) => {
       this.dataHandlers.updateExchangeData(data);
       this.emit('exchange_data', data);
     });
     
-    // Recovery events
     this.recoveryManager.on('recovery_attempt', (data) => {
       this.emit('recovery_attempt', data);
     });
@@ -88,16 +84,13 @@ export class ConnectionManager extends EventEmitter {
     return false;
   }
 
-  // Lifecycle Methods - make WebSocket the primary connection
   public async connect(): Promise<boolean> {
     try {
-      // First connect WebSocket
       const wsConnected = await this.wsManager.connect();
       if (!wsConnected) {
         return false;
       }
       
-      // Then connect SSE if WebSocket connected
       await this.connectSSE();
       
       return true;
@@ -118,19 +111,21 @@ export class ConnectionManager extends EventEmitter {
       isConnected: wsHealth.status === 'connected',
       isConnecting: wsHealth.status === 'connecting',
       connectionQuality: wsHealth.quality || 'unknown',
-      sessionId: this.lifecycleManager.getSessionId(),
-      simulatorStatus: this.lifecycleManager.getSimulatorStatus(),
-      simulatorId: this.lifecycleManager.getSimulatorId(),
       error: wsHealth.error || null
     };
   }
 
-  // Data Retrieval Methods - now only exposing exchangeData
   public getExchangeData() {
     return this.dataHandlers.getExchangeData();
   }
 
-  // Order Management Methods - submit and cancel orders
+  public updateRecoveryAuthState(isAuthenticated: boolean): void {
+    if (!isAuthenticated) {
+      this.disconnect();
+    }
+    this.recoveryManager.updateAuthState(isAuthenticated);
+  }
+
   public async submitOrder(order: {
     symbol: string;
     side: 'BUY' | 'SELL';
@@ -142,13 +137,8 @@ export class ConnectionManager extends EventEmitter {
     if (!state.isConnected) {
       return { success: false, error: 'Not connected to trading servers' };
     }
-    
-    const sessionId = this.lifecycleManager.getSessionId();
-    if (!sessionId) {
-      return { success: false, error: 'No active session' };
-    }
 
-    return this.dataHandlers.submitOrder(sessionId, order);
+    return this.dataHandlers.submitOrder(order);
   }
 
   public async cancelOrder(orderId: string): Promise<{ success: boolean; error?: string }> {
@@ -156,16 +146,10 @@ export class ConnectionManager extends EventEmitter {
     if (!state.isConnected) {
       return { success: false, error: 'Not connected to trading servers' };
     }
-    
-    const sessionId = this.lifecycleManager.getSessionId();
-    if (!sessionId) {
-      return { success: false, error: 'No active session' };
-    }
 
-    return this.dataHandlers.cancelOrder(sessionId, orderId);
+    return this.dataHandlers.cancelOrder(orderId);
   }
 
-  // Simulator Methods
   public async startSimulator(options: {
     initialSymbols?: string[],
     initialCash?: number
@@ -191,21 +175,15 @@ export class ConnectionManager extends EventEmitter {
     return this.simulatorManager.getSimulatorStatus();
   }
 
-  // Recovery Methods
   public async attemptRecovery(reason: string = 'manual'): Promise<boolean> {
     return this.recoveryManager.attemptRecovery(reason);
   }
   
-  // Reconnection method - primarily reconnect WebSocket
   public async reconnect(): Promise<boolean> {
-    // First disconnect everything cleanly
     this.disconnect();
-    
-    // Then reconnect
     return this.connect();
   }
 
-  // WebSocket Event Listeners
   public addWSEventListener(event: string, handler: Function): void {
     this.wsManager.on(event, handler);
   }
@@ -214,7 +192,6 @@ export class ConnectionManager extends EventEmitter {
     this.wsManager.off(event, handler);
   }
 
-  // SSE Event Listeners
   public addSSEEventListener(event: string, handler: Function): void {
     this.sseManager.on(event, handler);
   }
@@ -223,7 +200,6 @@ export class ConnectionManager extends EventEmitter {
     this.sseManager.off(event, handler);
   }
 
-  // Cleanup Method
   public dispose(): void {
     this.disconnect();
     this.recoveryManager.dispose();

@@ -226,6 +226,37 @@ export class WebSocketManager extends EventEmitter {
     }
   }
 
+  // Add method to check session readiness via WebSocket
+  public checkSessionReady(sessionId: string): Promise<boolean> {
+    return new Promise((resolve, reject) => {
+      // Create a message to request session readiness
+      const message = {
+        type: 'check_session_ready',
+        sessionId: sessionId
+      };
+
+      // Use message handler to track response
+      const responseHandler = (response: any) => {
+        if (response.type === 'session_ready_response' && response.sessionId === sessionId) {
+          resolve(response.ready);
+          this.messageHandler.off('message', responseHandler);
+        }
+      };
+
+      // Add temporary listener for session ready response
+      this.messageHandler.on('message', responseHandler);
+
+      // Send check request
+      this.send(message);
+
+      // Set timeout for the check
+      setTimeout(() => {
+        this.messageHandler.off('message', responseHandler);
+        reject(new Error('Session readiness check timed out'));
+      }, 5000);
+    });
+  }
+
   private monitorConnection(): void {
     setInterval(async () => {
       const metrics = await this.metricTracker.collectMetrics();
@@ -260,6 +291,16 @@ export class WebSocketManager extends EventEmitter {
     } catch (error) {
       this.emit('error', error);
       return false;
+    }
+  }
+
+  // Ensure send method exists
+  public send(message: any): void {
+    const ws = this.connectionStrategy.getWebSocket();
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify(message));
+    } else {
+      throw new Error('WebSocket is not open');
     }
   }
 

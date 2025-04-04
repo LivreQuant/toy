@@ -23,6 +23,9 @@ export class WebSocketMessageHandler {
         case 'session_invalidated':
           this.handleSessionInvalidated(message);
           break;
+        case 'session_ready_response':
+          this.eventEmitter.emit('message', message);
+          break;
         case 'response':
           this.handleResponse(message);
           break;

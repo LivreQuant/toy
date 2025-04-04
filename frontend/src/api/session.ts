@@ -24,7 +24,7 @@ export class SessionApi {
   }
 
   // Create a new session or get the existing one
-  async createSession(userId: string | number): Promise<SessionResponse> {
+  async createSession(): Promise<SessionResponse> {
     const deviceId = SessionManager.getDeviceId();
     return this.client.post<SessionResponse>('/sessions', { 
       deviceId 
@@ -32,7 +32,7 @@ export class SessionApi {
   }
 
   // Delte an existing session
-  async deleteSession(userId: string | number): Promise<SessionResponse> {
+  async deleteSession(): Promise<SessionResponse> {
     return this.client.delete<SessionResponse>('/sessions', {});
   }
 }

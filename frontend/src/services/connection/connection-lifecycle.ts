@@ -1,37 +1,28 @@
-// src/services/connection/connection-lifecycle.ts
 import { EventEmitter } from '../../utils/event-emitter';
 import { TokenManager } from '../auth/token-manager';
 import { SessionManager } from '../session/session-manager';
 import { WebSocketManager } from '../websocket/websocket-manager';
 import { ExchangeDataStream } from '../sse/exchange-data-stream';
-import { SessionApi } from '../../api/session';
 import { HttpClient } from '../../api/http-client';
 import { ConnectionStateManager } from './connection-state';
-import { ConnectionQuality } from './connection-state';
 
 export class ConnectionLifecycleManager extends EventEmitter {
   private stateManager: ConnectionStateManager;
   private tokenManager: TokenManager;
   private wsManager: WebSocketManager;
   private sseManager: ExchangeDataStream;
-  private sessionApi: SessionApi;
-  private httpClient: HttpClient;
   private heartbeatInterval: number | null = null;
 
   constructor(
     tokenManager: TokenManager,
     wsManager: WebSocketManager,
-    sseManager: ExchangeDataStream,
-    sessionApi: SessionApi,
-    httpClient: HttpClient
+    sseManager: ExchangeDataStream
   ) {
     super();
     this.stateManager = new ConnectionStateManager();
     this.tokenManager = tokenManager;
     this.wsManager = wsManager;
     this.sseManager = sseManager;
-    this.sessionApi = sessionApi;
-    this.httpClient = httpClient;
 
     this.setupEventListeners();
   }
@@ -68,16 +59,14 @@ export class ConnectionLifecycleManager extends EventEmitter {
     this.stateManager.updateState({
       lastHeartbeatTime: now,
       heartbeatLatency: latency,
-      missedHeartbeats: 0
+      missedHeartbeats: 0,
+      connectionQuality: this.calculateConnectionQuality(latency)
     });
-    
-    let quality: ConnectionQuality = this.calculateConnectionQuality(latency);
-    this.stateManager.updateState({ connectionQuality: quality });
     
     this.emit('heartbeat', { timestamp: now, latency });
   }
 
-  private calculateConnectionQuality(latency: number): ConnectionQuality {
+  private calculateConnectionQuality(latency: number): 'good' | 'degraded' | 'poor' {
     if (latency <= 500) return 'good';
     if (latency <= 1000) return 'degraded';
     return 'poor';
@@ -122,89 +111,27 @@ export class ConnectionLifecycleManager extends EventEmitter {
     this.stateManager.updateState({ isConnecting: true, error: null });
 
     try {
-      const sessionId = await this.createOrGetSession();
-      await this.checkSessionReadiness(sessionId);
-      await this.connectWebSocket(sessionId);
-      await this.connectMarketDataStream(sessionId);
+      const wsConnected = await this.wsManager.connect();
+      if (!wsConnected) return false;
+      
+      await this.sseManager.connect();
 
       return true;
     } catch (error) {
-      this.handleConnectionError(error);
+      this.stateManager.updateState({ 
+        isConnecting: false, 
+        error: error instanceof Error ? error.message : 'Connection failed' 
+      });
       return false;
     }
-  }
-
-  private async createOrGetSession(): Promise<string> {
-    let sessionId = SessionManager.getSessionId();
-    
-    if (!sessionId) {
-      const response = await this.sessionApi.createSession();
-      
-      if (!response.success) {
-        throw new Error(response.errorMessage || 'Failed to create session');
-      }
-      
-      sessionId = response.sessionId;
-      SessionManager.setSessionId(sessionId);
-    }
-
-    return sessionId;
-  }
-
-  private async checkSessionReadiness(sessionId: string): Promise<void> {
-    const maxAttempts = 5;
-    const retryDelay = 1000;
-
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      try {
-        const ready = await this.sessionApi.checkSessionReady(sessionId);
-        
-        if (ready.success) return;
-        
-        if (attempt < maxAttempts) {
-          await new Promise(resolve => setTimeout(resolve, retryDelay));
-        }
-      } catch (error) {
-        if (attempt === maxAttempts) {
-          throw new Error('Session readiness check failed');
-        }
-        await new Promise(resolve => setTimeout(resolve, retryDelay));
-      }
-    }
-  }
-
-  private async connectWebSocket(sessionId: string): Promise<void> {
-    const wsConnected = await this.wsManager.connect(sessionId);
-    
-    if (!wsConnected) {
-      throw new Error('Failed to establish WebSocket connection');
-    }
-  }
-
-  private async connectMarketDataStream(sessionId: string): Promise<void> {
-    await this.sseManager.connect(sessionId);
-    
-    this.stateManager.updateState({ 
-      isConnected: true, 
-      isConnecting: false 
-    });
-  }
-
-  private handleConnectionError(error: any): void {
-    console.error('Connection error:', error);
-    
-    this.stateManager.updateState({ 
-      isConnecting: false, 
-      error: error instanceof Error ? error.message : 'Connection failed' 
-    });
   }
 
   public disconnect(): void {
     this.wsManager.disconnect();
     this.sseManager.disconnect();
     this.stopHeartbeat();
-    SessionManager.clearSession();
     this.stateManager.reset();
+    this.emit('disconnected');
   }
 
   public getState() {
