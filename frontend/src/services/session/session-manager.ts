@@ -144,7 +144,7 @@ export class SessionManager {
         const result = await response.json();
         
         if (!result.valid) {
-          this.handleSessionInvalidated(result.reason || 'Session invalidated by server');
+          this.invalidateSession(result.reason || 'Session invalidated by server');
         }
       } catch (error) {
         console.error('Session validation check failed:', error);
@@ -166,7 +166,7 @@ export class SessionManager {
   }
   
   // Handle session invalidation
-  private static handleSessionInvalidated(reason: string): void {
+  public static invalidateSession(reason: string): void {
     // Clear all local session data
     this.clearSession();
     
@@ -202,7 +202,7 @@ export class SessionManager {
       const result = await response.json();
       
       if (!result.valid) {
-        this.handleSessionInvalidated(result.reason || 'Session is no longer valid');
+        this.invalidateSession(result.reason || 'Session is no longer valid');
         return false;
       }
       
@@ -240,7 +240,7 @@ export class SessionManager {
           
           if (currentSession?.isMaster && event.data.timestamp > (currentSession.lastActive || 0)) {
             // The other tab has a newer session, so this one should become non-master
-            this.handleSessionInvalidated('Another browser tab has taken control of your trading session');
+            this.invalidateSession('Another browser tab has taken control of your trading session');
           }
         }
       };

@@ -1,13 +1,11 @@
-
 // src/api/session.ts
 import { HttpClient } from './http-client';
 import { TokenManager } from '../services/auth/token-manager';
-
+import { SessionManager } from '../services/session/session-manager';
 
 export interface SessionResponse {
   success: boolean;
-  sessionId: string;
-  isNew?: boolean;
+  isMaster: boolean;
   errorMessage?: string;
 }
 
@@ -20,71 +18,31 @@ export interface SessionStateResponse {
   lastActive: number;
 }
 
-export interface SessionReadyResponse {
-  success: boolean;
-  status: string;
-  message?: string;
-}
-
 export class SessionApi {
   private client: HttpClient;
-  private tokenManager: TokenManager;  // Add this property
+  private tokenManager: TokenManager;
   
-  constructor(client: HttpClient, tokenManager: TokenManager) {  // Update constructor
+  constructor(client: HttpClient, tokenManager: TokenManager) {
     this.client = client;
-    this.tokenManager = tokenManager;  // Store the token manager
+    this.tokenManager = tokenManager;
   }
 
   async createSession(): Promise<SessionResponse> {
-    // Get token from tokenManager
-    const token = await this.tokenManager.getAccessToken();
-    
-    // Get user ID (you might need to store this after login)
-    const userId = localStorage.getItem('user_id'); 
-    
+    const deviceId = SessionManager.getDeviceId();
     return this.client.post<SessionResponse>('/sessions', {
-      userId: userId,
-      token: token
+      deviceId: deviceId
     });
   }
   
-  async getSession(sessionId: string): Promise<SessionResponse> {
-    return this.client.get<SessionResponse>(`/sessions/get?sessionId=${sessionId}`);
+  async getSessionState(): Promise<SessionStateResponse> {
+    return this.client.get<SessionStateResponse>('/sessions');
   }
 
-  async getSessionState(sessionId: string): Promise<SessionStateResponse> {
-    // Get token from tokenManager
-    const token = await this.tokenManager.getAccessToken();
-    
-    // Include token in the query parameters
-    return this.client.get<SessionStateResponse>(
-        `/sessions/state?sessionId=${sessionId}&token=${token}`
-    );
-  }
-
-  async reconnectSession(sessionId: string, reconnectAttempt: number): Promise<SessionResponse> {
+  async reconnectSession(reconnectAttempt: number): Promise<SessionResponse> {
+    const deviceId = SessionManager.getDeviceId();
     return this.client.post<SessionResponse>('/sessions/reconnect', { 
-      sessionId, 
+      deviceId,
       reconnectAttempt 
     });
-  }
-  
-  async updateConnectionQuality(
-    sessionId: string, 
-    latencyMs: number, 
-    missedHeartbeats: number, 
-    connectionType: string
-  ): Promise<{ quality: string; reconnectRecommended: boolean }> {
-    return this.client.post<{ quality: string; reconnectRecommended: boolean }>(
-      '/sessions/connection-quality', 
-      { sessionId, latencyMs, missedHeartbeats, connectionType }
-    );
-  }
-
-  // Add this new method
-  async checkSessionReady(sessionId: string): Promise<SessionReadyResponse> {
-    const token = await this.tokenManager.getAccessToken();
-    
-    return this.client.get<SessionReadyResponse>(`/sessions/${sessionId}/ready?token=${token}`);
   }
 }

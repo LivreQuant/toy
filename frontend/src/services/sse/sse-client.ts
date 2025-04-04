@@ -4,7 +4,7 @@ import { TokenManager } from '../auth/token-manager';
 import { SessionManager } from '../session/session-manager';
 import { BackoffStrategy } from '../../utils/backoff-strategy';
 import { config } from '../../config';
-import { toastService } from '../services/notification/toast-service';
+import { toastService } from '../notification/toast-service';
 
 export interface SSEOptions {
   reconnectMaxAttempts?: number;

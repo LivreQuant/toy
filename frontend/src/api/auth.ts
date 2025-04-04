@@ -1,6 +1,6 @@
-
 // src/api/auth.ts
 import { HttpClient } from './http-client';
+import { SessionManager } from '../services/session/session-manager';
 
 export interface LoginRequest {
   username: string;
@@ -22,7 +22,13 @@ export class AuthApi {
   }
   
   async login(username: string, password: string): Promise<LoginResponse> {
-    return this.client.post<LoginResponse>('/auth/login', { username, password }, { skipAuth: true });
+    // Include deviceId during login
+    const deviceId = SessionManager.getDeviceId();
+    return this.client.post<LoginResponse>(
+      '/auth/login', 
+      { username, password, deviceId }, 
+      { skipAuth: true }
+    );
   }
   
   async logout(): Promise<void> {
@@ -30,6 +36,12 @@ export class AuthApi {
   }
   
   async refreshToken(refreshToken: string): Promise<LoginResponse> {
-    return this.client.post<LoginResponse>('/auth/refresh', { refreshToken }, { skipAuth: true });
+    // Include deviceId during token refresh
+    const deviceId = SessionManager.getDeviceId();
+    return this.client.post<LoginResponse>(
+      '/auth/refresh', 
+      { refreshToken, deviceId }, 
+      { skipAuth: true }
+    );
   }
 }

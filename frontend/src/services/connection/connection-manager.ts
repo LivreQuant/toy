@@ -103,9 +103,13 @@ export class ConnectionManager extends EventEmitter {
     });
     
     // Create Market Data stream and store as sseManager
-    this.sseManager = new ExchangeDataStream(tokenManager, {
-      reconnectMaxAttempts: 15
-    });
+    this.sseManager = new ExchangeDataStream(
+      tokenManager, 
+      this.wsManager,  // This parameter is missing!
+      {
+        reconnectMaxAttempts: 15
+      }
+    );
     
     // Set up event listeners
     this.setupEventListeners();
@@ -184,7 +188,23 @@ export class ConnectionManager extends EventEmitter {
       this.emit('simulator_update', data);
     });
   }
-  
+
+  public addWSEventListener(event: string, handler: Function): void {
+    this.wsManager.on(event, handler);
+  }
+
+  public removeWSEventListener(event: string, handler: Function): void {
+    this.wsManager.off(event, handler);
+  }
+
+  public addSSEEventListener(event: string, handler: Function): void {
+    this.sseManager.on(event, handler);
+  }
+
+  public removeSSEEventListener(event: string, handler: Function): void {
+    this.sseManager.off(event, handler);
+  }
+
   // Connect all necessary connections for a session
   public updateRecoveryAuthState(isAuthenticated: boolean): void {
     // If recoveryManager exists, call its method

@@ -134,18 +134,18 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       toastService.warning(`Reconnecting SSE Stream (Attempt ${data.attempt})...`, 5000);
     };
 
-    // Add listeners
-    connectionManager.wsManager.on('disconnected', handleWSDisconnect);
-    connectionManager.wsManager.on('reconnecting', handleWSReconnecting);
-    connectionManager.sseManager.on('disconnected', handleSSEDisconnect);
-    connectionManager.sseManager.on('reconnecting', handleSSEReconnecting);
+    // Add listeners using proper methods instead of accessing private properties
+    connectionManager.addWSEventListener('disconnected', handleWSDisconnect);
+    connectionManager.addWSEventListener('reconnecting', handleWSReconnecting);
+    connectionManager.addSSEEventListener('disconnected', handleSSEDisconnect);
+    connectionManager.addSSEEventListener('reconnecting', handleSSEReconnecting);
 
     // Cleanup listeners
     return () => {
-      connectionManager.wsManager.off('disconnected', handleWSDisconnect);
-      connectionManager.wsManager.off('reconnecting', handleWSReconnecting);
-      connectionManager.sseManager.off('disconnected', handleSSEDisconnect);
-      connectionManager.sseManager.off('reconnecting', handleSSEReconnecting);
+      connectionManager.removeWSEventListener('disconnected', handleWSDisconnect);
+      connectionManager.removeWSEventListener('reconnecting', handleWSReconnecting);
+      connectionManager.removeSSEEventListener('disconnected', handleSSEDisconnect);
+      connectionManager.removeSSEEventListener('reconnecting', handleSSEReconnecting);
     };
   }, [connectionManager]);
   

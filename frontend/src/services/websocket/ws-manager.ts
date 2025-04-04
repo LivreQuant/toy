@@ -26,7 +26,6 @@ export class WebSocketManager extends EventEmitter {
   private heartbeatTimer: number | null = null;
   private heartbeatTimeout: number | null = null;
   private lastHeartbeatResponse: number = 0;
-  private sessionId: string | null = null;
   private tokenManager: TokenManager;
   private reconnectAttempt: number = 0;
   private maxReconnectAttempts: number;
@@ -63,7 +62,7 @@ export class WebSocketManager extends EventEmitter {
     this.circuitBreakerResetTime = options.circuitBreakerResetTimeMs || 60000; // 1 minute
   }
   
-  public async connect(sessionId: string): Promise<boolean> {
+  public async connect(): Promise<boolean> {
     // First check if token is available
     const token = await this.tokenManager.getAccessToken();
     if (!token) {
@@ -102,7 +101,6 @@ export class WebSocketManager extends EventEmitter {
     }
     
     this.isConnecting = true;
-    this.sessionId = sessionId;
     
     try {      
       const token = await this.tokenManager.getAccessToken();
@@ -113,8 +111,9 @@ export class WebSocketManager extends EventEmitter {
         return false;
       }
       
-      // Create WebSocket connection with token and session ID
-      const wsUrl = `${this.url}?token=${token}&sessionId=${sessionId}&deviceId=${SessionManager.getDeviceId()}`;
+      // Create WebSocket connection with token and device ID
+      const deviceId = SessionManager.getDeviceId();
+      const wsUrl = `${this.url}?token=${token}&deviceId=${deviceId}`;
       this.ws = new WebSocket(wsUrl);
       
       return new Promise<boolean>((resolve) => {
@@ -146,9 +145,14 @@ export class WebSocketManager extends EventEmitter {
           this.emit('connected', { connected: true });
           this.startHeartbeat();
           
-          // Sync session state with server
-          this.syncSessionState().catch(error => {
-            console.warn('Session state sync failed:', error);
+          // Get initial session state
+          this.getSessionState().catch(error => {
+            console.warn('Session state fetch failed:', error);
+          });
+          
+          // Check if session is ready
+          this.checkSessionReady().catch(error => {
+            console.warn('Session readiness check failed:', error);
           });
           
           resolve(true);
@@ -274,9 +278,40 @@ export class WebSocketManager extends EventEmitter {
         return;
       }
       
-      // Handle session validation response
-      if (message.type === 'session_validation_result' && !message.valid) {
-        this.handleSessionInvalidated(message.reason || 'Session invalidated by server');
+      // Handle session_ready message
+      if (message.type === 'session_ready') {
+        this.emit('session_ready', message);
+        return;
+      }
+      
+      // Handle session_invalidated message
+      if (message.type === 'session_invalidated') {
+        this.handleSessionInvalidation(message.reason || 'Session invalidated by server', message);
+        return;
+      }
+      
+      // Handle master_changed message
+      if (message.type === 'master_changed') {
+        const isMaster = message.isMaster;
+        const newMasterDeviceId = message.deviceId;
+        const myDeviceId = SessionManager.getDeviceId();
+        
+        if (!isMaster && newMasterDeviceId !== myDeviceId) {
+          // This client is no longer the master
+          this.emit('master_status_changed', { 
+            isMaster: false, 
+            newMasterDeviceId 
+          });
+          
+          // If this is a forced master change, show a notification
+          if (message.forced) {
+            toastService.warning('Another device has taken control of your trading session', 8000);
+          }
+        } else if (isMaster) {
+          // This client is now the master
+          this.emit('master_status_changed', { isMaster: true });
+        }
+        
         return;
       }
       
@@ -323,7 +358,7 @@ export class WebSocketManager extends EventEmitter {
     
     // Handle session invalidation codes
     if (code === 4001) { // Custom code for invalid session
-      this.handleSessionInvalidated('Session no longer valid');
+      this.handleSessionInvalidation('Session no longer valid');
       return;
     }
     
@@ -376,13 +411,11 @@ export class WebSocketManager extends EventEmitter {
     this.reconnectTimer = window.setTimeout(async () => {
       this.reconnectTimer = null;
       
-      if (this.sessionId) {
-        const connected = await this.connect(this.sessionId);
-        
-        if (!connected && this.circuitBreakerState !== 'OPEN') {
-          // If connection failed, try again
-          this.attemptReconnect();
-        }
+      const connected = await this.connect();
+      
+      if (!connected && this.circuitBreakerState !== 'OPEN') {
+        // If connection failed, try again
+        this.attemptReconnect();
       }
     }, delay);
 
@@ -404,7 +437,7 @@ export class WebSocketManager extends EventEmitter {
       this.send({ 
         type: 'heartbeat', 
         timestamp: this.lastHeartbeatSent,
-        sessionId: this.sessionId
+        deviceId: SessionManager.getDeviceId()
       });
       
       // Set timeout for heartbeat response
@@ -497,14 +530,17 @@ export class WebSocketManager extends EventEmitter {
     }
   }
   
-  private handleSessionInvalidated(reason: string): void {
+  private handleSessionInvalidation(reason: string, data?: any): void {
     this.disconnect();
     
     // Clear session through SessionManager
-    SessionManager.handleSessionInvalidated(reason);
+    SessionManager.invalidateSession(reason);
     
     // Emit event for UI
-    this.emit('session_invalidated', { reason });
+    this.emit('session_invalidated', { 
+      reason,
+      ...data
+    });
   }
   
   public getCircuitBreakerState(): string {
@@ -538,44 +574,51 @@ export class WebSocketManager extends EventEmitter {
     };
   }
   
-  public async validateSession(): Promise<boolean> {
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      return false;
-    }
-    
+  // Check if session is ready via WebSocket
+  private async checkSessionReady(): Promise<boolean> {
     try {
       const response = await this.sendWithResponse({
-        type: 'validate_session',
-        sessionId: this.sessionId,
+        type: 'check_session_ready',
+        deviceId: SessionManager.getDeviceId(),
         timestamp: Date.now()
       });
       
-      if (!response.valid) {
-        this.handleSessionInvalidated(response.reason || 'Session no longer valid');
+      if (response.ready) {
+        this.emit('session_ready', response);
+        return true;
+      } else {
+        // If session isn't ready, server might provide info on why
+        this.emit('session_not_ready', response);
         return false;
       }
-      
-      return true;
     } catch (error) {
-      console.error('Session validation failed:', error);
+      console.error('Failed to check session readiness:', error);
       return false;
     }
   }
   
-  private async syncSessionState(): Promise<boolean> {
+  // Get session state via WebSocket
+  private async getSessionState(): Promise<boolean> {
     try {
       const response = await this.sendWithResponse({
         type: 'get_session_state',
-        sessionId: this.sessionId,
+        deviceId: SessionManager.getDeviceId(),
         timestamp: Date.now()
       });
       
       if (response.success) {
-        // Update local session state if needed
+        // Update UI with simulator status
         if (response.simulatorStatus) {
           this.emit('simulator_update', {
             status: response.simulatorStatus,
             simulatorId: response.simulatorId
+          });
+        }
+        
+        // Update master status if provided
+        if (response.hasOwnProperty('isMaster')) {
+          this.emit('master_status_changed', {
+            isMaster: response.isMaster
           });
         }
         
@@ -584,7 +627,24 @@ export class WebSocketManager extends EventEmitter {
       
       return false;
     } catch (error) {
-      console.error('Failed to sync session state:', error);
+      console.error('Failed to get session state:', error);
+      return false;
+    }
+  }
+  
+  // Claim master status for this device
+  public async claimMasterStatus(force: boolean = false): Promise<boolean> {
+    try {
+      const response = await this.sendWithResponse({
+        type: 'claim_master',
+        deviceId: SessionManager.getDeviceId(),
+        force,
+        timestamp: Date.now()
+      });
+      
+      return response.success;
+    } catch (error) {
+      console.error('Failed to claim master status:', error);
       return false;
     }
   }
@@ -610,7 +670,7 @@ export class WebSocketManager extends EventEmitter {
       this.pendingResponses.set(requestId, {
         resolve,
         reject,
-        timeout: timeoutId
+        timeout: timeoutId as unknown as number
       });
       
       // Send the message
