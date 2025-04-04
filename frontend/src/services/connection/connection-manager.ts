@@ -1,7 +1,7 @@
 // src/services/connection/connection-manager.ts
 import { EventEmitter } from '../../utils/event-emitter';
 import { TokenManager } from '../auth/token-manager';
-import { WebSocketManager } from '../websocket/ws-manager';
+import { WebSocketManager } from '../websocket/websocket-manager';
 import { ExchangeDataStream, MarketData, OrderUpdate, PortfolioUpdate } from '../sse/exchange-data-stream';
 import { SessionApi } from '../../api/session';
 import { OrdersApi } from '../../api/order';

@@ -1,7 +1,7 @@
 // src/services/sse/exchange-data-stream.ts
 import { SSEManager } from './sse-manager';
 import { TokenManager } from '../auth/token-manager';
-import { WebSocketManager } from '../websocket/ws-manager';
+import { WebSocketManager } from '../websocket/websocket-manager';
 import { EventEmitter } from '../../utils/event-emitter';
 
 export interface ExchangeDataOptions {
