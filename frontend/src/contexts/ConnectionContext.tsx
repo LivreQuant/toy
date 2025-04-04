@@ -1,6 +1,6 @@
 // src/contexts/ConnectionContext.tsx
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { ConnectionManager, ConnectionState } from '../services/connection/connection-manager';
+import { ConnectionManager } from '../services/connection/connection-manager';
 import { TokenManager } from '../services/auth/token-manager';
 import { useAuth } from './AuthContext';
 import { SessionManager } from '../services/session/session-manager';
@@ -8,7 +8,7 @@ import { toastService } from '../services/notification/toast-service';
 
 interface ConnectionContextType {
   connectionManager: ConnectionManager;
-  connectionState: ConnectionState;
+  connectionState: any;
   connect: () => Promise<boolean>;
   disconnect: () => void;
   reconnect: () => Promise<boolean>;
@@ -35,14 +35,11 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     new ConnectionManager(tokenManager)
   );
   
-  const [connectionState, setConnectionState] = useState<ConnectionState>(connectionManager.getState());
+  const [connectionState, setConnectionState] = useState<any>(connectionManager.getState());
   const [exchangeData, setExchangeData] = useState<any>({});
   
-  const [isRecovering, setIsRecovering] = useState<boolean>(false);
-  const [recoveryAttempt, setRecoveryAttempt] = useState<number>(0);
-  
   useEffect(() => {
-    const handleStateChange = ({ current }: { current: ConnectionState }) => {
+    const handleStateChange = ({ current }: { current: any }) => {
       setConnectionState(current);
     };
     
@@ -51,27 +48,10 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       setExchangeData(data);
     };
     
-    const handleRecoveryAttempt = (data: any) => {
-      setIsRecovering(true);
-      setRecoveryAttempt(data.attempt);
-    };
-    
-    const handleRecoverySuccess = () => {
-      setIsRecovering(false);
-      setRecoveryAttempt(0);
-    };
-    
-    const handleRecoveryFailed = () => {
-      setIsRecovering(false);
-    };
-    
     connectionManager.on('state_change', handleStateChange);
     connectionManager.on('exchange_data', handleExchangeData);
     
-    connectionManager.on('recovery_attempt', handleRecoveryAttempt);
-    connectionManager.on('recovery_success', handleRecoverySuccess);
-    connectionManager.on('recovery_failed', handleRecoveryFailed);
-    
+    // Initial connection if authenticated
     if (isAuthenticated && !connectionState.isConnected && !connectionState.isConnecting) {
       connectionManager.connect().catch(err => {
         console.error('Failed to auto-connect after authentication:', err);
@@ -83,9 +63,6 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return () => {
       connectionManager.off('state_change', handleStateChange);
       connectionManager.off('exchange_data', handleExchangeData);
-      connectionManager.off('recovery_attempt', handleRecoveryAttempt);
-      connectionManager.off('recovery_success', handleRecoverySuccess);
-      connectionManager.off('recovery_failed', handleRecoveryFailed);
     };
   }, [connectionManager, isAuthenticated, connectionState.isConnected, connectionState.isConnecting]);
   
@@ -110,12 +87,8 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   const manualReconnect = useCallback(async () => {
-    if (connectionManager.attemptRecovery) {
-      return connectionManager.attemptRecovery('manual_user_request');
-    } else {
-      return reconnect();
-    }
-  }, [connectionManager, reconnect]);
+    return connectionManager.manualReconnect();
+  }, [connectionManager]);
   
   const startSimulator = async (options: {
     initialSymbols?: string[],
@@ -152,8 +125,8 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       reconnect,
       isConnected: connectionState.isConnected,
       isConnecting: connectionState.isConnecting,
-      isRecovering,
-      recoveryAttempt,
+      isRecovering: connectionState.isRecovering,
+      recoveryAttempt: connectionState.recoveryAttempt,
       connectionQuality: connectionState.connectionQuality,
       error: connectionState.error,
       startSimulator,

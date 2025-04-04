@@ -1,3 +1,4 @@
+// src/services/connection/connection-manager.ts
 import { EventEmitter } from '../../utils/event-emitter';
 import { TokenManager } from '../auth/token-manager';
 import { WebSocketManager } from '../websocket/websocket-manager';
@@ -6,45 +7,63 @@ import { SessionApi } from '../../api/session';
 import { HttpClient } from '../../api/http-client';
 import { ConnectionRecoveryInterface } from './connection-recovery-interface';
 import { RecoveryManager } from './recovery-manager';
-export { ConnectionState } from './connection-state';
-import { ConnectionLifecycleManager } from './connection-lifecycle';
+import { 
+  UnifiedConnectionState, 
+  ConnectionServiceType, 
+  ConnectionStatus 
+} from './unified-connection-state';
 import { ConnectionDataHandlers } from './connection-data-handlers';
 import { ConnectionSimulatorManager } from './connection-simulator';
 
 export class ConnectionManager extends EventEmitter implements ConnectionRecoveryInterface {
+  private unifiedState: UnifiedConnectionState;
   private lifecycleManager: ConnectionLifecycleManager;
   private dataHandlers: ConnectionDataHandlers;
   private simulatorManager: ConnectionSimulatorManager;
-  private recoveryManager: RecoveryManager | null = null;
+  private recoveryManager: RecoveryManager;
   private wsManager: WebSocketManager;
   private sseManager: ExchangeDataStream;
+  private tokenManager: TokenManager;
 
   constructor(tokenManager: TokenManager) {
     super();
+    
+    this.tokenManager = tokenManager;
+    
+    // Create the unified state first
+    this.unifiedState = new UnifiedConnectionState();
 
+    // Create HTTP client
     const httpClient = new HttpClient(tokenManager);
-    this.wsManager = new WebSocketManager(tokenManager);
-    const sessionApi = new SessionApi(httpClient, tokenManager);
-    this.sseManager = new ExchangeDataStream(tokenManager, this.wsManager);
+    
+    // Create WebSocket manager with unified state
+    this.wsManager = new WebSocketManager(tokenManager, this.unifiedState);
+    
+    // Create session API client
+    const sessionApi = new SessionApi(httpClient);
+    
+    // Create SSE manager with unified state and WebSocket
+    this.sseManager = new ExchangeDataStream(tokenManager, this.wsManager, this.unifiedState);
 
-    this.lifecycleManager = new ConnectionLifecycleManager(
-      tokenManager, this.wsManager, this.sseManager, sessionApi, httpClient
-    );
-
+    // Create data handlers
     this.dataHandlers = new ConnectionDataHandlers(httpClient);
+    
+    // Create simulator manager
     this.simulatorManager = new ConnectionSimulatorManager(httpClient);
     
-    this.setupEventListeners();
+    // Create recovery manager with unified state
+    this.recoveryManager = new RecoveryManager(this, tokenManager, this.unifiedState);
     
-    // Initialize RecoveryManager after ConnectionManager is fully set up
-    setTimeout(() => {
-      this.recoveryManager = new RecoveryManager(this, tokenManager);
-      this.setupRecoveryEventListeners();
-    }, 0);
+    this.setupEventListeners();
   }
 
   private setupEventListeners(): void {
-    // Forward WebSocket connection events to determine overall connection status
+    // Forward unified state changes
+    this.unifiedState.on('state_change', (state) => {
+      this.emit('state_change', { current: state });
+    });
+    
+    // Forward WebSocket connection events
     this.wsManager.on('connected', () => {
       this.emit('connected');
       // When WebSocket connects, ensure SSE is also connected
@@ -55,19 +74,13 @@ export class ConnectionManager extends EventEmitter implements ConnectionRecover
     
     this.wsManager.on('disconnected', (data) => {
       this.emit('disconnected', data);
-      // Disconnect SSE when WebSocket disconnects
-      this.sseManager.disconnect();
-    });
-    
-    this.wsManager.on('reconnecting', (data) => {
-      this.emit('reconnecting', data);
     });
     
     this.wsManager.on('heartbeat', (data) => {
       this.emit('heartbeat', data);
     });
 
-    // Set up data handlers for SSE events - using new exchangeData structure
+    // Set up data handlers for SSE events
     this.sseManager.on('exchange-data', (data) => {
       this.dataHandlers.updateExchangeData(data);
       this.emit('exchange_data', data);
@@ -92,9 +105,7 @@ export class ConnectionManager extends EventEmitter implements ConnectionRecover
     this.disconnect();
     
     // Clean up managers that implement Disposable
-    if (this.recoveryManager) {
-      this.recoveryManager.dispose();
-    }
+    this.recoveryManager.dispose();
     
     if (this.wsManager instanceof Disposable) {
       this.wsManager.dispose();
@@ -113,31 +124,16 @@ export class ConnectionManager extends EventEmitter implements ConnectionRecover
     super.dispose();
   }
 
-  private setupRecoveryEventListeners(): void {
-    if (!this.recoveryManager) return;
-    
-    // Set up event listeners for recovery events
-    this.recoveryManager.on('recovery_attempt', (data) => {
-      this.emit('recovery_attempt', data);
-    });
-    
-    this.recoveryManager.on('recovery_success', () => {
-      this.emit('recovery_success');
-    });
-    
-    this.recoveryManager.on('recovery_failed', () => {
-      this.emit('recovery_failed');
-    });
-  }
-
   private async connectSSE(): Promise<boolean> {
-    if (this.wsManager.getConnectionHealth().status === 'connected') {
+    // Only connect SSE if WebSocket is connected
+    const wsState = this.unifiedState.getServiceState(ConnectionServiceType.WEBSOCKET);
+    if (wsState.status === ConnectionStatus.CONNECTED) {
       return this.sseManager.connect();
     }
     return false;
   }
 
-  // Lifecycle Methods - make WebSocket the primary connection
+  // Lifecycle Methods - WebSocket is the primary connection
   public async connect(): Promise<boolean> {
     try {
       // First connect WebSocket
@@ -146,9 +142,7 @@ export class ConnectionManager extends EventEmitter implements ConnectionRecover
         return false;
       }
       
-      // Then connect SSE if WebSocket connected
-      await this.connectSSE();
-      
+      // WebSocket connected - SSE will be connected automatically via event listener
       return true;
     } catch (error) {
       console.error('Connection error:', error);
@@ -159,6 +153,7 @@ export class ConnectionManager extends EventEmitter implements ConnectionRecover
   public disconnect(): void {
     this.wsManager.disconnect();
     this.sseManager.disconnect();
+    this.unifiedState.reset();
   }
 
   // Method to update recovery auth state
@@ -166,45 +161,33 @@ export class ConnectionManager extends EventEmitter implements ConnectionRecover
     if (!isAuthenticated) {
       this.disconnect();
     }
-    this.recoveryManager?.updateAuthState(isAuthenticated);
+    this.recoveryManager.updateAuthState(isAuthenticated);
   }
 
-  // Setup auth state monitoring
-  private setupAuthStateMonitoring(): void {
-    // Add token refresh listener
-    this.tokenManager.addRefreshListener((success: boolean) => {
-      this.updateRecoveryAuthState(success && this.tokenManager.isAuthenticated());
-      
-      // If token refresh failed, disconnect
-      if (!success) {
-        this.disconnect();
-        this.emit('auth_failed', 'Authentication token expired');
-      }
-    });
-  }
+  private handleTokenRefresh = (success: boolean) => {
+    this.updateRecoveryAuthState(success && this.tokenManager.isAuthenticated());
+    
+    // If token refresh failed, disconnect
+    if (!success) {
+      this.disconnect();
+      this.emit('auth_failed', 'Authentication token expired');
+    }
+  };
 
   public async attemptRecovery(reason: string = 'manual'): Promise<boolean> {
-    if (!this.recoveryManager) return false;
     return this.recoveryManager.attemptRecovery(reason);
   }
 
   public getState() {
-    const wsHealth = this.wsManager.getConnectionHealth();
-    return {
-      isConnected: wsHealth.status === 'connected',
-      isConnecting: wsHealth.status === 'connecting',
-      connectionQuality: wsHealth.quality || 'unknown',
-      simulatorStatus: this.lifecycleManager.getSimulatorStatus(),
-      error: wsHealth.error || null
-    };
+    return this.unifiedState.getState();
   }
 
-  // Data Retrieval Methods - now only exposing exchangeData
+  // Data Retrieval Methods
   public getExchangeData() {
     return this.dataHandlers.getExchangeData();
   }
 
-  // Order Management Methods - submit and cancel orders
+  // Order Management Methods
   public async submitOrder(order: {
     symbol: string;
     side: 'BUY' | 'SELL';
@@ -254,14 +237,22 @@ export class ConnectionManager extends EventEmitter implements ConnectionRecover
   public async getSimulatorStatus(): Promise<{ success: boolean; status: string; error?: string }> {
     return this.simulatorManager.getSimulatorStatus();
   }
-  
-  // Reconnection method - primarily reconnect WebSocket
+    
+  // Reconnection method
   public async reconnect(): Promise<boolean> {
     // First disconnect everything cleanly
     this.disconnect();
     
     // Then reconnect
     return this.connect();
+  }
+
+  // Manual reconnect method (user-initiated)
+  public async manualReconnect(): Promise<boolean> {
+    // Reset recovery attempts in the unified state
+    this.unifiedState.updateRecovery(true, 1);
+    
+    return this.attemptRecovery('manual_user_request');
   }
 
   // WebSocket Event Listeners

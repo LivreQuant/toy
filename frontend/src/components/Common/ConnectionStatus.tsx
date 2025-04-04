@@ -1,5 +1,4 @@
 // src/components/Common/ConnectionStatus.tsx
-
 import React from 'react';
 import './ConnectionStatus.css';
 import { useConnection } from '../../contexts/ConnectionContext';
@@ -20,7 +19,8 @@ const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
   const { 
     isRecovering,
     recoveryAttempt,
-    manualReconnect
+    manualReconnect,
+    connectionState
   } = useConnection();
   
   // Determine connection status
@@ -54,6 +54,33 @@ const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
     statusText = 'Connection Poor';
   }
   
+  // Get WebSocket and SSE status details from unified state
+  const getWebSocketStatusText = () => {
+    if (!connectionState.webSocketState) return 'Unknown';
+    
+    const status = connectionState.webSocketState.status;
+    switch (status) {
+      case 'connected': return 'WebSocket Connected';
+      case 'connecting': return 'WebSocket Connecting...';
+      case 'disconnected': return 'WebSocket Disconnected';
+      case 'recovering': return 'WebSocket Recovering...';
+      default: return 'WebSocket Unknown';
+    }
+  };
+  
+  const getSSEStatusText = () => {
+    if (!connectionState.sseState) return 'Unknown';
+    
+    const status = connectionState.sseState.status;
+    switch (status) {
+      case 'connected': return 'Data Stream Connected';
+      case 'connecting': return 'Data Stream Connecting...';
+      case 'disconnected': return 'Data Stream Disconnected';
+      case 'recovering': return 'Data Stream Recovering...';
+      default: return 'Data Stream Unknown';
+    }
+  };
+  
   // Handle reconnect button click
   const handleReconnect = async () => {
     try {
@@ -68,6 +95,10 @@ const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
       <div className="indicator-icon">{statusIcon}</div>
       <div className="indicator-text">
         <div className="status-text">{statusText}</div>
+        <div className="status-details">
+          <span className="websocket-status">{getWebSocketStatusText()}</span>
+          {isConnected && <span className="sse-status"> | {getSSEStatusText()}</span>}
+        </div>
         {simulatorStatus && (
           <div className={`simulator-status ${simulatorStatus.toLowerCase()}`}>
             {getSimulatorStatusText(simulatorStatus)}

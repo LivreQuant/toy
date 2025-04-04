@@ -1,3 +1,4 @@
+// src/services/websocket/websocket-manager.ts
 import { config } from '../../config';
 import { EventEmitter } from '../../utils/event-emitter';
 import { BackoffStrategy } from '../../utils/backoff-strategy';
@@ -14,7 +15,7 @@ import {
   WebSocketOptions, 
   ConnectionMetrics, 
   DataSourceConfig, 
-  ConnectionQuality,
+  ConnectionQuality as WSConnectionQuality,
   HeartbeatData 
 } from './types';
 import { 
@@ -23,6 +24,12 @@ import {
   AuthenticationError, 
   WebSocketErrorHandler 
 } from './websocket-error';
+import {
+  UnifiedConnectionState,
+  ConnectionServiceType,
+  ConnectionStatus,
+  ConnectionQuality
+} from '../connection/unified-connection-state';
 
 export class WebSocketManager extends EventEmitter {
   private connectionStrategy: ConnectionStrategy;
@@ -32,6 +39,7 @@ export class WebSocketManager extends EventEmitter {
   private metricTracker: MetricTracker;
   private errorHandler: WebSocketErrorHandler;
   private logger: Logger;
+  private unifiedState: UnifiedConnectionState;
   
   private backoffStrategy: BackoffStrategy;
   private circuitBreaker: CircuitBreaker;
@@ -64,15 +72,17 @@ export class WebSocketManager extends EventEmitter {
   ];
 
   private currentDataSource: DataSourceConfig;
-  private connectionQuality: ConnectionQuality = ConnectionQuality.DISCONNECTED;
+  private connectionQuality: WSConnectionQuality = WSConnectionQuality.DISCONNECTED;
 
   constructor(
     tokenManager: TokenManager, 
+    unifiedState: UnifiedConnectionState,
     options: WebSocketOptions = {},
     logger?: Logger
   ) {
     super();
     this.tokenManager = tokenManager;
+    this.unifiedState = unifiedState;
     this.logger = logger || new Logger('WebSocketManager');
     this.metricTracker = new MetricTracker(this.logger);
     this.errorHandler = new WebSocketErrorHandler(this.logger);
@@ -101,9 +111,31 @@ export class WebSocketManager extends EventEmitter {
   private setupReconnectionListeners(): void {
     this.on('disconnected', this.handleDisconnect.bind(this));
     this.on('error', this.handleConnectionError.bind(this));
+    
+    // Forward heartbeat events to unified state
+    this.on('heartbeat', this.handleHeartbeatWithUnifiedState.bind(this));
+  }
+
+  private handleHeartbeatWithUnifiedState(data: any): void {
+    // Update the unified state with heartbeat data
+    this.unifiedState.updateHeartbeat(
+      data.timestamp || Date.now(), 
+      data.latency || 0
+    );
+    
+    // If simulator status is included in heartbeat, update it
+    if (data.simulatorStatus) {
+      this.unifiedState.updateSimulatorStatus(data.simulatorStatus);
+    }
   }
 
   private handleDisconnect(reason: string): void {
+    // Update unified state
+    this.unifiedState.updateServiceState(ConnectionServiceType.WEBSOCKET, {
+      status: ConnectionStatus.DISCONNECTED,
+      error: reason
+    });
+    
     if (reason !== 'user_disconnect') {
       this.attemptReconnect();
     }
@@ -111,6 +143,11 @@ export class WebSocketManager extends EventEmitter {
 
   private handleConnectionError(error: any): void {
     this.logger.error('WebSocket connection error:', error);
+    
+    // Update unified state
+    this.unifiedState.updateServiceState(ConnectionServiceType.WEBSOCKET, {
+      error: error instanceof Error ? error.message : 'Connection error'
+    });
     
     // Use standardized error handler
     ErrorHandler.handleConnectionError(
@@ -140,6 +177,11 @@ export class WebSocketManager extends EventEmitter {
       const severity = this.getErrorSeverity(error.code);
       ErrorHandler.handleConnectionError(error, severity, 'WebSocket');
 
+      // Update unified state with error
+      this.unifiedState.updateServiceState(ConnectionServiceType.WEBSOCKET, {
+        error: `${error.code}: ${error.message}`
+      });
+
       this.errorHandler.handleWebSocketError(error, {
         reconnectAttempts: this.reconnectAttempts,
         circuitBreaker: this.circuitBreaker,
@@ -152,12 +194,22 @@ export class WebSocketManager extends EventEmitter {
     } else if (error instanceof NetworkError) {
       ErrorHandler.handleConnectionError(error, ErrorSeverity.MEDIUM, 'Network');
 
+      // Update unified state with network error
+      this.unifiedState.updateServiceState(ConnectionServiceType.WEBSOCKET, {
+        error: `Network error: ${error.type} - ${error.message}`
+      });
+
       this.errorHandler.handleNetworkError(error, {
         tryAlternativeDataSource: this.tryAlternativeDataSource.bind(this),
         initiateOfflineMode: this.initiateOfflineMode.bind(this)
       });
     } else if (error instanceof AuthenticationError) {
       ErrorHandler.handleAuthError(error, ErrorSeverity.HIGH);
+
+      // Update unified state with auth error
+      this.unifiedState.updateServiceState(ConnectionServiceType.WEBSOCKET, {
+        error: `Authentication error: ${error.message}`
+      });
 
       this.errorHandler.handleAuthenticationError(error, {
         tokenManager: this.tokenManager,
@@ -170,6 +222,11 @@ export class WebSocketManager extends EventEmitter {
         ErrorSeverity.HIGH,
         'WebSocket'
       );
+
+      // Update unified state with unknown error
+      this.unifiedState.updateServiceState(ConnectionServiceType.WEBSOCKET, {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
     }
   }
 
@@ -200,7 +257,6 @@ export class WebSocketManager extends EventEmitter {
       };
 
       this.messageHandler.on('message', responseHandler);
-
       this.send(message);
 
       setTimeout(() => {
@@ -217,7 +273,7 @@ export class WebSocketManager extends EventEmitter {
       );
       this.updateConnectionMetrics(metrics);
 
-      if (this.connectionQuality === ConnectionQuality.POOR) {
+      if (this.connectionQuality === WSConnectionQuality.POOR) {
         await this.tryAlternativeDataSource();
       }
     }, 30000);
@@ -233,18 +289,41 @@ export class WebSocketManager extends EventEmitter {
     if (newQuality !== this.connectionQuality) {
       this.connectionQuality = newQuality;
       this.emit('connection_quality_changed', this.connectionQuality);
+      
+      // Map WS quality to unified quality
+      let unifiedQuality: ConnectionQuality;
+      switch (newQuality) {
+        case WSConnectionQuality.EXCELLENT:
+        case WSConnectionQuality.GOOD:
+          unifiedQuality = ConnectionQuality.GOOD;
+          break;
+        case WSConnectionQuality.FAIR:
+          unifiedQuality = ConnectionQuality.DEGRADED;
+          break;
+        case WSConnectionQuality.POOR:
+        case WSConnectionQuality.DISCONNECTED:
+          unifiedQuality = ConnectionQuality.POOR;
+          break;
+        default:
+          unifiedQuality = ConnectionQuality.GOOD;
+      }
+      
+      // Update latency in unified state
+      if (this.connectionMetrics.latency) {
+        this.unifiedState.updateHeartbeat(Date.now(), this.connectionMetrics.latency);
+      }
     }
   }
 
-  private calculateConnectionQuality(): ConnectionQuality {
+  private calculateConnectionQuality(): WSConnectionQuality {
     const { latency, packetLoss } = this.connectionMetrics;
 
-    if (latency < 50 && packetLoss < 1) return ConnectionQuality.EXCELLENT;
-    if (latency < 100 && packetLoss < 3) return ConnectionQuality.GOOD;
-    if (latency < 200 && packetLoss < 5) return ConnectionQuality.FAIR;
-    if (latency >= 200 || packetLoss >= 5) return ConnectionQuality.POOR;
+    if (latency < 50 && packetLoss < 1) return WSConnectionQuality.EXCELLENT;
+    if (latency < 100 && packetLoss < 3) return WSConnectionQuality.GOOD;
+    if (latency < 200 && packetLoss < 5) return WSConnectionQuality.FAIR;
+    if (latency >= 200 || packetLoss >= 5) return WSConnectionQuality.POOR;
 
-    return ConnectionQuality.DISCONNECTED;
+    return WSConnectionQuality.DISCONNECTED;
   }
 
   private async tryAlternativeDataSource(): Promise<boolean> {
@@ -313,6 +392,12 @@ export class WebSocketManager extends EventEmitter {
   }
 
   public async connect(): Promise<boolean> {
+    // Update unified state to connecting
+    this.unifiedState.updateServiceState(ConnectionServiceType.WEBSOCKET, {
+      status: ConnectionStatus.CONNECTING,
+      error: null
+    });
+    
     try {
       return this.circuitBreaker.execute(async () => {
         try {
@@ -338,12 +423,25 @@ export class WebSocketManager extends EventEmitter {
             clearTimeout(this.reconnectTimer);
             this.reconnectTimer = null;
           }
+          
+          // Update unified state to connected
+          this.unifiedState.updateServiceState(ConnectionServiceType.WEBSOCKET, {
+            status: ConnectionStatus.CONNECTED,
+            lastConnected: Date.now(),
+            error: null
+          });
 
           return true;
         } catch (connectionError: unknown) {
           const errorMessage = connectionError instanceof Error 
             ? connectionError.message 
             : 'Failed to establish WebSocket connection';
+          
+          // Update unified state with error
+          this.unifiedState.updateServiceState(ConnectionServiceType.WEBSOCKET, {
+            status: ConnectionStatus.DISCONNECTED,
+            error: errorMessage
+          });
           
           throw new WebSocketError(
             errorMessage, 
@@ -366,7 +464,6 @@ export class WebSocketManager extends EventEmitter {
     }
   }
 
-  // Enhance disconnect to properly clean up all resources
   public disconnect(reason: string = 'user_disconnect'): void {
     if (this.reconnectTimer !== null) {
       clearTimeout(this.reconnectTimer);
@@ -375,10 +472,16 @@ export class WebSocketManager extends EventEmitter {
 
     this.heartbeatManager?.stop();
     this.connectionStrategy.disconnect();
+    
+    // Update unified state
+    this.unifiedState.updateServiceState(ConnectionServiceType.WEBSOCKET, {
+      status: ConnectionStatus.DISCONNECTED,
+      error: reason
+    });
+    
     this.emit('disconnected', reason);
   }
 
-  // Add proper cleanup method
   public dispose(): void {
     this.disconnect('manager_disposed');
     
@@ -391,7 +494,6 @@ export class WebSocketManager extends EventEmitter {
     }
   }
   
-  // Add a specific method for logout/termination
   public terminateConnection(reason: string = 'session_terminated'): void {
     this.disconnect(reason);
     DeviceIdManager.clearDeviceId();
@@ -411,6 +513,9 @@ export class WebSocketManager extends EventEmitter {
     }
 
     this.reconnectAttempts++;
+    
+    // Update unified state with recovery attempt
+    this.unifiedState.updateRecovery(true, this.reconnectAttempts);
 
     const delay = this.backoffStrategy.nextBackoffTime();
 
@@ -427,6 +532,9 @@ export class WebSocketManager extends EventEmitter {
           this.reconnectAttempts = 0;
           this.backoffStrategy.reset();
           this.reconnectTimer = null;
+          
+          // Update unified state for successful recovery
+          this.unifiedState.updateRecovery(false, 0);
         } else {
           this.attemptReconnect();
         }
@@ -441,6 +549,26 @@ export class WebSocketManager extends EventEmitter {
     this.reconnectAttempts = 0;
     this.backoffStrategy.reset();
     this.circuitBreaker.reset();
+    
+    // Update unified state
+    this.unifiedState.updateRecovery(true, 1);
+    
     this.attemptReconnect();
+  }
+  
+  public getConnectionHealth() {
+    // Return a structure that maps to the unified state format
+    return {
+      status: this.connectionStrategy.getWebSocket()?.readyState === WebSocket.OPEN 
+        ? 'connected' 
+        : this.isConnecting() ? 'connecting' : 'disconnected',
+      quality: this.connectionQuality,
+      error: this.unifiedState.getServiceState(ConnectionServiceType.WEBSOCKET).error
+    };
+  }
+  
+  public isConnecting(): boolean {
+    return this.reconnectTimer !== null || 
+           this.connectionStrategy.getWebSocket()?.readyState === WebSocket.CONNECTING;
   }
 }

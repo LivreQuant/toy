@@ -2,6 +2,11 @@
 import { EventEmitter } from '../../utils/event-emitter';
 import { TokenManager } from '../auth/token-manager';
 import { ConnectionRecoveryInterface } from './connection-recovery-interface';
+import { 
+  UnifiedConnectionState, 
+  ConnectionServiceType, 
+  ConnectionStatus 
+} from './unified-connection-state';
 
 export enum RecoveryState {
   IDLE = 'idle',
@@ -13,15 +18,21 @@ export enum RecoveryState {
 export class RecoveryManager extends EventEmitter {
   private connectionManager: ConnectionRecoveryInterface;
   private tokenManager: TokenManager;
+  private unifiedState: UnifiedConnectionState;
   private recoveryAttempts: number = 0;
   private maxRecoveryAttempts: number = 3;
   private recoveryTimer: number | null = null;
   private recoveryState: RecoveryState = RecoveryState.IDLE;
 
-  constructor(connectionManager: ConnectionRecoveryInterface, tokenManager: TokenManager) {
+  constructor(
+    connectionManager: ConnectionRecoveryInterface, 
+    tokenManager: TokenManager,
+    unifiedState: UnifiedConnectionState
+  ) {
     super();
     this.connectionManager = connectionManager;
     this.tokenManager = tokenManager;
+    this.unifiedState = unifiedState;
   }
 
   public dispose(): void {
@@ -59,6 +70,7 @@ export class RecoveryManager extends EventEmitter {
     if (this.recoveryAttempts >= this.maxRecoveryAttempts) {
       console.warn('Max recovery attempts reached');
       this.emit('recovery_failed');
+      this.unifiedState.updateRecovery(false, this.recoveryAttempts);
       return false;
     }
 
@@ -66,6 +78,9 @@ export class RecoveryManager extends EventEmitter {
     this.recoveryState = RecoveryState.ATTEMPTING;
     this.recoveryAttempts++;
     console.log(`Attempting connection recovery (${this.recoveryAttempts}/${this.maxRecoveryAttempts}), reason: ${reason}`);
+    
+    // Update unified state
+    this.unifiedState.updateRecovery(true, this.recoveryAttempts);
     
     // Emit recovery attempt event
     this.emit('recovery_attempt', { 
@@ -85,6 +100,7 @@ export class RecoveryManager extends EventEmitter {
         // Success - reset state
         this.recoveryAttempts = 0;
         this.recoveryState = RecoveryState.SUCCEEDED;
+        this.unifiedState.updateRecovery(false, 0);
         this.emit('recovery_success');
         return true;
       }
@@ -92,6 +108,9 @@ export class RecoveryManager extends EventEmitter {
       // If reconnection fails, use exponential backoff for next attempt
       this.recoveryState = RecoveryState.FAILED;
       const delay = Math.min(30000, Math.pow(2, this.recoveryAttempts) * 1000);
+      
+      // Update unified state
+      this.unifiedState.updateRecovery(true, this.recoveryAttempts);
       
       this.recoveryTimer = window.setTimeout(() => {
         this.recoveryState = RecoveryState.IDLE;
@@ -102,6 +121,7 @@ export class RecoveryManager extends EventEmitter {
     } catch (error) {
       console.error('Recovery attempt failed:', error);
       this.recoveryState = RecoveryState.FAILED;
+      this.unifiedState.updateRecovery(false, this.recoveryAttempts);
       this.emit('recovery_failed');
       return false;
     }
@@ -114,6 +134,7 @@ export class RecoveryManager extends EventEmitter {
       this.dispose();
       this.recoveryAttempts = 0;
       this.recoveryState = RecoveryState.IDLE;
+      this.unifiedState.updateRecovery(false, 0);
     }
   }
 }

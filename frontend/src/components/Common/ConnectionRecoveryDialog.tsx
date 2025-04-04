@@ -1,5 +1,4 @@
 // src/components/Common/ConnectionRecoveryDialog.tsx
-
 import React, { useEffect, useState } from 'react';
 import './ConnectionRecoveryDialog.css';
 import { useConnection } from '../../contexts/ConnectionContext';
@@ -14,7 +13,8 @@ const ConnectionRecoveryDialog: React.FC<ConnectionRecoveryDialogProps> = () => 
     isConnected, 
     isRecovering, 
     recoveryAttempt, 
-    manualReconnect 
+    manualReconnect,
+    connectionState
   } = useConnection();
   const { addToast } = useToast();
   
@@ -56,6 +56,21 @@ const ConnectionRecoveryDialog: React.FC<ConnectionRecoveryDialogProps> = () => 
     }
   };
 
+  // Get connection errors from unified state
+  const getConnectionErrors = () => {
+    const errors = [];
+    
+    if (connectionState?.webSocketState?.error) {
+      errors.push(`WebSocket: ${connectionState.webSocketState.error}`);
+    }
+    
+    if (connectionState?.sseState?.error) {
+      errors.push(`Data Stream: ${connectionState.sseState.error}`);
+    }
+    
+    return errors.length > 0 ? errors : ['Connection interrupted - reason unknown'];
+  };
+
   // Handle retry button click
   const handleRetry = async () => {
     await manualReconnect();
@@ -84,6 +99,18 @@ const ConnectionRecoveryDialog: React.FC<ConnectionRecoveryDialogProps> = () => 
             <li>Server maintenance</li>
             <li>Your internet connection</li>
           </ul>
+          
+          {/* Show specific errors if available */}
+          {getConnectionErrors().length > 0 && (
+            <div className="error-details">
+              <p>Error details:</p>
+              <ul>
+                {getConnectionErrors().map((error, index) => (
+                  <li key={index}>{error}</li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
         <div className="recovery-dialog-footer">
           <button 

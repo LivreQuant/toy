@@ -5,6 +5,12 @@ import { BackoffStrategy } from '../../utils/backoff-strategy';
 import { config } from '../../config';
 import { toastService } from '../notification/toast-service';
 import { ErrorHandler, ErrorSeverity } from '../../utils/error-handler';
+import { 
+  UnifiedConnectionState, 
+  ConnectionServiceType, 
+  ConnectionStatus, 
+  ServiceState 
+} from '../connection/unified-connection-state';
 
 export interface SSEOptions {
   reconnectMaxAttempts?: number;
@@ -23,6 +29,7 @@ export class SSEManager extends EventEmitter {
   private backoffStrategy: BackoffStrategy;
   private isConnecting: boolean = false;
   private debugMode: boolean;
+  private unifiedState: UnifiedConnectionState;
   
   // Circuit breaker properties
   private consecutiveFailures: number = 0;
@@ -31,10 +38,15 @@ export class SSEManager extends EventEmitter {
   private circuitBreakerResetTime: number;
   private circuitBreakerTrippedAt: number = 0;
   
-  constructor(tokenManager: TokenManager, options: SSEOptions = {}) {
+  constructor(
+    tokenManager: TokenManager, 
+    unifiedState: UnifiedConnectionState,
+    options: SSEOptions = {}
+  ) {
     super();
     this.baseUrl = config.sseBaseUrl;
     this.tokenManager = tokenManager;
+    this.unifiedState = unifiedState;
     this.maxReconnectAttempts = options.reconnectMaxAttempts || 15;
     this.backoffStrategy = new BackoffStrategy(1000, 30000);
     this.debugMode = options.debugMode || false;
@@ -49,11 +61,43 @@ export class SSEManager extends EventEmitter {
         options
       });
     }
+    
+    // Subscribe to WebSocket state changes
+    this.unifiedState.on('websocket_state_change', this.handleWebSocketStateChange.bind(this));
+  }
+  
+  // Handle WebSocket state changes to coordinate SSE behavior
+  private handleWebSocketStateChange({ state }: { service: ConnectionServiceType, state: ServiceState }): void {
+    if (state.status === ConnectionStatus.CONNECTED && 
+        this.unifiedState.getServiceState(ConnectionServiceType.SSE).status !== ConnectionStatus.CONNECTED) {
+      // WebSocket is connected, try to connect SSE if not already connected
+      this.connect().catch(err => 
+        console.error('Failed to connect SSE after WebSocket connected:', err)
+      );
+    } else if (state.status === ConnectionStatus.DISCONNECTED) {
+      // WebSocket is disconnected, disconnect SSE as well
+      this.close();
+      this.unifiedState.updateServiceState(ConnectionServiceType.SSE, {
+        status: ConnectionStatus.DISCONNECTED,
+        error: 'WebSocket disconnected'
+      });
+    }
   }
   
   public async connect(): Promise<boolean> {
     if (this.debugMode) {
       console.group('🔍 SSE CONNECTION ATTEMPT');
+    }
+
+    // Check if WebSocket is connected first
+    const wsState = this.unifiedState.getServiceState(ConnectionServiceType.WEBSOCKET);
+    if (wsState.status !== ConnectionStatus.CONNECTED) {
+      if (this.debugMode) {
+        console.error('❌ WebSocket not connected, cannot connect SSE');
+        console.groupEnd();
+      }
+      this.emit('error', { error: 'Cannot connect SSE when WebSocket is disconnected' });
+      return false;
     }
 
     const token = await this.tokenManager.getAccessToken();
@@ -108,6 +152,12 @@ export class SSEManager extends EventEmitter {
     
     this.isConnecting = true;
     
+    // Update unified state
+    this.unifiedState.updateServiceState(ConnectionServiceType.SSE, {
+      status: ConnectionStatus.CONNECTING,
+      error: null
+    });
+    
     try {
       // Construct URL with just token
       const fullUrl = `${this.baseUrl}?token=${token}`;
@@ -146,6 +196,13 @@ export class SSEManager extends EventEmitter {
             }
           }
           
+          // Update unified state
+          this.unifiedState.updateServiceState(ConnectionServiceType.SSE, {
+            status: ConnectionStatus.CONNECTED,
+            lastConnected: Date.now(),
+            error: null
+          });
+          
           this.emit('connected', { connected: true });
           resolve(true);
           
@@ -167,6 +224,13 @@ export class SSEManager extends EventEmitter {
           if (this.isConnecting) {
             this.isConnecting = false;
             this.handleConnectionFailure();
+            
+            // Update unified state
+            this.unifiedState.updateServiceState(ConnectionServiceType.SSE, {
+              status: ConnectionStatus.DISCONNECTED,
+              error: 'SSE connection error'
+            });
+            
             this.emit('connection_failed', { error: 'SSE connection error' });
             resolve(false);
           }
@@ -185,8 +249,16 @@ export class SSEManager extends EventEmitter {
         console.error('Connection Error:', error);
         console.groupEnd();
       }
+      
       this.isConnecting = false;
       this.handleConnectionFailure();
+      
+      // Update unified state
+      this.unifiedState.updateServiceState(ConnectionServiceType.SSE, {
+        status: ConnectionStatus.DISCONNECTED,
+        error: error instanceof Error ? error.message : String(error)
+      });
+      
       this.emit('connection_failed', { error });
       return false;
     }
@@ -288,6 +360,12 @@ export class SSEManager extends EventEmitter {
     // Increment failure counter
     this.consecutiveFailures++;
     
+    // Update unified state
+    this.unifiedState.updateServiceState(ConnectionServiceType.SSE, {
+      status: ConnectionStatus.DISCONNECTED,
+      error: `Connection failure (attempt ${this.consecutiveFailures})`
+    });
+    
     // Check if we should trip the circuit breaker
     if (this.circuitBreakerState !== 'OPEN' && this.consecutiveFailures >= this.circuitBreakerThreshold) {
       this.circuitBreakerState = 'OPEN';
@@ -320,8 +398,15 @@ export class SSEManager extends EventEmitter {
     
     this.emit('disconnected', { reason: 'connection_lost' });
     
-    // Attempt to reconnect if circuit breaker allows
-    if (this.circuitBreakerState !== 'OPEN') {
+    // Update unified state
+    this.unifiedState.updateServiceState(ConnectionServiceType.SSE, {
+      status: ConnectionStatus.DISCONNECTED,
+      error: 'Connection lost'
+    });
+    
+    // Attempt to reconnect if circuit breaker allows and WebSocket is connected
+    if (this.circuitBreakerState !== 'OPEN' && 
+        this.unifiedState.getServiceState(ConnectionServiceType.WEBSOCKET).status === ConnectionStatus.CONNECTED) {
       this.attemptReconnect();
     }
     
@@ -341,6 +426,14 @@ export class SSEManager extends EventEmitter {
   private attemptReconnect(): void {
     if (this.reconnectTimer !== null) {
       return; // Already trying to reconnect
+    }
+    
+    // Check if WebSocket is connected first
+    if (this.unifiedState.getServiceState(ConnectionServiceType.WEBSOCKET).status !== ConnectionStatus.CONNECTED) {
+      if (this.debugMode) {
+        console.warn('⚠️ Not attempting SSE reconnect because WebSocket is disconnected');
+      }
+      return;
     }
     
     if (this.reconnectAttempt >= this.maxReconnectAttempts) {
@@ -384,6 +477,12 @@ export class SSEManager extends EventEmitter {
       this.eventSource.close();
       this.eventSource = null;
     }
+    
+    // Update unified state
+    this.unifiedState.updateServiceState(ConnectionServiceType.SSE, {
+      status: ConnectionStatus.DISCONNECTED,
+      error: null
+    });
   }
   
   private stopReconnectTimer(): void {

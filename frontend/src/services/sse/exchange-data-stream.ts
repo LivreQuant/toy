@@ -3,6 +3,11 @@ import { SSEManager } from './sse-manager';
 import { TokenManager } from '../auth/token-manager';
 import { WebSocketManager } from '../websocket/websocket-manager';
 import { EventEmitter } from '../../utils/event-emitter';
+import { 
+  UnifiedConnectionState, 
+  ConnectionServiceType, 
+  ConnectionStatus 
+} from '../connection/unified-connection-state';
 
 export interface ExchangeDataOptions {
   reconnectMaxAttempts?: number;
@@ -14,20 +19,23 @@ export class ExchangeDataStream extends EventEmitter {
   private exchangeData: Record<string, any> = {};
   private tokenManager: TokenManager;
   private webSocketManager: WebSocketManager;
+  private unifiedState: UnifiedConnectionState;
   private debugMode: boolean;
   
   constructor(
     tokenManager: TokenManager, 
     webSocketManager: WebSocketManager,
+    unifiedState: UnifiedConnectionState,
     options: ExchangeDataOptions = {}
   ) {
     super();
     
     this.tokenManager = tokenManager;
     this.webSocketManager = webSocketManager;
+    this.unifiedState = unifiedState;
     this.debugMode = options.debugMode || false;
     
-    this.sseManager = new SSEManager(tokenManager, {
+    this.sseManager = new SSEManager(tokenManager, unifiedState, {
       reconnectMaxAttempts: options.reconnectMaxAttempts || 15,
       debugMode: this.debugMode
     });
@@ -43,24 +51,24 @@ export class ExchangeDataStream extends EventEmitter {
   }
   
   public isConnected(): boolean {
-    // First check if WebSocket is connected
-    const wsStatus = this.getWebSocketConnectionStatus();
-    if (!wsStatus.connected) {
+    // Check if WebSocket is connected first
+    const wsState = this.unifiedState.getServiceState(ConnectionServiceType.WEBSOCKET);
+    if (wsState.status !== ConnectionStatus.CONNECTED) {
       return false;
     }
     
     // Then check SSE connection
-    const sseStatus = this.sseManager.getConnectionStatus();
-    return sseStatus.connected;
+    const sseState = this.unifiedState.getServiceState(ConnectionServiceType.SSE);
+    return sseState.status === ConnectionStatus.CONNECTED;
   }
   
   public async connect(): Promise<boolean> {
     // Always check WebSocket connection first - don't connect SSE if WebSocket is down
-    const wsStatus = this.getWebSocketConnectionStatus();
-    if (!wsStatus.connected) {
+    const wsState = this.unifiedState.getServiceState(ConnectionServiceType.WEBSOCKET);
+    if (wsState.status !== ConnectionStatus.CONNECTED) {
       this.emit('error', { 
         error: 'Cannot connect SSE - WebSocket is not connected',
-        webSocketStatus: wsStatus
+        webSocketStatus: wsState
       });
       return false;
     }
@@ -88,36 +96,18 @@ export class ExchangeDataStream extends EventEmitter {
     }
   }
   
-  private getWebSocketConnectionStatus(): { 
-    connected: boolean; 
-    status: string 
-  } {
-    try {
-      const ws = this.webSocketManager.connectionStrategy.getWebSocket();
-      return {
-        connected: !!ws && ws.readyState === WebSocket.OPEN,
-        status: ws && ws.readyState === WebSocket.OPEN ? 'connected' : 'disconnected'
-      };
-    } catch (error) {
-      return {
-        connected: false,
-        status: 'error'
-      };
-    }
-  }
-  
   public getConnectionStatus(): {
     connected: boolean;
     connecting: boolean;
     webSocketConnected: boolean;
   } {
-    const sseStatus = this.sseManager.getConnectionStatus();
-    const wsStatus = this.getWebSocketConnectionStatus();
+    const sseState = this.unifiedState.getServiceState(ConnectionServiceType.SSE);
+    const wsState = this.unifiedState.getServiceState(ConnectionServiceType.WEBSOCKET);
     
     return {
-      connected: sseStatus.connected,
-      connecting: sseStatus.connecting,
-      webSocketConnected: wsStatus.connected
+      connected: sseState.status === ConnectionStatus.CONNECTED,
+      connecting: sseState.status === ConnectionStatus.CONNECTING,
+      webSocketConnected: wsState.status === ConnectionStatus.CONNECTED
     };
   }
   
