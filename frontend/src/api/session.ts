@@ -1,6 +1,6 @@
 // src/api/session.ts
 import { HttpClient } from './http-client';
-import { TokenManager } from '../services/auth/token-manager';
+import { SessionManager } from '../services/session/session-manager';
 
 export interface SessionResponse {
   success: boolean;
@@ -24,8 +24,12 @@ export class SessionApi {
   }
 
   // Create a new session or get the existing one
-  async createOrGetSession(): Promise<SessionResponse> {
-    return this.client.post<SessionResponse>('/sessions');
+  async createSession(userId: string | number): Promise<SessionResponse> {
+    const deviceId = SessionManager.getDeviceId();
+    return this.client.post<SessionResponse>('/sessions', { 
+      userId, 
+      deviceId 
+    });
   }
   
   // Get current session state 
