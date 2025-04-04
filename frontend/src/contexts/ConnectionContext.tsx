@@ -19,7 +19,7 @@ interface ConnectionContextType {
   connectionQuality: string;
   error: string | null;
 
-  startSimulator: (options?: { initialSymbols?: string[], initialCash?: number }) => Promise<{ success: boolean; status?: string; error?: string }>;
+  startSimulator: () => Promise<{ success: boolean; status?: string; error?: string }>;
   stopSimulator: () => Promise<{ success: boolean; error?: string }>;
 
   submitOrder: (order: any) => Promise<any>;
@@ -90,15 +90,12 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return connectionManager.manualReconnect();
   }, [connectionManager]);
   
-  const startSimulator = async (options: {
-    initialSymbols?: string[],
-    initialCash?: number
-  } = {}) => {
+  const startSimulator = async () => {
     if (!isAuthenticated || !connectionState.isConnected) {
       console.warn('Cannot start simulator - user is not authenticated or not connected');
       return { success: false, error: 'Not authenticated or connected' };
     }
-    return connectionManager.startSimulator(options);
+    return connectionManager.startSimulator();
   };
     
   const stopSimulator = async () => {

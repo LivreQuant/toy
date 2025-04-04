@@ -31,6 +31,7 @@ export class ConnectionStrategy {
       throw new Error('No authentication token available');
     }
 
+    // Use the centralized DeviceIdManager
     const deviceId = DeviceIdManager.getDeviceId();
     const params = new URLSearchParams({
       token,
@@ -53,40 +54,40 @@ export class ConnectionStrategy {
       };
 
       this.ws.onclose = (event) => {
+        // Pass the actual event object or relevant details
         this.eventEmitter.emit('disconnected', {
-          code: event.code,
-          reason: event.reason
+            code: event.code,
+            reason: event.reason,
+            wasClean: event.wasClean
         });
-        reject(new Error(`WebSocket closed: ${event.reason}`));
+        // Rejecting here might be unwanted if disconnects are handled elsewhere
+        // Consider removing reject or making it conditional
+        // reject(new Error(`WebSocket closed: ${event.reason}`));
       };
 
-      this.ws.onerror = (error) => {
-        this.eventEmitter.emit('error', error);
-        reject(error);
+      this.ws.onerror = (event) => { // event is usually of type Event, not Error
+        console.error('WebSocket error event:', event);
+        this.eventEmitter.emit('error', new Error('WebSocket connection error')); // Emit a standard Error
+        reject(new Error('WebSocket connection error'));
       };
     });
   }
 
   public disconnect(): void {
     if (this.ws) {
-      this.ws.close(1000, 'Client disconnected');
+      // Ensure listeners are removed before closing to prevent race conditions
+      this.ws.onopen = null;
+      this.ws.onmessage = null;
+      this.ws.onerror = null;
+      this.ws.onclose = null;
+      if (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING) {
+         this.ws.close(1000, 'Client disconnected');
+      }
       this.ws = null;
     }
   }
 
   public getWebSocket(): WebSocket | null {
     return this.ws;
-  }
-
-  private generateDeviceId(): string {
-    const storageKey = 'trading_device_id';
-    let deviceId = localStorage.getItem(storageKey);
-    
-    if (!deviceId) {
-      deviceId = `device_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-      localStorage.setItem(storageKey, deviceId);
-    }
-    
-    return deviceId;
   }
 }

@@ -9,10 +9,7 @@ export class ConnectionSimulatorManager {
     this.simulatorApi = new SimulatorApi(httpClient);
   }
 
-  public async startSimulator(options: {
-    initialSymbols?: string[],
-    initialCash?: number
-  } = {}): Promise<{ success: boolean; status?: string; error?: string }> {
+  public async startSimulator(): Promise<{ success: boolean; status?: string; error?: string }> {
     try {
       const response = await this.simulatorApi.startSimulator();
       
