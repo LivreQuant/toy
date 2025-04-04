@@ -111,13 +111,16 @@ export class ConnectionManager extends EventEmitter {
   }
 
   // Simulator Methods
-  public async startSimulator(): Promise<{ success: boolean; status?: string; error?: string }> {
+  public async startSimulator(options: {
+    initialSymbols?: string[],
+    initialCash?: number
+  } = {}): Promise<{ success: boolean; status?: string; error?: string }> {
     const state = this.getState();
     if (!state.isConnected) {
       return { success: false, error: 'Not connected' };
     }
 
-    return this.simulatorManager.startSimulator();
+    return this.simulatorManager.startSimulator(options);
   }
 
   public async stopSimulator(): Promise<{ success: boolean; error?: string }> {

@@ -28,23 +28,44 @@ const SimulatorPage: React.FC = () => {
       
   const handleStartSimulator = async () => {
     setIsLoading(true);
+    setStatusMessage('Starting simulator...');
     try {
-      await startSimulator();
+      const result = await startSimulator({
+        initialSymbols: ['AAPL', 'MSFT', 'AMZN', 'GOOGL', 'FB'],
+        initialCash: 100000
+      });
+      
+      if (result.success) {
+        setStatusMessage('Simulator started successfully');
+      } else {
+        setStatusMessage(`Failed to start simulator: ${result.error}`);
+      }
     } catch (error) {
       console.error('Failed to start simulator:', error);
+      setStatusMessage('Error starting simulator');
     } finally {
       setIsLoading(false);
+      setTimeout(() => setStatusMessage(null), 3000);
     }
   };
 
   const handleStopSimulator = async () => {
     setIsLoading(true);
+    setStatusMessage('Stopping simulator...');
     try {
-      await stopSimulator();
+      const result = await stopSimulator();
+      
+      if (result.success) {
+        setStatusMessage('Simulator stopped successfully');
+      } else {
+        setStatusMessage(`Failed to stop simulator: ${result.error}`);
+      }
     } catch (error) {
       console.error('Failed to stop simulator:', error);
+      setStatusMessage('Error stopping simulator');
     } finally {
       setIsLoading(false);
+      setTimeout(() => setStatusMessage(null), 3000);
     }
   };
   

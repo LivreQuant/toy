@@ -1,16 +1,23 @@
 // src/services/connection/connection-simulator.ts
+import { SimulatorApi } from '../../api/simulator';
 import { HttpClient } from '../../api/http-client';
 
 export class ConnectionSimulatorManager {
-  private httpClient: HttpClient;
+  private simulatorApi: SimulatorApi;
 
   constructor(httpClient: HttpClient) {
-    this.httpClient = httpClient;
+    this.simulatorApi = new SimulatorApi(httpClient);
   }
 
-  public async startSimulator(): Promise<{ success: boolean; status?: string; error?: string }> {
+  public async startSimulator(options: {
+    initialSymbols?: string[],
+    initialCash?: number
+  } = {}): Promise<{ success: boolean; status?: string; error?: string }> {
     try {
-      const response = await this.httpClient.post<{success: boolean, status?: string}>('/simulators');
+      const response = await this.simulatorApi.startSimulator({
+        initialSymbols: options.initialSymbols,
+        initialCash: options.initialCash
+      });
       
       return { 
         success: response.success,
@@ -27,7 +34,7 @@ export class ConnectionSimulatorManager {
 
   public async stopSimulator(): Promise<{ success: boolean; error?: string }> {
     try {
-      const response = await this.httpClient.delete<{success: boolean}>('/simulators');
+      const response = await this.simulatorApi.stopSimulator();
       
       return { success: response.success };
     } catch (error) {
@@ -41,7 +48,7 @@ export class ConnectionSimulatorManager {
 
   public async getSimulatorStatus(): Promise<{ success: boolean; status: string; error?: string }> {
     try {
-      const response = await this.httpClient.get<{success: boolean, status: string}>('/simulators');
+      const response = await this.simulatorApi.getSimulatorStatus();
       
       return { 
         success: response.success,

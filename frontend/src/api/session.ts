@@ -27,13 +27,12 @@ export class SessionApi {
   async createSession(userId: string | number): Promise<SessionResponse> {
     const deviceId = SessionManager.getDeviceId();
     return this.client.post<SessionResponse>('/sessions', { 
-      userId, 
       deviceId 
     });
   }
-  
-  // Get current session state 
-  async getSessionState(): Promise<SessionStateResponse> {
-    return this.client.get<SessionStateResponse>('/sessions');
+
+  // Delte an existing session
+  async deleteSession(userId: string | number): Promise<SessionResponse> {
+    return this.client.delete<SessionResponse>('/sessions', {});
   }
 }
