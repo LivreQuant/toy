@@ -1,6 +1,7 @@
 // src/services/connection/connection-data-handlers.ts
 import { HttpClient } from '../../api/http-client';
 import { OrdersApi } from '../../api/order';
+import { ErrorHandler, ErrorSeverity } from '../../utils/error-handler';
 
 export class ConnectionDataHandlers {
   private exchangeData: Record<string, any> = {};
@@ -18,6 +19,7 @@ export class ConnectionDataHandlers {
     return { ...this.exchangeData };
   }
 
+  
   public async submitOrder(order: {
     symbol: string;
     side: 'BUY' | 'SELL';
@@ -35,16 +37,31 @@ export class ConnectionDataHandlers {
         requestId: `order-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`
       });
       
+      if (!response.success) {
+        ErrorHandler.handleDataError(
+          response.errorMessage || 'Failed to submit order',
+          ErrorSeverity.MEDIUM,
+          'Order'
+        );
+      }
+      
       return { 
         success: response.success, 
         orderId: response.orderId,
         error: response.errorMessage
       };
     } catch (error) {
-      console.error('Order submission error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Order submission failed';
+      
+      ErrorHandler.handleDataError(
+        errorMessage,
+        ErrorSeverity.MEDIUM,
+        'Order'
+      );
+      
       return { 
         success: false, 
-        error: error instanceof Error ? error.message : 'Order submission failed' 
+        error: errorMessage
       };
     }
   }
@@ -53,15 +70,30 @@ export class ConnectionDataHandlers {
     try {
       const response = await this.ordersApi.cancelOrder(orderId);
       
+      if (!response.success) {
+        ErrorHandler.handleDataError(
+          'Failed to cancel order',
+          ErrorSeverity.MEDIUM,
+          'Order'
+        );
+      }
+      
       return { 
         success: response.success,
         error: response.success ? undefined : 'Failed to cancel order'
       };
     } catch (error) {
-      console.error('Order cancellation error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Order cancellation failed';
+      
+      ErrorHandler.handleDataError(
+        errorMessage,
+        ErrorSeverity.MEDIUM,
+        'Order'
+      );
+      
       return { 
         success: false, 
-        error: error instanceof Error ? error.message : 'Order cancellation failed' 
+        error: errorMessage 
       };
     }
   }

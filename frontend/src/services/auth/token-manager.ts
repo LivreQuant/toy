@@ -1,5 +1,7 @@
 // src/services/auth/token-manager.ts
 import { AuthApi } from '../../api/auth';
+import { DeviceIdManager } from '../../utils/device-id-manager';
+import { ErrorHandler, ErrorSeverity } from '../../utils/error-handler';
 
 export interface TokenData {
   accessToken: string;
@@ -8,12 +10,13 @@ export interface TokenData {
   userId: string | number; // Add userId to the token data
 }
 
+// src/services/auth/token-manager.ts
 export class TokenManager {
   private static readonly STORAGE_KEY = 'auth_tokens';
   private static readonly EXPIRY_MARGIN = 5 * 60 * 1000; // 5 minutes in milliseconds
   private authApi?: AuthApi;
   private refreshPromise: Promise<boolean> | null = null;
-  private refreshCallback: (() => void) | null = null;
+  private refreshListeners: Set<Function> = new Set();
 
   // Store tokens in local storage
   public storeTokens(tokenData: TokenData): void {
@@ -50,6 +53,16 @@ export class TokenManager {
     this.authApi = authApi;
   }
 
+  // Add listener for token refresh events
+  public addRefreshListener(listener: Function): void {
+    this.refreshListeners.add(listener);
+  }
+
+  // Remove listener
+  public removeRefreshListener(listener: Function): void {
+    this.refreshListeners.delete(listener);
+  }
+
   // Get access token (automatically refreshing if needed)
   public async getAccessToken(): Promise<string | null> {
     const tokens = this.getTokens();
@@ -82,6 +95,7 @@ export class TokenManager {
   
     const tokens = this.getTokens();
     if (!tokens?.refreshToken) {
+      console.error('No refresh token available');
       return false;
     }
   
@@ -103,11 +117,16 @@ export class TokenManager {
           userId: response.userId  // Store userId with the tokens
         });
   
-        // Rest of your code...
+        // Notify listeners about the token refresh
+        this.notifyRefreshListeners(true);
         
         resolve(true);
       } catch (error) {
-        // Error handling...
+        console.error('Token refresh failed:', error);
+        
+        // Notify listeners about the failed refresh
+        this.notifyRefreshListeners(false);
+        
         resolve(false);
       } finally {
         this.refreshPromise = null;
@@ -116,9 +135,15 @@ export class TokenManager {
   
     return this.refreshPromise;
   }
-  
-  // Register a callback to be called when tokens are refreshed
-  public onTokenRefresh(callback: () => void): void {
-    this.refreshCallback = callback;
+
+  // Notify all registered listeners
+  private notifyRefreshListeners(success: boolean): void {
+    for (const listener of this.refreshListeners) {
+      try {
+        listener(success);
+      } catch (error) {
+        console.error('Error in token refresh listener:', error);
+      }
+    }
   }
 }

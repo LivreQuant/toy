@@ -4,6 +4,7 @@ import { TokenManager } from '../auth/token-manager';
 import { BackoffStrategy } from '../../utils/backoff-strategy';
 import { config } from '../../config';
 import { toastService } from '../notification/toast-service';
+import { ErrorHandler, ErrorSeverity } from '../../utils/error-handler';
 
 export interface SSEOptions {
   reconnectMaxAttempts?: number;
@@ -296,11 +297,20 @@ export class SSEManager extends EventEmitter {
         failureCount: this.consecutiveFailures,
         resetTimeMs: this.circuitBreakerResetTime
       });
-    }
-
-    // Critical connection issue toast
-    if (this.consecutiveFailures >= this.circuitBreakerThreshold) {
-      toastService.error('Multiple SSE connection failures. Streaming data may be interrupted.', 10000);
+      
+      // Use standardized error handler for circuit breaker
+      ErrorHandler.handleConnectionError(
+        'Multiple connection failures detected. Data stream temporarily disabled.',
+        ErrorSeverity.HIGH,
+        'Data Stream'
+      );
+    } else if (this.consecutiveFailures > 1) {
+      // Use standardized error handler for general failures
+      ErrorHandler.handleConnectionError(
+        'Connection to data stream failed.',
+        ErrorSeverity.MEDIUM,
+        'Data Stream'
+      );
     }
   }
   
@@ -313,16 +323,21 @@ export class SSEManager extends EventEmitter {
     // Attempt to reconnect if circuit breaker allows
     if (this.circuitBreakerState !== 'OPEN') {
       this.attemptReconnect();
-    }    
+    }
     
-    toastService.error('Market data stream connection lost', 7000);
+    // Use standardized error handler for disconnect
+    ErrorHandler.handleConnectionError(
+      'Market data stream connection lost',
+      ErrorSeverity.MEDIUM,
+      'Data Stream'
+    );
 
     // Emit specific events for UI
     this.emit('connection_lost', {
       reason: 'Market data stream interrupted'
     });
   }
-  
+    
   private attemptReconnect(): void {
     if (this.reconnectTimer !== null) {
       return; // Already trying to reconnect
@@ -354,8 +369,12 @@ export class SSEManager extends EventEmitter {
       }
     }, delay);
 
-    // Notify user about reconnection attempt
-    toastService.warning(`Reconnecting market data stream (Attempt ${this.reconnectAttempt})...`, 5000);
+    // Replace direct toast with standardized notification
+    ErrorHandler.handleConnectionError(
+      `Reconnecting to market data stream (Attempt ${this.reconnectAttempt})...`,
+      ErrorSeverity.LOW,
+      'Data Stream'
+    );
   }
   
   public close(): void {

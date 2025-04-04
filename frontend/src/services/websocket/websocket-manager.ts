@@ -5,7 +5,9 @@ import { CircuitBreaker, CircuitState } from '../../utils/circuit-breaker';
 import { TokenManager } from '../auth/token-manager';
 import { ConnectionStrategy } from './connection-strategy';
 import { HeartbeatManager } from './heartbeat-manager';
+import { ErrorHandler, ErrorSeverity } from '../../utils/error-handler';
 import { WebSocketMessageHandler } from './message-handler';
+import { DeviceIdManager } from '../../utils/device-id-manager';
 import { MetricTracker } from './metric-tracker';
 import { Logger } from '../../utils/logger';
 import { 
@@ -109,11 +111,35 @@ export class WebSocketManager extends EventEmitter {
 
   private handleConnectionError(error: any): void {
     this.logger.error('WebSocket connection error:', error);
+    
+    // Use standardized error handler
+    ErrorHandler.handleConnectionError(
+      error instanceof Error ? error : 'Connection lost',
+      ErrorSeverity.MEDIUM,
+      'WebSocket'
+    );
+    
     this.attemptReconnect();
+  }
+
+  private getErrorSeverity(errorCode: string): ErrorSeverity {
+    switch (errorCode) {
+      case 'UNAUTHORIZED':
+        return ErrorSeverity.HIGH;
+      case 'CONNECTION_FAILED':
+        return ErrorSeverity.MEDIUM;
+      case 'PROTOCOL_ERROR':
+        return ErrorSeverity.HIGH;
+      default:
+        return ErrorSeverity.MEDIUM;
+    }
   }
 
   private handleComprehensiveError(error: any): void {
     if (error instanceof WebSocketError) {
+      const severity = this.getErrorSeverity(error.code);
+      ErrorHandler.handleConnectionError(error, severity, 'WebSocket');
+
       this.errorHandler.handleWebSocketError(error, {
         reconnectAttempts: this.reconnectAttempts,
         circuitBreaker: this.circuitBreaker,
@@ -124,27 +150,32 @@ export class WebSocketManager extends EventEmitter {
         manualReconnect: this.manualReconnect.bind(this)
       });
     } else if (error instanceof NetworkError) {
+      ErrorHandler.handleConnectionError(error, ErrorSeverity.MEDIUM, 'Network');
+
       this.errorHandler.handleNetworkError(error, {
         tryAlternativeDataSource: this.tryAlternativeDataSource.bind(this),
         initiateOfflineMode: this.initiateOfflineMode.bind(this)
       });
     } else if (error instanceof AuthenticationError) {
+      ErrorHandler.handleAuthError(error, ErrorSeverity.HIGH);
+
       this.errorHandler.handleAuthenticationError(error, {
         tokenManager: this.tokenManager,
         manualReconnect: this.manualReconnect.bind(this),
         triggerLogout: this.triggerLogout.bind(this)
       });
     } else {
-      this.errorHandler.handleUnknownError(error, {
-        logger: this.logger,
-        disconnect: this.disconnect.bind(this),
-        attemptReconnect: this.attemptReconnect.bind(this)
-      });
+      ErrorHandler.handleConnectionError(
+        error instanceof Error ? error : 'Unknown error',
+        ErrorSeverity.HIGH,
+        'WebSocket'
+      );
     }
   }
 
   private triggerLogout(): void {
     this.tokenManager.clearTokens();
+    ErrorHandler.handleAuthError('Session expired. Please log in again.', ErrorSeverity.HIGH);
     this.emit('force_logout', 'Authentication failed');
     this.logger.error('User logged out due to authentication failure');
   }
@@ -285,6 +316,11 @@ export class WebSocketManager extends EventEmitter {
     try {
       return this.circuitBreaker.execute(async () => {
         try {
+          // Generate device ID on connection if it doesn't exist
+          if (!DeviceIdManager.hasDeviceId()) {
+            DeviceIdManager.getDeviceId(); // Creates and stores a new one
+          }
+          
           const ws = await this.connectionStrategy.connect();
 
           ws.onmessage = (event) => this.messageHandler.handleMessage(event);
@@ -330,6 +366,7 @@ export class WebSocketManager extends EventEmitter {
     }
   }
 
+  // Enhance disconnect to properly clean up all resources
   public disconnect(reason: string = 'user_disconnect'): void {
     if (this.reconnectTimer !== null) {
       clearTimeout(this.reconnectTimer);
@@ -341,6 +378,25 @@ export class WebSocketManager extends EventEmitter {
     this.emit('disconnected', reason);
   }
 
+  // Add proper cleanup method
+  public dispose(): void {
+    this.disconnect('manager_disposed');
+    
+    // Clean up all event listeners
+    super.dispose();
+    
+    // Clear any other resources
+    if (this.metricTracker instanceof Disposable) {
+      this.metricTracker.dispose();
+    }
+  }
+  
+  // Add a specific method for logout/termination
+  public terminateConnection(reason: string = 'session_terminated'): void {
+    this.disconnect(reason);
+    DeviceIdManager.clearDeviceId();
+  }
+  
   private attemptReconnect(): void {
     if (this.reconnectTimer !== null) return;
 

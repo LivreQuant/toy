@@ -98,7 +98,7 @@ export class WebSocketErrorHandler {
   public handleAuthenticationError(
     error: AuthenticationError,
     context: {
-      tokenManager: any,
+      tokenManager: TokenManager,
       manualReconnect: () => void,
       triggerLogout: () => void
     }
@@ -107,7 +107,8 @@ export class WebSocketErrorHandler {
       message: error.message
     });
 
-    this.attemptTokenRefresh(context.tokenManager)
+    // Use the centralized token refresh method
+    context.tokenManager.refreshAccessToken()
       .then(refreshed => {
         if (refreshed) {
           context.manualReconnect();
@@ -115,16 +116,6 @@ export class WebSocketErrorHandler {
           context.triggerLogout();
         }
       });
-  }
-
-  private async attemptTokenRefresh(tokenManager: any): Promise<boolean> {
-    try {
-      const newToken = await tokenManager.refreshToken();
-      return !!newToken;
-    } catch (refreshError) {
-      this.logger.error('Token refresh failed', { error: refreshError });
-      return false;
-    }
   }
 
   public handleUnknownError(

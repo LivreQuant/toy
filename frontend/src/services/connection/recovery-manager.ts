@@ -1,7 +1,7 @@
 // src/services/connection/recovery-manager.ts
 import { EventEmitter } from '../../utils/event-emitter';
-import { SessionManager } from '../session/session-manager';
 import { TokenManager } from '../auth/token-manager';
+import { ConnectionRecoveryInterface } from './connection-recovery-interface';
 
 export enum RecoveryState {
   IDLE = 'idle',
@@ -11,14 +11,14 @@ export enum RecoveryState {
 }
 
 export class RecoveryManager extends EventEmitter {
-  private connectionManager: any;
+  private connectionManager: ConnectionRecoveryInterface;
   private tokenManager: TokenManager;
   private recoveryAttempts: number = 0;
   private maxRecoveryAttempts: number = 3;
   private recoveryTimer: number | null = null;
   private recoveryState: RecoveryState = RecoveryState.IDLE;
 
-  constructor(connectionManager: any, tokenManager: TokenManager) {
+  constructor(connectionManager: ConnectionRecoveryInterface, tokenManager: TokenManager) {
     super();
     this.connectionManager = connectionManager;
     this.tokenManager = tokenManager;
@@ -29,8 +29,11 @@ export class RecoveryManager extends EventEmitter {
       window.clearTimeout(this.recoveryTimer);
       this.recoveryTimer = null;
     }
+    
+    // Clean up all event listeners
+    super.dispose();
   }
-
+  
   public async attemptRecovery(reason: string = 'manual'): Promise<boolean> {
     // Authentication check
     if (!this.tokenManager.isAuthenticated()) {

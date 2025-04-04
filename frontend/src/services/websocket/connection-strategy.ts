@@ -1,6 +1,7 @@
 import { config } from '../../config';
 import { EventEmitter } from '../../utils/event-emitter';
 import { TokenManager } from '../auth/token-manager';
+import { DeviceIdManager } from '../../utils/device-id-manager';
 import { ConnectionStrategyDependencies, WebSocketOptions } from './types';
 
 export class ConnectionStrategy {
@@ -30,7 +31,7 @@ export class ConnectionStrategy {
       throw new Error('No authentication token available');
     }
 
-    const deviceId = this.generateDeviceId();
+    const deviceId = DeviceIdManager.getDeviceId();
     const params = new URLSearchParams({
       token,
       deviceId,

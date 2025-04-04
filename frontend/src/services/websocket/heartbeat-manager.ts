@@ -1,5 +1,6 @@
 import { EventEmitter } from '../../utils/event-emitter';
 import { HeartbeatManagerDependencies } from './types';
+import { DeviceIdManager } from '../../utils/device-id-manager';
 
 export class HeartbeatManager {
   private ws: WebSocket;
@@ -33,7 +34,7 @@ export class HeartbeatManager {
       const heartbeatMessage = {
         type: 'heartbeat',
         timestamp: now,
-        deviceId: this.getDeviceId()
+        deviceId: DeviceIdManager.getDeviceId()
       };
 
       this.lastHeartbeatTime = now;

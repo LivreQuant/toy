@@ -1,21 +1,21 @@
-// src/services/connection/connection-manager.ts
 import { EventEmitter } from '../../utils/event-emitter';
 import { TokenManager } from '../auth/token-manager';
 import { WebSocketManager } from '../websocket/websocket-manager';
 import { ExchangeDataStream } from '../sse/exchange-data-stream';
 import { SessionApi } from '../../api/session';
 import { HttpClient } from '../../api/http-client';
+import { ConnectionRecoveryInterface } from './connection-recovery-interface';
 import { RecoveryManager } from './recovery-manager';
 export { ConnectionState } from './connection-state';
 import { ConnectionLifecycleManager } from './connection-lifecycle';
 import { ConnectionDataHandlers } from './connection-data-handlers';
 import { ConnectionSimulatorManager } from './connection-simulator';
 
-export class ConnectionManager extends EventEmitter {
+export class ConnectionManager extends EventEmitter implements ConnectionRecoveryInterface {
   private lifecycleManager: ConnectionLifecycleManager;
   private dataHandlers: ConnectionDataHandlers;
   private simulatorManager: ConnectionSimulatorManager;
-  private recoveryManager: RecoveryManager;
+  private recoveryManager: RecoveryManager | null = null;
   private wsManager: WebSocketManager;
   private sseManager: ExchangeDataStream;
 
@@ -33,9 +33,14 @@ export class ConnectionManager extends EventEmitter {
 
     this.dataHandlers = new ConnectionDataHandlers(httpClient);
     this.simulatorManager = new ConnectionSimulatorManager(httpClient);
-    this.recoveryManager = new RecoveryManager(this, tokenManager);
-
+    
     this.setupEventListeners();
+    
+    // Initialize RecoveryManager after ConnectionManager is fully set up
+    setTimeout(() => {
+      this.recoveryManager = new RecoveryManager(this, tokenManager);
+      this.setupRecoveryEventListeners();
+    }, 0);
   }
 
   private setupEventListeners(): void {
@@ -82,6 +87,49 @@ export class ConnectionManager extends EventEmitter {
     });
   }
   
+  // Add proper cleanup method
+  public dispose(): void {
+    this.disconnect();
+    
+    // Clean up managers that implement Disposable
+    if (this.recoveryManager) {
+      this.recoveryManager.dispose();
+    }
+    
+    if (this.wsManager instanceof Disposable) {
+      this.wsManager.dispose();
+    }
+    
+    if (this.sseManager instanceof Disposable) {
+      this.sseManager.dispose();
+    }
+    
+    // Clean up auth state monitoring
+    if (this.tokenManager) {
+      this.tokenManager.removeRefreshListener(this.handleTokenRefresh);
+    }
+    
+    // Remove all event listeners
+    super.dispose();
+  }
+
+  private setupRecoveryEventListeners(): void {
+    if (!this.recoveryManager) return;
+    
+    // Set up event listeners for recovery events
+    this.recoveryManager.on('recovery_attempt', (data) => {
+      this.emit('recovery_attempt', data);
+    });
+    
+    this.recoveryManager.on('recovery_success', () => {
+      this.emit('recovery_success');
+    });
+    
+    this.recoveryManager.on('recovery_failed', () => {
+      this.emit('recovery_failed');
+    });
+  }
+
   private async connectSSE(): Promise<boolean> {
     if (this.wsManager.getConnectionHealth().status === 'connected') {
       return this.sseManager.connect();
@@ -113,6 +161,33 @@ export class ConnectionManager extends EventEmitter {
     this.sseManager.disconnect();
   }
 
+  // Method to update recovery auth state
+  public updateRecoveryAuthState(isAuthenticated: boolean): void {
+    if (!isAuthenticated) {
+      this.disconnect();
+    }
+    this.recoveryManager?.updateAuthState(isAuthenticated);
+  }
+
+  // Setup auth state monitoring
+  private setupAuthStateMonitoring(): void {
+    // Add token refresh listener
+    this.tokenManager.addRefreshListener((success: boolean) => {
+      this.updateRecoveryAuthState(success && this.tokenManager.isAuthenticated());
+      
+      // If token refresh failed, disconnect
+      if (!success) {
+        this.disconnect();
+        this.emit('auth_failed', 'Authentication token expired');
+      }
+    });
+  }
+
+  public async attemptRecovery(reason: string = 'manual'): Promise<boolean> {
+    if (!this.recoveryManager) return false;
+    return this.recoveryManager.attemptRecovery(reason);
+  }
+
   public getState() {
     const wsHealth = this.wsManager.getConnectionHealth();
     return {
@@ -127,14 +202,6 @@ export class ConnectionManager extends EventEmitter {
   // Data Retrieval Methods - now only exposing exchangeData
   public getExchangeData() {
     return this.dataHandlers.getExchangeData();
-  }
-
-  // Add this method
-  public updateRecoveryAuthState(isAuthenticated: boolean): void {
-    if (!isAuthenticated) {
-      this.disconnect();
-    }
-    this.recoveryManager.updateAuthState(isAuthenticated);
   }
 
   // Order Management Methods - submit and cancel orders
@@ -187,11 +254,6 @@ export class ConnectionManager extends EventEmitter {
   public async getSimulatorStatus(): Promise<{ success: boolean; status: string; error?: string }> {
     return this.simulatorManager.getSimulatorStatus();
   }
-
-  // Recovery Methods
-  public async attemptRecovery(reason: string = 'manual'): Promise<boolean> {
-    return this.recoveryManager.attemptRecovery(reason);
-  }
   
   // Reconnection method - primarily reconnect WebSocket
   public async reconnect(): Promise<boolean> {
@@ -218,12 +280,5 @@ export class ConnectionManager extends EventEmitter {
 
   public removeSSEEventListener(event: string, handler: Function): void {
     this.sseManager.off(event, handler);
-  }
-
-  // Cleanup Method
-  public dispose(): void {
-    this.disconnect();
-    this.recoveryManager.dispose();
-    this.removeAllListeners();
   }
 }

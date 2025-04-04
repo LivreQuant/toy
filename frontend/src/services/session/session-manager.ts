@@ -1,3 +1,5 @@
+import { DeviceIdManager } from '../../utils/device-id-manager';
+
 // src/services/session/session-manager.ts
 export interface UserPreferences {
   theme: 'light' | 'dark' | 'system';
@@ -38,12 +40,7 @@ export class SessionManager {
 
   // Generate a unique device ID if not exists
   public static getDeviceId(): string {
-    let deviceId = localStorage.getItem(this.DEVICE_ID_KEY);
-    if (!deviceId) {
-      deviceId = `device_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-      localStorage.setItem(this.DEVICE_ID_KEY, deviceId);
-    }
-    return deviceId;
+    return DeviceIdManager.getDeviceId();
   }
   
   // Save session with broadcast to other tabs
