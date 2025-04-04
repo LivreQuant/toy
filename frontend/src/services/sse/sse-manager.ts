@@ -1,7 +1,6 @@
-// src/services/sse/sse-client.ts
+// src/services/sse/sse-manager.ts
 import { EventEmitter } from '../../utils/event-emitter';
 import { TokenManager } from '../auth/token-manager';
-import { SessionManager } from '../session/session-manager';
 import { BackoffStrategy } from '../../utils/backoff-strategy';
 import { config } from '../../config';
 import { toastService } from '../notification/toast-service';
@@ -13,11 +12,10 @@ export interface SSEOptions {
   debugMode?: boolean;
 }
 
-export class SSEClient extends EventEmitter {
+export class SSEManager extends EventEmitter {
   private baseUrl: string;
   private tokenManager: TokenManager;
   private eventSource: EventSource | null = null;
-  private sessionId: string | null = null;
   private reconnectTimer: number | null = null;
   private reconnectAttempt: number = 0;
   private maxReconnectAttempts: number;
@@ -45,17 +43,16 @@ export class SSEClient extends EventEmitter {
     this.circuitBreakerResetTime = options.circuitBreakerResetTimeMs || 60000; // 1 minute
     
     if (this.debugMode) {
-      console.warn('🚨 SSE CLIENT INITIALIZED', {
+      console.warn('🚨 SSE MANAGER INITIALIZED', {
         baseUrl: this.baseUrl,
         options
       });
     }
   }
   
-  public async connect(sessionId: string, params: Record<string, string> = {}): Promise<boolean> {
+  public async connect(): Promise<boolean> {
     if (this.debugMode) {
       console.group('🔍 SSE CONNECTION ATTEMPT');
-      console.warn('Connection Params:', { sessionId, params });
     }
 
     const token = await this.tokenManager.getAccessToken();
@@ -109,20 +106,10 @@ export class SSEClient extends EventEmitter {
     }
     
     this.isConnecting = true;
-    this.sessionId = sessionId;
     
     try {
-      // Add device ID to params
-      const deviceId = SessionManager.getDeviceId();
-      const enhancedParams = { ...params, deviceId };
-      
-      // Construct URL manually
-      const urlParams = new URLSearchParams({
-        sessionId,
-        token,
-        ...enhancedParams
-      });
-      const fullUrl = `${this.baseUrl}?${urlParams.toString()}`;
+      // Construct URL with just token
+      const fullUrl = `${this.baseUrl}?token=${token}`;
       
       if (this.debugMode) {
         console.warn('📡 Full SSE Connection URL:', fullUrl);
@@ -157,9 +144,6 @@ export class SSEClient extends EventEmitter {
               console.warn('🔓 Circuit breaker reset');
             }
           }
-          
-          // Update session activity
-          SessionManager.updateActivity();
           
           this.emit('connected', { connected: true });
           resolve(true);
@@ -228,9 +212,6 @@ export class SSEClient extends EventEmitter {
           console.warn('Parsed Data:', parsedData);
         }
         
-        // Update session activity on successful message
-        SessionManager.updateActivity();
-        
         // Emit the parsed message
         this.emit('message', { type: 'message', data: parsedData });
       } catch (parseError) {
@@ -250,51 +231,55 @@ export class SSEClient extends EventEmitter {
       }
     });
 
-    // Set up listeners for specific event types
-    const eventTypes = [
-      'exchange-data', 'market-data', 'order-update', 'portfolio-update', 
-      'session-update', 'error-event'
-    ];
+    // Set up single event listener for exchange data
+    this.eventSource.addEventListener('exchange-data', (event: MessageEvent) => {
+      if (this.debugMode) {
+        console.group('📊 EXCHANGE DATA EVENT');
+        console.warn('Raw exchange-data Event:', {
+          type: event.type,
+          data: event.data
+        });
+      }
+      
+      try {
+        const data = JSON.parse(event.data);
+        
+        if (this.debugMode) {
+          console.log('Parsed exchange-data:', data);
+        }
+        
+        // Emit the exchange data event
+        this.emit('exchange-data', data);
+        
+        // Also emit as a general message with type
+        this.emit('message', { type: 'exchange-data', data });
+      } catch (error) {
+        if (this.debugMode) {
+          console.error('Error parsing SSE exchange-data event:', error, 'Raw event:', event);
+        }
+        this.emit('error', { 
+          error: 'Failed to parse exchange-data event', 
+          originalError: error, 
+          rawData: event.data 
+        });
+      }
+      
+      if (this.debugMode) {
+        console.groupEnd();
+      }
+    });
     
-    eventTypes.forEach(eventType => {
-      this.eventSource?.addEventListener(eventType, (event: MessageEvent) => {
-        if (this.debugMode) {
-          console.group(`📊 ${eventType.toUpperCase()} EVENT`);
-          console.warn(`Raw ${eventType} Event:`, {
-            type: event.type,
-            data: event.data
-          });
-        }
-        
-        try {
-          const data = JSON.parse(event.data);
-          
-          if (this.debugMode) {
-            console.log(`Parsed ${eventType}:`, data);
-          }
-          
-          // Update session activity
-          SessionManager.updateActivity();
-          
-          // Emit the specific event type
-          this.emit(eventType, data);
-          // Also emit as a general message with type
-          this.emit('message', { type: eventType, data });
-        } catch (error) {
-          if (this.debugMode) {
-            console.error(`Error parsing SSE ${eventType} event:`, error, 'Raw event:', event);
-          }
-          this.emit('error', { 
-            error: `Failed to parse ${eventType} event`, 
-            originalError: error, 
-            rawData: event.data 
-          });
-        }
-        
-        if (this.debugMode) {
-          console.groupEnd();
-        }
-      });
+    // Error event listener
+    this.eventSource.addEventListener('error-event', (event: MessageEvent) => {
+      try {
+        const errorData = JSON.parse(event.data);
+        this.emit('error', errorData);
+      } catch (error) {
+        this.emit('error', { 
+          error: 'Server reported an error', 
+          rawData: event.data 
+        });
+      }
     });
   }
 
@@ -330,11 +315,11 @@ export class SSEClient extends EventEmitter {
       this.attemptReconnect();
     }    
     
-    toastService.error('Server-Sent Events connection lost', 7000);
+    toastService.error('Market data stream connection lost', 7000);
 
     // Emit specific events for UI
     this.emit('connection_lost', {
-      reason: 'SSE connection interrupted'
+      reason: 'Market data stream interrupted'
     });
   }
   
@@ -361,18 +346,16 @@ export class SSEClient extends EventEmitter {
     this.reconnectTimer = window.setTimeout(async () => {
       this.reconnectTimer = null;
       
-      if (this.sessionId) {
-        const connected = await this.connect(this.sessionId);
-        
-        if (!connected && this.circuitBreakerState !== 'OPEN') {
-          // If connection failed, try again
-          this.attemptReconnect();
-        }
+      const connected = await this.connect();
+      
+      if (!connected && this.circuitBreakerState !== 'OPEN') {
+        // If connection failed, try again
+        this.attemptReconnect();
       }
     }, delay);
 
     // Notify user about reconnection attempt
-    toastService.warning(`Reconnecting SSE stream (Attempt ${this.reconnectAttempt})...`, 5000);
+    toastService.warning(`Reconnecting market data stream (Attempt ${this.reconnectAttempt})...`, 5000);
   }
   
   public close(): void {

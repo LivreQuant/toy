@@ -1,6 +1,5 @@
 // src/services/websocket/ws-manager.ts
 import { TokenManager } from '../auth/token-manager';
-import { SessionManager } from '../session/session-manager';
 import { BackoffStrategy } from '../../utils/backoff-strategy';
 import { EventEmitter } from '../../utils/event-emitter';
 import { config } from '../../config';
@@ -47,6 +46,12 @@ export class WebSocketManager extends EventEmitter {
   private circuitBreakerResetTime: number;
   private circuitBreakerTrippedAt: number = 0;
   
+  // Session state
+  private sessionId: string | null = null;
+  private isMaster: boolean = false;
+  private simulatorStatus: string = 'UNKNOWN';
+  private simulatorId: string | null = null;
+  
   constructor(tokenManager: TokenManager, options: WebSocketOptions = {}) {
     super();
     this.url = config.wsBaseUrl;
@@ -62,7 +67,7 @@ export class WebSocketManager extends EventEmitter {
     this.circuitBreakerResetTime = options.circuitBreakerResetTimeMs || 60000; // 1 minute
   }
   
-  public async connect(): Promise<boolean> {
+  public async connect(createNewSession: boolean = false): Promise<boolean> {
     // First check if token is available
     const token = await this.tokenManager.getAccessToken();
     if (!token) {
@@ -102,18 +107,18 @@ export class WebSocketManager extends EventEmitter {
     
     this.isConnecting = true;
     
-    try {      
-      const token = await this.tokenManager.getAccessToken();
-      if (!token) {
-        this.isConnecting = false;
-        this.handleConnectionFailure();
-        this.emit('connection_failed', { error: 'No valid token available' });
-        return false;
-      }
+    try {
+      // Construct URL with connection parameters
+      const deviceId = this.generateDeviceId();
+      const params = new URLSearchParams({
+        token,
+        deviceId,
+        createSession: createNewSession.toString(),
+        reconnectAttempt: this.reconnectAttempt.toString(),
+        userAgent: navigator.userAgent
+      });
       
-      // Create WebSocket connection with token and device ID
-      const deviceId = SessionManager.getDeviceId();
-      const wsUrl = `${this.url}?token=${token}&deviceId=${deviceId}`;
+      const wsUrl = `${this.url}?${params.toString()}`;
       this.ws = new WebSocket(wsUrl);
       
       return new Promise<boolean>((resolve) => {
@@ -139,21 +144,11 @@ export class WebSocketManager extends EventEmitter {
             this.emit('circuit_closed', { message: 'Circuit breaker reset after successful connection' });
           }
           
-          // Update session activity timestamp
-          SessionManager.updateActivity();
-          
           this.emit('connected', { connected: true });
           this.startHeartbeat();
           
-          // Get initial session state
-          this.getSessionState().catch(error => {
-            console.warn('Session state fetch failed:', error);
-          });
-          
-          // Check if session is ready
-          this.checkSessionReady().catch(error => {
-            console.warn('Session readiness check failed:', error);
-          });
+          // Immediately request session state
+          this.requestSessionState();
           
           resolve(true);
         };
@@ -195,6 +190,52 @@ export class WebSocketManager extends EventEmitter {
     }
   }
   
+  private generateDeviceId(): string {
+    // Get stored device ID from local storage or create a new one
+    const storageKey = 'trading_device_id';
+    let deviceId = localStorage.getItem(storageKey);
+    
+    if (!deviceId) {
+      deviceId = `device_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      localStorage.setItem(storageKey, deviceId);
+    }
+    
+    return deviceId;
+  }
+  
+  // Request current session state
+  private async requestSessionState(): Promise<void> {
+    try {
+      const response = await this.sendWithResponse({
+        type: 'get_session_state',
+        timestamp: Date.now()
+      });
+      
+      if (response.success) {
+        this.sessionId = response.sessionId;
+        this.isMaster = response.isMaster;
+        this.simulatorStatus = response.simulatorStatus || 'UNKNOWN';
+        this.simulatorId = response.simulatorId;
+        
+        // Emit session info for UI components
+        this.emit('session_state', {
+          sessionId: this.sessionId,
+          isMaster: this.isMaster,
+          simulatorStatus: this.simulatorStatus,
+          simulatorId: this.simulatorId
+        });
+        
+        // Also emit specific simulator update
+        this.emit('simulator_update', {
+          status: this.simulatorStatus,
+          simulatorId: this.simulatorId
+        });
+      }
+    } catch (error) {
+      console.error('Failed to get session state:', error);
+    }
+  }
+  
   private handleConnectionFailure() {
     // Increment failure counter
     this.consecutiveFailures++;
@@ -219,6 +260,8 @@ export class WebSocketManager extends EventEmitter {
     }
   }
   
+  // Rest of methods below are mostly unchanged, just simplified
+
   public disconnect(): void {
     this.stopHeartbeat();
     this.stopReconnectTimer();
@@ -260,9 +303,6 @@ export class WebSocketManager extends EventEmitter {
       // Parse message
       const message = JSON.parse(event.data);
       
-      // Update session activity timestamp
-      SessionManager.updateActivity();
-      
       // Handle special message types
       if (message.type === 'heartbeat') {
         // Calculate RTT for this heartbeat
@@ -278,9 +318,27 @@ export class WebSocketManager extends EventEmitter {
         return;
       }
       
-      // Handle session_ready message
-      if (message.type === 'session_ready') {
-        this.emit('session_ready', message);
+      // Handle session state update
+      if (message.type === 'session_state') {
+        this.sessionId = message.sessionId;
+        this.isMaster = message.isMaster;
+        this.simulatorStatus = message.simulatorStatus || this.simulatorStatus;
+        this.simulatorId = message.simulatorId || this.simulatorId;
+        
+        this.emit('session_state', {
+          sessionId: this.sessionId,
+          isMaster: this.isMaster,
+          simulatorStatus: this.simulatorStatus,
+          simulatorId: this.simulatorId
+        });
+        
+        if (message.simulatorStatus) {
+          this.emit('simulator_update', {
+            status: message.simulatorStatus,
+            simulatorId: message.simulatorId
+          });
+        }
+        
         return;
       }
       
@@ -292,24 +350,16 @@ export class WebSocketManager extends EventEmitter {
       
       // Handle master_changed message
       if (message.type === 'master_changed') {
-        const isMaster = message.isMaster;
-        const newMasterDeviceId = message.deviceId;
-        const myDeviceId = SessionManager.getDeviceId();
+        this.isMaster = message.isMaster;
         
-        if (!isMaster && newMasterDeviceId !== myDeviceId) {
-          // This client is no longer the master
-          this.emit('master_status_changed', { 
-            isMaster: false, 
-            newMasterDeviceId 
-          });
-          
-          // If this is a forced master change, show a notification
-          if (message.forced) {
-            toastService.warning('Another device has taken control of your trading session', 8000);
-          }
-        } else if (isMaster) {
-          // This client is now the master
-          this.emit('master_status_changed', { isMaster: true });
+        this.emit('master_status_changed', { 
+          isMaster: this.isMaster,
+          newMasterDeviceId: message.deviceId
+        });
+        
+        // If this is a forced master change, show a notification
+        if (message.forced) {
+          toastService.warning('Another device has taken control of your trading session', 8000);
         }
         
         return;
@@ -335,6 +385,7 @@ export class WebSocketManager extends EventEmitter {
     }
   }
   
+  // Handle WebSocket disconnect
   private handleDisconnect(event: CloseEvent): void {
     this.stopHeartbeat();
     this.clearPendingResponses();
@@ -365,8 +416,6 @@ export class WebSocketManager extends EventEmitter {
     // Increment failure counter for non-clean disconnects
     if (!wasClean) {
       this.handleConnectionFailure();
-      
-      // Notify UI about connection issues
       this.notifyConnectionIssue(this.reconnectAttempt > 3 ? 'critical' : 'warning');
     }
     
@@ -375,16 +424,27 @@ export class WebSocketManager extends EventEmitter {
       this.attemptReconnect();
     }
 
-    // Use toast service to notify user
     toastService.error('WebSocket connection lost', 7000);
-
-    // Emit specific events for UI
+    
     this.emit('connection_lost', {
       reason: event.reason || 'Unexpected disconnection',
       code: event.code
     });
   }
   
+  // Handle session invalidation
+  private handleSessionInvalidation(reason: string, data?: any): void {
+    this.disconnect();
+    
+    this.emit('session_invalidated', { 
+      reason,
+      ...data
+    });
+    
+    toastService.error(`Session ended: ${reason}`, 10000);
+  }
+  
+  // Attempt reconnection with exponential backoff
   private attemptReconnect(): void {
     if (this.reconnectTimer !== null) {
       return; // Already trying to reconnect
@@ -392,14 +452,11 @@ export class WebSocketManager extends EventEmitter {
     
     if (this.reconnectAttempt >= this.maxReconnectAttempts) {
       this.emit('max_reconnect_attempts', { attempts: this.reconnectAttempt });
-      
-      // Critical connection issue - likely need user intervention
       this.notifyConnectionIssue('critical');
       return;
     }
     
     this.reconnectAttempt++;
-    
     const delay = this.backoffStrategy.nextBackoffTime();
     
     this.emit('reconnecting', { 
@@ -411,7 +468,8 @@ export class WebSocketManager extends EventEmitter {
     this.reconnectTimer = window.setTimeout(async () => {
       this.reconnectTimer = null;
       
-      const connected = await this.connect();
+      // Pass false to not create a new session, attempt to reconnect to existing one
+      const connected = await this.connect(false);
       
       if (!connected && this.circuitBreakerState !== 'OPEN') {
         // If connection failed, try again
@@ -419,10 +477,103 @@ export class WebSocketManager extends EventEmitter {
       }
     }, delay);
 
-    // Notify user about reconnection attempt
     toastService.warning(`Reconnecting (Attempt ${this.reconnectAttempt})...`, 5000);
   }
   
+  // Claim master status for this device
+  public async claimMasterStatus(force: boolean = false): Promise<boolean> {
+    try {
+      const response = await this.sendWithResponse({
+        type: 'claim_master',
+        force,
+        timestamp: Date.now()
+      });
+      
+      if (response.success) {
+        this.isMaster = true;
+      }
+      
+      return response.success;
+    } catch (error) {
+      console.error('Failed to claim master status:', error);
+      return false;
+    }
+  }
+  
+  // Get current session state
+  public getSessionState(): {
+    sessionId: string | null;
+    isMaster: boolean;
+    simulatorStatus: string;
+    simulatorId: string | null;
+    isConnected: boolean;
+  } {
+    return {
+      sessionId: this.sessionId,
+      isMaster: this.isMaster,
+      simulatorStatus: this.simulatorStatus,
+      simulatorId: this.simulatorId,
+      isConnected: this.ws?.readyState === WebSocket.OPEN
+    };
+  }
+  
+  // Get connection health metrics
+  public getConnectionHealth(): {
+    status: 'connected' | 'connecting' | 'disconnected';
+    lastHeartbeat: number;
+    circuitStatus: 'CLOSED' | 'OPEN' | 'HALF_OPEN';
+    reconnectAttempts: number;
+    avgRtt: number | null;
+  } {
+    const avgRtt = this.heartbeatRtts.length > 0 
+      ? this.heartbeatRtts.reduce((a, b) => a + b, 0) / this.heartbeatRtts.length 
+      : null;
+      
+    return {
+      status: this.ws?.readyState === WebSocket.OPEN ? 'connected' : 
+              this.isConnecting ? 'connecting' : 'disconnected',
+      lastHeartbeat: this.lastHeartbeatResponse,
+      circuitStatus: this.circuitBreakerState,
+      reconnectAttempts: this.reconnectAttempt,
+      avgRtt
+    };
+  }
+  
+  // Send WebSocket message and wait for response
+  private sendWithResponse(message: any, timeoutMs: number = 5000): Promise<any> {
+    return new Promise((resolve, reject) => {
+      // Generate a unique request ID
+      const requestId = `req_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      
+      // Add request ID to message
+      const messageWithId = {
+        ...message,
+        requestId
+      };
+      
+      // Set timeout for response
+      const timeoutId = setTimeout(() => {
+        this.pendingResponses.delete(requestId);
+        reject(new Error(`Timeout waiting for response to ${message.type}`));
+      }, timeoutMs);
+      
+      // Store promise resolvers
+      this.pendingResponses.set(requestId, {
+        resolve,
+        reject,
+        timeout: timeoutId as unknown as number
+      });
+      
+      // Send the message
+      if (!this.send(messageWithId)) {
+        clearTimeout(timeoutId);
+        this.pendingResponses.delete(requestId);
+        reject(new Error('Failed to send message - connection not open'));
+      }
+    });
+  }
+
+  // Heartbeat management methods
   private startHeartbeat(): void {
     this.stopHeartbeat();
     
@@ -436,8 +587,7 @@ export class WebSocketManager extends EventEmitter {
       this.lastHeartbeatSent = Date.now();
       this.send({ 
         type: 'heartbeat', 
-        timestamp: this.lastHeartbeatSent,
-        deviceId: SessionManager.getDeviceId()
+        timestamp: this.lastHeartbeatSent
       });
       
       // Set timeout for heartbeat response
@@ -515,171 +665,17 @@ export class WebSocketManager extends EventEmitter {
   
   private notifyConnectionIssue(severity: 'warning' | 'critical'): void {
     if (severity === 'critical') {
-      // Emit event for UI to display a modal
       this.emit('critical_connection_issue', {
         message: 'Lost connection to trading server',
         reconnectAttempt: this.reconnectAttempt,
         maxAttempts: this.maxReconnectAttempts
       });
     } else {
-      // Emit event for UI to display a less intrusive notification
       this.emit('connection_warning', {
         message: 'Connection issues detected',
         reconnectAttempt: this.reconnectAttempt
       });
     }
-  }
-  
-  private handleSessionInvalidation(reason: string, data?: any): void {
-    this.disconnect();
-    
-    // Clear session through SessionManager
-    SessionManager.invalidateSession(reason);
-    
-    // Emit event for UI
-    this.emit('session_invalidated', { 
-      reason,
-      ...data
-    });
-  }
-  
-  public getCircuitBreakerState(): string {
-    return this.circuitBreakerState;
-  }
-  
-  public resetCircuitBreaker(): void {
-    this.circuitBreakerState = 'CLOSED';
-    this.consecutiveFailures = 0;
-    this.emit('circuit_reset', { message: 'Circuit breaker manually reset' });
-  }
-  
-  public getConnectionHealth(): {
-    status: 'connected' | 'connecting' | 'disconnected';
-    lastHeartbeat: number;
-    circuitStatus: 'CLOSED' | 'OPEN' | 'HALF_OPEN';
-    reconnectAttempts: number;
-    avgRtt: number | null;
-  } {
-    const avgRtt = this.heartbeatRtts.length > 0 
-      ? this.heartbeatRtts.reduce((a, b) => a + b, 0) / this.heartbeatRtts.length 
-      : null;
-      
-    return {
-      status: this.ws?.readyState === WebSocket.OPEN ? 'connected' : 
-              this.isConnecting ? 'connecting' : 'disconnected',
-      lastHeartbeat: this.lastHeartbeatResponse,
-      circuitStatus: this.circuitBreakerState,
-      reconnectAttempts: this.reconnectAttempt,
-      avgRtt
-    };
-  }
-  
-  // Check if session is ready via WebSocket
-  private async checkSessionReady(): Promise<boolean> {
-    try {
-      const response = await this.sendWithResponse({
-        type: 'check_session_ready',
-        deviceId: SessionManager.getDeviceId(),
-        timestamp: Date.now()
-      });
-      
-      if (response.ready) {
-        this.emit('session_ready', response);
-        return true;
-      } else {
-        // If session isn't ready, server might provide info on why
-        this.emit('session_not_ready', response);
-        return false;
-      }
-    } catch (error) {
-      console.error('Failed to check session readiness:', error);
-      return false;
-    }
-  }
-  
-  // Get session state via WebSocket
-  private async getSessionState(): Promise<boolean> {
-    try {
-      const response = await this.sendWithResponse({
-        type: 'get_session_state',
-        deviceId: SessionManager.getDeviceId(),
-        timestamp: Date.now()
-      });
-      
-      if (response.success) {
-        // Update UI with simulator status
-        if (response.simulatorStatus) {
-          this.emit('simulator_update', {
-            status: response.simulatorStatus,
-            simulatorId: response.simulatorId
-          });
-        }
-        
-        // Update master status if provided
-        if (response.hasOwnProperty('isMaster')) {
-          this.emit('master_status_changed', {
-            isMaster: response.isMaster
-          });
-        }
-        
-        return true;
-      }
-      
-      return false;
-    } catch (error) {
-      console.error('Failed to get session state:', error);
-      return false;
-    }
-  }
-  
-  // Claim master status for this device
-  public async claimMasterStatus(force: boolean = false): Promise<boolean> {
-    try {
-      const response = await this.sendWithResponse({
-        type: 'claim_master',
-        deviceId: SessionManager.getDeviceId(),
-        force,
-        timestamp: Date.now()
-      });
-      
-      return response.success;
-    } catch (error) {
-      console.error('Failed to claim master status:', error);
-      return false;
-    }
-  }
-  
-  private sendWithResponse(message: any, timeoutMs: number = 5000): Promise<any> {
-    return new Promise((resolve, reject) => {
-      // Generate a unique request ID
-      const requestId = `req_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-      
-      // Add request ID to message
-      const messageWithId = {
-        ...message,
-        requestId
-      };
-      
-      // Set timeout for response
-      const timeoutId = setTimeout(() => {
-        this.pendingResponses.delete(requestId);
-        reject(new Error(`Timeout waiting for response to ${message.type}`));
-      }, timeoutMs);
-      
-      // Store promise resolvers
-      this.pendingResponses.set(requestId, {
-        resolve,
-        reject,
-        timeout: timeoutId as unknown as number
-      });
-      
-      // Send the message
-      if (!this.send(messageWithId)) {
-        clearTimeout(timeoutId);
-        this.pendingResponses.delete(requestId);
-        reject(new Error('Failed to send message - connection not open'));
-      }
-    });
   }
   
   private clearPendingResponses(): void {
@@ -689,6 +685,12 @@ export class WebSocketManager extends EventEmitter {
     }
     
     this.pendingResponses.clear();
+  }
+  
+  public resetCircuitBreaker(): void {
+    this.circuitBreakerState = 'CLOSED';
+    this.consecutiveFailures = 0;
+    this.emit('circuit_reset', { message: 'Circuit breaker manually reset' });
   }
   
   public dispose(): void {
