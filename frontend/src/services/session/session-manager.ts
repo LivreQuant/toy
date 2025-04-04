@@ -55,11 +55,11 @@ export class SessionManager {
       isMaster: true
     };
     
-    const updatedData: SessionData = {
+    const updatedData = {
       ...existingData,
       ...data,
       lastActive: Date.now()
-    };
+    } as SessionData; // Use type assertion to fix the type error
     
     try {
       localStorage.setItem(this.SESSION_KEY, JSON.stringify(updatedData));

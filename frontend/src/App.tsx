@@ -3,6 +3,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { ConnectionProvider } from './contexts/ConnectionContext';
+import { useConnection } from './contexts/ConnectionContext';
 import { ToastProvider } from './contexts/ToastContext';
 import { toastService } from './services/notification/toast-service';
 
@@ -15,6 +16,7 @@ import ErrorBoundary from './components/Common/ErrorBoundary';
 import LoadingScreen from './components/Common/LoadingScreen';
 import ConnectionRecoveryDialog from './components/Common/ConnectionRecoveryDialog';
 import ConnectionStatusOverlay from './components/Common/ConnectionStatusOverlay';
+
 
 // Hooks
 import { useAuth } from './contexts/AuthContext';

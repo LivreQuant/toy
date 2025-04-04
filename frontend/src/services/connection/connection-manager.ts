@@ -31,7 +31,7 @@ export class ConnectionManager extends EventEmitter {
   private state: ConnectionState;
   private tokenManager: TokenManager;
   private wsManager: WebSocketManager;
-  private exchangeDataStream: ExchangeDataStream;
+  private sseManager: ExchangeDataStream;
   private recoveryManager: RecoveryManager;
   private sessionApi: SessionApi;
   private ordersApi: OrdersApi;
@@ -102,8 +102,8 @@ export class ConnectionManager extends EventEmitter {
       circuitBreakerResetTimeMs: 60000
     });
     
-    // Create Market Data stream
-    this.exchangeDataStream = new ExchangeDataStream(tokenManager, {
+    // Create Market Data stream and store as sseManager
+    this.sseManager = new ExchangeDataStream(tokenManager, {
       reconnectMaxAttempts: 15
     });
     
@@ -160,17 +160,17 @@ export class ConnectionManager extends EventEmitter {
     });
     
     // Market data stream listeners
-    this.exchangeDataStream.on('market-data-updated', (data: Record<string, MarketData>) => {
+    this.sseManager.on('market-data-updated', (data: Record<string, MarketData>) => {
       this.marketData = data;
       this.emit('market_data', data);
     });
     
-    this.exchangeDataStream.on('orders-updated', (data: Record<string, OrderUpdate>) => {
+    this.sseManager.on('orders-updated', (data: Record<string, OrderUpdate>) => {
       this.orders = data;
       this.emit('orders', data);
     });
     
-    this.exchangeDataStream.on('portfolio-updated', (data: PortfolioUpdate) => {
+    this.sseManager.on('portfolio-updated', (data: PortfolioUpdate) => {
       this.portfolio = data;
       this.emit('portfolio', data);
     });
@@ -278,7 +278,7 @@ export class ConnectionManager extends EventEmitter {
       
       // Step 5: Connect to market data stream after WebSocket is connected
       console.log('Establishing market data stream...');
-      await this.exchangeDataStream.connect(sessionId);
+      await this.sseManager.connect(sessionId);
         
       // Add this at the end of the method:
       if (this.state.isConnected) {
@@ -353,7 +353,7 @@ export class ConnectionManager extends EventEmitter {
     this.wsManager.disconnect();
     
     // Disconnect market data stream
-    this.exchangeDataStream.disconnect();
+    this.sseManager.disconnect();
     
     // Stop heartbeat timer
     this.stopHeartbeat();
@@ -396,7 +396,7 @@ export class ConnectionManager extends EventEmitter {
       
       // Disconnect existing connections
       this.wsManager.disconnect();
-      this.exchangeDataStream.disconnect();
+      this.sseManager.disconnect();
       //this.stopHeartbeat();
       //this.stopKeepAlive();
       
@@ -408,7 +408,7 @@ export class ConnectionManager extends EventEmitter {
       }
       
       // Connect to market data stream
-      await this.exchangeDataStream.connect(response.sessionId);
+      await this.sseManager.connect(response.sessionId);
       
       // Update state
       this.updateState({
@@ -514,7 +514,7 @@ export class ConnectionManager extends EventEmitter {
     console.log('ConnectionManager - Streaming market data, session ID:', this.state.sessionId);
     console.log('ConnectionManager - Symbols:', symbols);
 
-    const result = await this.exchangeDataStream.connect(
+    const result = await this.sseManager.connect(
       this.state.sessionId, 
       { symbols: symbols.join(',') } as any
     );
