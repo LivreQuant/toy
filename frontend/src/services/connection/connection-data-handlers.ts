@@ -1,25 +1,60 @@
 // src/services/connection/connection-data-handlers.ts
+
 import { HttpClient } from '../../api/http-client';
 import { OrdersApi } from '../../api/order';
-import { ErrorHandler, ErrorSeverity } from '../../utils/error-handler';
+// *** Use the imported ErrorHandler instance, not static calls ***
+import { ErrorHandler, ErrorSeverity } from '../../utils/error-handler'; // Keep imports
+import { Logger } from '../../utils/logger'; // Optional: Add logger if needed for data handling logic
 
 export class ConnectionDataHandlers {
   private exchangeData: Record<string, any> = {};
   private ordersApi: OrdersApi;
+  // +++ ADDED: Store the injected ErrorHandler instance +++
+  private errorHandler: ErrorHandler;
+  // Optional: Add logger instance if needed
+  // private logger: Logger;
 
-  constructor(httpClient: HttpClient) {
+  // +++ MODIFIED: Add errorHandler parameter +++
+  // Optional: Add logger parameter if needed
+  constructor(
+    httpClient: HttpClient,
+    errorHandler: ErrorHandler
+    // logger?: Logger // Optional logger injection
+  ) {
     this.ordersApi = new OrdersApi(httpClient);
+    // +++ ADDED: Assign the injected instance +++
+    this.errorHandler = errorHandler;
+    // Optional: Assign logger
+    // this.logger = logger || Logger.getInstance(); // Use injected or default logger
   }
 
+  /**
+   * Updates the internal cache of exchange data.
+   * @param data - The new exchange data.
+   */
   public updateExchangeData(data: Record<string, any>): void {
-    this.exchangeData = { ...data };
+    // Consider deep merging or specific updates based on data structure if needed
+    this.exchangeData = { ...this.exchangeData, ...data };
+    // Optional: Log data update
+    // this.logger?.info('Exchange data updated');
   }
 
+  /**
+   * Retrieves a copy of the cached exchange data.
+   * @returns A copy of the exchange data object.
+   */
   public getExchangeData(): Record<string, any> {
+    // Return a copy to prevent external modification
     return { ...this.exchangeData };
   }
 
-  
+
+  /**
+   * Submits a trading order via the OrdersApi.
+   * Handles API errors using the injected ErrorHandler.
+   * @param order - The order details.
+   * @returns A promise resolving to the submission result.
+   */
   public async submitOrder(order: {
     symbol: string;
     side: 'BUY' | 'SELL';
@@ -28,72 +63,84 @@ export class ConnectionDataHandlers {
     type: 'MARKET' | 'LIMIT';
   }): Promise<{ success: boolean; orderId?: string; error?: string }> {
     try {
+      // Add idempotency key if your API supports it
+      const requestId = `order-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
       const response = await this.ordersApi.submitOrder({
-        symbol: order.symbol,
-        side: order.side,
-        quantity: order.quantity,
-        price: order.price,
-        type: order.type,
-        requestId: `order-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`
+        ...order,
+        requestId // Include the request ID
       });
-      
+
       if (!response.success) {
-        ErrorHandler.handleDataError(
-          response.errorMessage || 'Failed to submit order',
-          ErrorSeverity.MEDIUM,
-          'Order'
+        // *** MODIFIED: Use the injected errorHandler instance ***
+        const errorMsg = response.errorMessage || `Failed to submit ${order.type} ${order.side} order for ${order.symbol}`;
+        this.errorHandler.handleDataError(
+          errorMsg,
+          ErrorSeverity.MEDIUM, // Or HIGH depending on severity
+          'OrderSubmission' // Specific context
         );
       }
-      
-      return { 
-        success: response.success, 
+
+      return {
+        success: response.success,
         orderId: response.orderId,
-        error: response.errorMessage
+        error: response.errorMessage // Pass back specific API error message if available
       };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Order submission failed';
-      
-      ErrorHandler.handleDataError(
-        errorMessage,
-        ErrorSeverity.MEDIUM,
-        'Order'
+      // Handle exceptions during the API call
+      const errorMessage = error instanceof Error ? error.message : 'Order submission failed due to an unexpected error';
+
+      // *** MODIFIED: Use the injected errorHandler instance ***
+      this.errorHandler.handleDataError(
+        error, // Pass the actual error object for better logging context
+        ErrorSeverity.HIGH, // Exceptions are typically high severity
+        'OrderSubmissionException' // Context indicating an exception occurred
       );
-      
-      return { 
-        success: false, 
-        error: errorMessage
+
+      return {
+        success: false,
+        error: errorMessage // Return a user-friendly message derived from the exception
       };
     }
   }
 
+  /**
+   * Cancels a trading order via the OrdersApi.
+   * Handles API errors using the injected ErrorHandler.
+   * @param orderId - The ID of the order to cancel.
+   * @returns A promise resolving to the cancellation result.
+   */
   public async cancelOrder(orderId: string): Promise<{ success: boolean; error?: string }> {
     try {
       const response = await this.ordersApi.cancelOrder(orderId);
-      
+
       if (!response.success) {
-        ErrorHandler.handleDataError(
-          'Failed to cancel order',
+        // *** MODIFIED: Use the injected errorHandler instance ***
+        const errorMsg = `Failed to cancel order ${orderId}`;
+        this.errorHandler.handleDataError(
+          errorMsg,
           ErrorSeverity.MEDIUM,
-          'Order'
+          'OrderCancellation'
         );
+        return { success: false, error: errorMsg }; // Return specific error
       }
-      
-      return { 
-        success: response.success,
-        error: response.success ? undefined : 'Failed to cancel order'
-      };
+
+      // Success case
+      return { success: true };
+
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Order cancellation failed';
-      
-      ErrorHandler.handleDataError(
-        errorMessage,
-        ErrorSeverity.MEDIUM,
-        'Order'
+      // Handle exceptions during the API call
+      const errorMessage = error instanceof Error ? error.message : 'Order cancellation failed due to an unexpected error';
+
+      // *** MODIFIED: Use the injected errorHandler instance ***
+      this.errorHandler.handleDataError(
+        error, // Pass the actual error object
+        ErrorSeverity.HIGH, // Exceptions are typically high severity
+        'OrderCancellationException' // Context indicating an exception occurred
       );
-      
-      return { 
-        success: false, 
-        error: errorMessage 
+
+      return {
+        success: false,
+        error: errorMessage // Return a user-friendly message
       };
     }
   }
