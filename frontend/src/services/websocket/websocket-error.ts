@@ -1,5 +1,5 @@
 // frontend/src/services/websocket/websocket-errors.ts
-import { Logger } from '../../utils/logger'; // Assuming you have a Logger utility
+import { Logger } from '../../utils/logger';
 
 export class WebSocketError extends Error {
   code: string;

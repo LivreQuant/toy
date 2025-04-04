@@ -7,6 +7,7 @@ import { ConnectionStrategy } from './connection-strategy';
 import { HeartbeatManager } from './heartbeat-manager';
 import { WebSocketMessageHandler } from './message-handler';
 import { MetricTracker } from './metric-tracker';
+import { Logger } from '../../utils/logger';
 import { 
   WebSocketOptions, 
   ConnectionMetrics, 
@@ -14,6 +15,12 @@ import {
   ConnectionQuality,
   HeartbeatData 
 } from './types';
+import { 
+  WebSocketError, 
+  NetworkError, 
+  AuthenticationError, 
+  WebSocketErrorHandler 
+} from './websocket-error';
 
 export class WebSocketManager extends EventEmitter {
   private connectionStrategy: ConnectionStrategy;
@@ -21,6 +28,8 @@ export class WebSocketManager extends EventEmitter {
   private messageHandler: WebSocketMessageHandler;
   private tokenManager: TokenManager;
   private metricTracker: MetricTracker;
+  private errorHandler: WebSocketErrorHandler;
+  private logger: Logger;
   
   // Connection management
   private backoffStrategy: BackoffStrategy;
@@ -59,11 +68,14 @@ export class WebSocketManager extends EventEmitter {
 
   constructor(
     tokenManager: TokenManager, 
-    options: WebSocketOptions = {}
+    options: WebSocketOptions = {},
+    logger: Logger = new Logger()
   ) {
     super();
     this.tokenManager = tokenManager;
-    this.metricTracker = new MetricTracker();
+    this.logger = logger;
+    this.metricTracker = new MetricTracker(this.logger);
+    this.errorHandler = new WebSocketErrorHandler(this.logger);
     
     this.backoffStrategy = new BackoffStrategy(1000, 30000);
     this.circuitBreaker = new CircuitBreaker('websocket', 5, 60000);
@@ -77,8 +89,53 @@ export class WebSocketManager extends EventEmitter {
 
     this.messageHandler = new WebSocketMessageHandler(this);
 
-    this.setupReconnectionListeners();
+    this.setupErrorHandling();
     this.monitorConnection();
+  }
+
+  private setupErrorHandling(): void {
+    this.on('error', this.handleComprehensiveError.bind(this));
+  }
+
+  private handleComprehensiveError(error: any): void {
+    if (error instanceof WebSocketError) {
+      this.errorHandler.handleWebSocketError(error, {
+        reconnectAttempts: this.reconnectAttempts,
+        circuitBreaker: this.circuitBreaker,
+        tokenManager: this.tokenManager,
+        disconnect: this.disconnect.bind(this),
+        attemptReconnect: this.attemptReconnect.bind(this),
+        triggerLogout: this.triggerLogout.bind(this)
+      });
+    } else if (error instanceof NetworkError) {
+      this.errorHandler.handleNetworkError(error, {
+        tryAlternativeDataSource: this.tryAlternativeDataSource.bind(this),
+        initiateOfflineMode: this.initiateOfflineMode.bind(this)
+      });
+    } else if (error instanceof AuthenticationError) {
+      this.errorHandler.handleAuthenticationError(error, {
+        tokenManager: this.tokenManager,
+        manualReconnect: this.manualReconnect.bind(this),
+        triggerLogout: this.triggerLogout.bind(this)
+      });
+    } else {
+      this.errorHandler.handleUnknownError(error, {
+        logger: this.logger,
+        disconnect: this.disconnect.bind(this),
+        attemptReconnect: this.attemptReconnect.bind(this)
+      });
+    }
+  }
+
+  private triggerLogout(): void {
+    this.tokenManager.clearTokens();
+    this.emit('force_logout', 'Authentication failed');
+    this.logger.error('User logged out due to authentication failure');
+  }
+
+  private initiateOfflineMode(): void {
+    this.emit('offline_mode_activated');
+    this.logger.warn('Switching to offline mode');
   }
 
   private setupReconnectionListeners(): void {
@@ -93,7 +150,7 @@ export class WebSocketManager extends EventEmitter {
   }
 
   private handleConnectionError(error: any): void {
-    console.error('WebSocket connection error:', error);
+    this.logger.error('WebSocket connection error:', error);
     this.attemptReconnect();
   }
 
@@ -101,7 +158,7 @@ export class WebSocketManager extends EventEmitter {
     if (this.reconnectTimer !== null) return;
 
     if (this.circuitBreaker.getState() === CircuitState.OPEN) {
-      console.warn('Circuit breaker is open. Preventing reconnection.');
+      this.logger.warn('Circuit breaker is open. Preventing reconnection.');
       return;
     }
 
@@ -131,7 +188,7 @@ export class WebSocketManager extends EventEmitter {
           this.attemptReconnect();
         }
       } catch (error) {
-        console.error('Reconnection failed:', error);
+        this.logger.error('Reconnection failed:', error);
         this.attemptReconnect();
       }
     }, delay);
@@ -164,7 +221,7 @@ export class WebSocketManager extends EventEmitter {
             return await this.connectREST(source);
         }
       } catch (error) {
-        console.warn(`Failed to connect to ${source.type} source:`, error);
+        this.logger.warn(`Failed to connect to ${source.type} source:`, error);
         continue;
       }
     }
@@ -226,16 +283,13 @@ export class WebSocketManager extends EventEmitter {
     }
   }
 
-  // Add method to check session readiness via WebSocket
   public checkSessionReady(sessionId: string): Promise<boolean> {
     return new Promise((resolve, reject) => {
-      // Create a message to request session readiness
       const message = {
         type: 'check_session_ready',
         sessionId: sessionId
       };
 
-      // Use message handler to track response
       const responseHandler = (response: any) => {
         if (response.type === 'session_ready_response' && response.sessionId === sessionId) {
           resolve(response.ready);
@@ -243,13 +297,10 @@ export class WebSocketManager extends EventEmitter {
         }
       };
 
-      // Add temporary listener for session ready response
       this.messageHandler.on('message', responseHandler);
 
-      // Send check request
       this.send(message);
 
-      // Set timeout for the check
       setTimeout(() => {
         this.messageHandler.off('message', responseHandler);
         reject(new Error('Session readiness check timed out'));
@@ -271,22 +322,32 @@ export class WebSocketManager extends EventEmitter {
   public async connect(): Promise<boolean> {
     try {
       return this.circuitBreaker.execute(async () => {
-        const ws = await this.connectionStrategy.connect();
+        try {
+          const ws = await this.connectionStrategy.connect();
 
-        ws.onmessage = (event) => this.messageHandler.handleMessage(event);
+          ws.onmessage = (event) => this.messageHandler.handleMessage(event);
+          ws.onerror = (error) => {
+            throw new WebSocketError('Connection error', 'CONNECTION_FAILED');
+          };
 
-        this.heartbeatManager = new HeartbeatManager({
-          ws,
-          eventEmitter: this
-        });
-        this.heartbeatManager.start();
+          this.heartbeatManager = new HeartbeatManager({
+            ws,
+            eventEmitter: this
+          });
+          this.heartbeatManager.start();
 
-        if (this.reconnectTimer !== null) {
-          clearTimeout(this.reconnectTimer);
-          this.reconnectTimer = null;
+          if (this.reconnectTimer !== null) {
+            clearTimeout(this.reconnectTimer);
+            this.reconnectTimer = null;
+          }
+
+          return true;
+        } catch (connectionError) {
+          throw new WebSocketError(
+            connectionError.message || 'Failed to establish WebSocket connection', 
+            'CONNECTION_FAILED'
+          );
         }
-
-        return true;
       });
     } catch (error) {
       this.emit('error', error);
@@ -294,7 +355,6 @@ export class WebSocketManager extends EventEmitter {
     }
   }
 
-  // Ensure send method exists
   public send(message: any): void {
     const ws = this.connectionStrategy.getWebSocket();
     if (ws && ws.readyState === WebSocket.OPEN) {

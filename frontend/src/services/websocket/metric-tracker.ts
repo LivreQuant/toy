@@ -1,4 +1,5 @@
 import { ConnectionMetrics } from './types';
+import { Logger } from '../../utils/logger';
 
 export class MetricTracker {
   private latencyMeasurements: number[] = [];
