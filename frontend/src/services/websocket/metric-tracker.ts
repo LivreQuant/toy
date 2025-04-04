@@ -7,12 +7,14 @@ export class MetricTracker {
   private totalPackets: number = 0;
   private lostPackets: number = 0;
 
-  constructor(private logger: Logger) {} // Assuming you'll implement a Logger
+  constructor(private logger: Logger) {}
 
-  async collectMetrics(webSocket: WebSocket): Promise<Partial<ConnectionMetrics>> {
+  async collectMetrics(webSocket?: WebSocket): Promise<Partial<ConnectionMetrics>> {
     try {
       const latency = await this.measureLatency();
-      const packetLoss = this.calculatePacketLoss(webSocket);
+      const packetLoss = webSocket 
+        ? this.calculatePacketLoss(webSocket) 
+        : 100;  // Default to 100% if no socket provided
 
       // Log metrics for monitoring
       this.logger.info('Connection Metrics', { latency, packetLoss });

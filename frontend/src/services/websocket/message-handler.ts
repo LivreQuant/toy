@@ -4,14 +4,35 @@ import { HeartbeatData } from './types';
 export class WebSocketMessageHandler {
   private eventEmitter: EventEmitter;
   private pendingResponses: Map<string, Function> = new Map();
+  private messageListeners: Map<string, Function[]> = new Map();
 
   constructor(eventEmitter: EventEmitter) {
     this.eventEmitter = eventEmitter;
   }
 
+  public on(event: string, listener: Function): void {
+    if (!this.messageListeners.has(event)) {
+      this.messageListeners.set(event, []);
+    }
+    this.messageListeners.get(event)?.push(listener);
+  }
+
+  public off(event: string, listener: Function): void {
+    const listeners = this.messageListeners.get(event);
+    if (listeners) {
+      this.messageListeners.set(event, 
+        listeners.filter(l => l !== listener)
+      );
+    }
+  }
+
   public handleMessage(event: MessageEvent): void {
     try {
       const message = JSON.parse(event.data);
+      
+      // Trigger message listeners
+      const listeners = this.messageListeners.get('message') || [];
+      listeners.forEach(listener => listener(message));
       
       switch(message.type) {
         case 'heartbeat':

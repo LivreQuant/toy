@@ -44,22 +44,23 @@ export class ExchangeDataStream extends EventEmitter {
   
   public isConnected(): boolean {
     // First check if WebSocket is connected
-    if (!this.webSocketManager.getConnectionHealth().status === 'connected') {
+    const wsStatus = this.getWebSocketConnectionStatus();
+    if (!wsStatus.connected) {
       return false;
     }
     
     // Then check SSE connection
-    const status = this.sseManager.getConnectionStatus();
-    return status.connected;
+    const sseStatus = this.sseManager.getConnectionStatus();
+    return sseStatus.connected;
   }
   
   public async connect(): Promise<boolean> {
     // Always check WebSocket connection first - don't connect SSE if WebSocket is down
-    const wsHealth = this.webSocketManager.getConnectionHealth();
-    if (wsHealth.status !== 'connected') {
+    const wsStatus = this.getWebSocketConnectionStatus();
+    if (!wsStatus.connected) {
       this.emit('error', { 
         error: 'Cannot connect SSE - WebSocket is not connected',
-        webSocketStatus: wsHealth.status
+        webSocketStatus: wsStatus
       });
       return false;
     }
@@ -85,6 +86,39 @@ export class ExchangeDataStream extends EventEmitter {
         console.error('ExchangeDataStream - Connection Error:', error);
         return false;
     }
+  }
+  
+  private getWebSocketConnectionStatus(): { 
+    connected: boolean; 
+    status: string 
+  } {
+    try {
+      const ws = this.webSocketManager.connectionStrategy.getWebSocket();
+      return {
+        connected: !!ws && ws.readyState === WebSocket.OPEN,
+        status: ws && ws.readyState === WebSocket.OPEN ? 'connected' : 'disconnected'
+      };
+    } catch (error) {
+      return {
+        connected: false,
+        status: 'error'
+      };
+    }
+  }
+  
+  public getConnectionStatus(): {
+    connected: boolean;
+    connecting: boolean;
+    webSocketConnected: boolean;
+  } {
+    const sseStatus = this.sseManager.getConnectionStatus();
+    const wsStatus = this.getWebSocketConnectionStatus();
+    
+    return {
+      connected: sseStatus.connected,
+      connecting: sseStatus.connecting,
+      webSocketConnected: wsStatus.connected
+    };
   }
   
   private handleExchangeData(data: any): void {
@@ -115,22 +149,7 @@ export class ExchangeDataStream extends EventEmitter {
     console.error('Exchange data stream error:', error);
     this.emit('error', error);
   }
-  
-  public getConnectionStatus(): {
-    connected: boolean;
-    connecting: boolean;
-    webSocketConnected: boolean;
-  } {
-    const sseStatus = this.sseManager.getConnectionStatus();
-    const wsStatus = this.webSocketManager.getConnectionHealth();
     
-    return {
-      connected: sseStatus.connected,
-      connecting: sseStatus.connecting,
-      webSocketConnected: wsStatus.status === 'connected'
-    };
-  }
-  
   public dispose(): void {
     this.disconnect();
     this.removeAllListeners();

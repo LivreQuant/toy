@@ -1,4 +1,3 @@
-// frontend/src/services/websocket/websocket-errors.ts
 import { Logger } from '../../utils/logger';
 
 export class WebSocketError extends Error {
@@ -43,7 +42,8 @@ export class WebSocketErrorHandler {
       tokenManager: any,
       disconnect: (reason: string) => void,
       attemptReconnect: () => void,
-      triggerLogout: () => void
+      triggerLogout: () => void,
+      manualReconnect: () => void
     }
   ): void {
     switch (error.code) {
@@ -57,7 +57,11 @@ export class WebSocketErrorHandler {
       case 'UNAUTHORIZED':
         this.handleAuthenticationError(
           new AuthenticationError('WebSocket unauthorized'),
-          context
+          {
+            tokenManager: context.tokenManager,
+            manualReconnect: context.manualReconnect,
+            triggerLogout: context.triggerLogout
+          }
         );
         break;
       case 'PROTOCOL_ERROR':

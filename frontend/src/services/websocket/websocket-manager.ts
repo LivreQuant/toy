@@ -31,14 +31,12 @@ export class WebSocketManager extends EventEmitter {
   private errorHandler: WebSocketErrorHandler;
   private logger: Logger;
   
-  // Connection management
   private backoffStrategy: BackoffStrategy;
   private circuitBreaker: CircuitBreaker;
   private reconnectTimer: number | null = null;
   private reconnectAttempts: number = 0;
   private maxReconnectAttempts: number = 10;
 
-  // Connection metrics and sources
   private connectionMetrics: ConnectionMetrics = {
     latency: 0,
     bandwidth: 0,
@@ -69,11 +67,11 @@ export class WebSocketManager extends EventEmitter {
   constructor(
     tokenManager: TokenManager, 
     options: WebSocketOptions = {},
-    logger: Logger = new Logger()
+    logger?: Logger
   ) {
     super();
     this.tokenManager = tokenManager;
-    this.logger = logger;
+    this.logger = logger || new Logger('WebSocketManager');
     this.metricTracker = new MetricTracker(this.logger);
     this.errorHandler = new WebSocketErrorHandler(this.logger);
     
@@ -90,11 +88,28 @@ export class WebSocketManager extends EventEmitter {
     this.messageHandler = new WebSocketMessageHandler(this);
 
     this.setupErrorHandling();
+    this.setupReconnectionListeners();
     this.monitorConnection();
   }
 
   private setupErrorHandling(): void {
     this.on('error', this.handleComprehensiveError.bind(this));
+  }
+
+  private setupReconnectionListeners(): void {
+    this.on('disconnected', this.handleDisconnect.bind(this));
+    this.on('error', this.handleConnectionError.bind(this));
+  }
+
+  private handleDisconnect(reason: string): void {
+    if (reason !== 'user_disconnect') {
+      this.attemptReconnect();
+    }
+  }
+
+  private handleConnectionError(error: any): void {
+    this.logger.error('WebSocket connection error:', error);
+    this.attemptReconnect();
   }
 
   private handleComprehensiveError(error: any): void {
@@ -105,7 +120,8 @@ export class WebSocketManager extends EventEmitter {
         tokenManager: this.tokenManager,
         disconnect: this.disconnect.bind(this),
         attemptReconnect: this.attemptReconnect.bind(this),
-        triggerLogout: this.triggerLogout.bind(this)
+        triggerLogout: this.triggerLogout.bind(this),
+        manualReconnect: this.manualReconnect.bind(this)
       });
     } else if (error instanceof NetworkError) {
       this.errorHandler.handleNetworkError(error, {
@@ -138,60 +154,55 @@ export class WebSocketManager extends EventEmitter {
     this.logger.warn('Switching to offline mode');
   }
 
-  private setupReconnectionListeners(): void {
-    this.on('disconnected', this.handleDisconnect.bind(this));
-    this.on('error', this.handleConnectionError.bind(this));
-  }
+  public checkSessionReady(sessionId: string): Promise<boolean> {
+    return new Promise((resolve, reject) => {
+      const message = {
+        type: 'check_session_ready',
+        sessionId: sessionId
+      };
 
-  private handleDisconnect(reason: string): void {
-    if (reason !== 'user_disconnect') {
-      this.attemptReconnect();
-    }
-  }
-
-  private handleConnectionError(error: any): void {
-    this.logger.error('WebSocket connection error:', error);
-    this.attemptReconnect();
-  }
-
-  private attemptReconnect(): void {
-    if (this.reconnectTimer !== null) return;
-
-    if (this.circuitBreaker.getState() === CircuitState.OPEN) {
-      this.logger.warn('Circuit breaker is open. Preventing reconnection.');
-      return;
-    }
-
-    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      this.circuitBreaker.reset();
-      this.reconnectAttempts = 0;
-    }
-
-    this.reconnectAttempts++;
-
-    const delay = this.backoffStrategy.nextBackoffTime();
-
-    this.emit('reconnecting', {
-      attempt: this.reconnectAttempts,
-      delay
-    });
-
-    this.reconnectTimer = window.setTimeout(async () => {
-      try {
-        const connected = await this.connect();
-        
-        if (connected) {
-          this.reconnectAttempts = 0;
-          this.backoffStrategy.reset();
-          this.reconnectTimer = null;
-        } else {
-          this.attemptReconnect();
+      const responseHandler = (response: any) => {
+        if (response.type === 'session_ready_response' && response.sessionId === sessionId) {
+          resolve(response.ready);
+          this.messageHandler.off('message', responseHandler);
         }
-      } catch (error) {
-        this.logger.error('Reconnection failed:', error);
-        this.attemptReconnect();
+      };
+
+      this.messageHandler.on('message', responseHandler);
+
+      this.send(message);
+
+      setTimeout(() => {
+        this.messageHandler.off('message', responseHandler);
+        reject(new Error('Session readiness check timed out'));
+      }, 5000);
+    });
+  }
+
+  private async monitorConnection(): Promise<void> {
+    setInterval(async () => {
+      const metrics = await this.metricTracker.collectMetrics(
+        this.connectionStrategy.getWebSocket() || undefined
+      );
+      this.updateConnectionMetrics(metrics);
+
+      if (this.connectionQuality === ConnectionQuality.POOR) {
+        await this.tryAlternativeDataSource();
       }
-    }, delay);
+    }, 30000);
+  }
+
+  private updateConnectionMetrics(newMetrics: Partial<ConnectionMetrics>): void {
+    this.connectionMetrics = {
+      ...this.connectionMetrics,
+      ...newMetrics
+    };
+
+    const newQuality = this.calculateConnectionQuality();
+    if (newQuality !== this.connectionQuality) {
+      this.connectionQuality = newQuality;
+      this.emit('connection_quality_changed', this.connectionQuality);
+    }
   }
 
   private calculateConnectionQuality(): ConnectionQuality {
@@ -270,55 +281,6 @@ export class WebSocketManager extends EventEmitter {
     }
   }
 
-  private updateConnectionMetrics(newMetrics: Partial<ConnectionMetrics>): void {
-    this.connectionMetrics = {
-      ...this.connectionMetrics,
-      ...newMetrics
-    };
-
-    const newQuality = this.calculateConnectionQuality();
-    if (newQuality !== this.connectionQuality) {
-      this.connectionQuality = newQuality;
-      this.emit('connection_quality_changed', this.connectionQuality);
-    }
-  }
-
-  public checkSessionReady(sessionId: string): Promise<boolean> {
-    return new Promise((resolve, reject) => {
-      const message = {
-        type: 'check_session_ready',
-        sessionId: sessionId
-      };
-
-      const responseHandler = (response: any) => {
-        if (response.type === 'session_ready_response' && response.sessionId === sessionId) {
-          resolve(response.ready);
-          this.messageHandler.off('message', responseHandler);
-        }
-      };
-
-      this.messageHandler.on('message', responseHandler);
-
-      this.send(message);
-
-      setTimeout(() => {
-        this.messageHandler.off('message', responseHandler);
-        reject(new Error('Session readiness check timed out'));
-      }, 5000);
-    });
-  }
-
-  private monitorConnection(): void {
-    setInterval(async () => {
-      const metrics = await this.metricTracker.collectMetrics();
-      this.updateConnectionMetrics(metrics);
-
-      if (this.connectionQuality === ConnectionQuality.POOR) {
-        await this.tryAlternativeDataSource();
-      }
-    }, 30000);
-  }
-
   public async connect(): Promise<boolean> {
     try {
       return this.circuitBreaker.execute(async () => {
@@ -342,9 +304,13 @@ export class WebSocketManager extends EventEmitter {
           }
 
           return true;
-        } catch (connectionError) {
+        } catch (connectionError: unknown) {
+          const errorMessage = connectionError instanceof Error 
+            ? connectionError.message 
+            : 'Failed to establish WebSocket connection';
+          
           throw new WebSocketError(
-            connectionError.message || 'Failed to establish WebSocket connection', 
+            errorMessage, 
             'CONNECTION_FAILED'
           );
         }
@@ -373,6 +339,46 @@ export class WebSocketManager extends EventEmitter {
     this.heartbeatManager?.stop();
     this.connectionStrategy.disconnect();
     this.emit('disconnected', reason);
+  }
+
+  private attemptReconnect(): void {
+    if (this.reconnectTimer !== null) return;
+
+    if (this.circuitBreaker.getState() === CircuitState.OPEN) {
+      this.logger.warn('Circuit breaker is open. Preventing reconnection.');
+      return;
+    }
+
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      this.circuitBreaker.reset();
+      this.reconnectAttempts = 0;
+    }
+
+    this.reconnectAttempts++;
+
+    const delay = this.backoffStrategy.nextBackoffTime();
+
+    this.emit('reconnecting', {
+      attempt: this.reconnectAttempts,
+      delay
+    });
+
+    this.reconnectTimer = window.setTimeout(async () => {
+      try {
+        const connected = await this.connect();
+        
+        if (connected) {
+          this.reconnectAttempts = 0;
+          this.backoffStrategy.reset();
+          this.reconnectTimer = null;
+        } else {
+          this.attemptReconnect();
+        }
+      } catch (error) {
+        this.logger.error('Reconnection failed:', error);
+        this.attemptReconnect();
+      }
+    }, delay);
   }
 
   public manualReconnect(): void {
