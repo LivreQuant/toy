@@ -18,6 +18,7 @@ export interface SSEOptions {
   reconnectMaxAttempts?: number;
   failureThreshold?: number;
   resetTimeoutMs?: number;
+  preventAutoConnect?: boolean; // Add this new option
 }
 
 export class SSEManager extends EventEmitter implements Disposable { // <<< Implement Disposable
@@ -34,6 +35,7 @@ export class SSEManager extends EventEmitter implements Disposable { // <<< Impl
   private logger: Logger;
   private errorHandler: ErrorHandler;
   private isDisposed: boolean = false; // <<< Added dispose flag
+  private preventAutoConnect: boolean = false; // Add this property
 
   constructor(
     tokenManager: TokenManager,

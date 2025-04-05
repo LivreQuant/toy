@@ -16,8 +16,10 @@ import { Logger } from '../../utils/logger';
 import { Disposable } from '../../utils/disposable';
 import { ErrorHandler } from '../../utils/error-handler';
 
+// Update the ExchangeDataOptions interface to include preventAutoConnect property
 export interface ExchangeDataOptions extends SSEOptions {
   // Add any ExchangeDataStream specific options here if needed
+  preventAutoConnect?: boolean; // Add this new option
 }
 
 export class ExchangeDataStream extends EventEmitter implements Disposable {
@@ -44,12 +46,16 @@ export class ExchangeDataStream extends EventEmitter implements Disposable {
     this.logger = logger.createChild('ExchangeDataStream');
     this.logger.info('Initializing...');
 
+    // Pass preventAutoConnect to SSEManager
     this.sseManager = new SSEManager(
-        tokenManager,
-        unifiedState,
-        this.logger,
-        this.errorHandler,
-        options
+      tokenManager,
+      unifiedState,
+      this.logger,
+      this.errorHandler,
+      {
+        ...options,
+        preventAutoConnect: options.preventAutoConnect // Pass it through
+      }
     );
 
     this.setupListeners();

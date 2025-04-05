@@ -1,32 +1,21 @@
 // src/components/Common/ConnectionStatus.tsx
 import React from 'react';
-// Import the necessary enums/types for props
+import { useAuth } from '../../contexts/AuthContext';
 import {
-  ConnectionStatus as ConnectionStatusEnum, // Rename imported enum to avoid conflict
+  ConnectionStatus as ConnectionStatusEnum,
   ConnectionQuality
-} from '../../services/connection/unified-connection-state'; // Adjust import path if needed
-
-// Import the corresponding CSS file for styling
+} from '../../services/connection/unified-connection-state';
 import './ConnectionStatus.css';
 
-/**
- * Interface defining the props accepted by the ConnectionStatus component.
- * These props provide information about the connection's current state.
- */
 interface ConnectionStatusProps {
-  status: ConnectionStatusEnum; // The overall connection status (e.g., connected, disconnected)
-  quality: ConnectionQuality; // The calculated connection quality (e.g., good, degraded)
-  isRecovering: boolean; // Flag indicating if a recovery attempt is in progress
-  recoveryAttempt: number; // The current recovery attempt number (if recovering)
-  onManualReconnect: () => Promise<boolean>; // Callback function to trigger a manual reconnect attempt
-  simulatorStatus: string; // The current status reported by the simulator
+  status: ConnectionStatusEnum;
+  quality: ConnectionQuality;
+  isRecovering: boolean;
+  recoveryAttempt: number;
+  onManualReconnect: () => Promise<boolean>;
+  simulatorStatus: string;
 }
 
-/**
- * ConnectionStatus Component:
- * Displays the current connection status, quality, simulator status,
- * and provides a button for manual reconnection attempts.
- */
 const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
   status,
   quality,
@@ -35,6 +24,13 @@ const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
   onManualReconnect,
   simulatorStatus
 }) => {
+  // Authentication context
+  const { isAuthenticated, isLoading } = useAuth();
+
+  // If not authenticated or still loading, don't show anything
+  if (!isAuthenticated || isLoading) {
+    return null;
+  }
 
   // Determine the text and CSS class based on the connection status
   const getStatusDisplay = () => {
@@ -54,7 +50,6 @@ const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
 
   // Determine the CSS class for the simulator status text
   const getSimulatorStatusClass = (simStatus: string): string => {
-    // Basic example, adjust based on your actual simulator statuses
     switch (simStatus?.toUpperCase()) {
       case 'RUNNING': return 'running';
       case 'STARTING': return 'starting';
@@ -73,14 +68,11 @@ const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
     console.log("Manual reconnect button clicked.");
     onManualReconnect().catch(err => {
       console.error("Manual reconnect failed:", err);
-      // Optionally show a toast notification on failure
     });
   };
 
   return (
     <div className={`connection-indicator ${statusClass}`}>
-      {/* Optional: Icon based on status */}
-      {/* <span className="indicator-icon">🌐</span> */}
       <div className="indicator-text">
         <span className="status-text">{statusText}</span>
         <span className={`simulator-status ${simulatorClass}`}>
@@ -93,7 +85,7 @@ const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
         <button
           className="reconnect-button"
           onClick={handleReconnectClick}
-          disabled={isRecovering} // Disable if recovery is somehow active despite disconnected status
+          disabled={isRecovering}
         >
           Reconnect
         </button>

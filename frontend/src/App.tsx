@@ -126,33 +126,23 @@ const AppContent: React.FC = () => {
 };
 
 // Wrapper to display connection status, consuming ConnectionContext
+
 const ConnectionStatusWrapper: React.FC = () => {
-  const { isAuthenticated } = useAuth(); // Check if user is logged in
+  const { isAuthenticated, isLoading } = useAuth(); // Add isLoading check
   const {
     overallStatus,
     connectionQuality,
     isRecovering,
     recoveryAttempt,
-    manualReconnect, // Function to trigger manual reconnect
-    simulatorStatus // Assuming ConnectionContext provides this
+    manualReconnect,
+    simulatorStatus
   } = useConnection();
 
-  // Don't show connection status if user is not authenticated
-  if (!isAuthenticated) {
+  // Don't show connection status if user is not authenticated or auth is still loading
+  if (!isAuthenticated || isLoading) {
     return null;
   }
 
-  /*
-    REMINDER FOR ConnectionStatus COMPONENT:
-    The error "Property 'status' does not exist on type 'IntrinsicAttributes'"
-    needs to be fixed in the definition of the `ConnectionStatus` component
-    (likely in src/components/Common/ConnectionStatus.tsx).
-
-    You need to:
-    1. Define a Props interface for `ConnectionStatus` accepting `status`, `quality`,
-       `isRecovering`, `recoveryAttempt`, `onManualReconnect`, and `simulatorStatus`.
-    2. Update the `ConnectionStatus` component to accept and use these props.
-  */
   return (
     <ConnectionStatus
       status={overallStatus}
@@ -160,7 +150,7 @@ const ConnectionStatusWrapper: React.FC = () => {
       isRecovering={isRecovering}
       recoveryAttempt={recoveryAttempt}
       onManualReconnect={manualReconnect}
-      simulatorStatus={simulatorStatus} // Pass simulator status if available
+      simulatorStatus={simulatorStatus}
     />
   );
 };

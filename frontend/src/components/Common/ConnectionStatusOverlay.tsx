@@ -1,37 +1,39 @@
 // src/components/Common/ConnectionStatusOverlay.tsx
 import React from 'react';
-// Import the hook to use the connection context
-import { useConnection } from '../../contexts/ConnectionContext'; // Adjust path if needed
-// Import enums for status and quality checking
-import { ConnectionStatus, ConnectionQuality } from '../../services/connection/unified-connection-state'; // Adjust path if needed
+import { useConnection } from '../../contexts/ConnectionContext';
+import { useAuth } from '../../contexts/AuthContext';
+import { ConnectionStatus, ConnectionQuality } from '../../services/connection/unified-connection-state';
 import './ConnectionStatusOverlay.css';
 
-// This component displays an overlay, potentially when the connection is poor or disconnected,
-// offering a way to manually reconnect.
 const ConnectionStatusOverlay: React.FC = () => {
-  // --- Refactored: Get state and actions from the updated context ---
+  // Get authentication state
+  const { isAuthenticated, isLoading } = useAuth();
+  
+  // Get connection state
   const {
     isConnected,
     isConnecting,
     isRecovering,
     connectionQuality,
     overallStatus,
-    manualReconnect // Get the reconnect action
+    manualReconnect
   } = useConnection();
 
-  // --- Determine if the overlay should be shown ---
-  // Example Logic: Show if disconnected, or connected but with poor quality.
-  // Adjust this logic based on when you want the overlay to appear.
-  const showOverlay =
-    overallStatus === ConnectionStatus.DISCONNECTED ||
-    (isConnected && connectionQuality === ConnectionQuality.POOR);
+  // Only show overlay if:
+  // 1. User is authenticated and auth check completed
+  // 2. AND either disconnected or connected with poor quality
+  const showOverlay = !isLoading && 
+                       isAuthenticated && (
+                        overallStatus === ConnectionStatus.DISCONNECTED ||
+                        (isConnected && connectionQuality === ConnectionQuality.POOR)
+                      );
 
   // If conditions aren't met, don't render the overlay
   if (!showOverlay) {
     return null;
   }
 
-  // --- Helper function to get quality CSS class ---
+  // Helper function to get quality CSS class
   const getQualityClass = () => {
       switch (connectionQuality) {
           case ConnectionQuality.GOOD: return 'connection-quality-good';
@@ -41,9 +43,9 @@ const ConnectionStatusOverlay: React.FC = () => {
       }
   }
 
-  // --- Event Handler ---
+  // Event Handler
   const handleReconnect = () => {
-    manualReconnect(); // Call the action from the context
+    manualReconnect();
   };
 
   return (
@@ -67,16 +69,15 @@ const ConnectionStatusOverlay: React.FC = () => {
                 Attempt Reconnect
             </button>
         )}
-         {/* Optionally show reconnect button even if quality is just poor */}
-         {isConnected && connectionQuality === ConnectionQuality.POOR && (
-             <button onClick={handleReconnect} disabled={isConnecting || isRecovering}>
-                 Try Reconnecting
-             </button>
-         )}
+        {/* Optionally show reconnect button even if quality is just poor */}
+        {isConnected && connectionQuality === ConnectionQuality.POOR && (
+            <button onClick={handleReconnect} disabled={isConnecting || isRecovering}>
+                Try Reconnecting
+            </button>
+        )}
       </div>
     </div>
   );
 };
 
 export default ConnectionStatusOverlay;
-

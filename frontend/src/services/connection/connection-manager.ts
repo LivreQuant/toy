@@ -8,6 +8,7 @@ import { ExchangeDataStream, ExchangeDataOptions } from '../sse/exchange-data-st
 import { HttpClient } from '../../api/http-client';
 import { ConnectionRecoveryInterface } from './connection-recovery-interface';
 import { RecoveryManager } from './recovery-manager';
+import { WebSocketOptions } from '../websocket/types'; // Import WebSocketOptions
 import {
   UnifiedConnectionState,
   ConnectionServiceType,
@@ -24,6 +25,12 @@ import { toastService } from '../notification/toast-service';
 
 // <<< Import Order types needed for the method signature >>>
 import { OrderSide, OrderType } from '../../api/order';
+
+// Update the interface definition to include the new option
+export interface ConnectionManagerOptions {
+  wsOptions?: WebSocketOptions;
+  sseOptions?: ExchangeDataOptions;
+}
 
 /**
  * Orchestrates all client-side connections (WebSocket, SSE, REST via HttpClient)
@@ -42,7 +49,7 @@ export class ConnectionManager extends EventEmitter implements ConnectionRecover
   private isDisposed: boolean = false; // <<< Added dispose flag
   private sessionApi: SessionApi;
   private errorHandler: ErrorHandler;
-
+  private preventAutoConnect: boolean = false; // Add this class property
 
   /**
    * Creates an instance of ConnectionManager.
@@ -54,54 +61,73 @@ export class ConnectionManager extends EventEmitter implements ConnectionRecover
   constructor(
     tokenManager: TokenManager,
     logger: Logger,
-    wsOptions: ConstructorParameters<typeof WebSocketManager>[3] = {},
-    sseOptions: ExchangeDataOptions = {}
+    options: ConnectionManagerOptions = {}
   ) {
     super();
 
     this.logger = logger;
     this.logger.info('ConnectionManager Initializing...');
 
+    // --- Extract options ---
+    const { wsOptions = {}, sseOptions = {} } = options;
+
     // --- Assign Core Dependencies ---
     this.tokenManager = tokenManager;
     this.errorHandler = new ErrorHandler(this.logger, toastService);
 
+    // Verify authentication before proceeding
+    if (!this.tokenManager.isAuthenticated()) {
+      this.logger.warn('Initializing ConnectionManager without active authentication');
+    }
+
     // --- Instantiate State and Error Handling ---
     this.unifiedState = new UnifiedConnectionState(this.logger);
 
-    // --- Instantiate API Clients and Sub-Managers ---
+    // --- Instantiate API Clients ---
     const httpClient = new HttpClient(tokenManager);
     this.sessionApi = new SessionApi(httpClient);
 
-    // Instantiate WebSocket manager
+    // --- Configure WebSocketManager with preventAutoConnect ---
+    const enhancedWsOptions = {
+      ...wsOptions,
+      preventAutoConnect: true // Always prevent auto-connect
+    };
+
+    // --- Instantiate WebSocketManager ---
     this.wsManager = new WebSocketManager(
       tokenManager,
       this.unifiedState,
       this.logger,
-      wsOptions
+      enhancedWsOptions
     );
 
-    // Instantiate SSE manager
+    // --- Instantiate SSEManager with preventAutoConnect ---
+    const enhancedSseOptions = {
+      ...sseOptions,
+      preventAutoConnect: true // Always prevent auto-connect
+    };
+
+    // --- Instantiate SSE manager ---
     this.sseManager = new ExchangeDataStream(
       tokenManager,
       this.unifiedState,
       this.logger,
-      this.errorHandler, // Pass errorHandler
-      sseOptions
+      this.errorHandler,
+      enhancedSseOptions
     );
 
     // --- Instantiate Helper Managers ---
     this.dataHandlers = new ConnectionDataHandlers(httpClient, this.errorHandler);
     this.simulatorManager = new ConnectionSimulatorManager(httpClient);
     this.recoveryManager = new RecoveryManager(
-      this, // ConnectionRecoveryInterface implementation
+      this,
       tokenManager,
       this.unifiedState
     );
 
     // --- Setup Event Listeners ---
     this.setupEventListeners();
-    this.logger.info('ConnectionManager Initialization Complete.');
+    this.logger.info('ConnectionManager Initialization Complete. Waiting for explicit connect call.');
   }
 
   /**
@@ -184,28 +210,24 @@ export class ConnectionManager extends EventEmitter implements ConnectionRecover
    * SSE connection will be triggered automatically if WebSocket connects successfully.
    * @returns A promise resolving to true if the connection (including session validation) is successful, false otherwise.
    */
+  // Also update the connect() method to verify auth first:
   public async connect(): Promise<boolean> {
-    // <<< Check disposed flag early >>>
+    // Check disposed flag
     if (this.isDisposed) {
       this.logger.error("Cannot connect: ConnectionManager is disposed.");
       return false;
     }
-    this.logger.info('Connection attempt requested via ConnectionManager.');
-
-    // --- Check Authentication ---
-    const token = await this.tokenManager.getAccessToken();
-    if (!token) {
-      this.logger.error('Connection Aborted: Authentication token not available.');
-      // Update state only if not disposed
-      if (!this.isDisposed) {
-          this.unifiedState.updateServiceState(ConnectionServiceType.WEBSOCKET, {
-            status: ConnectionStatus.DISCONNECTED,
-            error: 'Authentication required'
-          });
-          this.emit('auth_failed', 'Authentication required');
-      }
+    
+    // Explicitly verify authentication before proceeding
+    if (!this.tokenManager.isAuthenticated()) {
+      this.logger.error("Cannot connect: Not authenticated");
+      this.unifiedState.updateServiceState(ConnectionServiceType.WEBSOCKET, {
+        status: ConnectionStatus.DISCONNECTED,
+        error: 'Authentication required'
+      });
       return false;
     }
+    
      // <<< Check disposed flag after await >>>
     if (this.isDisposed) return false;
 

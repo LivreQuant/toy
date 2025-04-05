@@ -8,6 +8,7 @@ export interface WebSocketOptions {
   heartbeatInterval?: number;
   heartbeatTimeout?: number;
   reconnectMaxAttempts?: number;
+  preventAutoConnect?: boolean; // Add this new option
 }
 
 export interface ConnectionStrategyDependencies {

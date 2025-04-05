@@ -69,66 +69,63 @@ export class WebSocketManager extends EventEmitter implements Disposable {
   // --- Options ---
   private wsOptions: WebSocketOptions;
 
-
   constructor(
     tokenManager: TokenManager,
     unifiedState: UnifiedConnectionState,
     logger: Logger,
-    options: WebSocketOptions = {} // Accept options
+    options: WebSocketOptions = {}
   ) {
     super();
     this.tokenManager = tokenManager;
     this.unifiedState = unifiedState;
-    this.logger = logger.createChild('WebSocketManager'); // Create child logger
+    this.logger = logger.createChild('WebSocketManager');
     this.logger.info('WebSocketManager Initializing...');
-
-    // Store merged options
+  
+    // Always include preventAutoConnect in options
     this.wsOptions = {
-        heartbeatInterval: options.heartbeatInterval ?? DEFAULT_HEARTBEAT_INTERVAL,
-        heartbeatTimeout: options.heartbeatTimeout ?? DEFAULT_HEARTBEAT_TIMEOUT,
-        reconnectMaxAttempts: options.reconnectMaxAttempts ?? DEFAULT_RECONNECT_MAX_ATTEMPTS,
-        // Add circuit breaker/backoff options if they should be configurable
+      heartbeatInterval: options.heartbeatInterval ?? DEFAULT_HEARTBEAT_INTERVAL,
+      heartbeatTimeout: options.heartbeatTimeout ?? DEFAULT_HEARTBEAT_TIMEOUT,
+      reconnectMaxAttempts: options.reconnectMaxAttempts ?? DEFAULT_RECONNECT_MAX_ATTEMPTS,
+      preventAutoConnect: true // Always prevent auto-connect regardless of passed option
     };
-    this.maxReconnectAttempts = this.wsOptions.reconnectMaxAttempts!; // Use configured value
-
+    
+    this.logger.info('Auto-connect prevention enabled for WebSocketManager - manual connection required');
+    this.maxReconnectAttempts = this.wsOptions.reconnectMaxAttempts!;
+  
     // --- Instantiate Dependencies ---
-    // Instantiate the generic ErrorHandler (verify dependencies)
     this.errorHandler = new UtilsErrorHandler(this.logger, toastService);
-
-    // Instantiate resilience strategies with defaults or configured values
+  
+    // Instantiate resilience strategies
     this.backoffStrategy = new BackoffStrategy(
-        DEFAULT_BACKOFF_INITIAL_MS,
-        DEFAULT_BACKOFF_MAX_MS
+      DEFAULT_BACKOFF_INITIAL_MS,
+      DEFAULT_BACKOFF_MAX_MS
     );
     this.circuitBreaker = new CircuitBreaker(
-        'websocket-connection',
-        DEFAULT_CB_FAILURE_THRESHOLD,
-        DEFAULT_CB_RESET_TIMEOUT_MS,
-        DEFAULT_CB_MAX_HALF_OPEN_CALLS
+      'websocket-connection',
+      DEFAULT_CB_FAILURE_THRESHOLD,
+      DEFAULT_CB_RESET_TIMEOUT_MS,
+      DEFAULT_CB_MAX_HALF_OPEN_CALLS
     );
     this.circuitBreaker.onStateChange(this.handleCircuitBreakerStateChange.bind(this));
-
-
-    // Instantiate sub-managers
-    // this.metricTracker = new MetricTracker(this.logger); // Uncomment if used
-
-    // Ensure DeviceIdManager is initialized (it's a singleton, needs initialization once)
-    const deviceIdManager = DeviceIdManager.getInstance(); // Get instance (must be initialized prior)
-
+  
+    // Get DeviceIdManager instance
+    const deviceIdManager = DeviceIdManager.getInstance();
+  
     const strategyDeps: ConnectionStrategyDependencies = {
       tokenManager,
-      deviceIdManager, // Pass the singleton instance
+      deviceIdManager,
       eventEmitter: this,
       logger: this.logger,
-      options: this.wsOptions // Pass relevant options
+      options: {
+        ...this.wsOptions,
+        preventAutoConnect: true
+      }
     };
+    
     this.connectionStrategy = new ConnectionStrategy(strategyDeps);
-
-    // Pass logger to MessageHandler
     this.messageHandler = new WebSocketMessageHandler(this, this.logger);
-
-
-    // --- Setup Event Listeners ---
+  
+    // Setup listeners
     this.setupListeners();
     this.logger.info('WebSocketManager Initialized.');
   }
@@ -175,22 +172,33 @@ export class WebSocketManager extends EventEmitter implements Disposable {
    * @returns True if connection attempt is successful, false otherwise.
    */
   public async connect(): Promise<boolean> {
-    // <<< Check disposed flag early >>>
+    // Check disposed flag
     if (this.isDisposed) {
-        this.logger.error("Cannot connect: WebSocketManager is disposed.");
-        return false;
+      this.logger.error("Cannot connect: WebSocketManager is disposed.");
+      return false;
     }
+    
+    // Explicitly verify authentication before proceeding
+    if (!this.tokenManager.isAuthenticated()) {
+      this.logger.error("Cannot connect: Not authenticated");
+      this.unifiedState.updateServiceState(ConnectionServiceType.WEBSOCKET, {
+        status: ConnectionStatus.DISCONNECTED,
+        error: 'Authentication required'
+      });
+      return false;
+    }
+    
     const currentState = this.unifiedState.getServiceState(ConnectionServiceType.WEBSOCKET).status;
     if (currentState === ConnectionStatus.CONNECTED || currentState === ConnectionStatus.CONNECTING) {
-        this.logger.warn(`Connect call ignored: Already ${currentState}.`);
-        return currentState === ConnectionStatus.CONNECTED;
+      this.logger.warn(`Connect call ignored: Already ${currentState}.`);
+      return currentState === ConnectionStatus.CONNECTED;
     }
 
     this.logger.info("WebSocket connect requested.");
     this.unifiedState.updateServiceState(ConnectionServiceType.WEBSOCKET, {
-        status: ConnectionStatus.CONNECTING,
-        error: null,
-        recoveryAttempts: this.reconnectAttempts
+      status: ConnectionStatus.CONNECTING,
+      error: null,
+      recoveryAttempts: this.reconnectAttempts
     });
 
     try {
@@ -323,8 +331,10 @@ export class WebSocketManager extends EventEmitter implements Disposable {
    * Handles the disconnection of the WebSocket.
    * @param details - Information about the disconnection event.
    */
+  // Update handleDisconnectEvent to prevent auto-reconnect
   private handleDisconnectEvent(details: { code: number; reason: string; wasClean: boolean }): void {
-    if (this.isDisposed) return; // <<< Check disposed flag
+    if (this.isDisposed) return;
+    
     this.logger.warn(`Internal WebSocket Disconnected event received. Code: ${details.code}, Reason: "${details.reason}", Clean: ${details.wasClean}`);
 
     // Stop heartbeat immediately on disconnect
@@ -333,67 +343,29 @@ export class WebSocketManager extends EventEmitter implements Disposable {
 
     const ws = this.connectionStrategy.getWebSocket();
     if (ws) {
-        // Nullify handlers on the socket instance *if it still exists*
-        // ConnectionStrategy might have already nulled it on close
-        ws.onmessage = null;
-        ws.onerror = null;
+      // Nullify handlers on the socket instance
+      ws.onmessage = null;
+      ws.onerror = null;
     }
 
+    // Update state
     const currentStatus = this.unifiedState.getServiceState(ConnectionServiceType.WEBSOCKET).status;
     if (currentStatus !== ConnectionStatus.DISCONNECTED) {
-        this.unifiedState.updateServiceState(ConnectionServiceType.WEBSOCKET, {
-            status: ConnectionStatus.DISCONNECTED,
-            error: details.reason || `WebSocket closed (Code: ${details.code})`,
-        });
+      this.unifiedState.updateServiceState(ConnectionServiceType.WEBSOCKET, {
+        status: ConnectionStatus.DISCONNECTED,
+        error: details.reason || `WebSocket closed (Code: ${details.code})`,
+      });
     }
 
-    const isNormalClosure = details.code === 1000 || details.reason === 'Client disconnected' || details.reason === 'manager_disposed';
-    const isAuthRelatedClosure = details.code === 4001 || details.reason?.toLowerCase().includes('unauthorized') || details.reason?.toLowerCase().includes('invalid token') || details.reason?.startsWith('auth_');
-    const circuitIsOpen = this.circuitBreaker.getState() === CircuitState.OPEN;
-    const maxAttemptsReached = this.reconnectAttempts >= this.maxReconnectAttempts;
-
-    // *** Check authentication status BEFORE deciding to reconnect ***
-    const isAuthenticated = this.tokenManager.isAuthenticated();
-
-    const shouldAttemptReconnect = !isNormalClosure && !isAuthRelatedClosure && isAuthenticated && !circuitIsOpen && !maxAttemptsReached;
-
-    this.logger.info(`Should attempt reconnect? ${shouldAttemptReconnect}`, {
-        isNormalClosure, isAuthRelatedClosure, isAuthenticated, circuitIsOpen, maxAttemptsReached, code: details.code
-    });
-
-    if (shouldAttemptReconnect) {
-      this.attemptReconnect();
-    } else {
-      // Logic for logging why reconnect wasn't attempted
-      if (!isAuthenticated && !isNormalClosure) {
-          this.logger.warn("Not attempting reconnect: User is not authenticated.");
-          this.reconnectAttempts = 0;
-          this.backoffStrategy.reset();
-          this.circuitBreaker.reset();
-          this.unifiedState.updateRecovery(false, 0);
-      } else if (isNormalClosure || isAuthRelatedClosure) {
-         this.logger.info('Resetting reconnect attempts and backoff due to controlled/auth disconnect.');
-         this.reconnectAttempts = 0;
-         this.backoffStrategy.reset();
-         if (isAuthRelatedClosure) this.circuitBreaker.reset();
-         this.unifiedState.updateRecovery(false, 0);
-      } else if (circuitIsOpen) {
-           this.logger.warn("Not attempting reconnect: Circuit breaker is OPEN.");
-           this.errorHandler.handleConnectionError(
-               `WebSocket disconnected and circuit breaker is OPEN. Connection attempts suspended. Reason: ${details.reason}`,
-               ErrorSeverity.HIGH,
-               'WebSocket Disconnect'
-           );
-           this.unifiedState.updateRecovery(false, this.reconnectAttempts);
-       } else if (maxAttemptsReached) {
-            this.logger.error(`Not attempting reconnect: Max reconnect attempts (${this.maxReconnectAttempts}) reached.`);
-            this.errorHandler.handleConnectionError(
-               `Failed to reconnect WebSocket after ${this.maxReconnectAttempts} attempts. Giving up. Reason: ${details.reason}`,
-               ErrorSeverity.HIGH,
-               'WebSocket Disconnect'
-           );
-           this.unifiedState.updateRecovery(false, this.reconnectAttempts);
-       }
+    // CRITICAL: Always prevent auto-reconnect - let parent ConnectionManager control this
+    this.logger.info("Auto-reconnect prevented - waiting for explicit reconnect command");
+    
+    // For clean-up purposes, reset counters on normal closures
+    if (details.code === 1000 || details.reason === 'Client disconnected' || details.reason === 'manager_disposed') {
+      this.logger.info('Resetting reconnect attempts and backoff due to clean disconnect.');
+      this.reconnectAttempts = 0;
+      this.backoffStrategy.reset();
+      this.unifiedState.updateRecovery(false, 0);
     }
   }
 
@@ -479,13 +451,21 @@ export class WebSocketManager extends EventEmitter implements Disposable {
         } else if (newState === CircuitState.CLOSED) {
              this.emit('circuit_closed', { message: 'WebSocket Circuit breaker closed. Connections re-enabled.' });
              const wsState = this.unifiedState.getServiceState(ConnectionServiceType.WEBSOCKET);
+             
+             // Only attempt auto-reconnect if preventAutoConnect is false
+             const preventReconnect = this.wsOptions.preventAutoConnect === true;
+             
              // *** Check authentication before attempting reconnect after circuit closed ***
-             if (wsState.status === ConnectionStatus.DISCONNECTED && this.tokenManager.isAuthenticated()) {
+             if (wsState.status === ConnectionStatus.DISCONNECTED && 
+                 this.tokenManager.isAuthenticated() && 
+                 !preventReconnect) {
                  this.logger.info('Circuit breaker closed, attempting reconnect...');
                  // Directly call attemptReconnect, which handles its own checks
                  this.attemptReconnect();
              } else if (!this.tokenManager.isAuthenticated()) {
                   this.logger.info('Circuit breaker closed, but user not authenticated. Skipping reconnect.');
+             } else if (preventReconnect) {
+                  this.logger.info('Circuit breaker closed, but auto-reconnect is disabled. Skipping reconnect.');
              }
         }
    }
@@ -526,22 +506,27 @@ export class WebSocketManager extends EventEmitter implements Disposable {
   /**
    * Attempts to reconnect the WebSocket connection after a delay.
    * Respects backoff strategy, max attempts, circuit breaker state, and authentication status.
-   */
+  */
+  // Update attemptReconnect to always verify auth first
   private attemptReconnect(): void {
-    // *** ADD CHECK: Abort if disposed or timer already active ***
-    if (this.isDisposed || this.reconnectTimer !== null) {
-        if (this.reconnectTimer !== null) this.logger.warn('Reconnect attempt skipped: Timer already active or manager disposed.');
-        return; // Already trying or disposed
+    // Abort if disposed or timer already active or preventAutoConnect is true
+    if (this.isDisposed || this.reconnectTimer !== null || this.wsOptions.preventAutoConnect === true) {
+      if (this.wsOptions.preventAutoConnect) {
+        this.logger.warn('Reconnect attempt skipped: Auto-reconnect is disabled');
+      } else if (this.reconnectTimer !== null) {
+        this.logger.warn('Reconnect attempt skipped: Timer already active');
+      }
+      return;
     }
 
-    // +++ AUTHENTICATION CHECK +++
+    // AUTHENTICATION CHECK
     if (!this.tokenManager.isAuthenticated()) {
-        this.logger.error('Reconnect attempt cancelled: User is not authenticated.');
-        this.unifiedState.updateRecovery(false, this.reconnectAttempts); // Ensure recovery UI is hidden
-        // Reset counters as user is logged out
-        this.reconnectAttempts = 0;
-        this.backoffStrategy.reset();
-        return;
+      this.logger.error('Reconnect attempt cancelled: User is not authenticated');
+      this.unifiedState.updateRecovery(false, this.reconnectAttempts);
+      // Reset counters
+      this.reconnectAttempts = 0;
+      this.backoffStrategy.reset();
+      return;
     }
     // +++ END CHECK +++
 
