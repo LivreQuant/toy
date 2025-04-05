@@ -7,15 +7,6 @@ import { DeviceIdManager } from '../../utils/device-id-manager';
 import { ConnectionStrategyDependencies, WebSocketOptions } from './types'; // Assuming DeviceIdManager added here
 import { Logger } from '../../utils/logger'; // Import Logger
 
-// Update dependencies interface if needed
-export interface ConnectionStrategyDependencies {
-    tokenManager: TokenManager;
-    deviceIdManager: DeviceIdManager; // Add deviceIdManager instance
-    eventEmitter: EventEmitter;
-    logger: Logger; // Add logger instance
-    options?: WebSocketOptions;
-}
-
 
 export class ConnectionStrategy {
     private tokenManager: TokenManager;

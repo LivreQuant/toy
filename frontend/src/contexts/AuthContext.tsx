@@ -1,225 +1,177 @@
+// src/contexts/AuthContext.tsx
 import React, {
   createContext,
-  useContext,
   useState,
+  useContext,
   useEffect,
   useMemo,
-  useCallback // Added useCallback
+  useCallback,
+  ReactNode,
 } from 'react';
+
+// --- Import Services and APIs ---
 import { TokenManager, TokenData } from '../services/auth/token-manager';
-import { AuthApi, LoginResponse } from '../api/auth';
-import { HttpClient } from '../api/http-client';
-import { ConnectionManager } from '../services/connection/connection-manager';
+import { LocalStorageService } from '../services/storage/local-storage-service';
+import { ErrorHandler } from '../utils/error-handler';
 import { Logger } from '../utils/logger';
-import { SessionManager } from '../services/session/session-manager';
-import { LocalStorageService } from '../services/storage/local-storage-service'; // Assuming path
-import { toastService } from '../services/notification/toast-service'; // For error notifications
+import { HttpClient } from '../api/http-client';
+import { AuthApi, LoginResponse } from '../api/auth';
+import { toastService } from '../services/notification/toast-service'; // For ErrorHandler
 
-// Define the shape of the user object provided by the context
-interface User {
-    id: string | number;
-    // Add other relevant user details if available (e.g., username, roles)
-}
-
-// Define the shape of the authentication context
+// Define the shape of the context data
 interface AuthContextType {
   isAuthenticated: boolean;
-  isLoading: boolean;
-  user: User | null;
-  tokenManager: TokenManager;
-  sessionManager: SessionManager;
-  connectionManager: ConnectionManager;
+  isLoading: boolean; // To indicate initial auth check
+  user: { id: string | number } | null; // Basic user info (extend as needed)
   login: (username: string, password: string) => Promise<boolean>;
-  logout: (reason?: string) => Promise<void>; // Add optional reason
+  logout: () => Promise<void>;
+  // Optionally expose tokenManager or authApi if needed by advanced components
+  // tokenManagerInstance: TokenManager | null;
+  // authApiInstance: AuthApi | null;
 }
 
-// Create the context
+// Create the context with a default value
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-/**
- * Provides authentication state and services to the application.
- * Manages user login, logout, token handling, and related services.
- */
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // --- Service Instantiation ---
-  // Use useState with initializer function to create instances only once
-  const [logger] = useState<Logger>(() => Logger.getInstance());
-  const [storageService] = useState<LocalStorageService>(() => new LocalStorageService());
-  const [sessionManager] = useState<SessionManager>(() => new SessionManager(storageService, logger));
-  const [tokenManager] = useState<TokenManager>(() => {
-      const tm = new TokenManager();
-      // Perform initial setup like setting AuthApi if needed immediately
-      // Note: httpClient needs tokenManager, so initialization order matters
-      return tm;
-  });
-  const [httpClient] = useState<HttpClient>(() => new HttpClient(tokenManager /*, logger */)); // Pass logger if HttpClient accepts it
-  const [authApi] = useState<AuthApi>(() => new AuthApi(httpClient));
-  const [connectionManager] = useState<ConnectionManager>(() => new ConnectionManager(tokenManager, logger)); // Pass logger
+// Define props for the provider (only children)
+interface AuthProviderProps {
+  children: ReactNode;
+}
 
-  // --- State Variables ---
+export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
-  const [isLoading, setIsLoading] = useState<boolean>(true); // Start loading until initial check completes
-  const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true); // Start loading initially
+  const [user, setUser] = useState<{ id: string | number } | null>(null);
 
-  // --- Initial Authentication Check Effect ---
-  useEffect(() => {
-    logger.info('AuthContext: Performing initial authentication check...');
-    // Set AuthApi dependency in TokenManager *after* both are instantiated
+  // --- Instantiate Services within the Provider ---
+  // Use useMemo to ensure services are created only once per provider instance
+  const services = useMemo(() => {
+    console.log("Instantiating AuthContext services..."); // Log instantiation
+    const logger = Logger.getInstance().createChild('AuthContext'); // Get logger instance
+    const storageService = new LocalStorageService();
+    // ErrorHandler needs logger and toastService
+    const errorHandler = new ErrorHandler(logger, toastService);
+    // TokenManager needs storageService and errorHandler
+    const tokenManager = new TokenManager(storageService, errorHandler);
+    // HttpClient needs tokenManager
+    const httpClient = new HttpClient(tokenManager);
+    // AuthApi needs httpClient
+    const authApi = new AuthApi(httpClient);
+    // Resolve circular dependency: Give TokenManager the AuthApi instance
     tokenManager.setAuthApi(authApi);
 
-    const checkAuthStatus = async () => {
-      setIsLoading(true);
-      const currentTokens = tokenManager.getTokens();
-      let authenticated = false;
-      let userId: string | number | null = null;
+    return { logger, tokenManager, authApi, errorHandler };
+  }, []); // Empty dependency array ensures this runs only once
 
-      if (currentTokens) {
-        logger.info('AuthContext: Found existing tokens.');
-        // Optional: Add token validation logic here if needed (e.g., call a backend endpoint)
-        // For simplicity, we assume tokens are valid if they exist and haven't expired locally
-        if (currentTokens.expiresAt > Date.now()) {
-            logger.info('AuthContext: Existing tokens appear valid.');
-            authenticated = true;
-            userId = currentTokens.userId;
-        } else {
-             logger.warn('AuthContext: Existing tokens expired. Attempting refresh...');
-             // Try refreshing the token if expired
-             const refreshed = await tokenManager.refreshAccessToken();
-             if (refreshed) {
-                 logger.info('AuthContext: Token refresh successful.');
-                 const refreshedTokens = tokenManager.getTokens(); // Get newly stored tokens
-                 if (refreshedTokens) {
-                    authenticated = true;
-                    userId = refreshedTokens.userId;
-                 }
-             } else {
-                 logger.error('AuthContext: Token refresh failed.');
-                 tokenManager.clearTokens(); // Clear invalid/expired tokens
-                 sessionManager.clearSession(); // Clear session if refresh fails
-             }
-        }
-      } else {
-        logger.info('AuthContext: No existing tokens found.');
-      }
+  // --- Authentication Logic ---
 
-      setIsAuthenticated(authenticated);
-      setUser(authenticated && userId ? { id: userId } : null);
-      setIsLoading(false);
-      logger.info(`AuthContext: Initial check complete. Authenticated: ${authenticated}`);
-
-      // Automatically connect if authenticated after initial check
-      if (authenticated) {
-          logger.info("AuthContext: Attempting initial connection after successful auth check.");
-          connectionManager.connect().catch(err => {
-              logger.error("AuthContext: Initial connection attempt failed.", err);
-          });
-      }
-    };
-
-    checkAuthStatus();
-
-    // --- Listener for Forced Logout ---
-    // This handles cases where the connection manager detects an unrecoverable auth issue
-    const handleForceLogout = (reason: string) => {
-        logger.warn(`AuthContext: Handling force_logout event. Reason: ${reason}`);
-        // Update state to reflect logout
-        setIsAuthenticated(false);
-        setUser(null);
-        // No need to clear tokens/session here, assume the source of the event did that.
-        toastService.error(`Logged out: ${reason}`, 10000); // Notify user
-    };
-    connectionManager.on('force_logout', handleForceLogout);
-
-    // Cleanup listener on component unmount
-    return () => {
-      connectionManager.off('force_logout', handleForceLogout);
-      // Optional: Disconnect connection manager on AuthProvider unmount?
-      // connectionManager.dispose(); // Or disconnect()
-    };
-    // Ensure dependencies cover all used external variables/functions
-  }, [connectionManager, tokenManager, sessionManager, authApi, httpClient, logger]); // Added dependencies
-
-  // --- Login Function ---
-  const login = useCallback(async (username: string, password: string): Promise<boolean> => {
-    logger.info(`AuthContext: Attempting login for user: ${username}`);
+  // Function to check authentication status (can be called on mount and after login/logout)
+  const checkAuthStatus = useCallback(async () => {
     setIsLoading(true);
     try {
-      const response: LoginResponse = await authApi.login(username, password);
-      tokenManager.storeTokens({
+      // Use getAccessToken which handles refresh internally if needed
+      const token = await services.tokenManager.getAccessToken();
+      const authStatus = !!token; // Check if token exists and is valid (getAccessToken returns null if invalid/refresh fails)
+      setIsAuthenticated(authStatus);
+      if (authStatus) {
+        const userId = services.tokenManager.getUserId();
+        setUser(userId ? { id: userId } : null);
+        services.logger.info('User is authenticated.', { userId });
+      } else {
+        setUser(null);
+        services.logger.info('User is not authenticated.');
+        // Ensure tokens are cleared if check fails after potential refresh attempt
+        services.tokenManager.clearTokens();
+      }
+    } catch (error) {
+      services.logger.error('Error checking auth status', { error });
+      setIsAuthenticated(false);
+      setUser(null);
+      services.tokenManager.clearTokens(); // Clear tokens on error
+    } finally {
+      setIsLoading(false);
+    }
+  }, [services]); // Dependency on services object
+
+  // Check authentication status on initial mount
+  useEffect(() => {
+    services.logger.info('AuthContext mounted. Checking initial auth status...');
+    checkAuthStatus();
+  }, [checkAuthStatus, services.logger]); // Depend on checkAuthStatus callback
+
+  // Login function
+  const login = useCallback(async (username: string, password: string): Promise<boolean> => {
+    setIsLoading(true);
+    try {
+      services.logger.info('Attempting login...');
+      const response: LoginResponse = await services.authApi.login(username, password);
+      // Store tokens immediately after successful login
+      const tokenData: TokenData = {
         accessToken: response.accessToken,
         refreshToken: response.refreshToken,
-        expiresAt: Date.now() + (response.expiresIn * 1000),
-        userId: response.userId
-      });
+        expiresAt: Date.now() + response.expiresIn * 1000,
+        userId: response.userId,
+      };
+      services.tokenManager.storeTokens(tokenData);
+      // Update state after storing tokens
       setIsAuthenticated(true);
       setUser({ id: response.userId });
-      logger.info(`AuthContext: Login successful for user ID: ${response.userId}`);
-      // Attempt connection after successful login
-      await connectionManager.connect();
+      services.logger.info('Login successful.', { userId: response.userId });
       setIsLoading(false);
       return true;
     } catch (error: any) {
-      logger.error("AuthContext: Login failed", { error: error.message });
-      // Ensure state reflects failed login
+      services.logger.error('Login failed', { error: error.message });
+      // Use errorHandler to display appropriate message
+      services.errorHandler.handleAuthError(
+        error instanceof Error ? error : new Error('Login failed'),
+        undefined, // Default severity
+        'AuthContext.login'
+      );
       setIsAuthenticated(false);
       setUser(null);
-      tokenManager.clearTokens(); // Clear any potentially partially stored tokens
-      sessionManager.clearSession(); // Clear session on login failure
+      services.tokenManager.clearTokens(); // Ensure tokens are cleared on failed login
       setIsLoading(false);
-      toastService.error(`Login failed: ${error.message || 'Please check credentials'}`);
       return false;
     }
-  }, [authApi, tokenManager, connectionManager, sessionManager, logger]); // Dependencies for login
+  }, [services]); // Dependency on services
 
-  // --- Logout Function ---
-  const logout = useCallback(async (reason: string = 'user_request'): Promise<void> => {
-    logger.warn(`AuthContext: Logout requested. Reason: ${reason}`);
-    setIsLoading(true); // Optional: show loading during logout
-
-    // 1. Disconnect services
-    connectionManager.disconnect(`logout: ${reason}`);
-
-    // 2. Attempt backend logout (optional, but good practice)
+  // Logout function
+  const logout = useCallback(async (): Promise<void> => {
+    setIsLoading(true);
     try {
-      await authApi.logout();
-      logger.info("AuthContext: Backend logout successful.");
+      services.logger.info('Attempting logout...');
+      // Attempt server-side logout first (optional, might fail if token expired)
+      await services.authApi.logout();
+      services.logger.info('Server-side logout successful (or ignored).');
     } catch (error: any) {
-      // Log backend error but proceed with client-side cleanup
-      logger.error("AuthContext: Backend logout failed (continuing client-side)", { error: error.message });
+      // Log API logout error but proceed with client-side cleanup
+      services.logger.warn('Server-side logout failed (might be expected if token expired)', { error: error.message });
     } finally {
-      // 3. Clear client-side tokens and session
-      tokenManager.clearTokens();
-      sessionManager.clearSession(); // Use instance method
-
-      // 4. Update application state
+      // Always perform client-side cleanup
+      services.tokenManager.clearTokens();
       setIsAuthenticated(false);
       setUser(null);
       setIsLoading(false);
-      logger.info("AuthContext: Client-side logout complete.");
+      services.logger.info('Client-side logout completed.');
+      // Optional: Redirect to login page after state update
+      // window.location.href = '/login'; // Consider using react-router-dom navigation
     }
-  }, [authApi, tokenManager, connectionManager, sessionManager, logger]); // Dependencies for logout
+  }, [services]); // Dependency on services
 
   // --- Context Value ---
-  // Memoize the context value to prevent unnecessary re-renders
-  const contextValue = useMemo(() => ({
-    isAuthenticated,
-    isLoading,
-    user,
-    tokenManager,
-    sessionManager, // Provide the instance
-    connectionManager, // Provide the instance
-    login,
-    logout,
-  }), [
+  const contextValue = useMemo(
+    () => ({
       isAuthenticated,
       isLoading,
       user,
-      tokenManager,
-      sessionManager, // Include instances in dependency array
-      connectionManager, // Include instances in dependency array
       login,
-      logout
-    ]);
+      logout,
+      // tokenManagerInstance: services.tokenManager, // Expose if needed
+      // authApiInstance: services.authApi, // Expose if needed
+    }),
+    [isAuthenticated, isLoading, user, login, logout /*, services */] // Include services if exposing instances
+  );
+
 
   return (
     <AuthContext.Provider value={contextValue}>
@@ -228,10 +180,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   );
 };
 
-/**
- * Custom hook to easily access the AuthContext.
- * Ensures the hook is used within a component wrapped by AuthProvider.
- */
+// Custom hook to use the AuthContext
 export const useAuth = (): AuthContextType => {
   const context = useContext(AuthContext);
   if (context === undefined) {
@@ -239,4 +188,3 @@ export const useAuth = (): AuthContextType => {
   }
   return context;
 };
-

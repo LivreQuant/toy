@@ -5,8 +5,10 @@ import { EventEmitter } from '../../utils/event-emitter';
 import { BackoffStrategy } from '../../utils/backoff-strategy';
 import { CircuitBreaker, CircuitState } from '../../utils/circuit-breaker';
 import { TokenManager } from '../auth/token-manager';
-// *** FIX: Import ConnectionStrategyDependencies correctly ***
-import { ConnectionStrategy, ConnectionStrategyDependencies } from './connection-strategy';
+// --- Ensure this interface is imported from types.ts ---
+import { ConnectionStrategyDependencies } from './types';
+// Import ConnectionStrategy itself
+import { ConnectionStrategy } from './connection-strategy';
 import { HeartbeatManager } from './heartbeat-manager';
 import {
   WebSocketErrorHandler,
@@ -71,7 +73,7 @@ export class WebSocketManager extends EventEmitter implements Disposable {
   private maxReconnectAttempts: number;
   private isDisposed: boolean = false;
   private currentConnectionQuality: WSConnectionQuality = WSConnectionQuality.DISCONNECTED; // Internal WS quality
-
+  
   // --- Options ---
   private wsOptions: WebSocketOptions;
 
@@ -254,21 +256,11 @@ export class WebSocketManager extends EventEmitter implements Disposable {
    * @param reason - A string indicating the reason for disconnection.
    */
   public disconnect(reason: string = 'Client disconnected'): void { // <-- Add optional parameter
-    if (this.ws) {
-        this.logger.warn(`Disconnecting WebSocket connection. Reason: ${reason}`);
-        // ... remove listeners ...
-        if (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING) {
-            this.ws.close(1000, reason); // Use the reason here
-        }
-        this.ws = null;
-    }
-    
     if (this.isDisposed) return;
     this.logger.warn(`WebSocket disconnect requested. Reason: ${reason}`);
 
     // Stop any pending reconnection attempts
     this.stopReconnectTimer();
-
     // Stop heartbeat mechanism
     this.heartbeatManager?.stop();
     this.heartbeatManager = null;
@@ -519,7 +511,7 @@ export class WebSocketManager extends EventEmitter implements Disposable {
     this.handleGenericError(error, ErrorSeverity.HIGH, 'Heartbeat');
 
     // Force disconnection of the strategy, which will trigger handleDisconnectEvent
-    this.connectionStrategy.disconnect('heartbeat_timeout');
+    this.connectionStrategy.disconnect();
   }
 
   /**

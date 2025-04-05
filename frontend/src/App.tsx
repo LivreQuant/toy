@@ -31,7 +31,6 @@ import ConnectionStatusOverlay from './components/Common/ConnectionStatusOverlay
 import { useAuth } from './contexts/AuthContext';
 import { useToast } from './contexts/ToastContext';
 
-
 // --- Instantiate Services ---
 // These are created once when the application loads
 const logger = Logger.getInstance();
@@ -62,9 +61,15 @@ const App: React.FC = () => {
     // Pass logger to ErrorBoundary if it accepts it as a prop
     <ErrorBoundary logger={logger}>
       <ToastProvider>
-        {/* Pass instantiated services to AuthProvider */}
-        <AuthProvider tokenManager={tokenManager} authApi={authApi}>
+        {/*
+          FIX APPLIED: Removed tokenManager and authApi props.
+          AuthProvider should manage access to these internally via context,
+          not receive them as direct props here.
+          Ensure AuthProvider in AuthContext.tsx is correctly set up.
+        */}
+        <AuthProvider>
           {/* Pass instantiated services to ConnectionProvider */}
+          {/* Note: ConnectionProvider *might* need similar review depending on its definition */}
           <ConnectionProvider tokenManager={tokenManager} logger={logger}>
             {/* AppContent consumes the contexts */}
             <AppContent />
@@ -137,7 +142,17 @@ const ConnectionStatusWrapper: React.FC = () => {
     return null;
   }
 
-  // Use your actual ConnectionStatus component and pass props from context
+  /*
+    REMINDER FOR ConnectionStatus COMPONENT:
+    The error "Property 'status' does not exist on type 'IntrinsicAttributes'"
+    needs to be fixed in the definition of the `ConnectionStatus` component
+    (likely in src/components/Common/ConnectionStatus.tsx).
+
+    You need to:
+    1. Define a Props interface for `ConnectionStatus` accepting `status`, `quality`,
+       `isRecovering`, `recoveryAttempt`, `onManualReconnect`, and `simulatorStatus`.
+    2. Update the `ConnectionStatus` component to accept and use these props.
+  */
   return (
     <ConnectionStatus
       status={overallStatus}

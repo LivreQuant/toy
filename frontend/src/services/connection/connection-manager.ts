@@ -4,7 +4,7 @@
 import { EventEmitter } from '../../utils/event-emitter';
 import { TokenManager } from '../auth/token-manager';
 import { WebSocketManager } from '../websocket/websocket-manager';
-import { ExchangeDataStream } from '../sse/exchange-data-stream';
+import { ExchangeDataStream, ExchangeDataOptions } from '../sse/exchange-data-stream'; // Import options type if needed
 import { HttpClient } from '../../api/http-client';
 import { ConnectionRecoveryInterface } from './connection-recovery-interface';
 import { RecoveryManager } from './recovery-manager';
@@ -58,7 +58,7 @@ export class ConnectionManager extends EventEmitter implements ConnectionRecover
     tokenManager: TokenManager,
     logger: Logger,
     wsOptions: ConstructorParameters<typeof WebSocketManager>[3] = {}, // Get options type from WebSocketManager
-    sseOptions: ConstructorParameters<typeof ExchangeDataStream>[3] = {} // Get options type from ExchangeDataStream
+    sseOptions: ExchangeDataOptions = {} // Get options type from ExchangeDataStream
   ) {
     super();
 

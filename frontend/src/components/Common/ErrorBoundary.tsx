@@ -1,13 +1,14 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
+import { Logger } from '../../utils/logger'; // Assuming path
 
 interface Props {
   children: ReactNode;
+  logger: Logger; // <-- Add logger prop definition
 }
 
 interface State {
   hasError: boolean;
-  error: Error | null;
-  errorInfo: ErrorInfo | null;
+  error?: Error;
 }
 
 class ErrorBoundary extends Component<Props, State> {
@@ -15,8 +16,6 @@ class ErrorBoundary extends Component<Props, State> {
     super(props);
     this.state = {
       hasError: false,
-      error: null,
-      errorInfo: null
     };
   }
 
@@ -25,16 +24,14 @@ class ErrorBoundary extends Component<Props, State> {
     return {
       hasError: true,
       error,
-      errorInfo: null
     };
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
     // Log the error to an error reporting service
-    console.error('Error caught by ErrorBoundary:', error, errorInfo);
-    this.setState({
-      error,
-      errorInfo
+    this.props.logger.error("ErrorBoundary caught an error", {
+        error: error.message,
+        componentStack: errorInfo.componentStack
     });
   }
 
@@ -47,7 +44,6 @@ class ErrorBoundary extends Component<Props, State> {
           <details style={{ whiteSpace: 'pre-wrap' }}>
             <summary>Error Details</summary>
             <p>{this.state.error?.toString()}</p>
-            <p>{this.state.errorInfo?.componentStack}</p>
           </details>
           <button
             onClick={() => window.location.reload()}

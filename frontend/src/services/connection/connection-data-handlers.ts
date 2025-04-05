@@ -96,7 +96,7 @@ export class ConnectionDataHandlers {
 
       return {
         success: false,
-        error: errorMessage // Return a user-friendly message derived from the exception
+        error: errorToHandle.message // Return a user-friendly message derived from the exception
       };
     }
   }
@@ -136,7 +136,7 @@ export class ConnectionDataHandlers {
 
       return {
         success: false,
-        error: errorMessage // Return a user-friendly message
+        error: errorToHandle.message // Return a user-friendly message
       };
     }
   }

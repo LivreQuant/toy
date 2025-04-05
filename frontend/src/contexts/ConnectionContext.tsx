@@ -43,7 +43,7 @@ export interface ConnectionContextType {
   connect: () => Promise<boolean>;
   disconnect: (reason?: string) => void;
   manualReconnect: () => Promise<boolean>;
-  startSimulator: (options?: any) => Promise<{ success: boolean; status?: string; error?: string }>;
+  startSimulator: () => Promise<{ success: boolean; status?: string; error?: string }>;
   stopSimulator: () => Promise<{ success: boolean; error?: string }>;
   // Add other methods components need (e.g., submitOrder, cancelOrder if managed here)
 }
@@ -132,9 +132,9 @@ export const ConnectionProvider: React.FC<ConnectionProviderProps> = ({ children
       }
   }, [connectionManager, logger]); // Add logger if used inside
 
-  const startSimulator = useCallback(async (options?: any): Promise<{ success: boolean; status?: string; error?: string }> => {
+  const startSimulator = useCallback(async (): Promise<{ success: boolean; status?: string; error?: string }> => {
       logger.info("Context: startSimulator action triggered");
-      return connectionManager.startSimulator(options);
+      return connectionManager.startSimulator();
   }, [connectionManager, logger]);
 
   const stopSimulator = useCallback(async (): Promise<{ success: boolean; error?: string }> => {
