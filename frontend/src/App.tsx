@@ -1,5 +1,5 @@
 // src/App.tsx
-import React, { useEffect } from 'react'; // Import useEffect
+import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { ConnectionProvider, useConnection } from './contexts/ConnectionContext';
@@ -61,9 +61,15 @@ const App: React.FC = () => {
     // Pass logger to ErrorBoundary if it accepts it as a prop
     <ErrorBoundary logger={logger}>
       <ToastProvider>
-        {/* AuthProvider manages access to auth services internally */}
+        {/*
+          FIX APPLIED: Removed tokenManager and authApi props.
+          AuthProvider should manage access to these internally via context,
+          not receive them as direct props here.
+          Ensure AuthProvider in AuthContext.tsx is correctly set up.
+        */}
         <AuthProvider>
           {/* Pass instantiated services to ConnectionProvider */}
+          {/* Note: ConnectionProvider *might* need similar review depending on its definition */}
           <ConnectionProvider tokenManager={tokenManager} logger={logger}>
             {/* AppContent consumes the contexts */}
             <AppContent />
@@ -74,48 +80,18 @@ const App: React.FC = () => {
   );
 };
 
-// AppContent component consumes contexts and handles conditional connection
+// AppContent component remains largely the same, consuming contexts
 const AppContent: React.FC = () => {
   const { addToast } = useToast(); // From ToastContext
-  // Get auth state and loading status
-  const { isAuthenticated, isLoading } = useAuth();
-  // Get connection manager and state from ConnectionContext
-  const { connectionManager, connectionState } = useConnection();
+  // isLoading likely comes from AuthContext to check initial auth status
+  const { isLoading } = useAuth();
 
   // Connect the singleton toastService to the actual addToast function from context
-  useEffect(() => {
+  React.useEffect(() => {
     toastService.setToastMethod(addToast);
     // Cleanup function if needed when AppContent unmounts
     // return () => { toastService.setToastMethod(null); };
   }, [addToast]);
-
-  // +++ START: Added useEffect for Conditional Connection +++
-  useEffect(() => {
-    // Ensure connectionManager is available before attempting actions
-    if (!connectionManager) {
-      logger.warn('ConnectionManager not available yet in AppContent effect.');
-      return;
-    }
-
-    // Condition 1: User is authenticated, attempt connection if not already connected/connecting/recovering
-    if (isAuthenticated && !connectionState.isConnected && !connectionState.isConnecting && !connectionState.isRecovering) {
-      logger.info('AppContent Effect: User authenticated, attempting connection...');
-      connectionManager.connect();
-    }
-    // Condition 2: User is NOT authenticated, ensure disconnection if currently connected/connecting/recovering
-    else if (!isAuthenticated && (connectionState.isConnected || connectionState.isConnecting || connectionState.isRecovering)) {
-      logger.info('AppContent Effect: User not authenticated, ensuring disconnection...');
-      connectionManager.disconnect('logged_out');
-    }
-    // Optional: Log status if authenticated but already connected/connecting
-    // else if (isAuthenticated) {
-    //   logger.info(`AppContent Effect: User authenticated, connection status: ${connectionState.overallStatus}`);
-    // }
-
-  // Dependencies: Run this effect when auth status, connection manager instance, or connection state details change
-  }, [isAuthenticated, connectionManager, connectionState]);
-  // +++ END: Added useEffect for Conditional Connection +++
-
 
   // Show loading screen during initial auth check
   if (isLoading) {
@@ -166,7 +142,17 @@ const ConnectionStatusWrapper: React.FC = () => {
     return null;
   }
 
-  // Render ConnectionStatus component with necessary props
+  /*
+    REMINDER FOR ConnectionStatus COMPONENT:
+    The error "Property 'status' does not exist on type 'IntrinsicAttributes'"
+    needs to be fixed in the definition of the `ConnectionStatus` component
+    (likely in src/components/Common/ConnectionStatus.tsx).
+
+    You need to:
+    1. Define a Props interface for `ConnectionStatus` accepting `status`, `quality`,
+       `isRecovering`, `recoveryAttempt`, `onManualReconnect`, and `simulatorStatus`.
+    2. Update the `ConnectionStatus` component to accept and use these props.
+  */
   return (
     <ConnectionStatus
       status={overallStatus}
@@ -191,6 +177,10 @@ const RequireAuth: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   // If not authenticated, redirect to login page
   if (!isAuthenticated) {
+    // You could optionally pass the intended destination via state
+    // import { useLocation } from 'react-router-dom';
+    // const location = useLocation();
+    // return <Navigate to="/login" state={{ from: location }} replace />;
     return <Navigate to="/login" replace />;
   }
 
