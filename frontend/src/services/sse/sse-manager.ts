@@ -12,6 +12,7 @@ import {
 } from '../connection/unified-connection-state';
 import { CircuitBreaker, CircuitState } from '../../utils/circuit-breaker';
 import { Logger } from '../../utils/logger';
+import { Disposable } from '../../utils/disposable'; // <<< Import Disposable
 
 export interface SSEOptions {
   reconnectMaxAttempts?: number;
@@ -19,7 +20,7 @@ export interface SSEOptions {
   resetTimeoutMs?: number;
 }
 
-export class SSEManager extends EventEmitter {
+export class SSEManager extends EventEmitter implements Disposable { // <<< Implement Disposable
   private baseUrl: string;
   private tokenManager: TokenManager;
   private eventSource: EventSource | null = null;
@@ -32,6 +33,7 @@ export class SSEManager extends EventEmitter {
   private circuitBreaker: CircuitBreaker;
   private logger: Logger;
   private errorHandler: ErrorHandler;
+  private isDisposed: boolean = false; // <<< Added dispose flag
 
   constructor(
     tokenManager: TokenManager,
@@ -57,6 +59,8 @@ export class SSEManager extends EventEmitter {
     );
 
     this.circuitBreaker.onStateChange((name, oldState, newState, info) => {
+        // <<< Check disposed flag in callback >>>
+        if (this.isDisposed) return;
         this.logger.warn(`Circuit Breaker [${name}] state changed: ${oldState} -> ${newState}`, info);
         if (newState === CircuitState.OPEN) {
             this.errorHandler.handleConnectionError(
@@ -70,12 +74,11 @@ export class SSEManager extends EventEmitter {
              });
         } else if (newState === CircuitState.CLOSED) {
              this.emit('circuit_closed', { message: 'SSE Circuit breaker closed. Connections re-enabled.' });
-             // *** Check auth before reconnecting after circuit closed ***
              const sseState = this.unifiedState.getServiceState(ConnectionServiceType.SSE);
              const wsState = this.unifiedState.getServiceState(ConnectionServiceType.WEBSOCKET);
              if (sseState.status === ConnectionStatus.DISCONNECTED && wsState.status === ConnectionStatus.CONNECTED && this.tokenManager.isAuthenticated()) {
                  this.logger.info('SSE Circuit breaker closed, attempting reconnect...');
-                 this.attemptReconnect();
+                 this.attemptReconnect(); // Triggers reconnect checks including disposed flag
              } else if (!this.tokenManager.isAuthenticated()) {
                  this.logger.info('SSE Circuit breaker closed, but user not authenticated. Skipping reconnect.');
              }
@@ -92,11 +95,15 @@ export class SSEManager extends EventEmitter {
       }
     });
 
+    // Subscribe to WebSocket state changes
     this.unifiedState.on('websocket_state_change', this.handleWebSocketStateChange.bind(this));
   }
 
   // Handles changes in the WebSocket connection state to coordinate SSE connection
   private handleWebSocketStateChange({ state }: { service: ConnectionServiceType, state: ServiceState }): void {
+    // <<< Check disposed flag >>>
+    if (this.isDisposed) return;
+
     this.logger.info(`Handling WebSocket state change in SSEManager: WS Status = ${state.status}`);
     const sseCurrentStatus = this.unifiedState.getServiceState(ConnectionServiceType.SSE).status;
 
@@ -104,23 +111,26 @@ export class SSEManager extends EventEmitter {
     if (state.status === ConnectionStatus.CONNECTED &&
         sseCurrentStatus !== ConnectionStatus.CONNECTED &&
         sseCurrentStatus !== ConnectionStatus.CONNECTING &&
-        this.tokenManager.isAuthenticated()) { // <-- Added auth check
+        this.tokenManager.isAuthenticated()) {
       this.logger.info('WebSocket connected and user authenticated. Triggering SSE connect attempt.');
       if(this.circuitBreaker.getState() === CircuitState.OPEN) {
           this.logger.warn('Resetting SSE circuit breaker due to successful WebSocket connection.');
           this.circuitBreaker.reset();
       }
-      this.connect().catch(err =>
+      this.connect().catch(err => // connect() checks disposed flag
         this.logger.error('Failed to auto-connect SSE after WebSocket connected', { error: err })
       );
     }
     else if (state.status === ConnectionStatus.DISCONNECTED) {
        this.logger.warn('WebSocket disconnected. Closing SSE connection.');
-       this.close('websocket_disconnected');
-       this.unifiedState.updateServiceState(ConnectionServiceType.SSE, {
-        status: ConnectionStatus.DISCONNECTED,
-        error: 'WebSocket disconnected'
-       });
+       this.close('websocket_disconnected'); // close() checks disposed flag
+       // Update state only if not disposed
+       if (!this.isDisposed) {
+           this.unifiedState.updateServiceState(ConnectionServiceType.SSE, {
+             status: ConnectionStatus.DISCONNECTED,
+             error: 'WebSocket disconnected'
+           });
+       }
     } else if (state.status === ConnectionStatus.CONNECTED && !this.tokenManager.isAuthenticated()) {
         this.logger.warn('WebSocket connected but user not authenticated. Skipping SSE connection.');
     }
@@ -128,21 +138,25 @@ export class SSEManager extends EventEmitter {
 
   // Initiates the connection process, respecting WebSocket status, auth, and circuit breaker
   public async connect(): Promise<boolean> {
+    // <<< Check disposed flag early >>>
+    if (this.isDisposed) {
+        this.logger.error('SSE connect aborted: Manager is disposed.');
+        return false;
+    }
     this.logger.info('SSE connection attempt initiated.');
 
     // 1. Check WebSocket status
     const wsState = this.unifiedState.getServiceState(ConnectionServiceType.WEBSOCKET);
     if (wsState.status !== ConnectionStatus.CONNECTED) {
       this.logger.error('SSE connect aborted: WebSocket is not connected.', { wsStatus: wsState.status });
-      this.emit('error', { error: 'Cannot connect SSE when WebSocket is disconnected' });
+      if (!this.isDisposed) this.emit('error', { error: 'Cannot connect SSE when WebSocket is disconnected' });
       return false;
     }
 
-    // 2. Check Authentication token (using isAuthenticated for simplicity)
-    // getAccessToken is called within establishConnection if needed
+    // 2. Check Authentication token
     if (!this.tokenManager.isAuthenticated()) {
       this.logger.error('SSE connect aborted: User is not authenticated.');
-      this.emit('error', { error: 'User not authenticated for SSE connection' });
+      if (!this.isDisposed) this.emit('error', { error: 'User not authenticated for SSE connection' });
       return false;
     }
 
@@ -152,24 +166,37 @@ export class SSEManager extends EventEmitter {
     }
     if (this.isConnecting) {
       this.logger.warn('SSE connect skipped: Connection already in progress.');
+      // Return a promise that resolves based on the outcome of the ongoing attempt
       return new Promise<boolean>(resolve => {
-        this.once('connected', () => resolve(true));
-        this.once('connection_failed', () => resolve(false));
+          const successListener = () => resolve(true);
+          const failListener = () => resolve(false);
+          this.once('connected', successListener);
+          this.once('connection_failed', failListener);
+          // Consider cleanup if the component listening unmounts before resolution
       });
     }
 
     // 4. Use Circuit Breaker to execute the connection attempt
     try {
        return await this.circuitBreaker.execute(async () => {
-           // Need to get token *inside* the execute block in case it was refreshed
+           // <<< Check disposed flag inside execute >>>
+           if (this.isDisposed) throw new Error('SSEManager disposed during circuit breaker execution');
+
            const token = await this.tokenManager.getAccessToken();
            if (!token) {
                this.logger.error('SSE connect aborted inside circuit breaker: No authentication token available.');
-               throw new Error('No authentication token available for SSE'); // Throw to fail the circuit breaker attempt
+               throw new Error('No authentication token available for SSE');
            }
-           return await this.establishConnection(token);
+           // <<< Check disposed flag after await >>>
+           if (this.isDisposed) throw new Error('SSEManager disposed after getting token');
+           return await this.establishConnection(token); // establishConnection checks disposed flag
        });
     } catch (error: any) {
+        // <<< Check disposed flag in error handling >>>
+        if (this.isDisposed) {
+            this.logger.warn("SSE connection failed, but manager was disposed. Ignoring error.", { error: error.message });
+            return false;
+        }
         this.logger.error('SSE connection failed via circuit breaker or internal error.', { error: error.message });
         this.handleConnectionFailure(error instanceof Error ? error.message : String(error));
         this.unifiedState.updateServiceState(ConnectionServiceType.SSE, {
@@ -183,6 +210,11 @@ export class SSEManager extends EventEmitter {
 
   // Internal method containing the core EventSource creation and handling logic
   private async establishConnection(token: string): Promise<boolean> {
+      // <<< Check disposed flag early >>>
+      if (this.isDisposed) {
+          this.logger.error('SSE establishConnection aborted: Manager is disposed.');
+          return false;
+      }
       this.isConnecting = true;
       this.logger.info('Establishing SSE connection...');
       this.unifiedState.updateServiceState(ConnectionServiceType.SSE, {
@@ -195,17 +227,29 @@ export class SSEManager extends EventEmitter {
         const fullUrl = `${this.baseUrl}?token=${token}`;
         this.logger.info('SSE Connection URL', { url: this.baseUrl });
 
+        // Ensure any previous EventSource is fully closed and listeners removed
         if (this.eventSource) {
             this.logger.warn('Closing pre-existing EventSource instance before reconnecting.');
-            this.eventSource.close();
-            this.removeMessageListeners();
+            this.close('reconnecting_new_instance'); // Use close to ensure cleanup
         }
 
         this.eventSource = new EventSource(fullUrl);
         this.logger.info('EventSource instance created.');
 
         return new Promise<boolean>((resolve) => {
-          this.eventSource!.onopen = () => {
+          if (!this.eventSource) { // Should not happen, but safety check
+              this.isConnecting = false;
+              resolve(false);
+              return;
+          }
+          this.eventSource.onopen = () => {
+            // <<< Check disposed flag in callback >>>
+            if (this.isDisposed) {
+                this.logger.warn('SSE onopen fired, but manager is disposed. Closing connection.');
+                this.close('disposed_on_open');
+                resolve(false); // Indicate connection didn't truly establish for the current state
+                return;
+            }
             this.logger.info('SSE Connection Opened Successfully.');
             this.isConnecting = false;
             this.reconnectAttempt = 0;
@@ -221,109 +265,128 @@ export class SSEManager extends EventEmitter {
             resolve(true);
           };
 
-          this.eventSource!.onerror = (errorEvent) => {
+          this.eventSource.onerror = (errorEvent) => {
+            // <<< Check disposed flag in callback >>>
+            if (this.isDisposed) {
+                this.logger.warn('SSE onerror fired, but manager is disposed.');
+                return;
+            }
             this.logger.error('SSE onerror Event Triggered.', { readyState: this.eventSource?.readyState });
+
+            // Handle errors primarily based on readyState
+            const wasConnecting = this.isConnecting; // Capture state before potential changes
+            this.isConnecting = false; // Assume connection attempt failed if error occurs
 
             if (this.eventSource?.readyState === EventSource.CLOSED) {
                  this.logger.warn('SSE onerror: Connection appears closed. Handling as disconnect.');
-                 this.handleDisconnect('onerror_closed');
-                 if (this.isConnecting) {
-                     this.isConnecting = false;
-                     this.emit('connection_failed', { error: 'SSE connection error during setup' });
-                     resolve(false);
+                 this.handleDisconnect('onerror_closed'); // Will check disposed flag
+                 if (wasConnecting) {
+                     this.emit('connection_failed', { error: 'SSE connection error during setup (closed)' });
+                     resolve(false); // Resolve the promise if it was still pending
                  }
             } else if (this.eventSource?.readyState === EventSource.CONNECTING) {
+                // Browser is attempting internal retries
                 this.logger.warn('SSE onerror: Connection in connecting state (browser likely attempting internal retry).');
                 const currentState = this.unifiedState.getServiceState(ConnectionServiceType.SSE).status;
-                if (currentState === ConnectionStatus.CONNECTED) {
+                if (currentState !== ConnectionStatus.RECOVERING && currentState !== ConnectionStatus.CONNECTING) {
                      this.unifiedState.updateServiceState(ConnectionServiceType.SSE, {
-                        status: ConnectionStatus.RECOVERING,
+                        status: ConnectionStatus.RECOVERING, // Use RECOVERING to indicate issue
                         error: 'SSE connection interrupted, attempting recovery...'
                      });
                 }
+                 if (wasConnecting) {
+                     // If the initial connection attempt immediately goes into browser retry, fail it.
+                     this.handleDisconnect('onerror_connecting');
+                     this.emit('connection_failed', { error: 'SSE connection error during setup (connecting)' });
+                     resolve(false);
+                 }
             } else {
                  this.logger.error('SSE onerror: Unknown state during error.', { errorEvent });
+                 // Treat unknown errors cautiously, handle as disconnect
+                 this.handleDisconnect('onerror_unknown');
+                 if (wasConnecting) {
+                     this.emit('connection_failed', { error: 'SSE connection error during setup (unknown)' });
+                     resolve(false);
+                 }
             }
           };
 
-          this.setupMessageListeners();
+          this.setupMessageListeners(); // Will check if eventSource exists
         });
       } catch (error: any) {
+        // Catch synchronous errors during EventSource creation
         this.logger.error('SSE establishConnection caught synchronous error', { error: error.message });
         this.isConnecting = false;
+        // Propagate the error to the circuit breaker/caller
         throw error;
       }
   }
 
   // Sets up listeners for named events from the SSE stream
   private setupMessageListeners(): void {
-    if (!this.eventSource) return;
+    if (!this.eventSource) return; // <<< Check if EventSource exists
     this.logger.info('Setting up SSE message listeners.');
 
+    // Generic message handler
     this.eventSource.onmessage = (event: MessageEvent) => {
+       if (this.isDisposed) return; // <<< Check disposed flag
        this.logger.debug('SSE generic message received', { data: event.data });
         try {
             const parsedData = JSON.parse(event.data);
             this.emit('message', { type: 'message', data: parsedData });
         } catch (parseError: any) {
             this.logger.error('Failed to parse generic SSE message', { error: parseError.message, rawData: event.data });
-            this.emit('error', { error: 'Failed to parse SSE message', originalError: parseError, rawData: event.data });
+            if (!this.isDisposed) this.emit('error', { error: 'Failed to parse SSE message', originalError: parseError, rawData: event.data });
         }
     };
 
-    this.eventSource.addEventListener('exchange-data', (event: MessageEvent) => {
-       this.logger.debug('SSE exchange-data event received');
-        try {
-            const data = JSON.parse(event.data);
-            this.emit('exchange-data', data);
-            this.emit('message', { type: 'exchange-data', data });
-        } catch (error: any) {
-             this.logger.error('Failed to parse exchange-data event', { error: error.message, rawData: event.data });
-             this.emit('error', { error: 'Failed to parse exchange-data event', originalError: error, rawData: event.data });
-        }
-    });
+    // Specific event listeners
+    const addSpecificListener = (eventName: string) => {
+        if (!this.eventSource) return;
+        this.eventSource.addEventListener(eventName, (event: MessageEvent) => {
+            if (this.isDisposed) return; // <<< Check disposed flag
+            this.logger.debug(`SSE ${eventName} event received`);
+            try {
+                const data = JSON.parse(event.data);
+                this.emit(eventName, data); // Emit with specific event name
+                this.emit('message', { type: eventName, data }); // Also emit as generic message
+            } catch (error: any) {
+                 this.logger.error(`Failed to parse ${eventName} event`, { error: error.message, rawData: event.data });
+                 if (!this.isDisposed) this.emit('error', { error: `Failed to parse ${eventName} event`, originalError: error, rawData: event.data });
+            }
+        });
+    };
 
-     this.eventSource.addEventListener('order-update', (event: MessageEvent) => {
-       this.logger.debug('SSE order-update event received');
-        try {
-            const data = JSON.parse(event.data);
-            this.emit('order-update', data);
-            this.emit('message', { type: 'order-update', data });
-        } catch (error: any) {
-             this.logger.error('Failed to parse order-update event', { error: error.message, rawData: event.data });
-             this.emit('error', { error: 'Failed to parse order-update event', originalError: error, rawData: event.data });
-        }
-    });
-
-    this.eventSource.addEventListener('error-event', (event: MessageEvent) => {
-       this.logger.error('SSE server-sent error event received', { data: event.data });
-        try {
-            const errorData = JSON.parse(event.data);
-            this.emit('server_error', errorData);
-            this.emit('error', { type: 'server_error', data: errorData });
-        } catch (error) {
-            this.emit('error', { error: 'Server reported an unparseable error', rawData: event.data });
-        }
-    });
+    addSpecificListener('exchange-data');
+    addSpecificListener('order-update');
+    addSpecificListener('error-event'); // Listen for server-sent errors
   }
 
   // Removes all message listeners from the current EventSource instance
   private removeMessageListeners(): void {
        if (!this.eventSource) return;
        this.logger.info('Removing SSE message listeners.');
+       // Nullify standard handlers
        this.eventSource.onmessage = null;
        this.eventSource.onerror = null;
        this.eventSource.onopen = null;
+       // Remove specific listeners using a dummy handler (common pattern)
        const dummyHandler = () => {};
-       this.eventSource.removeEventListener('exchange-data', dummyHandler);
-       this.eventSource.removeEventListener('order-update', dummyHandler);
-       this.eventSource.removeEventListener('error-event', dummyHandler);
+       try {
+           this.eventSource.removeEventListener('exchange-data', dummyHandler);
+           this.eventSource.removeEventListener('order-update', dummyHandler);
+           this.eventSource.removeEventListener('error-event', dummyHandler);
+       } catch(e) {
+           this.logger.warn("Minor error during removeEventListener (might be expected if listener wasn't added)", e);
+       }
   }
 
   // Handles connection failures, logging and notifying via ErrorHandler
   private handleConnectionFailure(errorMessage: string) {
+    // <<< Check disposed flag early >>>
+    if (this.isDisposed) return;
     this.logger.error(`SSE Connection Failure: ${errorMessage}`);
-     this.isConnecting = false;
+    this.isConnecting = false;
 
     this.unifiedState.updateServiceState(ConnectionServiceType.SSE, {
       status: ConnectionStatus.DISCONNECTED,
@@ -332,6 +395,7 @@ export class SSEManager extends EventEmitter {
 
     this.emit('connection_failed', { error: errorMessage });
 
+    // Use injected errorHandler instance
      if (this.circuitBreaker.getState() === CircuitState.OPEN) {
          this.errorHandler.handleConnectionError(
             `SSE connection failed and circuit breaker is OPEN. Attempts suspended. Reason: ${errorMessage}`,
@@ -349,44 +413,49 @@ export class SSEManager extends EventEmitter {
 
   // Handles disconnection events, updates state, and potentially triggers reconnect attempts
   private handleDisconnect(reason: string = 'unknown'): void {
+    // <<< Check disposed flag early >>>
+    if (this.isDisposed) return;
+
     this.logger.warn(`SSE Disconnected. Reason: ${reason}`);
-     this.isConnecting = false;
+    this.isConnecting = false; // Ensure connecting flag is reset
 
-    const shouldAttemptReconnect = reason !== 'websocket_disconnected' && reason !== 'manual_close';
-    const isWebSocketConnected = this.unifiedState.getServiceState(ConnectionServiceType.WEBSOCKET).status === ConnectionStatus.CONNECTED;
-    const circuitIsOpen = this.circuitBreaker.getState() === CircuitState.OPEN;
-    // *** Check authentication status BEFORE deciding to reconnect ***
-    const isAuthenticated = this.tokenManager.isAuthenticated();
-
-     const sseState = this.unifiedState.getServiceState(ConnectionServiceType.SSE);
-     if (sseState.status !== ConnectionStatus.DISCONNECTED) {
+    // Update unified state if not already disconnected
+    const sseState = this.unifiedState.getServiceState(ConnectionServiceType.SSE);
+    if (sseState.status !== ConnectionStatus.DISCONNECTED) {
          this.unifiedState.updateServiceState(ConnectionServiceType.SSE, {
            status: ConnectionStatus.DISCONNECTED,
            error: `Connection lost (${reason})`
          });
           this.emit('disconnected', { reason });
-     }
+    }
 
-    // Attempt to reconnect if appropriate conditions are met
-    if (shouldAttemptReconnect && isWebSocketConnected && isAuthenticated && !circuitIsOpen) { // <-- Added isAuthenticated check
+    // --- Reconnect Logic ---
+    const shouldAttemptReconnect = reason !== 'websocket_disconnected' && reason !== 'manual_close' && reason !== 'dispose' && reason !== 'reconnecting_new_instance';
+    const isWebSocketConnected = this.unifiedState.getServiceState(ConnectionServiceType.WEBSOCKET).status === ConnectionStatus.CONNECTED;
+    const circuitIsOpen = this.circuitBreaker.getState() === CircuitState.OPEN;
+    const isAuthenticated = this.tokenManager.isAuthenticated();
+
+    if (shouldAttemptReconnect && isWebSocketConnected && isAuthenticated && !circuitIsOpen) {
       this.logger.info('Attempting SSE reconnect after disconnect.');
-      this.attemptReconnect();
+      this.attemptReconnect(); // Checks disposed flag internally
     } else {
+       // Log why reconnect wasn't attempted
        this.logger.warn('Not attempting SSE reconnect.', {
            shouldAttemptReconnect,
            isWebSocketConnected,
-           isAuthenticated, // Log auth status
+           isAuthenticated,
            circuitIsOpen,
            reason
        });
-       if (!isAuthenticated) {
-           // Reset counters because the disconnect is due to auth state
+       // <<< FIX: Removed isNormalClosure check >>>
+       if (!isAuthenticated /* && !isNormalClosure */) { // Check only authentication status
+           this.logger.info('Resetting SSE reconnect counters due to lack of authentication.');
            this.reconnectAttempt = 0;
            this.backoffStrategy.reset();
-       } else if (isWebSocketConnected) {
+       } else if (isWebSocketConnected && (circuitIsOpen || this.reconnectAttempt >= this.maxReconnectAttempts)) {
            this.errorHandler.handleConnectionError(
              `SSE Stream connection lost permanently. Circuit breaker may be open or max attempts reached. Reason: ${reason}`,
-             ErrorSeverity.MEDIUM,
+             ErrorSeverity.MEDIUM, // Maybe HIGH if data is critical
              'Data Stream (SSE)'
            );
            this.emit('connection_lost_permanently', { reason });
@@ -396,23 +465,23 @@ export class SSEManager extends EventEmitter {
 
   // Manages the reconnection attempt scheduling and execution
   private attemptReconnect(): void {
-    if (this.reconnectTimer !== null) {
-      this.logger.warn('SSE reconnect attempt skipped: Timer already active.');
-      return;
+    // *** ADD CHECK: Abort if disposed or timer already active ***
+    if (this.isDisposed || this.reconnectTimer !== null) {
+        if (this.reconnectTimer !== null) this.logger.warn('SSE reconnect attempt skipped: Timer already active or manager disposed.');
+        return;
     }
 
-    // +++ ADDED AUTHENTICATION CHECK +++
+    // +++ AUTHENTICATION CHECK +++
     if (!this.tokenManager.isAuthenticated()) {
         this.logger.error('SSE reconnect attempt cancelled: User is not authenticated.');
-        this.unifiedState.updateRecovery(false, this.reconnectAttempt); // Ensure recovery UI is hidden
-        // Reset counters as user is logged out
+        // Don't update unifiedState recovery here, let the disconnect handler manage it
         this.reconnectAttempt = 0;
         this.backoffStrategy.reset();
         return;
     }
     // +++ END CHECK +++
 
-    // Pre-checks before scheduling
+    // --- Pre-checks before scheduling ---
     if (this.unifiedState.getServiceState(ConnectionServiceType.WEBSOCKET).status !== ConnectionStatus.CONNECTED) {
       this.logger.warn('SSE reconnect attempt cancelled: WebSocket is disconnected.');
       return;
@@ -429,10 +498,18 @@ export class SSEManager extends EventEmitter {
              ErrorSeverity.HIGH,
              'Data Stream (SSE)'
            );
+      // Update state to reflect permanent failure only if not disposed
+      if (!this.isDisposed) {
+          this.unifiedState.updateServiceState(ConnectionServiceType.SSE, {
+              status: ConnectionStatus.DISCONNECTED,
+              error: `Max reconnect attempts reached (${this.maxReconnectAttempts})`,
+              recoveryAttempts: this.reconnectAttempt
+          });
+      }
       return;
     }
 
-    // Schedule the reconnect attempt
+    // --- Schedule the reconnect attempt ---
     this.reconnectAttempt++;
     const delay = this.backoffStrategy.nextBackoffTime();
     this.logger.info(`Scheduling SSE reconnect attempt ${this.reconnectAttempt}/${this.maxReconnectAttempts} in ${delay}ms.`);
@@ -451,12 +528,19 @@ export class SSEManager extends EventEmitter {
 
     this.reconnectTimer = window.setTimeout(async () => {
       this.reconnectTimer = null;
+      // *** ADD CHECK: Abort if disposed before timer fires ***
+      if (this.isDisposed) {
+          this.logger.warn('Reconnect timer fired, but SSEManager is disposed. Aborting connect attempt.');
+          return;
+      }
       this.logger.info(`Executing scheduled SSE reconnect attempt ${this.reconnectAttempt}.`);
-      const connected = await this.connect();
-      if (!connected) {
+      const connected = await this.connect(); // connect checks disposed flag
+      if (!connected && !this.isDisposed) { // Check disposed again after await
         this.logger.warn(`SSE reconnect attempt ${this.reconnectAttempt} failed.`);
-      } else {
+        // Further failure handling (next attempt) is managed by connect() -> handleDisconnect()
+      } else if(connected && !this.isDisposed) {
          this.logger.info(`SSE reconnect attempt ${this.reconnectAttempt} successful.`);
+         // Success handling (resetting attempts etc.) done in establishConnection -> onopen
       }
     }, delay);
 
@@ -468,28 +552,35 @@ export class SSEManager extends EventEmitter {
   }
 
   // Closes the SSE connection and stops any reconnection attempts
-  public close(reason: string = 'manual_close'): void {
-     this.logger.info(`SSE close requested. Reason: ${reason}`);
-    this.stopReconnectTimer();
+  public close(reason?: string): void { // <<< Accept optional reason
+    // <<< Check disposed flag (allow close even if disposing) >>>
+    // if (this.isDisposed && reason !== 'dispose') return;
+
+     this.logger.info(`SSE close requested. Reason: ${reason ?? 'N/A'}`);
+     this.stopReconnectTimer(); // Stop timer first
 
     if (this.eventSource) {
        this.logger.info('Closing existing EventSource.');
-       this.removeMessageListeners();
+       this.removeMessageListeners(); // Remove listeners before closing
+       // Explicitly nullify handlers to be safe
        this.eventSource.onerror = null;
        this.eventSource.onopen = null;
        this.eventSource.onmessage = null;
        this.eventSource.close();
        this.eventSource = null;
     }
-     this.isConnecting = false;
+    this.isConnecting = false; // Ensure connecting flag is reset
 
-     const sseState = this.unifiedState.getServiceState(ConnectionServiceType.SSE);
-     if (sseState.status !== ConnectionStatus.DISCONNECTED) {
-         this.unifiedState.updateServiceState(ConnectionServiceType.SSE, {
-           status: ConnectionStatus.DISCONNECTED,
-           error: `Connection closed (${reason})`
-         });
-         this.emit('disconnected', { reason });
+    // Update state only if not already disconnected *and* not disposing
+     if (!this.isDisposed) {
+        const sseState = this.unifiedState.getServiceState(ConnectionServiceType.SSE);
+        if (sseState.status !== ConnectionStatus.DISCONNECTED) {
+            this.unifiedState.updateServiceState(ConnectionServiceType.SSE, {
+              status: ConnectionStatus.DISCONNECTED,
+              error: `Connection closed (${reason ?? 'N/A'})`
+            });
+            this.emit('disconnected', { reason });
+        }
      }
   }
 
@@ -504,10 +595,15 @@ export class SSEManager extends EventEmitter {
 
   // Manually resets the circuit breaker, allowing immediate connection attempts
   public resetCircuitBreaker(): void {
+    // <<< Check disposed flag >>>
+    if (this.isDisposed) {
+        this.logger.warn('Reset circuit breaker ignored: SSEManager disposed.');
+        return;
+    }
     this.logger.warn('Manual reset of SSE circuit breaker requested.');
     this.circuitBreaker.reset();
-     this.reconnectAttempt = 0;
-     this.backoffStrategy.reset();
+    this.reconnectAttempt = 0; // Reset attempts on manual breaker reset
+    this.backoffStrategy.reset();
   }
 
   // Returns the current status of the SSE connection and related mechanisms
@@ -518,21 +614,71 @@ export class SSEManager extends EventEmitter {
     reconnectAttempt: number;
     maxReconnectAttempts: number;
   } {
+    // <<< Handle disposed state >>>
+    if (this.isDisposed) {
+        return {
+            connected: false,
+            connecting: false,
+            circuitBreakerState: this.circuitBreaker.getState(), // Can still report state
+            reconnectAttempt: this.reconnectAttempt,
+            maxReconnectAttempts: this.maxReconnectAttempts,
+        };
+    }
     const sseState = this.unifiedState.getServiceState(ConnectionServiceType.SSE);
     return {
       connected: sseState.status === ConnectionStatus.CONNECTED,
-      connecting: sseState.status === ConnectionStatus.CONNECTING,
+      connecting: sseState.status === ConnectionStatus.CONNECTING || this.isConnecting, // Use internal flag too
       circuitBreakerState: this.circuitBreaker.getState(),
       reconnectAttempt: this.reconnectAttempt,
       maxReconnectAttempts: this.maxReconnectAttempts
     };
   }
 
-  // Cleans up resources when the SSEManager is no longer needed
+  /**
+   * Cleans up resources when the SSEManager is no longer needed.
+   * <<< REFACTORED dispose method >>>
+   */
   public dispose(): void {
-     this.logger.warn('Disposing SSEManager.');
-    this.unifiedState.off('websocket_state_change', this.handleWebSocketStateChange.bind(this));
-    this.close('dispose');
-    this.removeAllListeners();
+    // *** Check and set disposed flag immediately ***
+    if (this.isDisposed) {
+        this.logger.warn('SSEManager already disposed.');
+        return;
+    }
+    this.logger.warn('Disposing SSEManager.');
+    this.isDisposed = true; // Set flag early
+
+    // *** Unsubscribe from external events FIRST ***
+    // Ensure listener removal happens reliably
+    try {
+        // Assuming unifiedState still exists, attempt removal
+        this.unifiedState.off('websocket_state_change', this.handleWebSocketStateChange.bind(this));
+    } catch (e) {
+        this.logger.error("Error unsubscribing from unifiedState during dispose", e);
+    }
+
+
+    // *** Close connection and stop timers ***
+    this.close('dispose'); // Ensures EventSource is closed and timer is stopped
+
+    // *** Remove internal listeners ***
+    this.removeAllListeners(); // From EventEmitter base
+
+    // *** Optional: Clear references ***
+    // Assigning null might help GC but isn't strictly necessary if the instance itself is dereferenced
+    // this.tokenManager = null;
+    // this.unifiedState = null;
+    // this.errorHandler = null;
+    // this.circuitBreaker = null;
+    // this.backoffStrategy = null;
+
+
+    this.logger.info('SSEManager dispose complete.');
+  }
+
+   /**
+   * Implements the [Symbol.dispose] method for the Disposable interface.
+   */
+  [Symbol.dispose](): void {
+      this.dispose();
   }
 }

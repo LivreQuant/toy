@@ -63,7 +63,7 @@ export class WebSocketManager extends EventEmitter implements Disposable {
   private reconnectTimer: number | null = null;
   private reconnectAttempts: number = 0;
   private maxReconnectAttempts: number;
-  private isDisposed: boolean = false;
+  private isDisposed: boolean = false; // <<< Added dispose flag
   private currentConnectionQuality: WSConnectionQuality = WSConnectionQuality.DISCONNECTED; // Internal WS quality
 
   // --- Options ---
@@ -143,7 +143,7 @@ export class WebSocketManager extends EventEmitter implements Disposable {
     this.on('ws_connected_internal', this.handleWsConnected.bind(this));
     this.on('ws_disconnected_internal', this.handleDisconnectEvent.bind(this));
     this.on('ws_error_internal', (errorData: any) => {
-      if (this.isDisposed) return;
+      if (this.isDisposed) return; // <<< Check disposed flag
       const wsError = new WebSocketError(errorData.message || 'Connection strategy error', 'CONNECTION_STRATEGY_ERROR');
       // Route to generic error handler
       this.handleGenericError(wsError, ErrorSeverity.HIGH, 'WebSocket Internal');
@@ -154,12 +154,12 @@ export class WebSocketManager extends EventEmitter implements Disposable {
     this.messageHandler.on('heartbeat', this.handleHeartbeatEvent.bind(this));
     this.messageHandler.on('session_invalidated', this.handleSessionInvalidated.bind(this));
     this.messageHandler.on('message_error', (errorInfo: { error: Error, rawData: string }) => {
-        if (this.isDisposed) return;
+        if (this.isDisposed) return; // <<< Check disposed flag
         this.logger.error('Message handler reported an error.', errorInfo);
         this.handleGenericError(errorInfo.error, ErrorSeverity.MEDIUM, 'MessageHandler');
     });
     this.messageHandler.on('unknown_message', (message: any) => {
-        if (this.isDisposed) return;
+        if (this.isDisposed) return; // <<< Check disposed flag
         this.logger.warn('Received message of unknown type from handler.', { type: message?.type });
     });
 
@@ -175,6 +175,7 @@ export class WebSocketManager extends EventEmitter implements Disposable {
    * @returns True if connection attempt is successful, false otherwise.
    */
   public async connect(): Promise<boolean> {
+    // <<< Check disposed flag early >>>
     if (this.isDisposed) {
         this.logger.error("Cannot connect: WebSocketManager is disposed.");
         return false;
@@ -200,6 +201,13 @@ export class WebSocketManager extends EventEmitter implements Disposable {
         return this.connectionStrategy.connect();
       });
 
+      // <<< Check disposed flag after async operation >>>
+      if (this.isDisposed) {
+          this.logger.warn("Connection successful, but WebSocketManager was disposed during the process. Disconnecting.");
+          this.disconnect("disposed_during_connect");
+          return false;
+      }
+
       this.logger.info("WebSocket connection established successfully via Circuit Breaker.");
       // Note: handleWsConnected will be called via the 'ws_connected_internal' event
 
@@ -210,6 +218,11 @@ export class WebSocketManager extends EventEmitter implements Disposable {
       return true;
 
     } catch (error: any) {
+      // <<< Check disposed flag in error handler >>>
+      if (this.isDisposed) {
+          this.logger.warn("Connection failed, but WebSocketManager was disposed during the process. Ignoring error.", { error: error.message });
+          return false;
+      }
       this.logger.error(`WebSocket connection failed. Reason: ${error.message}`, { name: error.name });
       this.handleGenericError(error, ErrorSeverity.HIGH, 'WebSocket Connect');
       this.unifiedState.updateServiceState(ConnectionServiceType.WEBSOCKET, {
@@ -227,25 +240,32 @@ export class WebSocketManager extends EventEmitter implements Disposable {
    * @param reason - A string indicating the reason for disconnection.
    */
   public disconnect(reason: string = 'Client disconnected'): void {
-    if (this.isDisposed) return;
+    // <<< Check disposed flag early (allow disconnect even if disposing) >>>
+    // if (this.isDisposed) return; // Allow disconnect to proceed during dispose
+
     this.logger.warn(`WebSocket disconnect requested. Reason: ${reason}`);
 
-    this.stopReconnectTimer();
+    this.stopReconnectTimer(); // Stop potential reconnects first
     this.heartbeatManager?.stop();
     this.heartbeatManager = null;
 
-    this.connectionStrategy.disconnect();
+    this.connectionStrategy.disconnect(); // Close the actual socket
 
-    const currentState = this.unifiedState.getServiceState(ConnectionServiceType.WEBSOCKET);
-    if (currentState.status !== ConnectionStatus.DISCONNECTED) {
-      this.unifiedState.updateServiceState(ConnectionServiceType.WEBSOCKET, {
-        status: ConnectionStatus.DISCONNECTED,
-        error: reason,
-        lastConnected: currentState.lastConnected
-      });
+    // Update state only if not already disposed
+    if (!this.isDisposed) {
+        const currentState = this.unifiedState.getServiceState(ConnectionServiceType.WEBSOCKET);
+        if (currentState.status !== ConnectionStatus.DISCONNECTED) {
+          this.unifiedState.updateServiceState(ConnectionServiceType.WEBSOCKET, {
+            status: ConnectionStatus.DISCONNECTED,
+            error: reason,
+            lastConnected: currentState.lastConnected
+          });
+        }
     }
 
-    if (reason === 'user_disconnect' || reason === 'logout' || reason === 'manager_disposed' || reason.startsWith('auth_')) {
+    // Reset counters only for specific clean/auth disconnect reasons,
+    // and only if we are not in the process of disposing
+    if (!this.isDisposed && (reason === 'user_disconnect' || reason === 'logout' || reason.startsWith('auth_'))) {
         this.logger.info('Resetting backoff and circuit breaker due to clean/auth disconnect.');
         this.reconnectAttempts = 0;
         this.backoffStrategy.reset();
@@ -254,29 +274,13 @@ export class WebSocketManager extends EventEmitter implements Disposable {
     }
   }
 
-  /**
-   * Cleans up all resources used by the WebSocketManager.
-   */
-  public dispose(): void {
-    if (this.isDisposed) return;
-    this.logger.warn("Disposing WebSocketManager...");
-    this.isDisposed = true;
-
-    this.disconnect('manager_disposed');
-
-    this.messageHandler?.removeAllListeners();
-    this.removeAllListeners();
-
-    this.logger.warn("WebSocketManager disposed.");
-  }
-
   // --- Event Handlers ---
 
   /**
    * Handles the successful opening of the WebSocket connection.
    */
   private handleWsConnected(): void {
-      if (this.isDisposed) return;
+      if (this.isDisposed) return; // <<< Check disposed flag
       this.logger.info('Internal WebSocket Connected event received.');
 
       const ws = this.connectionStrategy.getWebSocket();
@@ -320,16 +324,20 @@ export class WebSocketManager extends EventEmitter implements Disposable {
    * @param details - Information about the disconnection event.
    */
   private handleDisconnectEvent(details: { code: number; reason: string; wasClean: boolean }): void {
-    if (this.isDisposed) return;
+    if (this.isDisposed) return; // <<< Check disposed flag
     this.logger.warn(`Internal WebSocket Disconnected event received. Code: ${details.code}, Reason: "${details.reason}", Clean: ${details.wasClean}`);
+
+    // Stop heartbeat immediately on disconnect
+    this.heartbeatManager?.stop();
+    this.heartbeatManager = null;
 
     const ws = this.connectionStrategy.getWebSocket();
     if (ws) {
+        // Nullify handlers on the socket instance *if it still exists*
+        // ConnectionStrategy might have already nulled it on close
         ws.onmessage = null;
         ws.onerror = null;
     }
-    this.heartbeatManager?.stop();
-    this.heartbeatManager = null;
 
     const currentStatus = this.unifiedState.getServiceState(ConnectionServiceType.WEBSOCKET).status;
     if (currentStatus !== ConnectionStatus.DISCONNECTED) {
@@ -339,9 +347,8 @@ export class WebSocketManager extends EventEmitter implements Disposable {
         });
     }
 
-    const isNormalClosure = details.code === 1000;
-    // Consider auth errors (like 4001 or specific reasons) as non-recoverable automatically
-    const isAuthRelatedClosure = details.code === 4001 || details.reason?.toLowerCase().includes('unauthorized') || details.reason?.toLowerCase().includes('invalid token');
+    const isNormalClosure = details.code === 1000 || details.reason === 'Client disconnected' || details.reason === 'manager_disposed';
+    const isAuthRelatedClosure = details.code === 4001 || details.reason?.toLowerCase().includes('unauthorized') || details.reason?.toLowerCase().includes('invalid token') || details.reason?.startsWith('auth_');
     const circuitIsOpen = this.circuitBreaker.getState() === CircuitState.OPEN;
     const maxAttemptsReached = this.reconnectAttempts >= this.maxReconnectAttempts;
 
@@ -357,12 +364,12 @@ export class WebSocketManager extends EventEmitter implements Disposable {
     if (shouldAttemptReconnect) {
       this.attemptReconnect();
     } else {
-      if (!isAuthenticated) {
+      // Logic for logging why reconnect wasn't attempted
+      if (!isAuthenticated && !isNormalClosure) {
           this.logger.warn("Not attempting reconnect: User is not authenticated.");
-          // Reset counters because the disconnect is due to auth state
           this.reconnectAttempts = 0;
           this.backoffStrategy.reset();
-          this.circuitBreaker.reset(); // Reset circuit breaker on auth issues
+          this.circuitBreaker.reset();
           this.unifiedState.updateRecovery(false, 0);
       } else if (isNormalClosure || isAuthRelatedClosure) {
          this.logger.info('Resetting reconnect attempts and backoff due to controlled/auth disconnect.');
@@ -394,16 +401,18 @@ export class WebSocketManager extends EventEmitter implements Disposable {
     * Handles WebSocket 'error' events that occur *after* the connection is established.
     */
    private handleWebSocketErrorEvent(event: Event): void {
-        if (this.isDisposed) return;
+        if (this.isDisposed) return; // <<< Check disposed flag
         this.logger.error('WebSocket runtime error event occurred.', { event });
         this.handleGenericError(new Error('WebSocket runtime error'), ErrorSeverity.MEDIUM, 'WebSocket Runtime');
+        // Note: The browser might automatically trigger a 'close' event after 'error',
+        // which would then be handled by handleDisconnectEvent. No explicit disconnect here usually.
    }
 
   /**
    * Handles incoming messages forwarded by the MessageHandler.
    */
   private handleIncomingMessage(message: any): void {
-    if (this.isDisposed) return;
+    if (this.isDisposed) return; // <<< Check disposed flag
     // Optional: Log all incoming messages at debug level if needed
   }
 
@@ -411,8 +420,8 @@ export class WebSocketManager extends EventEmitter implements Disposable {
    * Handles heartbeat responses received from the server (via MessageHandler).
    */
   private handleHeartbeatEvent(data: HeartbeatData): void {
-    if (this.isDisposed) return;
-    this.heartbeatManager?.handleHeartbeatResponse();
+    if (this.isDisposed) return; // <<< Check disposed flag
+    this.heartbeatManager?.handleHeartbeatResponse(); // Inform heartbeat manager
 
     const now = Date.now();
     const latency = data.timestamp ? (now - data.timestamp) : -1;
@@ -429,18 +438,19 @@ export class WebSocketManager extends EventEmitter implements Disposable {
    * Handles heartbeat timeout events emitted by the HeartbeatManager.
    */
   private handleHeartbeatTimeout(): void {
-    if (this.isDisposed) return;
+    if (this.isDisposed) return; // <<< Check disposed flag
     this.logger.error('Heartbeat timeout detected.');
     const error = new WebSocketError('Connection lost (heartbeat timeout).', 'HEARTBEAT_TIMEOUT');
     this.handleGenericError(error, ErrorSeverity.HIGH, 'Heartbeat');
     this.connectionStrategy.disconnect(); // Force disconnect
+    // handleDisconnectEvent will be triggered by the strategy's disconnect
   }
 
   /**
    * Handles session invalidation messages from the server (via MessageHandler).
    */
   private handleSessionInvalidated(details: { reason: string }): void {
-    if (this.isDisposed) return;
+    if (this.isDisposed) return; // <<< Check disposed flag
     this.logger.error(`Session invalidated by server. Reason: ${details.reason}`);
     const error = new AuthenticationError(`Session invalidated: ${details.reason}. Please log in again.`);
     this.handleGenericError(error, ErrorSeverity.HIGH, 'SessionInvalidated');
@@ -452,7 +462,7 @@ export class WebSocketManager extends EventEmitter implements Disposable {
     * Handles changes in the Circuit Breaker's state.
     */
    private handleCircuitBreakerStateChange(name: string, oldState: CircuitState, newState: CircuitState, info: any): void {
-        if (this.isDisposed) return;
+        if (this.isDisposed) return; // <<< Check disposed flag
         this.logger.warn(`Circuit Breaker [${name}] state changed: ${oldState} -> ${newState}`, info);
 
         if (newState === CircuitState.OPEN) {
@@ -472,6 +482,7 @@ export class WebSocketManager extends EventEmitter implements Disposable {
              // *** Check authentication before attempting reconnect after circuit closed ***
              if (wsState.status === ConnectionStatus.DISCONNECTED && this.tokenManager.isAuthenticated()) {
                  this.logger.info('Circuit breaker closed, attempting reconnect...');
+                 // Directly call attemptReconnect, which handles its own checks
                  this.attemptReconnect();
              } else if (!this.tokenManager.isAuthenticated()) {
                   this.logger.info('Circuit breaker closed, but user not authenticated. Skipping reconnect.');
@@ -487,7 +498,7 @@ export class WebSocketManager extends EventEmitter implements Disposable {
     severity: ErrorSeverity = ErrorSeverity.MEDIUM,
     context: string = 'WebSocket'
   ): void {
-    if (this.isDisposed) return;
+    if (this.isDisposed) return; // <<< Check disposed flag
     this.logger.error(`[${context}] Handling error:`, { error, severity });
 
     if (error instanceof AuthenticationError) {
@@ -502,35 +513,28 @@ export class WebSocketManager extends EventEmitter implements Disposable {
     }
 
     const errorMessage = typeof error === 'string' ? error : error.message;
-    this.unifiedState.updateServiceState(ConnectionServiceType.WEBSOCKET, {
-        error: errorMessage
-    });
+    // Update state only if not disposed
+    if (!this.isDisposed) {
+        this.unifiedState.updateServiceState(ConnectionServiceType.WEBSOCKET, {
+            error: errorMessage
+        });
+    }
   }
 
   // --- Reconnection Logic ---
-
-  /**
-   * Stops any active reconnection timer.
-   */
-  private stopReconnectTimer(): void {
-    if (this.reconnectTimer !== null) {
-      this.logger.info('Stopping WebSocket reconnect timer.');
-      clearTimeout(this.reconnectTimer);
-      this.reconnectTimer = null;
-    }
-  }
 
   /**
    * Attempts to reconnect the WebSocket connection after a delay.
    * Respects backoff strategy, max attempts, circuit breaker state, and authentication status.
    */
   private attemptReconnect(): void {
+    // *** ADD CHECK: Abort if disposed or timer already active ***
     if (this.isDisposed || this.reconnectTimer !== null) {
-        if (this.reconnectTimer !== null) this.logger.warn('Reconnect attempt skipped: Timer already active.');
+        if (this.reconnectTimer !== null) this.logger.warn('Reconnect attempt skipped: Timer already active or manager disposed.');
         return; // Already trying or disposed
     }
 
-    // +++ ADDED AUTHENTICATION CHECK +++
+    // +++ AUTHENTICATION CHECK +++
     if (!this.tokenManager.isAuthenticated()) {
         this.logger.error('Reconnect attempt cancelled: User is not authenticated.');
         this.unifiedState.updateRecovery(false, this.reconnectAttempts); // Ensure recovery UI is hidden
@@ -577,13 +581,18 @@ export class WebSocketManager extends EventEmitter implements Disposable {
 
     this.reconnectTimer = window.setTimeout(async () => {
       this.reconnectTimer = null;
+      // *** ADD CHECK: Abort if disposed before timer fires ***
+      if (this.isDisposed) {
+          this.logger.warn('Reconnect timer fired, but WebSocketManager is disposed. Aborting connect attempt.');
+          return;
+      }
       this.logger.info(`Executing scheduled WebSocket reconnect attempt ${this.reconnectAttempts}.`);
       // connect() handles circuit breaker checks, state updates, and further errors
       const connected = await this.connect();
-      if (!connected) {
+      if (!connected && !this.isDisposed) { // Check disposed again after await
         this.logger.warn(`WebSocket reconnect attempt ${this.reconnectAttempts} failed.`);
         // Failure handling (including potential next attempt) is managed by connect() -> handleDisconnectEvent()
-      } else {
+      } else if (connected && !this.isDisposed) {
          this.logger.info(`WebSocket reconnect attempt ${this.reconnectAttempts} successful.`);
          // Success handling (resetting attempts etc.) is done within connect() / handleWsConnected()
       }
@@ -595,7 +604,7 @@ export class WebSocketManager extends EventEmitter implements Disposable {
    * Resets backoff, circuit breaker, and attempt counters.
    */
   public manualReconnect(): void {
-    if (this.isDisposed) {
+    if (this.isDisposed) { // <<< Check disposed flag
         this.logger.error("Manual reconnect ignored: WebSocketManager disposed.");
         return;
     }
@@ -608,14 +617,14 @@ export class WebSocketManager extends EventEmitter implements Disposable {
         return;
     }
 
-    this.stopReconnectTimer();
-    this.reconnectAttempts = 0;
+    this.stopReconnectTimer(); // Stop any existing attempts
+    this.reconnectAttempts = 0; // Reset counter for manual attempt
     this.backoffStrategy.reset();
     this.circuitBreaker.reset();
 
-    this.unifiedState.updateRecovery(true, 1);
+    this.unifiedState.updateRecovery(true, 1); // Show recovery UI
 
-    this.connect();
+    this.connect(); // Attempt connection immediately
   }
 
   // --- Utility Methods ---
@@ -626,7 +635,7 @@ export class WebSocketManager extends EventEmitter implements Disposable {
    * @throws {Error} If the WebSocket is not open or the manager is disposed.
    */
   public send(message: any): void {
-    if (this.isDisposed) throw new Error("WebSocketManager is disposed.");
+    if (this.isDisposed) throw new Error("WebSocketManager is disposed."); // <<< Check disposed flag
 
     const ws = this.connectionStrategy.getWebSocket();
     if (ws && ws.readyState === WebSocket.OPEN) {
@@ -647,13 +656,13 @@ export class WebSocketManager extends EventEmitter implements Disposable {
    * @param reason - The reason for triggering logout.
    */
   private triggerLogout(reason: string = 'unknown'): void {
-    if (this.isDisposed) return;
+    if (this.isDisposed) return; // <<< Check disposed flag
     this.logger.warn(`Triggering logout process. Reason: ${reason}`);
 
-    this.disconnect(`logout: ${reason}`);
-    this.tokenManager.clearTokens();
+    this.disconnect(`logout: ${reason}`); // Ensure connection is closed
+    this.tokenManager.clearTokens(); // Clear client-side tokens
     this.errorHandler.handleAuthError('Session ended. Please log in again.', ErrorSeverity.HIGH, 'LogoutTrigger');
-    this.emit('force_logout', { reason });
+    this.emit('force_logout', { reason }); // Notify application UI
   }
 
 
@@ -661,7 +670,7 @@ export class WebSocketManager extends EventEmitter implements Disposable {
    * Updates the internal WebSocket connection quality metric based on latency.
    */
   private updateWsConnectionQuality(latency: number): void {
-    if (this.isDisposed) return;
+    if (this.isDisposed) return; // <<< Check disposed flag
     const newQuality = this.calculateWsConnectionQuality(latency);
     if (newQuality !== this.currentConnectionQuality) {
       this.logger.info(`Internal WebSocket connection quality changed: ${this.currentConnectionQuality} -> ${newQuality} (Latency: ${latency}ms)`);
@@ -684,7 +693,7 @@ export class WebSocketManager extends EventEmitter implements Disposable {
    * Gets the current health status of the WebSocket connection.
    */
   public getConnectionHealth() {
-    if (this.isDisposed) return { status: 'disconnected', quality: WSConnectionQuality.DISCONNECTED, error: 'Manager disposed' };
+    if (this.isDisposed) return { status: 'disconnected', quality: WSConnectionQuality.DISCONNECTED, error: 'Manager disposed' }; // <<< Handle disposed state
 
     const serviceState = this.unifiedState.getServiceState(ConnectionServiceType.WEBSOCKET);
     let statusString: 'connected' | 'connecting' | 'recovering' | 'disconnected';
@@ -707,9 +716,62 @@ export class WebSocketManager extends EventEmitter implements Disposable {
    * Checks if the WebSocket is currently in the process of connecting or recovering.
    */
   public isConnectingOrRecovering(): boolean {
-    if (this.isDisposed) return false;
+    if (this.isDisposed) return false; // <<< Check disposed flag
     const status = this.unifiedState.getServiceState(ConnectionServiceType.WEBSOCKET).status;
     return status === ConnectionStatus.CONNECTING || status === ConnectionStatus.RECOVERING;
+  }
+
+  /**
+   * Stops any active reconnection timer.
+   * Made public or used internally by dispose.
+   */
+  private stopReconnectTimer(): void {
+    if (this.reconnectTimer !== null) {
+      this.logger.info('Stopping WebSocket reconnect timer.');
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+  }
+
+
+  /**
+   * Cleans up all resources used by the WebSocketManager.
+   * <<< REFACTORED dispose method >>>
+   */
+  public dispose(): void {
+    // *** Check and set disposed flag immediately ***
+    if (this.isDisposed) {
+        this.logger.warn('WebSocketManager already disposed.');
+        return;
+    }
+    this.logger.warn("Disposing WebSocketManager...");
+    this.isDisposed = true; // Set flag early
+
+    // *** Stop timers immediately ***
+    this.stopReconnectTimer(); // Ensure reconnect timer is cleared
+    this.heartbeatManager?.stop(); // Stop heartbeat manager first
+    this.heartbeatManager = null;
+
+    // *** Disconnect the strategy (closes WebSocket, removes listeners) ***
+    // Pass a specific reason to prevent reconnect attempts during dispose
+    this.disconnect("manager_disposed");
+
+    // --- Remove internal listeners ---
+    // Ensure all listeners registered with 'this.on' are removed
+    this.removeAllListeners(); // From EventEmitter base
+
+    // --- Clean up sub-managers (if they have dispose methods) ---
+    // Assuming MessageHandler might need cleanup
+    if (this.messageHandler && typeof (this.messageHandler as any).removeAllListeners === 'function') {
+        (this.messageHandler as any).removeAllListeners();
+    }
+     // Assuming ConnectionStrategy might need cleanup
+    if (this.connectionStrategy && typeof (this.connectionStrategy as any).disconnect === 'function') {
+       // disconnect called above should suffice, but belt-and-suspenders if needed
+    }
+
+
+    this.logger.warn("WebSocketManager disposed.");
   }
 
   /**
