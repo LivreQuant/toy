@@ -61,19 +61,12 @@ const App: React.FC = () => {
     // Pass logger to ErrorBoundary if it accepts it as a prop
     <ErrorBoundary logger={logger}>
       <ToastProvider>
-        {/*
-          FIX APPLIED: Removed tokenManager and authApi props.
-          AuthProvider should manage access to these internally via context,
-          not receive them as direct props here.
-          Ensure AuthProvider in AuthContext.tsx is correctly set up.
-        */}
         <AuthProvider>
-          {/* Pass instantiated services to ConnectionProvider */}
-          {/* Note: ConnectionProvider *might* need similar review depending on its definition */}
-          <ConnectionProvider tokenManager={tokenManager} logger={logger}>
-            {/* AppContent consumes the contexts */}
-            <AppContent />
-          </ConnectionProvider>
+          {/* 
+            The core of our fix: Conditionally render ConnectionProvider 
+            only when the app contains routes that need connections
+          */}
+          <AppContent />
         </AuthProvider>
       </ToastProvider>
     </ErrorBoundary>
@@ -84,7 +77,7 @@ const App: React.FC = () => {
 const AppContent: React.FC = () => {
   const { addToast } = useToast(); // From ToastContext
   // isLoading likely comes from AuthContext to check initial auth status
-  const { isLoading } = useAuth();
+  const { isLoading, isAuthenticated } = useAuth(); // Get auth status
 
   // Connect the singleton toastService to the actual addToast function from context
   React.useEffect(() => {
@@ -101,25 +94,33 @@ const AppContent: React.FC = () => {
   return (
     <Router>
       <div className="app-container">
-        <header className="app-header">
-          {/* ConnectionStatusWrapper consumes ConnectionContext */}
-          <ConnectionStatusWrapper />
-        </header>
-        <main className="app-main-content"> {/* Added a main wrapper */}
+        {/* Only include ConnectionProvider for authenticated users */}
+        {isAuthenticated ? (
+          <>
+            <ConnectionProvider tokenManager={tokenManager} logger={logger}>
+              <header className="app-header">
+                <ConnectionStatusWrapper />
+              </header>
+              <main className="app-main-content">
+                <Routes>
+                  <Route path="/home" element={<HomePage />} />
+                  <Route path="/simulator" element={<SimulatorPage />} />
+                  <Route path="/" element={<Navigate to="/home" replace />} />
+                </Routes>
+              </main>
+              <ConnectionStatusOverlay />
+              <ConnectionRecoveryDialog />
+            </ConnectionProvider>
+          </>
+        ) : (
+          // Separate route structure for unauthenticated users
+          <main className="app-main-content">
             <Routes>
               <Route path="/login" element={<LoginPage />} />
-              {/* Protected Routes */}
-              <Route path="/home" element={<RequireAuth><HomePage /></RequireAuth>} />
-              <Route path="/simulator" element={<RequireAuth><SimulatorPage /></RequireAuth>} />
-              {/* Default route */}
-              <Route path="/" element={<Navigate to="/home" replace />} />
-              {/* Optional: Add a 404 Not Found route */}
-              {/* <Route path="*" element={<NotFoundPage />} /> */}
+              <Route path="*" element={<Navigate to="/login" replace />} />
             </Routes>
-        </main>
-        {/* Overlays consuming ConnectionContext */}
-        <ConnectionStatusOverlay />
-        <ConnectionRecoveryDialog />
+          </main>
+        )}
       </div>
     </Router>
   );
