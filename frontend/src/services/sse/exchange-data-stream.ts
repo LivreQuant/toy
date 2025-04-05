@@ -11,6 +11,7 @@ import {
 } from '../connection/unified-connection-state';
 import { Logger } from '../../utils/logger'; // +++ ADDED: Import Logger +++
 import { Disposable } from '../../utils/disposable'; // +++ ADDED: Import Disposable +++
+import { ErrorHandler } from '../../utils/error-handler'; // Import
 
 // Combine options for clarity
 export interface ExchangeDataOptions extends SSEOptions { // Inherit SSE options
@@ -22,6 +23,8 @@ export class ExchangeDataStream extends EventEmitter implements Disposable {
   private sseManager: SSEManager;
   private exchangeData: Record<string, any> = {};
   private tokenManager: TokenManager;
+  private errorHandler: ErrorHandler; // Add if not already present
+
   // *** REMOVED: WebSocketManager instance variable (no longer directly needed) ***
   // private webSocketManager: WebSocketManager;
   private unifiedState: UnifiedConnectionState;
@@ -34,10 +37,12 @@ export class ExchangeDataStream extends EventEmitter implements Disposable {
     // WebSocketManager is not directly used; coordination happens via UnifiedConnectionState
     unifiedState: UnifiedConnectionState,
     logger: Logger, // +++ ADDED: logger parameter +++
+    errorHandler: ErrorHandler, // <-- Add parameter
     options: ExchangeDataOptions = {} // Accept combined options
   ) {
     super();
 
+    this.errorHandler = errorHandler; // Store instance
     this.tokenManager = tokenManager;
     this.unifiedState = unifiedState;
     // +++ ADDED: Assign logger and create child logger +++
@@ -50,6 +55,7 @@ export class ExchangeDataStream extends EventEmitter implements Disposable {
         tokenManager,
         unifiedState,
         this.logger, // Pass the logger instance down
+        this.errorHandler, // <-- Pass instance here
         options // Pass options (includes SSE options like reconnect attempts, circuit breaker settings)
     );
 

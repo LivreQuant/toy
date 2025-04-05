@@ -59,10 +59,6 @@ export class WebSocketMessageHandler {
                 case 'heartbeat':
                     this.handleHeartbeat(message);
                     break;
-                // REMOVED 'claim_master' case - relying on 'session_invalidated' from backend
-                // case 'claim_master':
-                //     this.handleClaimMaster(message); // Method removed below
-                //     break;
                 case 'session_invalidated':
                     // This message now handles both general invalidation and superseded tabs (if backend sends it)
                     this.handleSessionInvalidated(message);
@@ -107,7 +103,6 @@ export class WebSocketMessageHandler {
         // Emit specific heartbeat event for WebSocketManager
         this.eventEmitter.emit('heartbeat', {
             timestamp: message.timestamp,
-            isMaster: message.isMaster, // Keep isMaster if backend still sends it, though claim_master is removed
             simulatorStatus: message.simulatorStatus,
             deviceId: message.deviceId
         });

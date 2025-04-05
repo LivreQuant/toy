@@ -48,7 +48,7 @@ export class HeartbeatManager {
         type: 'heartbeat',
         timestamp: now,
         // Use the centralized DeviceIdManager
-        deviceId: DeviceIdManager.getDeviceId()
+        deviceId: DeviceIdManager.getInstance().getDeviceId() 
       };
 
       this.ws.send(JSON.stringify(heartbeatMessage));

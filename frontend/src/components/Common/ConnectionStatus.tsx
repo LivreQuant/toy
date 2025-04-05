@@ -1,141 +1,89 @@
 // src/components/Common/ConnectionStatus.tsx
 import React from 'react';
+// Import the hook to use the connection context
+import { useConnection } from '../../contexts/ConnectionContext'; // Adjust path if needed
+// Import enums for status and quality checking
+import { ConnectionStatus as StatusEnum, ConnectionQuality } from '../../services/connection/unified-connection-state'; // Adjust path if needed
 import './ConnectionStatus.css';
-import { useConnection } from '../../contexts/ConnectionContext';
 
-interface ConnectionStatusProps {
-  isConnected: boolean;
-  isConnecting: boolean;
-  connectionQuality: string;
-  simulatorStatus: string;
-}
-
-const ConnectionStatus: React.FC<ConnectionStatusProps> = ({ 
-  isConnected, 
-  isConnecting, 
-  connectionQuality, 
-  simulatorStatus
-}) => {
-  const { 
-    isRecovering,
-    recoveryAttempt,
-    manualReconnect,
-    connectionState
+// This component displays the current connection status, quality, and provides a reconnect button.
+// It now gets all its data directly from the useConnection hook.
+const ConnectionStatusDisplay: React.FC = () => {
+  // --- Refactored: Get state and actions from the updated context ---
+  const {
+    isConnecting,    // Needed to disable button
+    isRecovering,    // Needed for recovery indicator and disabling button
+    recoveryAttempt, // Display current attempt number during recovery
+    manualReconnect, // Function to trigger manual reconnect
+    overallStatus,   // The primary status (CONNECTED, DISCONNECTED, etc.)
+    connectionQuality, // Quality level (GOOD, DEGRADED, POOR)
+    simulatorStatus  // Status of the simulator (RUNNING, STOPPED, etc.)
   } = useConnection();
-  
-  // Determine connection status
-  let statusIcon = '❓';
-  let statusClass = 'unknown';
-  let statusText = 'Unknown Connection Status';
-  
-  if (isRecovering) {
-    statusIcon = '🔄';
-    statusClass = 'recovering';
-    statusText = `Reconnecting (Attempt ${recoveryAttempt})...`;
-  } else if (!isConnected && isConnecting) {
-    statusIcon = '🔄';
-    statusClass = 'connecting';
-    statusText = 'Connecting...';
-  } else if (!isConnected) {
-    statusIcon = '❌';
-    statusClass = 'disconnected';
-    statusText = 'Disconnected';
-  } else if (connectionQuality === 'good') {
-    statusIcon = '✅';
-    statusClass = 'good';
-    statusText = 'Connected';
-  } else if (connectionQuality === 'degraded') {
-    statusIcon = '⚠️';
-    statusClass = 'degraded';
-    statusText = 'Connection Degraded';
-  } else if (connectionQuality === 'poor') {
-    statusIcon = '🔴';
-    statusClass = 'poor';
-    statusText = 'Connection Poor';
+
+  // --- Helper function to determine CSS class based on status and quality ---
+  const getStatusClassName = () => {
+      switch (overallStatus) {
+          case StatusEnum.CONNECTED:
+              // If connected, class depends on quality
+              return connectionQuality === ConnectionQuality.GOOD ? 'good' :
+                     connectionQuality === ConnectionQuality.DEGRADED ? 'degraded' : 'poor';
+          case StatusEnum.CONNECTING: return 'connecting';
+          case StatusEnum.RECOVERING: return 'recovering';
+          case StatusEnum.DISCONNECTED: return 'disconnected';
+          default: return 'unknown'; // Fallback for any unexpected status
+      }
+  };
+
+  // --- Helper function to format status text ---
+  const getStatusText = () => {
+      switch (overallStatus) {
+          case StatusEnum.CONNECTED: return 'Connected';
+          case StatusEnum.CONNECTING: return 'Connecting...';
+          case StatusEnum.RECOVERING: return `Reconnecting (Attempt ${recoveryAttempt})...`;
+          case StatusEnum.DISCONNECTED: return 'Disconnected';
+          default: return 'Unknown';
+      }
   }
-  
-  // Get WebSocket and SSE status details from unified state
-  const getWebSocketStatusText = () => {
-    if (!connectionState.webSocketState) return 'Unknown';
-    
-    const status = connectionState.webSocketState.status;
-    switch (status) {
-      case 'connected': return 'WebSocket Connected';
-      case 'connecting': return 'WebSocket Connecting...';
-      case 'disconnected': return 'WebSocket Disconnected';
-      case 'recovering': return 'WebSocket Recovering...';
-      default: return 'WebSocket Unknown';
-    }
-  };
-  
-  const getSSEStatusText = () => {
-    if (!connectionState.sseState) return 'Unknown';
-    
-    const status = connectionState.sseState.status;
-    switch (status) {
-      case 'connected': return 'Data Stream Connected';
-      case 'connecting': return 'Data Stream Connecting...';
-      case 'disconnected': return 'Data Stream Disconnected';
-      case 'recovering': return 'Data Stream Recovering...';
-      default: return 'Data Stream Unknown';
-    }
-  };
-  
-  // Handle reconnect button click
-  const handleReconnect = async () => {
-    try {
-      await manualReconnect();
-    } catch (error) {
-      console.error('Manual reconnection failed:', error);
-    }
-  };
-  
+
   return (
-    <div className={`connection-indicator ${statusClass}`}>
-      <div className="indicator-icon">{statusIcon}</div>
+    // Apply the dynamic CSS class to the main container
+    <div className={`connection-indicator ${getStatusClassName()}`}>
+      {/* TODO: Add an icon based on status/quality if desired */}
+      {/* <span className="indicator-icon">ICON</span> */}
+
       <div className="indicator-text">
-        <div className="status-text">{statusText}</div>
-        <div className="status-details">
-          <span className="websocket-status">{getWebSocketStatusText()}</span>
-          {isConnected && <span className="sse-status"> | {getSSEStatusText()}</span>}
-        </div>
-        {simulatorStatus && (
-          <div className={`simulator-status ${simulatorStatus.toLowerCase()}`}>
-            {getSimulatorStatusText(simulatorStatus)}
-          </div>
-        )}
+        {/* Display the formatted status text */}
+        <span className="status-text">{getStatusText()}</span>
+        {/* Show connection quality only when connected */}
+        {overallStatus === StatusEnum.CONNECTED && <span>Quality: {connectionQuality}</span>}
+        {/* Display the simulator status */}
+        <span className={`simulator-status ${simulatorStatus?.toLowerCase()}`}>
+            Simulator: {simulatorStatus || 'N/A'}
+        </span>
       </div>
-      
-      {/* Add reconnect button when disconnected */}
-      {!isConnected && !isConnecting && !isRecovering && (
-        <button 
-          className="reconnect-button" 
-          onClick={handleReconnect}
+
+      {/* Show recovery progress indicator if recovering */}
+      {isRecovering && (
+          <div className="recovery-progress">
+              {/* Optionally show attempt number here too */}
+              {/* <span>Attempt {recoveryAttempt}...</span> */}
+              <div className="recovery-spinner" title={`Reconnecting attempt ${recoveryAttempt}`}></div>
+          </div>
+      )}
+
+      {/* Show manual reconnect button only if disconnected AND not currently connecting/recovering */}
+      {overallStatus === StatusEnum.DISCONNECTED && !isConnecting && !isRecovering && (
+        <button
+          className="reconnect-button"
+          onClick={manualReconnect}
+          // Ensure button isn't clickable while actions are in progress (redundant check but safe)
+          disabled={isConnecting || isRecovering}
         >
           Reconnect
         </button>
-      )}
-      
-      {/* Show progress when recovering */}
-      {isRecovering && (
-        <div className="recovery-progress">
-          <div className="recovery-spinner"></div>
-        </div>
       )}
     </div>
   );
 };
 
-// Helper function to get readable simulator status text
-function getSimulatorStatusText(status: string): string {
-  switch (status) {
-    case 'RUNNING': return 'Simulator Running';
-    case 'STARTING': return 'Simulator Starting...';
-    case 'STOPPING': return 'Simulator Stopping...';
-    case 'STOPPED': return 'Simulator Stopped';
-    case 'ERROR': return 'Simulator Error';
-    default: return 'Simulator Status Unknown';
-  }
-}
-
-export default ConnectionStatus;
+export default ConnectionStatusDisplay;

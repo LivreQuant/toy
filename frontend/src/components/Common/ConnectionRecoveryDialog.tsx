@@ -1,77 +1,48 @@
 // src/components/Common/ConnectionRecoveryDialog.tsx
-import React, { useEffect, useState } from 'react';
+import React from 'react';
+// Import the hook to use the connection context
+import { useConnection } from '../../contexts/ConnectionContext'; // Adjust path if needed
+// Import the ConnectionStatus enum to check against overallStatus
+import { ConnectionStatus } from '../../services/connection/unified-connection-state'; // Adjust path if needed
 import './ConnectionRecoveryDialog.css';
-import { useConnection } from '../../contexts/ConnectionContext';
-import { toastService } from '../../services/notification/toast-service';
 
-interface ConnectionRecoveryDialogProps {
-  maxAttempts?: number;
-}
+// Assuming ConnectionRecoveryDialogProps is defined elsewhere or not needed
+// interface ConnectionRecoveryDialogProps {}
 
-const ConnectionRecoveryDialog: React.FC<ConnectionRecoveryDialogProps> = () => {
-  const { 
-    isConnected, 
-    isRecovering, 
-    recoveryAttempt, 
-    manualReconnect,
-    connectionState
+const ConnectionRecoveryDialog: React.FC = () => {
+  // --- Refactored: Destructure properties/methods from the updated context ---
+  // Get the necessary state values and the manualReconnect action.
+  const {
+    isConnected,      // Still useful to check if connection succeeded elsewhere
+    isConnecting,     // Check if a connection attempt is in progress
+    isRecovering,     // Check if an automatic recovery attempt is in progress
+    recoveryAttempt,  // Get the current recovery attempt number
+    manualReconnect,  // Get the function to trigger a manual reconnect
+    overallStatus     // Get the overall status (e.g., DISCONNECTED)
   } = useConnection();
-  
-  const [visible, setVisible] = useState(false);
-  
-  // Show dialog when multiple recovery attempts fail
-  useEffect(() => {
-    if (!isConnected && recoveryAttempt >= 3 && !isRecovering) {
-      setVisible(true);
-    } else if (isConnected) {
-      setVisible(false);
-    }
-  }, [isConnected, isRecovering, recoveryAttempt]);
-  
-  // Handle manual reconnection with toast feedback
-  const handleManualReconnect = async () => {
-    try {
-      const success = await manualReconnect();
-      
-      if (success) {
-        toastService.success('Successfully reconnected to trading servers', 5000);
-      } else {
-        toastService.error('Failed to reconnect. Please check your network.', 7000);
-      }
-    } catch (error) {
-      toastService.error('An unexpected error occurred during reconnection', 7000);
-    }
-  };
 
-  // Get connection errors from unified state
-  const getConnectionErrors = () => {
-    const errors = [];
-    
-    if (connectionState?.webSocketState?.error) {
-      errors.push(`WebSocket: ${connectionState.webSocketState.error}`);
-    }
-    
-    if (connectionState?.sseState?.error) {
-      errors.push(`Data Stream: ${connectionState.sseState.error}`);
-    }
-    
-    return errors.length > 0 ? errors : ['Connection interrupted - reason unknown'];
-  };
+  // --- Determine if the dialog should be shown ---
+  // Example logic: Show if explicitly disconnected AND not currently trying to connect or recover automatically.
+  // You might refine this based on specific needs, e.g., show after a certain number of failed recovery attempts.
+  const showDialog = overallStatus === ConnectionStatus.DISCONNECTED && !isConnecting && !isRecovering;
 
-  // Handle retry button click
-  const handleRetry = async () => {
-    await manualReconnect();
-  };
-  
-  // Handle reload button click
-  const handleReload = () => {
-    window.location.reload();
-  };
-  
-  if (!visible) {
+  // If the conditions to show the dialog aren't met, render nothing.
+  if (!showDialog) {
     return null;
   }
-  
+
+  // --- Event Handlers ---
+  // Calls the manualReconnect function obtained from the context.
+  const handleRetry = () => {
+    // No need to check isConnected here, manualReconnect likely handles it
+    manualReconnect();
+  };
+
+  // Reloads the entire application page.
+  const handleReload = () => {
+      window.location.reload();
+  }
+
   return (
     <div className="recovery-dialog-overlay">
       <div className="recovery-dialog">
@@ -79,40 +50,23 @@ const ConnectionRecoveryDialog: React.FC<ConnectionRecoveryDialogProps> = () => 
           <h2>Connection Lost</h2>
         </div>
         <div className="recovery-dialog-content">
-          <p>We're having trouble connecting to the trading servers.</p>
-          <p>This could be due to:</p>
-          <ul>
-            <li>Network connectivity issues</li>
-            <li>Server maintenance</li>
-            <li>Your internet connection</li>
-          </ul>
-          
-          {/* Show specific errors if available */}
-          {getConnectionErrors().length > 0 && (
-            <div className="error-details">
-              <p>Error details:</p>
-              <ul>
-                {getConnectionErrors().map((error, index) => (
-                  <li key={index}>{error}</li>
-                ))}
-              </ul>
-            </div>
-          )}
+          <p>Connection to the server was lost.</p>
+          {/* Display recovery attempts if any occurred */}
+          {recoveryAttempt > 0 && <p>Attempted to reconnect {recoveryAttempt} times automatically.</p>}
+          <p>You can try reconnecting manually or reload the application.</p>
         </div>
         <div className="recovery-dialog-footer">
-          <button 
-            className="retry-button"
-            onClick={handleRetry}
-            disabled={isRecovering}
-          >
-            {isRecovering ? 'Reconnecting...' : 'Retry Connection'}
-          </button>
-          <button 
-            className="reload-button"
-            onClick={handleReload}
-          >
-            Reload Page
-          </button>
+           {/* Button to reload the page */}
+           <button className="reload-button" onClick={handleReload}>Reload App</button>
+           {/* Button to trigger a manual reconnect attempt */}
+           <button
+              className="retry-button"
+              onClick={handleRetry}
+              // Disable the button if a connection or recovery attempt is already in progress
+              disabled={isConnecting || isRecovering}
+           >
+              Retry Connection
+           </button>
         </div>
       </div>
     </div>

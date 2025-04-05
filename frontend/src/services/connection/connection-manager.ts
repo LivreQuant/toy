@@ -67,7 +67,8 @@ export class ConnectionManager extends EventEmitter implements ConnectionRecover
 
     // --- Assign Core Dependencies ---
     this.tokenManager = tokenManager;
-
+    this.errorHandler = new ErrorHandler(this.logger, toastService); // Ensure this exists
+    
     // --- Instantiate State and Error Handling ---
     this.unifiedState = new UnifiedConnectionState(this.logger);
     // +++ ADDED: Instantiate ErrorHandler (verify dependencies) +++
@@ -91,9 +92,9 @@ export class ConnectionManager extends EventEmitter implements ConnectionRecover
     // Also pass through SSE-specific options if needed
     this.sseManager = new ExchangeDataStream(
       tokenManager,
-      this.wsManager, // Pass the WebSocketManager instance
       this.unifiedState,
       this.logger, // Pass logger instance
+      this.errorHandler, // <-- Pass instance here
       sseOptions // Pass SSE options (like reconnect attempts)
     );
 
@@ -463,13 +464,9 @@ export class ConnectionManager extends EventEmitter implements ConnectionRecover
 
   /**
    * Starts the trading simulator via the API. Requires an active connection.
-   * @param options - Optional configuration for starting the simulator.
    * @returns A promise resolving to the result of the start attempt.
    */
-  public async startSimulator(options?: {
-    initialSymbols?: string[],
-    initialCash?: number
-  }): Promise<{ success: boolean; status?: string; error?: string }> {
+  public async startSimulator(): Promise<{ success: boolean; status?: string; error?: string }> {
     if (this.isDisposed) return { success: false, error: 'Connection manager disposed' };
     const state = this.getState();
     if (!state.isConnected) {
@@ -477,8 +474,8 @@ export class ConnectionManager extends EventEmitter implements ConnectionRecover
       this.logger.error(errorMsg, { state });
       return { success: false, error: errorMsg };
     }
-    this.logger.info('Starting simulator', { options });
-    return this.simulatorManager.startSimulator(options);
+    this.logger.info('Starting simulator');
+    return this.simulatorManager.startSimulator();
   }
 
   /**

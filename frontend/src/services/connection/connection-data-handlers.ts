@@ -87,13 +87,11 @@ export class ConnectionDataHandlers {
       };
     } catch (error) {
       // Handle exceptions during the API call
-      const errorMessage = error instanceof Error ? error.message : 'Order submission failed due to an unexpected error';
-
-      // *** MODIFIED: Use the injected errorHandler instance ***
+      const errorToHandle = error instanceof Error ? error : new Error(String(error) || 'Order submission failed due to an unexpected error');
       this.errorHandler.handleDataError(
-        error, // Pass the actual error object for better logging context
-        ErrorSeverity.HIGH, // Exceptions are typically high severity
-        'OrderSubmissionException' // Context indicating an exception occurred
+          errorToHandle, // Pass the corrected error object
+          ErrorSeverity.HIGH,
+          'OrderSubmissionException'
       );
 
       return {
@@ -129,13 +127,11 @@ export class ConnectionDataHandlers {
 
     } catch (error) {
       // Handle exceptions during the API call
-      const errorMessage = error instanceof Error ? error.message : 'Order cancellation failed due to an unexpected error';
-
-      // *** MODIFIED: Use the injected errorHandler instance ***
+      const errorToHandle = error instanceof Error ? error : new Error(String(error) || 'Order cancellation failed due to an unexpected error');
       this.errorHandler.handleDataError(
-        error, // Pass the actual error object
-        ErrorSeverity.HIGH, // Exceptions are typically high severity
-        'OrderCancellationException' // Context indicating an exception occurred
+          errorToHandle, // Pass the corrected error object
+          ErrorSeverity.HIGH,
+          'OrderCancellationException'
       );
 
       return {

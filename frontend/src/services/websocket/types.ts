@@ -1,6 +1,9 @@
 import { EventEmitter } from '../../utils/event-emitter';
 import { TokenManager } from '../auth/token-manager';
 
+import { DeviceIdManager } from '../../utils/device-id-manager'; // Import
+import { Logger } from '../../utils/logger'; // Import
+
 export interface WebSocketOptions {
   heartbeatInterval?: number;
   heartbeatTimeout?: number;
@@ -9,7 +12,9 @@ export interface WebSocketOptions {
 
 export interface ConnectionStrategyDependencies {
   tokenManager: TokenManager;
+  deviceIdManager: DeviceIdManager; // <-- Add this
   eventEmitter: EventEmitter;
+  logger: Logger; // <-- Add this
   options?: WebSocketOptions;
 }
 
@@ -35,7 +40,6 @@ export interface DataSourceConfig {
 
 export interface HeartbeatData {
   timestamp: number;
-  isMaster: boolean;
   simulatorStatus: string;
   deviceId: string;
 }

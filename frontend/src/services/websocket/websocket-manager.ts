@@ -253,7 +253,16 @@ export class WebSocketManager extends EventEmitter implements Disposable {
    * Updates UnifiedConnectionState and cleans up resources.
    * @param reason - A string indicating the reason for disconnection.
    */
-  public disconnect(reason: string = 'user_disconnect'): void {
+  public disconnect(reason: string = 'Client disconnected'): void { // <-- Add optional parameter
+    if (this.ws) {
+        this.logger.warn(`Disconnecting WebSocket connection. Reason: ${reason}`);
+        // ... remove listeners ...
+        if (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING) {
+            this.ws.close(1000, reason); // Use the reason here
+        }
+        this.ws = null;
+    }
+    
     if (this.isDisposed) return;
     this.logger.warn(`WebSocket disconnect requested. Reason: ${reason}`);
 

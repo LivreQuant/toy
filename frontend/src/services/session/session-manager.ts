@@ -27,7 +27,6 @@ export interface SessionData {
   podName?: string | null; // Optional: Identifier for the backend pod serving the session
   userPreferences?: UserPreferences; // Nested user preferences object
   accountSettings?: AccountSettings; // Nested account settings object
-  isMaster?: boolean; // Flag indicating if this is the primary/master browser tab/session
 }
 
 /**
@@ -62,7 +61,7 @@ export class SessionManager {
    */
   public getDeviceId(): string {
     // Uses the static DeviceIdManager as per previous decision
-    return DeviceIdManager.getDeviceId();
+    return DeviceIdManager.getInstance().getDeviceId(); 
   }
 
   /**
@@ -76,7 +75,6 @@ export class SessionManager {
       reconnectAttempts: 0,
       lastActive: Date.now(),
       deviceId: this.getDeviceId(), // Ensure deviceId is included
-      isMaster: true // Default assumption for a new session
     };
 
     // Merge existing data with the new partial data, ensuring lastActive is current
@@ -266,24 +264,4 @@ export class SessionManager {
      // Save the session with the updated settings object
      this.saveSession({ accountSettings: updatedSettings });
   }
-
-  /**
-   * Sets the master status flag in the session data.
-   * Used to coordinate behavior across multiple browser tabs/windows.
-   * @param isMaster - Boolean indicating if this session instance is the master.
-   */
-   public setMasterStatus(isMaster: boolean): void {
-        this.logger.info(`Setting master status to: ${isMaster}`);
-        this.saveSession({ isMaster });
-   }
-
-   /**
-    * Checks if the current session is marked as the master session.
-    * @returns True if the session exists and is marked as master, false otherwise.
-    */
-   public isMasterSession(): boolean {
-       const session = this.getSession();
-       // Return the stored value, defaulting to false if the flag isn't present or no session exists
-       return session?.isMaster ?? false;
-   }
 }

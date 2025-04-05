@@ -105,6 +105,11 @@ export class CircuitBreaker {
     this.halfOpenCallCount = 0;
   }
   
+  // Add this getter
+  public getResetTimeout(): number {
+    return this.resetTimeout;
+  }
+
   public getState(): CircuitState {
     return this.state;
   }

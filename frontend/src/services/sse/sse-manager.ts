@@ -3,7 +3,7 @@ import { EventEmitter } from '../../utils/event-emitter';
 import { TokenManager } from '../auth/token-manager';
 import { BackoffStrategy } from '../../utils/backoff-strategy';
 import { config } from '../../config';
-import { ErrorHandler, ErrorSeverity } from '../../utils/error-handler';
+import { ErrorHandler, ErrorSeverity } from '../../utils/error-handler'; 
 import {
   UnifiedConnectionState,
   ConnectionServiceType,
@@ -33,18 +33,21 @@ export class SSEManager extends EventEmitter {
   private unifiedState: UnifiedConnectionState;
   private circuitBreaker: CircuitBreaker; // Use CircuitBreaker utility
   private logger: Logger; // Use Logger utility
+  private errorHandler: ErrorHandler; // <-- Add this
 
   constructor(
     tokenManager: TokenManager,
     unifiedState: UnifiedConnectionState,
     logger: Logger, // Inject Logger
+    errorHandler: ErrorHandler, // <-- Add parameter
     options: SSEOptions = {}
   ) {
     super();
     this.baseUrl = config.sseBaseUrl;
     this.tokenManager = tokenManager;
     this.unifiedState = unifiedState;
-    this.logger = logger; // Assign logger
+    this.errorHandler = errorHandler; // <-- Store instance
+    this.logger.info('SSE Manager Initialized...'); // Corrected log message
     this.maxReconnectAttempts = options.reconnectMaxAttempts ?? 15;
     this.backoffStrategy = new BackoffStrategy(1000, 30000);
 
@@ -59,11 +62,11 @@ export class SSEManager extends EventEmitter {
     this.circuitBreaker.onStateChange((name, oldState, newState, info) => {
         this.logger.warn(`Circuit Breaker [${name}] state changed: ${oldState} -> ${newState}`, info);
         if (newState === CircuitState.OPEN) {
-             ErrorHandler.handleConnectionError(
+            this.errorHandler.handleConnectionError( // Use instance
                 'Multiple SSE connection failures detected. Data stream temporarily disabled.',
                 ErrorSeverity.HIGH,
                 'Data Stream (SSE)'
-             );
+            );
              this.emit('circuit_open', {
                 message: 'SSE Connection attempts temporarily suspended due to repeated failures.',
                 resetTimeoutMs: options.resetTimeoutMs ?? 60000

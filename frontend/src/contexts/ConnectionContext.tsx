@@ -1,135 +1,196 @@
+// src/contexts/ConnectionContext.tsx
+
 import React, {
   createContext,
   useContext,
   useState,
   useEffect,
   useMemo,
-  useCallback // Added useCallback
+  useCallback, // Added useCallback
+  ReactNode,
 } from 'react';
 import { ConnectionManager } from '../services/connection/connection-manager';
-// Import the state structure type from UnifiedConnectionState
-import { UnifiedConnectionState } from '../services/connection/unified-connection-state';
-import { useAuth } from './AuthContext'; // Import useAuth to access connectionManager
-import { Logger } from '../utils/logger'; // Import Logger if needed for logging here
+import { TokenManager } from '../services/auth/token-manager'; // Adjust import path
+import { Logger } from '../utils/logger'; // Adjust import path
+import {
+  ConnectionStatus,
+  ConnectionQuality,
+  ServiceState,
+  UnifiedConnectionState // Import base class if needed for types
+} from '../services/connection/unified-connection-state'; // Adjust import path
+import { toastService } from '../services/notification/toast-service'; // Import toastService
 
-// Define the specific type for the connection state object provided by the context
-// This uses the return type of ConnectionManager's getState method
-type ConnectionStateType = ReturnType<ConnectionManager['getState']>;
+// --- Define the type for the full connection state ---
+// This gets the return type of the connectionManager.getState() method
+export type FullConnectionState = ReturnType<ConnectionManager['getState']>;
 
-// Define the shape of the Connection context
-interface ConnectionContextType {
-connectionManager: ConnectionManager; // The ConnectionManager instance
-connectionState: ConnectionStateType; // The current aggregated connection state
-manualReconnect: () => Promise<boolean>; // Function to trigger manual reconnect
+// --- Define the type for the context value ---
+// This includes the specific state properties and action methods needed by components
+export interface ConnectionContextType {
+  // State Properties (derived from FullConnectionState)
+  isConnected: boolean;
+  isConnecting: boolean;
+  isRecovering: boolean;
+  recoveryAttempt: number;
+  connectionQuality: ConnectionQuality;
+  simulatorStatus: string;
+  webSocketState: ServiceState;
+  sseState: ServiceState;
+  overallStatus: ConnectionStatus; // Expose the overall status enum value
+  // Add any other state properties components need directly
+
+  // Action Methods (bound from ConnectionManager)
+  connect: () => Promise<boolean>;
+  disconnect: (reason?: string) => void;
+  manualReconnect: () => Promise<boolean>;
+  startSimulator: (options?: any) => Promise<{ success: boolean; status?: string; error?: string }>;
+  stopSimulator: () => Promise<{ success: boolean; error?: string }>;
+  // Add other methods components need (e.g., submitOrder, cancelOrder if managed here)
 }
 
-// Create the context
-const ConnectionContext = createContext<ConnectionContextType | undefined>(undefined);
+// --- Create Context ---
+// Provide a default value that matches the type structure, often null or a placeholder
+const defaultContextValue: ConnectionContextType | null = null;
+const ConnectionContext = createContext<ConnectionContextType | null>(defaultContextValue);
 
-/**
-* Provides connection state and management capabilities to the application.
-* Relies on AuthProvider to provide the initialized ConnectionManager instance.
-*/
-export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-// Get the initialized connectionManager instance from the Auth context
-// This ensures we use the SAME instance throughout the app
-const { connectionManager, isAuthenticated, isLoading: isAuthLoading } = useAuth();
-const logger = Logger.getInstance(); // Get logger instance if needed
+// --- Define Provider Props ---
+interface ConnectionProviderProps {
+  children: ReactNode;
+  tokenManager: TokenManager; // Pass dependencies needed by ConnectionManager
+  logger: Logger;
+}
 
-// State to hold the latest connection state object
-const [connectionState, setConnectionState] = useState<ConnectionStateType>(
-    () => connectionManager.getState() // Initialize with current state
-);
+// --- Create Provider Component ---
+export const ConnectionProvider: React.FC<ConnectionProviderProps> = ({ children, tokenManager, logger }) => {
+  // Instantiate ConnectionManager (only once)
+  const connectionManager = useMemo(() => {
+    logger.info("Instantiating ConnectionManager in Context Provider");
+    // Ensure ConnectionManager constructor matches (tokenManager, logger, wsOptions, sseOptions)
+    return new ConnectionManager(tokenManager, logger);
+  }, [tokenManager, logger]); // Dependencies for ConnectionManager instantiation
 
-// Effect to subscribe to connection state changes
-useEffect(() => {
-  logger.info("ConnectionContext: Subscribing to state changes.");
+  // State to hold the latest full connection state object
+  const [connectionState, setConnectionState] = useState<FullConnectionState | null>(
+    () => connectionManager.getState() // Get initial state synchronously
+  );
 
-  // Handler function to update local state when ConnectionManager emits changes
-  const handleStateChange = (newState: { current: ConnectionStateType }) => {
-    // Log state changes for debugging if needed (can be verbose)
-    // logger.info("ConnectionContext: Received state update", newState.current);
-    setConnectionState(newState.current);
-  };
+  // Effect to subscribe to state changes
+  useEffect(() => {
+    logger.info("ConnectionProvider Effect: Subscribing to state changes");
 
-  // Subscribe to the state_change event
-  connectionManager.on('state_change', handleStateChange);
+    // Listener for state updates
+    const handleStateChange = (newState: { current: FullConnectionState }) => {
+      // logger.debug("ConnectionProvider: Received state_change event", newState.current); // Use debug if implemented
+      logger.info("ConnectionProvider: Received state_change event", { status: newState.current.overallStatus });
+      setConnectionState(newState.current);
+    };
 
-  // Log the initial state when the context mounts or connectionManager changes
-  // logger.info("ConnectionContext: Initial state", connectionManager.getState());
+    // Subscribe
+    connectionManager.on('state_change', handleStateChange);
+    logger.info("ConnectionProvider: Subscribed to state_change");
 
-  // Cleanup function to unsubscribe when the component unmounts
-  return () => {
-    logger.info("ConnectionContext: Unsubscribing from state changes.");
-    connectionManager.off('state_change', handleStateChange);
-  };
-}, [connectionManager, logger]); // Re-run effect if connectionManager instance changes (shouldn't normally)
+    // Cleanup on unmount
+    return () => {
+      logger.warn("ConnectionProvider Cleanup: Unsubscribing and disposing ConnectionManager");
+      connectionManager.off('state_change', handleStateChange);
+      // Dispose the connection manager when the provider unmounts
+      if (typeof connectionManager.dispose === 'function') {
+        connectionManager.dispose();
+      }
+    };
+  }, [connectionManager, logger]); // Dependency: only the manager instance
 
- // Effect to attempt connection automatically when authentication is ready
- useEffect(() => {
-     // Only attempt connect if:
-     // 1. Auth is not loading anymore
-     // 2. User is authenticated
-     // 3. Connection is currently disconnected (avoid redundant connects)
-     if (!isAuthLoading && isAuthenticated && connectionState.overallStatus === 'disconnected') {
-         logger.info("ConnectionContext: Auth ready and disconnected, attempting auto-connect...");
-         connectionManager.connect().catch(err => {
-             logger.error("ConnectionContext: Auto-connect attempt failed.", err);
-         });
-     } else if (!isAuthLoading && !isAuthenticated && connectionState.overallStatus !== 'disconnected') {
-         // If auth is ready but user is not authenticated, ensure disconnection
-         logger.info("ConnectionContext: Auth ready but not authenticated, ensuring disconnection.");
-         connectionManager.disconnect('auth_context_logout');
-     }
- }, [isAuthenticated, isAuthLoading, connectionManager, connectionState.overallStatus, logger]); // Dependencies
+  // --- Define Action Callbacks using useCallback ---
+  // This prevents these functions from causing unnecessary re-renders in consumers
+  const connect = useCallback(async (): Promise<boolean> => {
+      logger.info("Context: connect action triggered");
+      return connectionManager.connect();
+  }, [connectionManager, logger]); // Add logger if used inside
+
+  const disconnect = useCallback((reason?: string): void => {
+      logger.info(`Context: disconnect action triggered. Reason: ${reason}`);
+      connectionManager.disconnect(reason);
+  }, [connectionManager, logger]);
+
+  const manualReconnect = useCallback(async (): Promise<boolean> => {
+      logger.info("Context: manualReconnect action triggered");
+      // Provide immediate feedback via toast
+      toastService.info("Attempting to reconnect manually...");
+      try {
+          const success = await connectionManager.manualReconnect();
+          if (success) {
+              toastService.success("Reconnected successfully!");
+          } else {
+              // Error handling/toast is likely done within ConnectionManager/RecoveryManager now
+              // toastService.error("Manual reconnect failed. Please check connection or try again later.");
+          }
+          return success;
+      } catch (error: any) {
+          logger.error("Context: Manual reconnect failed.", { error: error.message });
+          toastService.error(`Manual reconnect failed: ${error.message}`);
+          return false;
+      }
+  }, [connectionManager, logger]); // Add logger if used inside
+
+  const startSimulator = useCallback(async (options?: any): Promise<{ success: boolean; status?: string; error?: string }> => {
+      logger.info("Context: startSimulator action triggered");
+      return connectionManager.startSimulator(options);
+  }, [connectionManager, logger]);
+
+  const stopSimulator = useCallback(async (): Promise<{ success: boolean; error?: string }> => {
+      logger.info("Context: stopSimulator action triggered");
+      return connectionManager.stopSimulator();
+  }, [connectionManager, logger]);
 
 
-// --- Manual Reconnect Function ---
-// Use useCallback to memoize the function instance
-const manualReconnect = useCallback(async (): Promise<boolean> => {
-    logger.warn("ConnectionContext: Manual reconnect triggered.");
-    toastService.info("Attempting to reconnect..."); // Provide immediate feedback
-    try {
-        const success = await connectionManager.manualReconnect();
-        if (success) {
-            toastService.success("Reconnected successfully!");
-        } else {
-            // Error handling/toast is likely done within ConnectionManager/RecoveryManager
-            // toastService.error("Reconnect failed. Please check connection or try again later.");
-        }
-        return success;
-    } catch (error: any) {
-        logger.error("ConnectionContext: Manual reconnect failed.", { error: error.message });
-        toastService.error(`Reconnect failed: ${error.message}`);
-        return false;
+  // --- Memoize the context value ---
+  // This object is passed down and should only change when the state or callbacks change
+  const contextValue = useMemo<ConnectionContextType | null>(() => {
+    // Return null if state hasn't been initialized yet
+    if (!connectionState) {
+      logger.warn("ConnectionProvider: connectionState is null, returning null context value");
+      return null;
     }
-}, [connectionManager]); // Dependency: connectionManager instance
 
+    logger.info("ConnectionProvider: Recalculating context value");
+    // Derive the flat state properties needed by consumers from the full state object
+    return {
+      // State properties:
+      isConnected: connectionState.isConnected,
+      isConnecting: connectionState.isConnecting,
+      isRecovering: connectionState.isRecovering,
+      recoveryAttempt: connectionState.recoveryAttempt,
+      connectionQuality: connectionState.connectionQuality,
+      simulatorStatus: connectionState.simulatorStatus,
+      webSocketState: connectionState.webSocketState,
+      sseState: connectionState.sseState,
+      overallStatus: connectionState.overallStatus,
 
-// --- Context Value ---
-// Memoize the context value to optimize performance
-const contextValue = useMemo(() => ({
-    connectionManager,
-    connectionState,
-    manualReconnect
-}), [connectionManager, connectionState, manualReconnect]); // Include memoized function
+      // Action methods:
+      connect,
+      disconnect,
+      manualReconnect,
+      startSimulator,
+      stopSimulator,
+    };
+    // Dependencies ensure this only recalculates when state or action references change
+  }, [connectionState, connect, disconnect, manualReconnect, startSimulator, stopSimulator, logger]); // Add logger if used inside
 
-return (
-  <ConnectionContext.Provider value={contextValue}>
-    {children}
-  </ConnectionContext.Provider>
-);
+  return (
+    <ConnectionContext.Provider value={contextValue}>
+      {children}
+    </ConnectionContext.Provider>
+  );
 };
 
-/**
-* Custom hook to easily access the ConnectionContext.
-* Ensures the hook is used within a component wrapped by ConnectionProvider.
-*/
+// --- Custom Hook ---
+// Provides a typed way to consume the context
 export const useConnection = (): ConnectionContextType => {
-const context = useContext(ConnectionContext);
-if (context === undefined) {
-  // This usually means ConnectionProvider is missing higher up the component tree
-  throw new Error('useConnection must be used within a ConnectionProvider');
-}
-return context;
+  const context = useContext(ConnectionContext);
+  if (context === null) {
+    // This error means useConnection was called outside of a ConnectionProvider
+    // or before the initial state was set.
+    throw new Error('useConnection must be used within a ConnectionProvider and after initial state is set');
+  }
+  return context;
 };
