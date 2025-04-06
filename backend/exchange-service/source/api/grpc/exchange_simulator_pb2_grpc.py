@@ -2,7 +2,7 @@
 """Client and server classes corresponding to protobuf-defined services."""
 import grpc
 
-from main import exchange_simulator_pb2 as main_dot_exchange__simulator__pb2
+import source.api.grpc.exchange_simulator_pb2 as main_dot_exchange__simulator__pb2
 
 
 class ExchangeSimulatorStub(object):

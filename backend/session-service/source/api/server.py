@@ -20,6 +20,7 @@ from source.core.session_manager import SessionManager
 from source.api.rest.routes import setup_rest_routes
 from source.api.websocket.manager import WebSocketManager
 from source.api.sse.adapter import SSEAdapter
+from source.models.simulator import SimulatorStatus
 
 # Import Redis for pub/sub if available
 try:
@@ -90,7 +91,14 @@ class SessionServer:
         self.app['websocket_manager'] = self.websocket_manager
         self.app['sse_adapter'] = self.sse_adapter
         self.app['redis'] = self.redis
-        
+
+        # Add middleware for metrics and tracing
+        from source.api.rest.handlers import metrics_middleware
+        from source.utils.middleware import tracing_middleware
+
+        self.app.middlewares.append(metrics_middleware)
+        self.app.middlewares.append(tracing_middleware)
+
         # Set up routes
         setup_rest_routes(self.app)
         
@@ -103,7 +111,8 @@ class SessionServer:
         # Add health check endpoints
         self.app.router.add_get('/health', self.health_check)
         self.app.router.add_get('/readiness', self.readiness_check)
-        
+        self.app.router.add_get('/metrics', self.metrics_endpoint)  # Expose Prometheus metrics
+
         # Set up CORS
         self._setup_cors()
         
@@ -114,7 +123,18 @@ class SessionServer:
         
         self.initialized = True
         logger.info("Server initialization complete")
-    
+
+    # source/api/server.py (add to the class)
+    async def metrics_endpoint(self, request):
+        """Prometheus metrics endpoint"""
+        from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+
+        metrics_data = generate_latest()
+        return web.Response(
+            body=metrics_data,
+            content_type=CONTENT_TYPE_LATEST
+        )
+
     async def _init_redis(self) -> aioredis.Redis:
         """Initialize Redis connection"""
         redis_client = aioredis.Redis(
@@ -285,6 +305,9 @@ class SessionServer:
         logger.info("Shutting down server")
         self.running = False
         
+        # New: Force cleanup of this pod's sessions
+        await self._cleanup_pod_sessions()
+        
         # Unregister pod from Redis
         if self.redis:
             try:
@@ -327,7 +350,136 @@ class SessionServer:
         
         logger.info("Server shutdown complete")
         self.shutdown_event.set()
-    
+
+    async def _cleanup_pod_sessions(self):
+        """Clean up sessions associated with this pod before shutdown"""
+        try:
+            # Get all sessions associated with this pod
+            pod_sessions = await self.session_manager.db_manager.get_sessions_with_criteria({
+                'pod_name': config.kubernetes.pod_name
+            })
+            
+            if not pod_sessions:
+                logger.info("No sessions to clean up for this pod")
+                return
+                
+            logger.info(f"Cleaning up {len(pod_sessions)} sessions before pod termination")
+            
+            # Process simulators in parallel for faster shutdown
+            simulator_tasks = []
+            
+            for session in pod_sessions:
+                # Check if session has a simulator running
+                if (hasattr(session.metadata, 'simulator_id') and 
+                    session.metadata.simulator_id and 
+                    hasattr(session.metadata, 'simulator_status') and
+                    session.metadata.simulator_status != SimulatorStatus.STOPPED.value):
+                    
+                    simulator_id = session.metadata.simulator_id
+                    simulator_endpoint = getattr(session.metadata, 'simulator_endpoint', None)
+                    
+                    # Create task to stop simulator
+                    task = asyncio.create_task(
+                        self._stop_simulator_with_fallbacks(
+                            session.session_id, 
+                            simulator_id, 
+                            simulator_endpoint
+                        )
+                    )
+                    simulator_tasks.append(task)
+                    
+                    # Update session metadata to indicate cleanup is in progress
+                    await self.session_manager.db_manager.update_session_metadata(
+                        session.session_id,
+                        {
+                            'simulator_status': 'STOPPING',
+                            'cleanup_initiated_at': time.time()
+                        }
+                    )
+            
+            # Wait for simulator shutdowns with timeout
+            if simulator_tasks:
+                # Allow up to 10 seconds for graceful shutdowns
+                done, pending = await asyncio.wait(
+                    simulator_tasks, 
+                    timeout=10.0,
+                    return_when=asyncio.ALL_COMPLETED
+                )
+                
+                # Cancel any pending tasks that didn't complete in time
+                for task in pending:
+                    task.cancel()
+                    
+                logger.info(f"Completed {len(done)}/{len(simulator_tasks)} simulator shutdowns")
+                
+                # For any pending/incomplete shutdowns, force K8s cleanup
+                if pending:
+                    for session in pod_sessions:
+                        if hasattr(session.metadata, 'simulator_id') and session.metadata.simulator_id:
+                            # Directly delete K8s resources as last resort
+                            try:
+                                await self.session_manager.k8s_client.delete_simulator_deployment(
+                                    session.metadata.simulator_id
+                                )
+                                logger.info(f"Force deleted simulator {session.metadata.simulator_id} resources")
+                            except Exception as e:
+                                logger.error(f"Error force deleting simulator: {e}")
+            
+            # Update all session states to indicate cleanup
+            for session in pod_sessions:
+                # Mark the session for transfer to another pod
+                await self.session_manager.db_manager.update_session_metadata(
+                    session.session_id,
+                    {
+                        'pod_terminating': True,
+                        'termination_time': time.time(),
+                        'simulator_status': SimulatorStatus.STOPPED.value if hasattr(session.metadata, 'simulator_id') else None
+                    }
+                )
+                
+                # Notify clients via WebSocket that they should reconnect
+                if self.websocket_manager:
+                    await self.websocket_manager.broadcast_to_session(
+                        session.session_id,
+                        {
+                            'type': 'pod_terminating', 
+                            'message': 'Service instance is shutting down, please reconnect'
+                        }
+                    )
+        
+        except Exception as e:
+            logger.error(f"Error cleaning up pod sessions: {e}")
+
+    async def _stop_simulator_with_fallbacks(self, session_id, simulator_id, simulator_endpoint):
+        """Stop simulator with multiple fallback strategies"""
+        try:
+            # Strategy 1: Try gRPC call if endpoint is available
+            if simulator_endpoint:
+                try:
+                    result = await self.session_manager.exchange_client.stop_simulator(
+                        simulator_endpoint, session_id
+                    )
+                    if result.get('success'):
+                        logger.info(f"Successfully stopped simulator {simulator_id} via gRPC")
+                        return True
+                    else:
+                        logger.warning(f"Failed to stop simulator {simulator_id} via gRPC: {result.get('error')}")
+                except Exception as e:
+                    logger.warning(f"Error calling stop_simulator via gRPC: {e}")
+            
+            # Strategy 2: Delete K8s resources directly
+            try:
+                await self.session_manager.k8s_client.delete_simulator_deployment(simulator_id)
+                logger.info(f"Deleted simulator {simulator_id} K8s resources")
+                return True
+            except Exception as e:
+                logger.error(f"Failed to delete simulator {simulator_id} K8s resources: {e}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error in _stop_simulator_with_fallbacks: {e}")
+            return False
+        
     async def wait_for_shutdown(self):
         """Wait for server shutdown to complete"""
         await self.shutdown_event.wait()

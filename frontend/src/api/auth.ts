@@ -1,4 +1,3 @@
-
 // src/api/auth.ts
 import { HttpClient } from './http-client';
 
@@ -11,6 +10,7 @@ export interface LoginResponse {
   accessToken: string;
   refreshToken: string;
   expiresIn: number;
+  userId: number;
 }
 
 export class AuthApi {
@@ -21,7 +21,12 @@ export class AuthApi {
   }
   
   async login(username: string, password: string): Promise<LoginResponse> {
-    return this.client.post<LoginResponse>('/auth/login', { username, password }, { skipAuth: true });
+    // Include deviceId during login
+    return this.client.post<LoginResponse>(
+      '/auth/login', 
+      { username, password }, 
+      { skipAuth: true }
+    );
   }
   
   async logout(): Promise<void> {
@@ -29,6 +34,11 @@ export class AuthApi {
   }
   
   async refreshToken(refreshToken: string): Promise<LoginResponse> {
-    return this.client.post<LoginResponse>('/auth/refresh', { refreshToken }, { skipAuth: true });
+    // Include deviceId during token refresh
+    return this.client.post<LoginResponse>(
+      '/auth/refresh', 
+      { refreshToken }, 
+      { skipAuth: true }
+    );
   }
 }

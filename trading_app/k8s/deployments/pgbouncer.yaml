@@ -32,7 +32,7 @@ spec:
         - name: DB_NAME
           value: opentp
         - name: POOL_MODE
-          value: transaction
+          value: session
         - name: MAX_CLIENT_CONN
           value: "1000"  # Increased for multiple service instances
         - name: DEFAULT_POOL_SIZE

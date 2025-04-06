@@ -1,205 +1,101 @@
-import React, { useState, useEffect } from 'react';
-import { useConnection } from '../contexts/ConnectionContext';
-import MarketData from '../components/Simulator/MarketData';
-import LoadingScreen from '../components/Common/LoadingScreen';
+// src/pages/SimulatorPage.tsx
+import React, { useEffect } from 'react';
+// Import the hook to use the connection context
+import { useConnection } from '../contexts/ConnectionContext'; 
+// Import ConnectionStatus for explicit checks
+import { ConnectionStatus } from '../services/connection/unified-connection-state'; 
+import './SimulatorPage.css';
 
 const SimulatorPage: React.FC = () => {
-  const { 
-    isConnected, 
-    connectionState, 
-    startSimulator, 
-    stopSimulator, 
-    streamMarketData 
+  // --- Destructure state and actions using the updated context ---
+  const {
+    isConnected,      // Boolean flag: Is connection established?
+    isConnecting,     // Boolean flag: Is connection attempt in progress?
+    isRecovering,     // Boolean flag: Is connection recovery in progress?
+    overallStatus,    // Overall connection status enum
+    simulatorStatus,  // Current status string of the simulator
+    setDesiredState   // New declarative API method
   } = useConnection();
-  
-  const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  
+
+  // --- Derived State ---
+  // Determine if the simulator is considered running
+  const isRunning = simulatorStatus === 'RUNNING';
+  // Determine if the simulator is in a transient state (starting/stopping)
+  const isBusy = simulatorStatus === 'STARTING' || simulatorStatus === 'STOPPING';
+  // Determine if controls should be disabled
+  const controlsDisabled = !isConnected || isConnecting || isRecovering || isBusy;
+
+  // Connect on mount (alternative to the automatic approach)
   useEffect(() => {
-    if (isConnected) {
-      // Start streaming market data for some default symbols
-      const defaultSymbols = ['AAPL', 'MSFT', 'AMZN', 'GOOGL', 'FB'];
-      streamMarketData(defaultSymbols).catch(err => {
-        console.error('Failed to stream market data:', err);
-      });
+    // If not connected or connecting, set desired state to connected
+    if (overallStatus === ConnectionStatus.DISCONNECTED) {
+      setDesiredState({ connected: true });
     }
-  }, [isConnected, streamMarketData]);
-  
-  const handleStartSimulator = async () => {
-    setIsLoading(true);
-    try {
-      await startSimulator();
-    } catch (error) {
-      console.error('Failed to start simulator:', error);
-    } finally {
-      setIsLoading(false);
-    }
+  }, [overallStatus, setDesiredState]);
+
+  // --- Event Handlers ---
+  // Declarative handlers that update desired state
+  const handleStartSimulator = () => {
+    // Set the desired state for the simulator to be running
+    setDesiredState({ simulatorRunning: true });
   };
-  
-  const handleStopSimulator = async () => {
-    setIsLoading(true);
-    try {
-      await stopSimulator();
-    } catch (error) {
-      console.error('Failed to stop simulator:', error);
-    } finally {
-      setIsLoading(false);
-    }
+
+  const handleStopSimulator = () => {
+    // Set the desired state for the simulator to be stopped
+    setDesiredState({ simulatorRunning: false });
   };
-  
-  const handleSymbolSelect = (symbol: string) => {
-    setSelectedSymbol(symbol);
-  };
-  
-  if (isLoading) {
-    return <LoadingScreen message="Updating simulator state..." />;
-  }
-  
-  const isSimulatorRunning = connectionState.simulatorStatus === 'RUNNING';
-  
+
   return (
     <div className="simulator-page">
       <div className="simulator-header">
-        <h1>Trading Simulator</h1>
-        <div className="simulator-controls">
-          {isSimulatorRunning ? (
-            <button 
-              className="control-button stop-button" 
-              onClick={handleStopSimulator}
-              disabled={!isConnected || connectionState.simulatorStatus === 'STOPPING'}
-            >
-              Stop Simulator
-            </button>
-          ) : (
-            <button 
-              className="control-button start-button" 
-              onClick={handleStartSimulator}
-              disabled={!isConnected || connectionState.simulatorStatus === 'STARTING'}
-            >
-              Start Simulator
-            </button>
-          )}
+        <h2>Simulator Control</h2>
+        <div>
+          {/* Start Simulator Button */}
+          <button
+            className="control-button start-button"
+            onClick={handleStartSimulator}
+            disabled={controlsDisabled || isRunning}
+            title={controlsDisabled ? "Cannot start simulator while disconnected or busy" : isRunning ? "Simulator is already running" : "Start the simulator"}
+          >
+            Start Simulator
+          </button>
+          {/* Stop Simulator Button */}
+          <button
+            className="control-button stop-button"
+            onClick={handleStopSimulator}
+            disabled={controlsDisabled || !isRunning}
+            title={controlsDisabled ? "Cannot stop simulator while disconnected or busy" : !isRunning ? "Simulator is not running" : "Stop the simulator"}
+          >
+            Stop Simulator
+          </button>
         </div>
       </div>
-      
+
+      {/* Display Status Information */}
+      <div className="status-panel">
+         <p>Connection Status: <strong>{overallStatus}</strong></p>
+         <p>Simulator Status: <strong>{simulatorStatus || 'N/A'}</strong></p>
+         {!isConnected && <p style={{color: 'red'}}>Warning: Controls disabled while disconnected.</p>}
+         {isBusy && <p style={{color: 'orange'}}>Simulator is currently {simulatorStatus?.toLowerCase()}...</p>}
+      </div>
+
+      {/* Placeholder for Order Entry/Other Simulator Components */}
       <div className="simulator-content">
-        <div className="market-data-section">
-          <MarketData onSymbolSelect={handleSymbolSelect} />
-        </div>
-        
-        <div className="order-entry-section">
           <div className="order-entry-container">
-            <h2 className="order-entry-title">Order Entry</h2>
-            {selectedSymbol ? (
-              <div className="order-form">
-                <p>Create an order for: <strong>{selectedSymbol}</strong></p>
-                {/* Placeholder for order entry form */}
-                <div className="order-form-placeholder">
-                  Order entry form will be implemented here
-                </div>
-              </div>
-            ) : (
-              <div className="no-symbol-selected">
-                Select a symbol from the market data panel to place an order
-              </div>
-            )}
+              <h3 className="order-entry-title">Order Entry</h3>
+              {isConnected ? (
+                  <div className="order-form-placeholder">
+                      Order form components would go here.
+                      (Requires connection to be active)
+                  </div>
+              ) : (
+                  <div className="no-symbol-selected">
+                      Connect to the server to enable order entry.
+                  </div>
+              )}
           </div>
-        </div>
+          {/* Add other simulator related components here */}
       </div>
-      
-      <style jsx>{`
-        .simulator-page {
-          padding: 20px;
-          max-width: 1400px;
-          margin: 0 auto;
-        }
-        
-        .simulator-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 20px;
-        }
-        
-        .control-button {
-          padding: 10px 20px;
-          border: none;
-          border-radius: 4px;
-          font-weight: bold;
-          cursor: pointer;
-          transition: background-color 0.2s;
-        }
-        
-        .start-button {
-          background-color: #2ecc71;
-          color: white;
-        }
-        
-        .start-button:hover:not([disabled]) {
-          background-color: #27ae60;
-        }
-        
-        .stop-button {
-          background-color: #e74c3c;
-          color: white;
-        }
-        
-        .stop-button:hover:not([disabled]) {
-          background-color: #c0392b;
-        }
-        
-        .control-button[disabled] {
-          opacity: 0.5;
-          cursor: not-allowed;
-        }
-        
-        .simulator-content {
-          display: grid;
-          grid-template-columns: 2fr 1fr;
-          gap: 20px;
-        }
-        
-        .order-entry-container {
-          background-color: white;
-          border-radius: 8px;
-          box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-          padding: 20px;
-        }
-        
-        .order-entry-title {
-          margin-top: 0;
-          margin-bottom: 15px;
-          font-size: 1.5rem;
-          color: #333;
-          border-bottom: 1px solid #eee;
-          padding-bottom: 10px;
-        }
-        
-        .no-symbol-selected {
-          padding: 30px 20px;
-          text-align: center;
-          color: #666;
-          background-color: #f9f9f9;
-          border-radius: 6px;
-          border: 1px dashed #ddd;
-        }
-        
-        .order-form-placeholder {
-          padding: 20px;
-          background-color: #f8f9fa;
-          border: 1px dashed #ccc;
-          border-radius: 5px;
-          text-align: center;
-          color: #666;
-          margin-top: 20px;
-        }
-        
-        @media (max-width: 900px) {
-          .simulator-content {
-            grid-template-columns: 1fr;
-          }
-        }
-      `}</style>
     </div>
   );
 };

@@ -4,95 +4,116 @@ kind: Ingress
 metadata:
   name: trading-platform-ingress
   annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /$1
+    # CORS
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "http://localhost:3000"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, PUT, POST, DELETE, PATCH, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-headers: "DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Authorization,Origin,Accept"
+    nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+    nginx.ingress.kubernetes.io/cors-max-age: "1728000"
+    # OTHER?
     nginx.ingress.kubernetes.io/use-regex: "true"
     # Session affinity for WebSockets
     nginx.ingress.kubernetes.io/affinity: "cookie"
     nginx.ingress.kubernetes.io/session-cookie-name: "trading_session"
     nginx.ingress.kubernetes.io/session-cookie-max-age: "172800"
     nginx.ingress.kubernetes.io/session-cookie-path: "/"
+    nginx.ingress.kubernetes.io/session-cookie-samesite: "Lax"
+    nginx.ingress.kubernetes.io/session-cookie-secure: "true"
+    nginx.ingress.kubernetes.io/session-cookie-hash: "sha1"
     # WebSocket settings
     nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
     nginx.ingress.kubernetes.io/proxy-body-size: "8m"
-    # WebSocket connection upgrade
-    nginx.ingress.kubernetes.io/configuration-snippet: |
-      location /ws {
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-      }
-      # Connection draining settings for graceful pod termination
-      proxy_next_upstream error timeout http_502 http_503 http_504 non_idempotent;
-      proxy_next_upstream_tries 3;
-      proxy_next_upstream_timeout 15s;
+    # WebSocket headers (replacing configuration-snippet)
+    nginx.ingress.kubernetes.io/enable-websocket: "true"
 spec:
   rules:
   - host: trading.local
     http:
       paths:
       - path: /api/auth/(.*)
-        pathType: Prefix
+        pathType: ImplementationSpecific
         backend:
           service:
             name: auth-service
             port:
               number: 8000
-      - path: /api/session/(.*)
-        pathType: Prefix
+      - path: /api/sessions(/|$)(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: session-manager
+            port:
+              number: 8080
+      - path: /api/simulators(/|$)(.*)
+        pathType: ImplementationSpecific
         backend:
           service:
             name: session-manager
             port:
               number: 8080
       - path: /api/orders/(.*)
-        pathType: Prefix
+        pathType: ImplementationSpecific
         backend:
           service:
             name: order-service
             port:
               number: 8001
       - path: /ws/?(.*)
-        pathType: Prefix
+        pathType: ImplementationSpecific
         backend:
           service:
             name: session-manager
             port:
-              number: 8088
-      - path: /api/stream/(.*)
-        pathType: Prefix
+              number: 8080
+      - path: /stream/?(.*)
+        pathType: ImplementationSpecific
         backend:
           service:
             name: session-manager
             port:
-              number: 8088
-      # Admin dashboard and monitoring paths remain unchanged
+              number: 8080
+      # Admin dashboard and monitoring paths
       - path: /admin/?(.*)
-        pathType: Prefix
+        pathType: ImplementationSpecific
         backend:
           service:
             name: admin-dashboard
             port:
               number: 80
       - path: /prometheus/?(.*)
-        pathType: Prefix
+        pathType: ImplementationSpecific
         backend:
           service:
             name: prometheus
             port:
               number: 9090
       - path: /grafana/?(.*)
-        pathType: Prefix
+        pathType: ImplementationSpecific
         backend:
           service:
             name: grafana
             port:
               number: 3000
+      # Create a dedicated path for Jaeger static assets
+      - path: /jaeger/static/(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: jaeger-query
+            port:
+              number: 16686
+      # Then the regular Jaeger path
+      - path: /jaeger/?(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: jaeger-query
+            port:
+              number: 16686
       - path: /minio/?(.*)
-        pathType: Prefix
+        pathType: ImplementationSpecific
         backend:
           service:
             name: minio

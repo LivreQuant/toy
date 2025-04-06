@@ -1,5 +1,6 @@
 import React from 'react';
 import Login from '../components/Auth/Login';
+import './LoginPage.css';
 
 const LoginPage: React.FC = () => {
   return (
@@ -9,31 +10,6 @@ const LoginPage: React.FC = () => {
         <p>Professional-grade simulation platform</p>
       </div>
       <Login />
-      <style jsx>{`
-        .login-page {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          min-height: 100vh;
-          background-color: #f5f7fa;
-          padding: 20px;
-        }
-        
-        .login-logo {
-          text-align: center;
-          margin-bottom: 30px;
-        }
-        
-        .login-logo h1 {
-          margin-bottom: 10px;
-          color: #333;
-        }
-        
-        .login-logo p {
-          color: #666;
-        }
-      `}</style>
     </div>
   );
 };

@@ -6,6 +6,7 @@ import json
 
 from source.models.enums import OrderSide, OrderType, OrderStatus
 
+
 @dataclass
 class Order:
     """Order model representing a trading order"""
@@ -22,7 +23,7 @@ class Order:
     status: OrderStatus = OrderStatus.NEW
     filled_quantity: float = 0
     avg_price: float = 0
-    simulator_id: Optional[str] = None
+    simulator_id: Optional[str] = None  # Added field for simulator ID
     created_at: float = field(default_factory=time.time)
     updated_at: float = field(default_factory=time.time)
     request_id: Optional[str] = None
@@ -39,7 +40,7 @@ class Order:
             self.created_at = current_time
         if not self.updated_at:
             self.updated_at = current_time
-            
+
         # Convert string enum values to actual enums if needed
         if isinstance(self.side, str):
             self.side = OrderSide(self.side)

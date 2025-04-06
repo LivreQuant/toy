@@ -17,10 +17,8 @@ class Config:
     DB_MIN_CONNECTIONS = int(os.getenv('DB_MIN_CONNECTIONS', '1'))
     DB_MAX_CONNECTIONS = int(os.getenv('DB_MAX_CONNECTIONS', '10'))
 
-    # Redis Configuration
-    REDIS_HOST = os.getenv('REDIS_HOST', 'redis')
-    REDIS_PORT = int(os.getenv('REDIS_PORT', '6379'))
-    REDIS_DB = int(os.getenv('REDIS_DB', '0'))
+    # Tracing Configuration
+    ENABLE_TRACING = os.getenv('ENABLE_TRACING', 'true').lower() == 'true'
 
     # Service Configuration
     REST_PORT = int(os.getenv('REST_PORT', '8001'))

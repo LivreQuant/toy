@@ -18,6 +18,12 @@ spec:
       containers:
       - name: grafana
         image: grafana/grafana:9.1.0
+        # Disable Jaeger tracing to prevent errors
+        env:
+        - name: JAEGER_DISABLED
+          value: "true"
+        - name: JAEGER_AGENT_PORT
+          value: "6831"  # Set to a valid port number instead of a URI
         ports:
         - containerPort: 3000
         volumeMounts:

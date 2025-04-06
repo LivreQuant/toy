@@ -9,28 +9,41 @@ import signal
 import sys
 import os
 
-from source.config import Config
+from source.config import config
 from source.api.server import SessionServer
 from source.utils.logging import setup_logging
+from source.utils.tracing import setup_tracing
+from source.utils.metrics import setup_metrics
 
 logger = logging.getLogger('session_service')
+
 
 async def main():
     """Initialize and run the session service"""
     # Setup logging
     setup_logging()
-    
+
     logger.info("Starting session service")
-    
+
+    # Initialize tracing
+    if config.tracing.enabled:
+        logger.info("Initializing distributed tracing")
+        setup_tracing()
+
+    # Initialize metrics
+    if config.metrics.enabled:
+        logger.info("Initializing metrics collection")
+        setup_metrics(config.metrics.port)
+
     # Create server instance
     server = SessionServer()
-    
+
     # Set up signal handlers for graceful shutdown
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(
             sig, lambda: asyncio.create_task(server.shutdown()))
-    
+
     # Initialize server components
     try:
         await server.initialize()
@@ -38,27 +51,29 @@ async def main():
     except Exception as e:
         logger.error(f"Failed to start server: {e}")
         return 1
-    
+
     # Run until shutdown is complete
     try:
         await server.wait_for_shutdown()
     except Exception as e:
         logger.error(f"Error during server execution: {e}")
         return 1
-    
+
     logger.info("Server shutdown complete")
     return 0
+
 
 if __name__ == "__main__":
     try:
         # Use uvloop for better performance if available
         try:
             import uvloop
+
             uvloop.install()
             logger.info("Using uvloop for asyncio")
         except ImportError:
             logger.info("uvloop not available, using standard asyncio")
-        
+
         # Run main async function
         exit_code = asyncio.run(main())
         sys.exit(exit_code)

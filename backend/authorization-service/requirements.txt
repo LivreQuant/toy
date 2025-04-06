@@ -2,6 +2,13 @@ aiohttp>=3.8.5
 aiohttp-cors>=0.7.0
 asyncio>=3.4.3
 asyncpg>=0.27.0
-grpcio>=1.62.0
 protobuf>=4.21.0
-redis>=4.5.1
+PyJWT>=2.7.0
+# PROMETHEUS TRACING
+prometheus-client>=0.16.0
+# JAEGER TRACING
+opentelemetry-api>=1.18.0
+opentelemetry-sdk>=1.18.0
+opentelemetry-exporter-jaeger>=1.18.0
+opentelemetry-instrumentation-aiohttp-client>=0.40b0
+opentelemetry-instrumentation-asyncpg>=0.40b0

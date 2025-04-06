@@ -7,13 +7,23 @@ import asyncio
 import time
 import grpc
 from typing import Dict, List, Any, Optional, AsyncGenerator
+from opentelemetry import trace
 
 from source.utils.circuit_breaker import CircuitBreaker, CircuitOpenError
 from source.config import config
 
+from source.utils.metrics import track_external_request, track_circuit_breaker_state, track_circuit_breaker_failure
+from source.utils.tracing import optional_trace_span
+
 # These would be generated from your proto files
-import exchange_simulator_pb2
-import exchange_simulator_pb2_grpc
+from source.api.grpc.exchange_simulator_pb2 import (
+    StartSimulatorRequest,
+    StopSimulatorRequest,
+    StreamRequest,
+    HeartbeatRequest,
+    GetSimulatorStatusRequest
+)
+from source.api.grpc.exchange_simulator_pb2_grpc import ExchangeSimulatorStub
 
 logger = logging.getLogger('exchange_client')
 
@@ -32,7 +42,86 @@ class ExchangeClient:
             failure_threshold=3,
             reset_timeout_ms=30000  # 30 seconds
         )
-    
+
+        # Register callback for circuit breaker state changes
+        self.circuit_breaker.on_state_change(self._on_circuit_state_change)
+
+        # Create tracer
+        self.tracer = trace.get_tracer("exchange_client")
+
+    async def send_heartbeat_with_ttl(self, endpoint, session_id, client_id, ttl_seconds=30):
+        """Send heartbeat with TTL that will automatically expire simulators if not renewed"""
+        try:
+            request = HeartbeatRequest(
+                session_id=session_id,
+                client_id=client_id,
+                client_timestamp=int(time.time() * 1000),
+                ttl_seconds=ttl_seconds  # Add this field to proto definition
+            )
+            response = await self.circuit_breaker.execute(
+                self._heartbeat_request, endpoint, session_id, client_id, ttl_seconds
+            )
+            return response
+        except Exception as e:
+            logger.error(f"Error sending heartbeat with TTL: {e}")
+            return {'success': False, 'error': str(e)}
+        
+    def _on_circuit_state_change(self, name, old_state, new_state, info):
+        """Handle circuit breaker state changes"""
+        logger.info(f"Circuit breaker '{name}' state change: {old_state.value} -> {new_state.value}")
+        track_circuit_breaker_state("exchange_service", new_state.value)
+
+    async def stream_market_data(
+            self,
+            endpoint: str,
+            session_id: str,
+            client_id: str,
+            symbols: List[str] = None
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        """
+        Stream market data from the exchange simulator
+
+        Args:
+            endpoint: The endpoint of the simulator
+            session_id: The session ID
+            client_id: The client ID
+            symbols: Optional list of symbols to stream (passed through from frontend)
+
+        Yields:
+            Dict with market data updates
+        """
+        logger.info(f"Starting market data stream for session {session_id}, client {client_id}, symbols: {symbols}")
+        
+        _, stub = await self.get_channel(endpoint)
+
+        request = StreamRequest(
+            session_id=session_id,
+            client_id=client_id,
+            symbols=symbols or []
+        )
+
+        # This streaming endpoint doesn't use circuit breaker to allow long-running streams
+        try:
+            logger.info(f"Establishing gRPC stream to {endpoint} for session {session_id}")
+            stream = stub.StreamMarketData(request)
+            logger.info(f"gRPC stream established successfully for session {session_id}")
+
+            async for data in stream:
+                logger.debug(f"Received market data update for session {session_id}")
+                # Simply forward the data structure received from the exchange
+                # Convert protobuf message to dictionary with minimal transformation
+                yield self._convert_stream_data(data)
+
+        except grpc.aio.AioRpcError as e:
+            if e.code() == grpc.StatusCode.CANCELLED:
+                logger.info(f"Stream cancelled for session {session_id}")
+            else:
+                logger.error(f"gRPC error in market data stream: {e.code()} - {e.details()}")
+            raise
+        except Exception as e:
+            logger.error(f"Error in market data stream: {e}")
+            raise
+        
     async def get_channel(self, endpoint: str):
         """Get or create a gRPC channel to the endpoint"""
         async with self._conn_lock:
@@ -51,7 +140,7 @@ class ExchangeClient:
             
             # Create channel
             channel = grpc.aio.insecure_channel(endpoint, options=options)
-            stub = exchange_simulator_pb2_grpc.ExchangeSimulatorStub(channel)
+            stub = ExchangeSimulatorStub(channel)
             
             # Store for reuse
             self.channels[endpoint] = channel
@@ -92,19 +181,30 @@ class ExchangeClient:
         Returns:
             Dict with start results
         """
-        try:
-            # Execute request with circuit breaker
-            return await self.circuit_breaker.execute(
-                self._start_simulator_request, 
-                endpoint, session_id, user_id, initial_symbols, initial_cash
-            )
-        except CircuitOpenError as e:
-            logger.warning(f"Circuit open for exchange service: {e}")
-            return {'success': False, 'error': 'Exchange service unavailable'}
-        except Exception as e:
-            logger.error(f"Error starting simulator: {e}")
-            return {'success': False, 'error': str(e)}
-    
+        with optional_trace_span(self.tracer, "start_simulator") as span:
+            span.set_attribute("endpoint", endpoint)
+            span.set_attribute("session_id", session_id)
+            span.set_attribute("user_id", user_id)
+            span.set_attribute("initial_symbols_count", len(initial_symbols or []))
+            span.set_attribute("initial_cash", initial_cash)
+
+            try:
+                # Execute request with circuit breaker
+                return await self.circuit_breaker.execute(
+                    self._start_simulator_request,
+                    endpoint, session_id, user_id, initial_symbols, initial_cash
+                )
+            except CircuitOpenError as e:
+                logger.warning(f"Circuit open for exchange service: {e}")
+                span.set_attribute("error", "Exchange service unavailable")
+                span.set_attribute("circuit_open", True)
+                return {'success': False, 'error': 'Exchange service unavailable'}
+            except Exception as e:
+                logger.error(f"Error starting simulator: {e}")
+                span.record_exception(e)
+                span.set_attribute("error", str(e))
+                return {'success': False, 'error': str(e)}
+
     async def _start_simulator_request(
         self, 
         endpoint: str,
@@ -116,7 +216,7 @@ class ExchangeClient:
         """Make the actual start simulator request"""
         _, stub = await self.get_channel(endpoint)
         
-        request = exchange_simulator_pb2.StartSimulatorRequest(
+        request = StartSimulatorRequest(
             session_id=session_id,
             user_id=user_id,
             initial_symbols=initial_symbols or [],
@@ -162,7 +262,7 @@ class ExchangeClient:
         """Make the actual stop simulator request"""
         _, stub = await self.get_channel(endpoint)
         
-        request = exchange_simulator_pb2.StopSimulatorRequest(
+        request = StopSimulatorRequest(
             session_id=session_id
         )
         
@@ -200,23 +300,165 @@ class ExchangeClient:
         except Exception as e:
             logger.error(f"Error sending heartbeat: {e}")
             return {'success': False, 'error': str(e)}
-    
+
     async def _heartbeat_request(self, endpoint: str, session_id: str, client_id: str) -> Dict[str, Any]:
         """Make the actual heartbeat request"""
         _, stub = await self.get_channel(endpoint)
-        
-        request = exchange_simulator_pb2.HeartbeatRequest(
+
+        request = HeartbeatRequest(
             session_id=session_id,
             client_id=client_id,
             client_timestamp=int(time.time() * 1000)
         )
-        
+
         try:
             response = await stub.Heartbeat(request, timeout=5)
-            
+
             return {
                 'success': response.success,
                 'server_timestamp': response.server_timestamp
             }
         except grpc.aio.AioRpcError as e:
-            logger.error(f"gRPC error sending heartbe
+            logger.error(f"gRPC error sending heartbeat: {e.code()} - {e.details()}")
+            raise
+
+    async def stream_exchange_data(
+            self,
+            endpoint: str,
+            session_id: str,
+            client_id: str,
+            symbols: List[str] = None
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        """
+        Stream market data from the exchange simulator
+
+        Args:
+            endpoint: The endpoint of the simulator
+            session_id: The session ID
+            client_id: The client ID
+            symbols: Optional list of symbols to stream (passed through from frontend)
+
+        Yields:
+            Dict with market data updates
+        """
+        _, stub = await self.get_channel(endpoint)
+
+        request = StreamRequest(
+            session_id=session_id,
+            client_id=client_id,
+            symbols=symbols or []
+        )
+
+        # This streaming endpoint doesn't use circuit breaker to allow long-running streams
+        try:
+            stream = stub.StreamMarketData(request)
+
+            async for data in stream:
+                # Simply forward the data structure received from the exchange
+                # Convert protobuf message to dictionary with minimal transformation
+                yield self._convert_stream_data(data)
+
+        except grpc.aio.AioRpcError as e:
+            if e.code() == grpc.StatusCode.CANCELLED:
+                logger.info(f"Stream cancelled for session {session_id}")
+            else:
+                logger.error(f"gRPC error in market data stream: {e.code()} - {e.details()}")
+            raise
+        except Exception as e:
+            logger.error(f"Error in market data stream: {e}")
+            raise
+
+    def _convert_stream_data(self, data):
+        """Convert stream data protobuf message to dictionary"""
+        # Minimal conversion from protobuf to dict
+        result = {
+            'timestamp': data.timestamp,
+            'market_data': [],
+            'portfolio': None
+        }
+
+        # Convert market data
+        for item in data.market_data:
+            result['market_data'].append({
+                'symbol': item.symbol,
+                'price': item.price,
+                'change': item.change,
+                'volume': item.volume,
+                'timestamp': item.timestamp
+            })
+
+        # Convert portfolio if present
+        if data.HasField('portfolio'):
+            portfolio = data.portfolio
+            positions = []
+
+            for pos in portfolio.positions:
+                positions.append({
+                    'symbol': pos.symbol,
+                    'quantity': pos.quantity,
+                    'avg_price': pos.avg_price,
+                    'current_price': pos.current_price,
+                    'market_value': pos.market_value,
+                    'profit_loss': pos.profit_loss
+                })
+
+            result['portfolio'] = {
+                'cash': portfolio.cash,
+                'equity': portfolio.equity,
+                'buying_power': portfolio.buying_power,
+                'positions': positions
+            }
+
+        return result
+
+    async def get_simulator_status(
+            self,
+            endpoint: str,
+            session_id: str
+    ) -> Dict[str, Any]:
+        """
+        Get the status of a simulator instance (for connection management)
+
+        Args:
+            endpoint: The endpoint of the simulator
+            session_id: The session ID
+
+        Returns:
+            Dict with simulator connectivity status
+        """
+        try:
+            # Execute request with circuit breaker
+            return await self.circuit_breaker.execute(
+                self._get_simulator_status_request, endpoint, session_id
+            )
+        except CircuitOpenError as e:
+            logger.warning(f"Circuit open for exchange service: {e}")
+            return {'status': 'UNKNOWN', 'error': 'Exchange service unavailable'}
+        except Exception as e:
+            logger.error(f"Error getting simulator status: {e}")
+            return {'status': 'ERROR', 'error': str(e)}
+
+    async def _get_simulator_status_request(
+            self,
+            endpoint: str,
+            session_id: str
+    ) -> Dict[str, Any]:
+        """Make the actual simulator status request"""
+        _, stub = await self.get_channel(endpoint)
+
+        request = GetSimulatorStatusRequest(
+            session_id=session_id
+        )
+
+        try:
+            response = await stub.GetSimulatorStatus(request, timeout=5)
+
+            return {
+                'status': response.status,
+                'simulator_id': response.simulator_id,
+                'uptime_seconds': response.uptime_seconds,
+                'error': response.error_message if response.status == 'ERROR' else None
+            }
+        except grpc.aio.AioRpcError as e:
+            logger.error(f"gRPC error getting simulator status: {e.code()} - {e.details()}")
+            raise

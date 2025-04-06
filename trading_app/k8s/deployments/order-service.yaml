@@ -12,13 +12,18 @@ spec:
     metadata:
       labels:
         app: order-service
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9091"
+        prometheus.io/path: "/metrics"
     spec:
       containers:
       - name: order-service
         image: opentp/order-service:latest
         imagePullPolicy: Never
         ports:
-        - containerPort: 8001
+        - containerPort: 8001  # REST service
+        - containerPort: 9091  # Prometheus metrics
         env:
         - name: DB_HOST
           value: pgbouncer  # Using connection pooling
@@ -36,10 +41,24 @@ spec:
             secretKeyRef:
               name: db-credentials
               key: password
-        - name: REDIS_HOST
-          value: redis
+        - name: SESSION_SERVICE_URL
+          value: "http://session-service:8080"
         - name: AUTH_SERVICE_URL
           value: http://auth-service:8000
+        - name: OTEL_EXPORTER_JAEGER_ENDPOINT
+          value: "http://jaeger-collector:14268/api/traces"
+        - name: OTEL_EXPORTER_JAEGER_AGENT_HOST
+          value: "jaeger-agent"
+        - name: OTEL_EXPORTER_JAEGER_AGENT_PORT
+          value: "6831"
+        - name: OTEL_SERVICE_NAME
+          value: "order-service"
+        - name: ENABLE_TRACING
+          value: "true"
+        - name: ENABLE_METRICS
+          value: "true"
+        - name: METRICS_PORT
+          value: "9091"
         resources:
           requests:
             memory: "128Mi"
@@ -59,11 +78,10 @@ spec:
             port: 8001
           initialDelaySeconds: 15
           periodSeconds: 20
-        # Add init container to wait for database
-        initContainers:
-        - name: wait-for-db
-          image: postgres:13
-          command: ['sh', '-c', 'until pg_isready -h pgbouncer -p 5432; do echo waiting for database; sleep 2; done;']
+      initContainers:
+      - name: wait-for-db
+        image: postgres:13
+        command: ['sh', '-c', 'until pg_isready -h pgbouncer -p 5432; do echo waiting for database; sleep 2; done;']
 ---
 apiVersion: v1
 kind: Service
@@ -73,6 +91,10 @@ spec:
   selector:
     app: order-service
   ports:
-  - port: 8001
+  - name: http
+    port: 8001
     targetPort: 8001
+  - name: metrics
+    port: 9091
+    targetPort: 9091
   type: ClusterIP

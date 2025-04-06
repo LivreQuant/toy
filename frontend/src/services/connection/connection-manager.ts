@@ -1,547 +1,660 @@
 // src/services/connection/connection-manager.ts
 import { EventEmitter } from '../../utils/event-emitter';
 import { TokenManager } from '../auth/token-manager';
-import { WebSocketManager } from '../websocket/ws-manager';
-import { MarketDataStream, MarketData, OrderUpdate, PortfolioUpdate } from '../sse/market-data-stream';
-import { SessionApi } from '../../api/session';
-import { OrdersApi } from '../../api/order';
+import { WebSocketManager } from '../websocket/websocket-manager';
 import { HttpClient } from '../../api/http-client';
-import { SessionStore } from '../session/session-store';
+import { ConnectionRecoveryInterface } from './connection-recovery-interface';
+import { ConnectionResilienceManager, ResilienceState } from './connection-resilience-manager';
+import { WebSocketOptions } from '../websocket/types';
+import {
+  UnifiedConnectionState,
+  ConnectionServiceType,
+  ConnectionStatus
+} from './unified-connection-state';
+import { ConnectionDataHandlers } from './connection-data-handlers';
+import { ConnectionSimulatorManager } from './connection-simulator';
+import { Logger } from '../../utils/logger';
+import { Disposable } from '../../utils/disposable';
+import { SessionApi } from '../../api/session';
+import { AppErrorHandler } from '../../utils/app-error-handler';
+import { ErrorSeverity } from '../../utils/error-handler';
+import { OrderSide, OrderType } from '../../api/order';
 
-export type ConnectionQuality = 'good' | 'degraded' | 'poor';
-
-export interface ConnectionState {
-  isConnected: boolean;
-  isConnecting: boolean;
-  sessionId: string | null;
-  connectionQuality: ConnectionQuality;
-  lastHeartbeatTime: number;
-  heartbeatLatency: number | null;
-  missedHeartbeats: number;
-  error: string | null;
-  circuitBreakerState: 'CLOSED' | 'OPEN' | 'HALF_OPEN';
-  simulatorId: string | null;
-  simulatorStatus: string;
+// Define the desired connection state
+export interface ConnectionDesiredState {
+  connected: boolean;
+  simulatorRunning: boolean;
 }
 
-export class ConnectionManager extends EventEmitter {
-  private state: ConnectionState;
-  private tokenManager: TokenManager;
+// Options for the ConnectionManager
+export interface ConnectionManagerOptions {
+  wsOptions?: WebSocketOptions;
+  resilience?: {
+    initialDelayMs?: number;
+    maxDelayMs?: number;
+    maxAttempts?: number;
+    resetTimeoutMs?: number;
+    failureThreshold?: number;
+  };
+}
+
+/**
+ * Central manager for all connection-related functionality
+ */
+export class ConnectionManager extends EventEmitter implements ConnectionRecoveryInterface, Disposable {
+  private unifiedState: UnifiedConnectionState;
+  private dataHandlers: ConnectionDataHandlers;
+  private simulatorManager: ConnectionSimulatorManager;
+  private resilienceManager: ConnectionResilienceManager;
   private wsManager: WebSocketManager;
-  private marketDataStream: MarketDataStream;
+  private tokenManager: TokenManager;
+  private logger: Logger;
+  private isDisposed: boolean = false;
   private sessionApi: SessionApi;
-  private ordersApi: OrdersApi;
   private httpClient: HttpClient;
   
-  // Timers
-  private heartbeatInterval: number | null = null;
-  private keepAliveInterval: number | null = null;
+  // Data storage
+  private exchangeData: Record<string, any> = {};
+  private portfolioData: Record<string, any> = {};
+  private riskData: Record<string, any> = {};
   
-  // Data caches
-  private marketData: Record<string, MarketData> = {};
-  private orders: Record<string, OrderUpdate> = {};
-  private portfolio: PortfolioUpdate | null = null;
+  // Current desired state
+  private desiredState: ConnectionDesiredState = {
+    connected: false,
+    simulatorRunning: false
+  };
   
   constructor(
-    apiBaseUrl: string,
-    wsUrl: string,
-    sseUrl: string,
-    tokenManager: TokenManager
+    tokenManager: TokenManager,
+    logger: Logger,
+    options: ConnectionManagerOptions = {}
   ) {
     super();
     
+    this.logger = logger.createChild('ConnectionManager');
+    this.logger.info('ConnectionManager initializing...');
+    
+    // Store dependencies
     this.tokenManager = tokenManager;
     
-    // Initialize state
-    this.state = {
-      isConnected: false,
-      isConnecting: false,
-      sessionId: null,
-      connectionQuality: 'good',
-      lastHeartbeatTime: 0,
-      heartbeatLatency: null,
-      missedHeartbeats: 0,
-      error: null,
-      circuitBreakerState: 'CLOSED',
-      simulatorId: null,
-      simulatorStatus: 'UNKNOWN'
-    };
+    // Verify authentication
+    if (!this.tokenManager.isAuthenticated()) {
+      this.logger.warn('Initializing ConnectionManager without active authentication');
+    }
     
-    // Create HTTP client
-    this.httpClient = new HttpClient(apiBaseUrl, tokenManager);
+    // Initialize state management
+    this.unifiedState = new UnifiedConnectionState(this.logger);
     
-    // Create API clients
+    // Initialize HTTP client and APIs
+    this.httpClient = new HttpClient(tokenManager);
     this.sessionApi = new SessionApi(this.httpClient);
-    this.ordersApi = new OrdersApi(this.httpClient);
     
-    // Create WebSocket manager
-    this.wsManager = new WebSocketManager(wsUrl, tokenManager, {
-      heartbeatInterval: 15000,
-      reconnectMaxAttempts: 15,
-      circuitBreakerThreshold: 5,
-      circuitBreakerResetTimeMs: 60000
-    });
+    // Initialize websocket manager
+    this.wsManager = new WebSocketManager(
+      tokenManager,
+      this.unifiedState,
+      this.logger,
+      {
+        ...options.wsOptions,
+        preventAutoConnect: true
+      }
+    );
     
-    // Create Market Data stream
-    this.marketDataStream = new MarketDataStream(tokenManager, {
-      baseUrl: sseUrl,
-      reconnectMaxAttempts: 15
-    });
+    // Initialize resilience manager
+    this.resilienceManager = new ConnectionResilienceManager(
+      tokenManager,
+      this.logger,
+      options.resilience
+    );
+    
+    // Initialize other managers
+    this.dataHandlers = new ConnectionDataHandlers(this.httpClient, AppErrorHandler.getInstance());
+    this.simulatorManager = new ConnectionSimulatorManager(this.httpClient);
     
     // Set up event listeners
     this.setupEventListeners();
+    
+    this.logger.info('ConnectionManager initialized');
   }
   
+  /**
+   * Sets up event listeners for various components
+   */
   private setupEventListeners(): void {
+    this.logger.info('Setting up ConnectionManager event listeners');
+    
+    // State change listener
+    this.unifiedState.on('state_change', (state: ReturnType<UnifiedConnectionState['getState']>) => {
+      if (this.isDisposed) return;
+      
+      this.emit('state_change', { current: state });
+      
+      // Emit derived events
+      if (!this.isDisposed) {
+        if (state.overallStatus === ConnectionStatus.CONNECTED) {
+          this.emit('connected');
+          
+          // Auto-start simulator if desired
+          if (this.desiredState.simulatorRunning) {
+            this.syncSimulatorState();
+          }
+        } else if (state.overallStatus === ConnectionStatus.DISCONNECTED) {
+          const reason = state.webSocketState.error || 'disconnected';
+          this.emit('disconnected', { reason });
+        }
+      }
+    });
+    
     // WebSocket event listeners
-    this.wsManager.on('connected', () => {
-      this.updateState({ isConnected: true, error: null });
-      this.emit('connected', { connected: true });
-      this.startHeartbeat();
-      this.startKeepAlive();
+    this.wsManager.on('exchange_data', (data: any) => {
+      if (this.isDisposed) return;
+      this.exchangeData = { ...this.exchangeData, ...data };
+      this.emit('exchange_data', data);
     });
     
-    this.wsManager.on('disconnected', () => {
-      this.updateState({ isConnected: false });
-      this.emit('disconnected');
-      this.stopHeartbeat();
-      this.stopKeepAlive();
+    this.wsManager.on('portfolio_data', (data: any) => {
+      if (this.isDisposed) return;
+      this.portfolioData = { ...this.portfolioData, ...data };
+      this.emit('portfolio_data', data);
     });
     
-    this.wsManager.on('reconnecting', (data: any) => {
-      this.updateState({ isConnecting: true });
-      this.emit('reconnecting', data);
+    this.wsManager.on('risk_data', (data: any) => {
+      if (this.isDisposed) return;
+      this.riskData = { ...this.riskData, ...data };
+      this.emit('risk_data', data);
     });
     
-    this.wsManager.on('heartbeat', (data: any) => {
-      this.handleHeartbeat(data);
+    this.wsManager.on('order_update', (data: any) => {
+      if (this.isDisposed) return;
+      this.emit('order_update', data);
     });
     
-    this.wsManager.on('error', (data: any) => {
-      this.updateState({ error: data.error?.message || 'Connection error' });
-      this.emit('error', data);
+    // Resilience manager events
+    this.resilienceManager.on('reconnect_scheduled', (data: any) => {
+      if (this.isDisposed) return;
+      this.logger.info(`Reconnection scheduled: attempt ${data.attempt}/${data.maxAttempts} in ${data.delay}ms`);
+      this.unifiedState.updateRecovery(true, data.attempt);
+      this.emit('recovery_attempt', data);
     });
     
-    // Circuit breaker events
-    this.wsManager.on('circuit_trip', () => {
-      this.updateState({ circuitBreakerState: 'OPEN' });
+    this.resilienceManager.on('reconnect_success', () => {
+      if (this.isDisposed) return;
+      this.logger.info('Connection recovery successful');
+      this.unifiedState.updateRecovery(false, 0);
+      this.emit('recovery_success');
     });
     
-    this.wsManager.on('circuit_half_open', () => {
-      this.updateState({ circuitBreakerState: 'HALF_OPEN' });
+    this.resilienceManager.on('reconnect_failure', (data: any) => {
+      if (this.isDisposed) return;
+      this.logger.error('Connection recovery failed', data);
+      this.emit('recovery_failed', data);
     });
     
-    this.wsManager.on('circuit_closed', () => {
-      this.updateState({ circuitBreakerState: 'CLOSED' });
+    this.resilienceManager.on('max_attempts_reached', (data: any) => {
+      if (this.isDisposed) return;
+      this.logger.error(`Maximum reconnection attempts (${data.maxAttempts}) reached`);
+      this.unifiedState.updateRecovery(false, data.attempts);
+      this.emit('max_reconnect_attempts', data);
     });
     
-    // Market data stream listeners
-    this.marketDataStream.on('market-data-updated', (data: Record<string, MarketData>) => {
-      this.marketData = data;
-      this.emit('market_data', data);
-    });
+    // Authentication listener
+    this.tokenManager.addRefreshListener(this.handleTokenRefresh);
     
-    this.marketDataStream.on('orders-updated', (data: Record<string, OrderUpdate>) => {
-      this.orders = data;
-      this.emit('orders', data);
-    });
-    
-    this.marketDataStream.on('portfolio-updated', (data: PortfolioUpdate) => {
-      this.portfolio = data;
-      this.emit('portfolio', data);
-    });
-    
-    // Additional message handlers
-    this.wsManager.on('simulator_update', (data: any) => {
-      this.updateState({ 
-        simulatorStatus: data.status,
-        simulatorId: data.simulatorId || this.state.simulatorId
-      });
-      this.emit('simulator_update', data);
-    });
+    this.logger.info('ConnectionManager event listeners setup complete');
   }
   
-  // Connect all necessary connections for a session
-  public async connect(): Promise<boolean> {
-    if (this.state.isConnected || this.state.isConnecting) {
-      return this.state.isConnected;
+  /**
+   * Sets the desired state of the connection and simulator
+   * This allows for a more declarative API
+   */
+  public setDesiredState(state: Partial<ConnectionDesiredState>): void {
+    if (this.isDisposed) {
+      this.logger.error('Cannot set desired state: ConnectionManager is disposed');
+      return;
     }
     
-    this.updateState({ isConnecting: true, error: null });
+    const oldState = { ...this.desiredState };
+    this.desiredState = { ...this.desiredState, ...state };
     
-    try {
-      // Check if we have a stored session
-      let sessionId = SessionStore.getSessionId();
-      
-      if (!sessionId) {
-        // Create a new session
-        const response = await this.sessionApi.createSession();
-        
-        if (!response.success) {
-          throw new Error(response.errorMessage || 'Failed to create session');
-        }
-        
-        sessionId = response.sessionId;
-        SessionStore.setSessionId(sessionId);
-      }
-      
-      this.updateState({ sessionId });
-      
-      // Connect WebSocket
-      const wsConnected = await this.wsManager.connect(sessionId);
-      
-      if (!wsConnected) {
-        throw new Error('Failed to establish WebSocket connection');
-      }
-      
-      // Connect to market data stream
-      await this.marketDataStream.connect(sessionId);
-      
-      // Get session state to determine if simulator is already running
-      const sessionState = await this.sessionApi.getSessionState(sessionId);
-      
-      // Update state with simulator info
-      if (sessionState.success) {
-        this.updateState({
-          simulatorId: sessionState.simulatorId,
-          simulatorStatus: sessionState.simulatorStatus || 'UNKNOWN'
-        });
-      }
-      
-      this.updateState({ 
-        isConnected: true, 
-        isConnecting: false 
+    this.logger.info('Desired state updated', { 
+      oldState, 
+      newState: this.desiredState 
+    });
+    
+    // Synchronize actual state with desired state
+    this.syncConnectionState();
+    this.syncSimulatorState();
+  }
+  
+  /**
+   * Synchronizes the connection state with the desired state
+   */
+  private syncConnectionState(): void {
+    if (this.isDisposed) return;
+    
+    const currentStatus = this.unifiedState.getState().overallStatus;
+    const isConnected = currentStatus === ConnectionStatus.CONNECTED;
+    
+    if (this.desiredState.connected && !isConnected &&
+        currentStatus !== ConnectionStatus.CONNECTING &&
+        currentStatus !== ConnectionStatus.RECOVERING) {
+      // We want to be connected but we're not - connect
+      this.logger.info('Syncing connection state: attempting to connect');
+      this.connect().catch(err => {
+        this.logger.error('Failed to connect during state sync', { error: err.message });
       });
-      
-      return true;
-    } catch (error) {
-      console.error('Connection error:', error);
-      this.updateState({ 
-        isConnecting: false, 
-        error: error instanceof Error ? error.message : 'Connection failed' 
+    } else if (!this.desiredState.connected && isConnected) {
+      // We don't want to be connected but we are - disconnect
+      this.logger.info('Syncing connection state: disconnecting');
+      this.disconnect('desired_state_change');
+    }
+  }
+  
+  /**
+   * Synchronizes the simulator state with the desired state
+   */
+  private async syncSimulatorState(): Promise<void> {
+    if (this.isDisposed) return;
+    
+    const isConnected = this.unifiedState.getState().overallStatus === ConnectionStatus.CONNECTED;
+    if (!isConnected) return;
+    
+    const currentStatus = this.unifiedState.getState().simulatorStatus;
+    const isRunning = currentStatus === 'RUNNING';
+    
+    if (this.desiredState.simulatorRunning && !isRunning &&
+        currentStatus !== 'STARTING' && currentStatus !== 'STOPPING') {
+      // We want simulator running but it's not - start it
+      this.logger.info('Syncing simulator state: attempting to start simulator');
+      try {
+        await this.startSimulator();
+      } catch (err) {
+        this.logger.error('Failed to start simulator during state sync', { error: err instanceof Error ? err.message : String(err) });
+      }
+    } else if (!this.desiredState.simulatorRunning && isRunning) {
+      // We don't want simulator running but it is - stop it
+      this.logger.info('Syncing simulator state: stopping simulator');
+      try {
+        await this.stopSimulator();
+      } catch (err) {
+        this.logger.error('Failed to stop simulator during state sync', { error: err instanceof Error ? err.message : String(err) });
+      }
+    }
+  }
+  
+  /**
+   * Attempts to establish a connection by validating the session and connecting WebSocket
+   */
+  public async connect(): Promise<boolean> {
+    if (this.isDisposed) {
+      this.logger.error('Cannot connect: ConnectionManager is disposed');
+      return false;
+    }
+    
+    if (!this.tokenManager.isAuthenticated()) {
+      this.logger.error('Cannot connect: Not authenticated');
+      this.unifiedState.updateServiceState(ConnectionServiceType.WEBSOCKET, {
+        status: ConnectionStatus.DISCONNECTED,
+        error: 'Authentication required'
       });
       return false;
     }
-  }
-  
-  public disconnect(): void {
-    // Disconnect WebSocket
-    this.wsManager.disconnect();
     
-    // Disconnect market data stream
-    this.marketDataStream.disconnect();
+    // Update desired state
+    this.desiredState.connected = true;
     
-    // Stop timers
-    this.stopHeartbeat();
-    this.stopKeepAlive();
-    
-    // Clear session store
-    SessionStore.clearSession();
-    
-    // Reset state
-    this.updateState({
-      isConnected: false,
-      isConnecting: false,
-      sessionId: null,
-      simulatorId: null,
-      simulatorStatus: 'UNKNOWN',
-      error: null
-    });
-  }
-  
-  public async reconnect(): Promise<boolean> {
-    // Check if we have a session ID
-    const sessionId = this.state.sessionId || SessionStore.getSessionId();
-    if (!sessionId) {
-      return this.connect();
+    const currentState = this.unifiedState.getState();
+    if (currentState.isConnected) {
+      this.logger.info('Already connected');
+      return true;
     }
     
-    this.updateState({ isConnecting: true, error: null });
+    if (currentState.isConnecting || currentState.isRecovering) {
+      this.logger.warn(`Connect call ignored: Already ${currentState.overallStatus}`);
+      return false;
+    }
     
     try {
-      const attempts = SessionStore.incrementReconnectAttempts();
+      this.logger.info('Attempting to create or validate session');
       
-      // Try to reconnect session
-      const response = await this.sessionApi.reconnectSession(sessionId, attempts);
-      
-      if (!response.success) {
-        throw new Error(response.errorMessage || 'Failed to reconnect session');
-      }
-      
-      // Disconnect existing connections
-      this.wsManager.disconnect();
-      this.marketDataStream.disconnect();
-      this.stopHeartbeat();
-      this.stopKeepAlive();
-      
-      // Connect WebSocket
-      const wsConnected = await this.wsManager.connect(response.sessionId);
-
-      if (!wsConnected) {
-        throw new Error('Failed to establish WebSocket connection');
-      }
-      
-      // Connect to market data stream
-      await this.marketDataStream.connect(response.sessionId);
-      
-      // Update state
-      this.updateState({
-        isConnected: true,
-        isConnecting: false,
-        sessionId: response.sessionId,
-        simulatorId: response.simulatorId,
-        simulatorStatus: response.simulatorStatus,
+      // Update state to connecting
+      this.unifiedState.updateServiceState(ConnectionServiceType.WEBSOCKET, {
+        status: ConnectionStatus.CONNECTING,
         error: null
       });
       
-      // Store in session storage
-      SessionStore.saveSession({
-        sessionId: response.sessionId,
-        simulatorId: response.simulatorId,
-        reconnectAttempts: 0
-      });
+      // Validate session
+      const sessionResponse = await this.sessionApi.createSession();
+      
+      if (this.isDisposed) {
+        this.logger.warn('ConnectionManager disposed during session validation');
+        return false;
+      }
+      
+      if (!sessionResponse.success) {
+        const errorMsg = sessionResponse.errorMessage || 'Failed to establish session with server';
+        throw new Error(`Session Error: ${errorMsg}`);
+      }
+      
+      this.logger.info('Session validated successfully');
+      
+      // Connect WebSocket
+      const wsConnected = await this.wsManager.connect();
+      
+      if (this.isDisposed) {
+        this.logger.warn('ConnectionManager disposed during WebSocket connection');
+        this.wsManager.disconnect('disposed_during_connect');
+        return false;
+      }
+      
+      if (!wsConnected) {
+        this.logger.error('WebSocket connection failed after session validation');
+        return false;
+      }
       
       return true;
+      
     } catch (error) {
-      console.error('Reconnection error:', error);
-      this.updateState({ 
-        isConnecting: false, 
-        error: error instanceof Error ? error.message : 'Reconnection failed' 
+      if (this.isDisposed) {
+        this.logger.warn('Connection process failed, but ConnectionManager was disposed');
+        return false;
+      }
+      
+      this.logger.error('Connection process failed', { error });
+      
+      // Update state
+      this.unifiedState.updateServiceState(ConnectionServiceType.WEBSOCKET, {
+        status: ConnectionStatus.DISCONNECTED,
+        error: error instanceof Error ? error.message : String(error)
       });
+      
+      // Record failure in resilience manager
+      this.resilienceManager.recordFailure(error);
+      
+      // Handle error
+      AppErrorHandler.handleConnectionError(
+        error instanceof Error ? error : String(error),
+        ErrorSeverity.HIGH,
+        'ConnectionManager.connect'
+      );
+      
       return false;
     }
   }
   
-  // Handle heartbeat data from websocket
-  private handleHeartbeat(data: any): void {
-    const now = Date.now();
-    const latency = data.latency || (now - this.state.lastHeartbeatTime);
-    
-    this.updateState({
-      lastHeartbeatTime: now,
-      heartbeatLatency: latency,
-      missedHeartbeats: 0
-    });
-    
-    // Update connection quality based on latency
-    let quality: ConnectionQuality = 'good';
-    if (latency > 500) {
-      quality = 'degraded';
-    } else if (latency > 1000) {
-      quality = 'poor';
+  /**
+   * Disconnects the WebSocket connection
+   */
+  public disconnect(reason: string = 'manual_disconnect'): void {
+    if (this.isDisposed && reason !== 'manager_disposed') {
+      this.logger.info(`Disconnect called on disposed ConnectionManager. Reason: ${reason}`);
+      return;
     }
     
-    this.updateState({ connectionQuality: quality });
+    // Update desired state unless it's an internal reason
+    if (!reason.startsWith('internal_')) {
+      this.desiredState.connected = false;
+    }
     
-    this.emit('heartbeat', {
-      timestamp: now,
-      latency
-    });
+    this.logger.warn(`Disconnecting. Reason: ${reason}`);
+    this.wsManager.disconnect(reason);
   }
   
-  // Start heartbeat for websocket connection
-  private startHeartbeat(): void {
-    this.stopHeartbeat();
+  /**
+   * Handles token refresh events
+   */
+  private handleTokenRefresh = (success: boolean): void => {
+    if (this.isDisposed) return;
     
-    this.heartbeatInterval = window.setInterval(() => {
-      if (!this.state.isConnected) return;
+    this.logger.info(`Token refresh result: ${success ? 'success' : 'failure'}`);
+    
+    const isAuthenticated = success && this.tokenManager.isAuthenticated();
+    
+    // Update resilience manager with auth state
+    this.resilienceManager.updateAuthState(isAuthenticated);
+    
+    if (!isAuthenticated) {
+      this.logger.error('Authentication lost, forcing disconnect');
+      this.disconnect('auth_lost');
       
-      // Send heartbeat via WebSocket
-      this.wsManager.send({ 
-        type: 'heartbeat', 
-        timestamp: Date.now() 
-      });
-    }, 15000); // Every 15 seconds
-  }
-  
-  private stopHeartbeat(): void {
-    if (this.heartbeatInterval !== null) {
-      clearInterval(this.heartbeatInterval);
-      this.heartbeatInterval = null;
-    }
-  }
-  
-  // Start keep-alive for REST API connection
-  private startKeepAlive(): void {
-    this.stopKeepAlive();
-    
-    this.keepAliveInterval = window.setInterval(async () => {
-      if (!this.state.isConnected || !this.state.sessionId) return;
+      AppErrorHandler.handleAuthError(
+        'Session expired or token refresh failed',
+        ErrorSeverity.HIGH,
+        'TokenRefresh'
+      );
       
-      try {
-        // Send keep-alive to server
-        await this.sessionApi.keepAlive(this.state.sessionId);
-        
-        // Update session store
-        SessionStore.updateActivity();
-      } catch (error) {
-        console.error('Keep-alive error:', error);
-      }
-    }, 30000); // Every 30 seconds
-  }
-  
-  private stopKeepAlive(): void {
-    if (this.keepAliveInterval !== null) {
-      clearInterval(this.keepAliveInterval);
-      this.keepAliveInterval = null;
+      this.emit('auth_failed', 'Authentication token expired or refresh failed');
     }
-  }
+  };
   
-  private updateState(updates: Partial<ConnectionState>): void {
-    const prevState = { ...this.state };
-    this.state = { ...this.state, ...updates };
+  /**
+   * Initiates a connection recovery attempt
+   */
+  public async attemptRecovery(reason: string = 'manual'): Promise<boolean> {
+    if (this.isDisposed) {
+      this.logger.error('Cannot attempt recovery: ConnectionManager is disposed');
+      return false;
+    }
     
-    // Emit state change event
-    this.emit('state_change', {
-      previous: prevState,
-      current: this.state
+    this.logger.warn(`Connection recovery requested. Reason: ${reason}`);
+    
+    // Ensure desired state reflects intention to connect
+    this.desiredState.connected = true;
+    
+    // Use the resilience manager's reconnection mechanism
+    return this.resilienceManager.attemptReconnection(async () => {
+      return this.connect();
     });
   }
   
-  // Get current connection state
-  public getState(): ConnectionState {
-    return { ...this.state };
-  }
-  
-  // Stream market data for specific symbols
-  public async streamMarketData(symbols: string[] = []): Promise<boolean> {
-    if (!this.state.sessionId || !this.state.isConnected) {
-      return false;
+  /**
+   * Gets the current connection state
+   */
+  public getState(): ReturnType<UnifiedConnectionState['getState']> {
+    if (this.isDisposed) {
+      this.logger.warn('getState called on disposed ConnectionManager');
+      const defaultState = new UnifiedConnectionState(this.logger);
+      const state = defaultState.getState();
+      defaultState.dispose();
+      return state;
     }
     
-    return this.marketDataStream.connect(this.state.sessionId, { symbols: symbols.join(',') });
+    return this.unifiedState.getState();
   }
   
-  // Control simulator
-  public async startSimulator(): Promise<boolean> {
-    if (!this.state.sessionId) {
-      return false;
-    }
-    
-    try {
-      // This would call simulator start API
-      this.updateState({ simulatorStatus: 'STARTING' });
-      
-      const response = await this.httpClient.post('/simulator/start', {
-        sessionId: this.state.sessionId
-      });
-      
-      if (response.success) {
-        this.updateState({
-          simulatorId: response.simulatorId,
-          simulatorStatus: 'RUNNING'
-        });
-        return true;
-      }
-      
-      return false;
-    } catch (error) {
-      console.error('Failed to start simulator:', error);
-      return false;
-    }
+  /**
+   * Gets the current exchange data
+   */
+  public getExchangeData(): Record<string, any> {
+    if (this.isDisposed) return {};
+    return { ...this.exchangeData };
   }
   
-  public async stopSimulator(): Promise<boolean> {
-    if (!this.state.sessionId || !this.state.simulatorId) {
-      return false;
-    }
-    
-    try {
-      this.updateState({ simulatorStatus: 'STOPPING' });
-      
-      const response = await this.httpClient.post('/simulator/stop', {
-        sessionId: this.state.sessionId,
-        simulatorId: this.state.simulatorId
-      });
-      
-      if (response.success) {
-        this.updateState({
-          simulatorStatus: 'STOPPED',
-          simulatorId: null
-        });
-        return true;
-      }
-      
-      return false;
-    } catch (error) {
-      console.error('Failed to stop simulator:', error);
-      return false;
-    }
+  /**
+   * Gets the current portfolio data
+   */
+  public getPortfolioData(): Record<string, any> {
+    if (this.isDisposed) return {};
+    return { ...this.portfolioData };
   }
   
-  // Submit order
+  /**
+   * Gets the current risk data
+   */
+  public getRiskData(): Record<string, any> {
+    if (this.isDisposed) return {};
+    return { ...this.riskData };
+  }
+  
+  /**
+   * Submits a trading order
+   */
   public async submitOrder(order: {
     symbol: string;
-    side: 'BUY' | 'SELL';
+    side: OrderSide;
     quantity: number;
     price?: number;
-    type: 'MARKET' | 'LIMIT';
+    type: OrderType;
   }): Promise<{ success: boolean; orderId?: string; error?: string }> {
-    const sessionId = this.state.sessionId;
-    if (!sessionId) {
-      return { success: false, error: 'No active session' };
+    if (this.isDisposed) return { success: false, error: 'Connection manager disposed' };
+    
+    const state = this.getState();
+    if (!state.isConnected) {
+      const errorMsg = 'Submit order failed: Not connected to trading servers';
+      this.logger.error(errorMsg, { state });
+      return { success: false, error: errorMsg };
     }
     
-    try {
-      const response = await this.ordersApi.submitOrder({
-        sessionId,
-        symbol: order.symbol,
-        side: order.side,
-        quantity: order.quantity,
-        price: order.price,
-        type: order.type,
-        requestId: `order-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`
-      });
-      
-      return { 
-        success: response.success, 
-        orderId: response.orderId,
-        error: response.errorMessage
-      };
-    } catch (error) {
-      console.error('Order submission error:', error);
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Order submission failed' 
-      };
-    }
+    this.logger.info('Submitting order', { symbol: order.symbol, type: order.type, side: order.side });
+    return this.dataHandlers.submitOrder(order);
   }
   
-  // Cancel order
+  /**
+   * Cancels a trading order
+   */
   public async cancelOrder(orderId: string): Promise<{ success: boolean; error?: string }> {
-    const sessionId = this.state.sessionId;
-    if (!sessionId) {
-      return { success: false, error: 'No active session' };
+    if (this.isDisposed) return { success: false, error: 'Connection manager disposed' };
+    
+    const state = this.getState();
+    if (!state.isConnected) {
+      const errorMsg = 'Cancel order failed: Not connected to trading servers';
+      this.logger.error(errorMsg, { state });
+      return { success: false, error: errorMsg };
     }
     
-    try {
-      const response = await this.ordersApi.cancelOrder(sessionId, orderId);
-      
-      return { 
-        success: response.success,
-        error: response.success ? undefined : 'Failed to cancel order'
-      };
-    } catch (error) {
-      console.error('Order cancellation error:', error);
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Order cancellation failed' 
-      };
+    this.logger.info('Cancelling order', { orderId });
+    return this.dataHandlers.cancelOrder(orderId);
+  }
+  
+  /**
+   * Starts the trading simulator
+   */
+  public async startSimulator(): Promise<{ success: boolean; status?: string; error?: string }> {
+    if (this.isDisposed) return { success: false, error: 'Connection manager disposed' };
+    
+    // Update desired state
+    this.desiredState.simulatorRunning = true;
+    
+    const state = this.getState();
+    if (!state.isConnected) {
+      const errorMsg = 'Start simulator failed: Not connected to trading servers';
+      this.logger.error(errorMsg, { state });
+      return { success: false, error: errorMsg };
     }
+    
+    this.logger.info('Starting simulator');
+    const result = await this.simulatorManager.startSimulator();
+    
+    if (!result.success) {
+      this.desiredState.simulatorRunning = false;
+    }
+    
+    return result;
   }
   
-  // Get market data
-  public getMarketData(): Record<string, MarketData> {
-    return { ...this.marketData };
+  /**
+   * Stops the trading simulator
+   */
+  public async stopSimulator(): Promise<{ success: boolean; error?: string }> {
+    if (this.isDisposed) return { success: false, error: 'Connection manager disposed' };
+    
+    // Update desired state
+    this.desiredState.simulatorRunning = false;
+    
+    const state = this.getState();
+    if (!state.isConnected) {
+      const errorMsg = 'Stop simulator failed: Not connected to trading servers';
+      this.logger.error(errorMsg, { state });
+      return { success: false, error: errorMsg };
+    }
+    
+    this.logger.info('Stopping simulator');
+    return this.simulatorManager.stopSimulator();
   }
   
-  // Get orders
-  public getOrders(): Record<string, OrderUpdate> {
-    return { ...this.orders };
+  /**
+   * Initiates a manual reconnection attempt
+   * This is a simplified API for users compared to the more detailed attemptRecovery
+   */
+  public async manualReconnect(): Promise<boolean> {
+    if (this.isDisposed) {
+      this.logger.error('Cannot reconnect: ConnectionManager is disposed');
+      return false;
+    }
+    
+    this.logger.warn('Manual reconnect requested by user');
+    this.unifiedState.updateRecovery(true, 1);
+    return this.attemptRecovery('manual_user_request');
   }
   
-  // Get portfolio
-  public getPortfolio(): PortfolioUpdate | null {
-    return this.portfolio ? { ...this.portfolio } : null;
+  /**
+   * Implements ConnectionRecoveryInterface.getState
+   */
+  getStateForRecovery(): { isConnected: boolean; isConnecting: boolean } {
+    const state = this.getState();
+    return {
+      isConnected: state.isConnected,
+      isConnecting: state.isConnecting || state.isRecovering
+    };
+  }
+  
+  /**
+   * Disposes of resources
+   */
+  public dispose(): void {
+    if (this.isDisposed) {
+      this.logger.warn('ConnectionManager already disposed');
+      return;
+    }
+    
+    this.logger.warn('Disposing ConnectionManager');
+    this.isDisposed = true;
+    
+    // Unsubscribe from token refresh events
+    if (this.tokenManager) {
+      try {
+        this.tokenManager.removeRefreshListener(this.handleTokenRefresh);
+      } catch (error) {
+        this.logger.error('Error removing token refresh listener during dispose', { error });
+      }
+    }
+    
+    // Helper function to safely dispose components
+    const tryDispose = (obj: any, name: string): void => {
+      if (!obj) return;
+      
+      this.logger.info(`Disposing ${name}`);
+      try {
+        if (typeof obj[Symbol.dispose] === 'function') {
+          obj[Symbol.dispose]();
+        } else if (typeof obj.dispose === 'function') {
+          obj.dispose();
+        } else {
+          this.logger.warn(`No dispose method found for ${name}`);
+        }
+      } catch (error) {
+        this.logger.error(`Error disposing ${name}`, { error });
+      }
+    };
+    
+    // Disconnect WebSocket
+    this.disconnect('manager_disposed');
+    
+    // Dispose components
+    tryDispose(this.resilienceManager, 'ResilienceManager');
+    tryDispose(this.wsManager, 'WebSocketManager');
+    tryDispose(this.unifiedState, 'UnifiedConnectionState');
+    
+    // Remove event listeners
+    this.removeAllListeners();
+    
+    this.logger.info('ConnectionManager disposed');
+  }
+  
+  /**
+   * Implements the Symbol.dispose method for the Disposable interface
+   */
+  [Symbol.dispose](): void {
+    this.dispose();
   }
 }

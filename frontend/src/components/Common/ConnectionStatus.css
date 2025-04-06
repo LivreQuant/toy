@@ -80,3 +80,42 @@
   .error {
     color: #f44336;
   }
+  
+  .reconnect-button {
+    margin-left: auto;
+    padding: 5px 10px;
+    border-radius: 4px;
+    background-color: #2196f3;
+    color: white;
+    border: none;
+    cursor: pointer;
+    font-size: 0.9em;
+  }
+  
+  .reconnect-button:hover {
+    background-color: #0d8bf2;
+  }
+  
+  .recovery-progress {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+  }
+  
+  .recovery-spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(0, 0, 0, 0.1);
+    border-top-color: #2196f3;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+  
+  .recovering {
+    background-color: #e3f2fd;
+    border-color: #bbdefb;
+  }
+  
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }

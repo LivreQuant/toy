@@ -1,49 +1,44 @@
+# In backend/exchange-service/Dockerfile
 FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
-        gcc \
-        curl \
-    && rm -rf /var/lib/apt/lists/*
+# Install system dependencies - add libpq-dev for PostgreSQL
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends gcc curl libpq-dev && \
+    rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first to leverage Docker cache
+# Copy requirements and install dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install gRPC tools
-RUN pip install --no-cache-dir grpcio-tools==1.54.0
+# Copy project files
+COPY . .
 
-# Copy protos
-COPY proto/ ./proto/
-
-# Generate gRPC code from proto
+# Generate gRPC stubs
 RUN python -m grpc_tools.protoc \
     -I./proto \
     --python_out=. \
     --grpc_python_out=. \
     ./proto/exchange_simulator.proto
 
-# Copy source code
-COPY source/ ./source/
-
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
-    PORT=50055 \
-    HOST=0.0.0.0 \
-    INACTIVITY_TIMEOUT_SECONDS=300 \
-    AUTO_TERMINATE=true \
-    LOG_LEVEL=INFO
+    ENVIRONMENT=production \
+    LOG_LEVEL=INFO \
+    DB_HOST=postgres \
+    DB_PORT=5432 \
+    DB_NAME=opentp \
+    DB_USER=opentp
 
-# Expose the port
-EXPOSE 50055
-EXPOSE 50056
+# Note: DB_PASSWORD will be passed at runtime
+
+# Expose ports
+EXPOSE 50055 9090
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:50056/health || exit 1
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD python -c "import grpc; grpc.insecure_channel('localhost:50055')" || exit 1
 
 # Run the application
-ENTRYPOINT ["python", "-m", "source.main"]
+CMD ["python", "-m", "source.main"]
