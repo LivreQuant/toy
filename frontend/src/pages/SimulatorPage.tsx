@@ -1,22 +1,20 @@
 // src/pages/SimulatorPage.tsx
-import React from 'react';
+import React, { useEffect } from 'react';
 // Import the hook to use the connection context
-import { useConnection } from '../contexts/ConnectionContext'; // Adjust path if needed
-// Import status enum if needed for explicit checks
-import { ConnectionStatus } from '../services/connection/unified-connection-state'; // Adjust path
+import { useConnection } from '../contexts/ConnectionContext'; 
+// Import ConnectionStatus for explicit checks
+import { ConnectionStatus } from '../services/connection/unified-connection-state'; 
 import './SimulatorPage.css';
-import { toastService } from '../services/notification/toast-service'; // For user feedback
 
 const SimulatorPage: React.FC = () => {
-  // --- Refactored: Destructure state and actions correctly from the updated context ---
+  // --- Destructure state and actions using the updated context ---
   const {
-    isConnected,      // Boolean flag: Is primary connection (WebSocket) established?
-    isConnecting,     // Boolean flag: Is primary connection attempt in progress?
-    isRecovering,     // Boolean flag: Is primary connection recovery in progress?
-    overallStatus,    // Overall connection status enum (CONNECTED, DISCONNECTED, etc.)
-    startSimulator,   // Function to start the simulator via ConnectionManager
-    stopSimulator,    // Function to stop the simulator via ConnectionManager
-    simulatorStatus   // Current status string of the simulator (e.g., RUNNING, STOPPED)
+    isConnected,      // Boolean flag: Is connection established?
+    isConnecting,     // Boolean flag: Is connection attempt in progress?
+    isRecovering,     // Boolean flag: Is connection recovery in progress?
+    overallStatus,    // Overall connection status enum
+    simulatorStatus,  // Current status string of the simulator
+    setDesiredState   // New declarative API method
   } = useConnection();
 
   // --- Derived State ---
@@ -24,46 +22,27 @@ const SimulatorPage: React.FC = () => {
   const isRunning = simulatorStatus === 'RUNNING';
   // Determine if the simulator is in a transient state (starting/stopping)
   const isBusy = simulatorStatus === 'STARTING' || simulatorStatus === 'STOPPING';
-  // Determine if controls should be disabled (not connected, connecting, recovering, or simulator busy)
+  // Determine if controls should be disabled
   const controlsDisabled = !isConnected || isConnecting || isRecovering || isBusy;
 
-  // --- Event Handlers ---
-  const handleStartSimulator = async () => {
-    // Prevent action if controls should be disabled or simulator is already running
-    if (controlsDisabled || isRunning) return;
-
-    toastService.info("Attempting to start simulator...");
-    try {
-        const result = await startSimulator(); // Call action from context
-        if (result.success) {
-            toastService.success(`Simulator started successfully. Status: ${result.status}`);
-            // State update should come via context subscription, no need to set locally
-        } else {
-            toastService.error(`Failed to start simulator: ${result.error || 'Unknown error'}`);
-        }
-    } catch (error: any) {
-        console.error("Error starting simulator:", error);
-        toastService.error(`Error starting simulator: ${error.message}`);
+  // Connect on mount (alternative to the automatic approach)
+  useEffect(() => {
+    // If not connected or connecting, set desired state to connected
+    if (overallStatus === ConnectionStatus.DISCONNECTED) {
+      setDesiredState({ connected: true });
     }
+  }, [overallStatus, setDesiredState]);
+
+  // --- Event Handlers ---
+  // Declarative handlers that update desired state
+  const handleStartSimulator = () => {
+    // Set the desired state for the simulator to be running
+    setDesiredState({ simulatorRunning: true });
   };
 
-  const handleStopSimulator = async () => {
-    // Prevent action if controls should be disabled or simulator is not running
-    if (controlsDisabled || !isRunning) return;
-
-    toastService.info("Attempting to stop simulator...");
-     try {
-        const result = await stopSimulator(); // Call action from context
-        if (result.success) {
-            toastService.success("Simulator stopped successfully.");
-            // State update should come via context subscription
-        } else {
-            toastService.error(`Failed to stop simulator: ${result.error || 'Unknown error'}`);
-        }
-    } catch (error: any) {
-        console.error("Error stopping simulator:", error);
-        toastService.error(`Error stopping simulator: ${error.message}`);
-    }
+  const handleStopSimulator = () => {
+    // Set the desired state for the simulator to be stopped
+    setDesiredState({ simulatorRunning: false });
   };
 
   return (
@@ -75,7 +54,6 @@ const SimulatorPage: React.FC = () => {
           <button
             className="control-button start-button"
             onClick={handleStartSimulator}
-            // Disable if controls should be disabled OR if the simulator is already running
             disabled={controlsDisabled || isRunning}
             title={controlsDisabled ? "Cannot start simulator while disconnected or busy" : isRunning ? "Simulator is already running" : "Start the simulator"}
           >
@@ -85,7 +63,6 @@ const SimulatorPage: React.FC = () => {
           <button
             className="control-button stop-button"
             onClick={handleStopSimulator}
-            // Disable if controls should be disabled OR if the simulator is not running
             disabled={controlsDisabled || !isRunning}
             title={controlsDisabled ? "Cannot stop simulator while disconnected or busy" : !isRunning ? "Simulator is not running" : "Stop the simulator"}
           >
@@ -101,7 +78,6 @@ const SimulatorPage: React.FC = () => {
          {!isConnected && <p style={{color: 'red'}}>Warning: Controls disabled while disconnected.</p>}
          {isBusy && <p style={{color: 'orange'}}>Simulator is currently {simulatorStatus?.toLowerCase()}...</p>}
       </div>
-
 
       {/* Placeholder for Order Entry/Other Simulator Components */}
       <div className="simulator-content">
