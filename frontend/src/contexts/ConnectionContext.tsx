@@ -1,5 +1,4 @@
 // src/contexts/ConnectionContext.tsx
-
 import React, {
   createContext,
   useContext,
@@ -10,38 +9,49 @@ import React, {
   ReactNode,
   useRef,
 } from 'react';
-import { ConnectionManager } from '../services/connection/connection-manager';
+import { ConnectionManager, ConnectionDesiredState } from '../services/connection/connection-manager';
 import { TokenManager } from '../services/auth/token-manager';
 import { Logger } from '../utils/logger';
 import {
   ConnectionStatus,
   ConnectionQuality,
-  ServiceState,
 } from '../services/connection/unified-connection-state';
-import { toastService } from '../services/notification/toast-service';
+import { AppErrorHandler } from '../utils/app-error-handler';
 import { useAuth } from './AuthContext';
 
 export type FullConnectionState = ReturnType<ConnectionManager['getState']>;
 
 export interface ConnectionContextType {
+  // Connection State
   isConnected: boolean;
   isConnecting: boolean;
   isRecovering: boolean;
   recoveryAttempt: number;
   connectionQuality: ConnectionQuality;
   simulatorStatus: string;
-  webSocketState: ServiceState;
-  sseState: ServiceState;
   overallStatus: ConnectionStatus;
   lastHeartbeatTime?: number;
   heartbeatLatency?: number | null;
-  disconnect: (reason?: string) => void;
+  
+  // Connection Actions
+  setDesiredState: (state: Partial<ConnectionDesiredState>) => void;
   manualReconnect: () => Promise<boolean>;
-  startSimulator: () => Promise<{ success: boolean; status?: string; error?: string }>;
-  stopSimulator: () => Promise<{ success: boolean; error?: string }>;
+  
+  // Order Actions
+  submitOrder: ConnectionManager['submitOrder'];
+  cancelOrder: ConnectionManager['cancelOrder'];
+  
+  // Simulator Actions
+  startSimulator: ConnectionManager['startSimulator'];
+  stopSimulator: ConnectionManager['stopSimulator'];
+  
+  // Data Access
+  getExchangeData: ConnectionManager['getExchangeData'];
+  getPortfolioData: ConnectionManager['getPortfolioData'];
+  getRiskData: ConnectionManager['getRiskData'];
 }
 
-// Default state representing a disconnected system
+// Default state
 const defaultState = {
   isConnected: false,
   isConnecting: false,
@@ -55,12 +65,6 @@ const defaultState = {
     error: null,
     recoveryAttempts: 0
   },
-  sseState: {
-    status: ConnectionStatus.DISCONNECTED,
-    lastConnected: null,
-    error: null,
-    recoveryAttempts: 0
-  },
   lastHeartbeatTime: 0,
   heartbeatLatency: null,
   overallStatus: ConnectionStatus.DISCONNECTED,
@@ -69,10 +73,15 @@ const defaultState = {
 // Create context with default values
 const ConnectionContext = createContext<ConnectionContextType>({
   ...defaultState,
-  disconnect: () => {},
+  setDesiredState: () => {},
   manualReconnect: async () => false,
+  submitOrder: async () => ({ success: false, error: "Not initialized" }),
+  cancelOrder: async () => ({ success: false, error: "Not initialized" }),
   startSimulator: async () => ({ success: false, error: "Not initialized" }),
   stopSimulator: async () => ({ success: false, error: "Not initialized" }),
+  getExchangeData: () => ({}),
+  getPortfolioData: () => ({}),
+  getRiskData: () => ({}),
 });
 
 interface ConnectionProviderProps {
@@ -89,14 +98,11 @@ export const ConnectionProvider: React.FC<ConnectionProviderProps> = ({
   const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
   const [connectionState, setConnectionState] = useState<FullConnectionState>(defaultState as FullConnectionState);
   const connectionManagerRef = useRef<ConnectionManager | null>(null);
-  const isAuthenticatedRef = useRef(false);
+  const isInitializedRef = useRef(false);
   
-  // Effect that runs when authentication status changes
+  // Effect to initialize or clean up ConnectionManager based on auth state
   useEffect(() => {
     logger.info(`Auth status changed: isAuthenticated=${isAuthenticated}, isLoading=${isAuthLoading}`);
-    
-    // Keep track of last auth state for comparison
-    isAuthenticatedRef.current = isAuthenticated;
     
     // Don't do anything while auth is still loading
     if (isAuthLoading) {
@@ -108,103 +114,135 @@ export const ConnectionProvider: React.FC<ConnectionProviderProps> = ({
     if (isAuthenticated) {
       logger.info("User is authenticated, initializing connection services");
       
-      // Only create a new ConnectionManager if one doesn't exist
-      if (!connectionManagerRef.current) {
+      if (!connectionManagerRef.current && !isInitializedRef.current) {
         logger.info("Creating new ConnectionManager instance");
+        isInitializedRef.current = true;
         
-        // Create the ConnectionManager
+        // Create ConnectionManager
         const newConnectionManager = new ConnectionManager(tokenManager, logger);
         connectionManagerRef.current = newConnectionManager;
         
-        // Set up state change listener
+        // Listen for state changes
         newConnectionManager.on('state_change', (data: { current: FullConnectionState }) => {
           logger.info(`Connection state changed: ${data.current.overallStatus}`);
           setConnectionState(data.current);
         });
         
-        // Initiate connection after a short delay to ensure everything is ready
+        // Auto-connect after a short delay
         const connectionTimer = setTimeout(() => {
-          if (connectionManagerRef.current && isAuthenticatedRef.current) {
-            logger.info("Initiating connection after authentication");
-            connectionManagerRef.current.connect().catch(err => {
-              logger.error("Initial connection attempt failed", { error: err.message });
-            });
+          if (connectionManagerRef.current) {
+            logger.info("Setting initial desired state");
+            connectionManagerRef.current.setDesiredState({ connected: true });
           }
-        }, 500); // Small delay to ensure auth state is stable
+        }, 500);
         
-        // Cleanup function to clear timer if component unmounts quickly
         return () => {
           clearTimeout(connectionTimer);
         };
       }
       
-      // If ConnectionManager already exists, no need to recreate it
       return;
     }
     
-    // CASE 2: User is not authenticated - clean up connection services
+    // CASE 2: User is not authenticated - clean up connection
     logger.info("User is not authenticated, cleaning up connection services");
     
     if (connectionManagerRef.current) {
-      // Clean up the existing ConnectionManager
-      logger.warn("Disposing existing ConnectionManager due to auth change");
+      logger.warn("Disposing ConnectionManager due to auth change");
       const manager = connectionManagerRef.current;
       
-      // Disconnect and dispose
-      manager.disconnect('auth_change');
-      manager.dispose();
-      connectionManagerRef.current = null;
+      // Update desired state to disconnect
+      manager.setDesiredState({ connected: false, simulatorRunning: false });
       
-      // Reset to default state
-      setConnectionState(defaultState as FullConnectionState);
+      // Allow time for graceful disconnection before disposal
+      const disposeTimer = setTimeout(() => {
+        manager.dispose();
+        connectionManagerRef.current = null;
+        isInitializedRef.current = false;
+        setConnectionState(defaultState as FullConnectionState);
+      }, 300);
+
+      return () => {
+        clearTimeout(disposeTimer);
+      };
     }
   }, [isAuthenticated, isAuthLoading, tokenManager, logger]);
   
-  // Effect to cleanup on unmount
+  // Effect to clean up on unmount
   useEffect(() => {
     return () => {
-      // Cleanup on unmount
       if (connectionManagerRef.current) {
         logger.warn("Cleaning up ConnectionManager on unmount");
-        connectionManagerRef.current.disconnect('component_unmount');
         connectionManagerRef.current.dispose();
         connectionManagerRef.current = null;
+        isInitializedRef.current = false;
       }
     };
   }, [logger]);
 
-  // Define action callbacks
-  const disconnect = useCallback((reason?: string): void => {
+  // Action callbacks
+  const setDesiredState = useCallback((state: Partial<ConnectionDesiredState>): void => {
     if (connectionManagerRef.current) {
-      logger.info(`Disconnect requested. Reason: ${reason}`);
-      connectionManagerRef.current.disconnect(reason);
+      logger.info(`Setting desired state: ${JSON.stringify(state)}`);
+      connectionManagerRef.current.setDesiredState(state);
     } else {
-      logger.warn("Disconnect called but ConnectionManager not initialized");
+      logger.warn("setDesiredState called but ConnectionManager not initialized");
     }
   }, [logger]);
 
   const manualReconnect = useCallback(async (): Promise<boolean> => {
     if (!connectionManagerRef.current) {
       logger.error("Manual reconnect failed: ConnectionManager not initialized");
-      toastService.error("Connection service unavailable");
+      AppErrorHandler.handleConnectionError("Connection service unavailable", undefined, "ConnectionContext");
       return false;
     }
     
     if (!isAuthenticated) {
-      toastService.error("Cannot reconnect: Please log in first");
+      AppErrorHandler.handleAuthError("Cannot reconnect: Please log in first", undefined, "ConnectionContext");
       return false;
     }
     
-    toastService.info("Attempting to reconnect...");
+    logger.info("Attempting manual reconnection");
+    
     try {
       return await connectionManagerRef.current.manualReconnect();
     } catch (error: any) {
-      logger.error("Manual reconnect failed", { error: error.message });
+      logger.error("Manual reconnect error", { error: error.message });
       return false;
     }
   }, [isAuthenticated, logger]);
 
-  const startSimulator = useCallback(async (): Promise<{ success: boolean; status?: string; error?: string }> => {
+  // Order action wrappers
+  const submitOrder = useCallback(async (order: Parameters<ConnectionManager['submitOrder']>[0]) => {
+    if (!connectionManagerRef.current) {
+      logger.error("Submit order failed: ConnectionManager not initialized");
+      return { success: false, error: "Connection service unavailable" };
+    }
+    
+    if (!isAuthenticated) {
+      logger.error("Submit order failed: User not authenticated");
+      return { success: false, error: "User not authenticated" };
+    }
+    
+    return connectionManagerRef.current.submitOrder(order);
+  }, [isAuthenticated, logger]);
+
+  const cancelOrder = useCallback(async (orderId: string) => {
+    if (!connectionManagerRef.current) {
+      logger.error("Cancel order failed: ConnectionManager not initialized");
+      return { success: false, error: "Connection service unavailable" };
+    }
+    
+    if (!isAuthenticated) {
+      logger.error("Cancel order failed: User not authenticated");
+      return { success: false, error: "User not authenticated" };
+    }
+    
+    return connectionManagerRef.current.cancelOrder(orderId);
+  }, [isAuthenticated, logger]);
+
+  // Simulator action wrappers
+  const startSimulator = useCallback(async () => {
     if (!connectionManagerRef.current) {
       logger.error("Start simulator failed: ConnectionManager not initialized");
       return { success: false, error: "Connection service unavailable" };
@@ -218,7 +256,7 @@ export const ConnectionProvider: React.FC<ConnectionProviderProps> = ({
     return connectionManagerRef.current.startSimulator();
   }, [isAuthenticated, logger]);
 
-  const stopSimulator = useCallback(async (): Promise<{ success: boolean; error?: string }> => {
+  const stopSimulator = useCallback(async () => {
     if (!connectionManagerRef.current) {
       logger.error("Stop simulator failed: ConnectionManager not initialized");
       return { success: false, error: "Connection service unavailable" };
@@ -232,19 +270,54 @@ export const ConnectionProvider: React.FC<ConnectionProviderProps> = ({
     return connectionManagerRef.current.stopSimulator();
   }, [isAuthenticated, logger]);
 
-  // Combine connection state with action methods
+  // Data accessor wrappers
+  const getExchangeData = useCallback(() => {
+    if (!connectionManagerRef.current) {
+      logger.warn("getExchangeData called but ConnectionManager not initialized");
+      return {};
+    }
+    return connectionManagerRef.current.getExchangeData();
+  }, [logger]);
+
+  const getPortfolioData = useCallback(() => {
+    if (!connectionManagerRef.current) {
+      logger.warn("getPortfolioData called but ConnectionManager not initialized");
+      return {};
+    }
+    return connectionManagerRef.current.getPortfolioData();
+  }, [logger]);
+
+  const getRiskData = useCallback(() => {
+    if (!connectionManagerRef.current) {
+      logger.warn("getRiskData called but ConnectionManager not initialized");
+      return {};
+    }
+    return connectionManagerRef.current.getRiskData();
+  }, [logger]);
+
+  // Create context value
   const contextValue = useMemo<ConnectionContextType>(() => ({
     ...connectionState,
-    disconnect,
+    setDesiredState,
     manualReconnect,
+    submitOrder,
+    cancelOrder,
     startSimulator,
     stopSimulator,
+    getExchangeData,
+    getPortfolioData,
+    getRiskData,
   }), [
-    connectionState, 
-    disconnect, 
-    manualReconnect, 
-    startSimulator, 
-    stopSimulator
+    connectionState,
+    setDesiredState,
+    manualReconnect,
+    submitOrder,
+    cancelOrder,
+    startSimulator,
+    stopSimulator,
+    getExchangeData,
+    getPortfolioData,
+    getRiskData
   ]);
 
   return (
@@ -254,7 +327,7 @@ export const ConnectionProvider: React.FC<ConnectionProviderProps> = ({
   );
 };
 
-// Custom hook to use the connection context
+// Custom hook to access the connection context
 export const useConnection = (): ConnectionContextType => {
   const context = useContext(ConnectionContext);
   if (!context) {

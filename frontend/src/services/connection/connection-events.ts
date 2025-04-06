@@ -8,7 +8,7 @@ export interface ConnectionEvents {
   reconnecting: (data: { attempt: number }) => void;
 
   // Data events
-  exchange_data: (data: any) => void; // Changed from market_data
+  exchange_data: (data: any) => void;
   orders: (data: Record<string, any>) => void;
   portfolio: (data: any) => void;
 
@@ -37,7 +37,7 @@ export class ConnectionEventManager extends EventEmitter {
     this.emit('reconnecting', { attempt });
   }
 
-  public emitExchangeData(data: any): void { // Changed from emitMarketData
+  public emitExchangeData(data: any): void {
     this.emit('exchange_data', data);
   }
 

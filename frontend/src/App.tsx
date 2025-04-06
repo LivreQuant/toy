@@ -27,6 +27,8 @@ import LoadingScreen from './components/Common/LoadingScreen';
 import ConnectionRecoveryDialog from './components/Common/ConnectionRecoveryDialog';
 import ConnectionStatusOverlay from './components/Common/ConnectionStatusOverlay';
 
+import { AppErrorHandler } from './utils/app-error-handler';
+
 // Hooks
 import { useAuth } from './contexts/AuthContext';
 import { useToast } from './contexts/ToastContext';
@@ -37,10 +39,12 @@ const logger = Logger.getInstance();
 const storageService = new LocalStorageService();
 // Initialize DeviceIdManager (needs to be done once, typically at app startup)
 DeviceIdManager.getInstance(storageService, logger);
-const errorHandler = new ErrorHandler(logger, toastService);
 
-// Instantiate TokenManager (pass StorageService, ErrorHandler)
-const tokenManager = new TokenManager(storageService, errorHandler);
+// Initialize the global error handler
+AppErrorHandler.initialize(logger, toastService);
+
+// Instantiate TokenManager (pass StorageService)
+const tokenManager = new TokenManager(storageService, AppErrorHandler.getInstance());
 
 // Instantiate HttpClient (pass TokenManager)
 const httpClient = new HttpClient(tokenManager);

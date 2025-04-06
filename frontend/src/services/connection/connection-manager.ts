@@ -1,226 +1,298 @@
 // src/services/connection/connection-manager.ts
-
-// --- Core Dependencies ---
 import { EventEmitter } from '../../utils/event-emitter';
 import { TokenManager } from '../auth/token-manager';
 import { WebSocketManager } from '../websocket/websocket-manager';
-import { ExchangeDataStream, ExchangeDataOptions } from '../sse/exchange-data-stream';
 import { HttpClient } from '../../api/http-client';
 import { ConnectionRecoveryInterface } from './connection-recovery-interface';
-import { RecoveryManager } from './recovery-manager';
-import { WebSocketOptions } from '../websocket/types'; // Import WebSocketOptions
+import { ConnectionResilienceManager, ResilienceState } from './connection-resilience-manager';
+import { WebSocketOptions } from '../websocket/types';
 import {
   UnifiedConnectionState,
   ConnectionServiceType,
-  ConnectionStatus,
-  ServiceState
+  ConnectionStatus
 } from './unified-connection-state';
 import { ConnectionDataHandlers } from './connection-data-handlers';
 import { ConnectionSimulatorManager } from './connection-simulator';
 import { Logger } from '../../utils/logger';
 import { Disposable } from '../../utils/disposable';
 import { SessionApi } from '../../api/session';
-import { ErrorHandler, ErrorSeverity } from '../../utils/error-handler';
-import { toastService } from '../notification/toast-service';
-
-// <<< Import Order types needed for the method signature >>>
+import { AppErrorHandler } from '../../utils/app-error-handler';
+import { ErrorSeverity } from '../../utils/error-handler';
 import { OrderSide, OrderType } from '../../api/order';
 
-// Update the interface definition to include the new option
+// Define the desired connection state
+export interface ConnectionDesiredState {
+  connected: boolean;
+  simulatorRunning: boolean;
+}
+
+// Options for the ConnectionManager
 export interface ConnectionManagerOptions {
   wsOptions?: WebSocketOptions;
-  sseOptions?: ExchangeDataOptions;
+  resilience?: {
+    initialDelayMs?: number;
+    maxDelayMs?: number;
+    maxAttempts?: number;
+    resetTimeoutMs?: number;
+    failureThreshold?: number;
+  };
 }
 
 /**
- * Orchestrates all client-side connections (WebSocket, SSE, REST via HttpClient)
- * and manages overall connection state, recovery, and data flow.
+ * Central manager for all connection-related functionality
  */
 export class ConnectionManager extends EventEmitter implements ConnectionRecoveryInterface, Disposable {
-  // --- Private Member Variables ---
   private unifiedState: UnifiedConnectionState;
   private dataHandlers: ConnectionDataHandlers;
   private simulatorManager: ConnectionSimulatorManager;
-  private recoveryManager: RecoveryManager;
+  private resilienceManager: ConnectionResilienceManager;
   private wsManager: WebSocketManager;
-  private sseManager: ExchangeDataStream;
   private tokenManager: TokenManager;
   private logger: Logger;
-  private isDisposed: boolean = false; // <<< Added dispose flag
+  private isDisposed: boolean = false;
   private sessionApi: SessionApi;
-  private errorHandler: ErrorHandler;
-  private preventAutoConnect: boolean = false; // Add this class property
-
-  /**
-   * Creates an instance of ConnectionManager.
-   * @param tokenManager - The TokenManager instance for authentication.
-   * @param logger - The Logger instance for logging.
-   * @param wsOptions - Optional configuration for WebSocketManager.
-   * @param sseOptions - Optional configuration for SSEManager (passed via ExchangeDataStream).
-   */
+  private httpClient: HttpClient;
+  
+  // Data storage
+  private exchangeData: Record<string, any> = {};
+  private portfolioData: Record<string, any> = {};
+  private riskData: Record<string, any> = {};
+  
+  // Current desired state
+  private desiredState: ConnectionDesiredState = {
+    connected: false,
+    simulatorRunning: false
+  };
+  
   constructor(
     tokenManager: TokenManager,
     logger: Logger,
     options: ConnectionManagerOptions = {}
   ) {
     super();
-
-    this.logger = logger;
-    this.logger.info('ConnectionManager Initializing...');
-
-    // --- Extract options ---
-    const { wsOptions = {}, sseOptions = {} } = options;
-
-    // --- Assign Core Dependencies ---
+    
+    this.logger = logger.createChild('ConnectionManager');
+    this.logger.info('ConnectionManager initializing...');
+    
+    // Store dependencies
     this.tokenManager = tokenManager;
-    this.errorHandler = new ErrorHandler(this.logger, toastService);
-
-    // Verify authentication before proceeding
+    
+    // Verify authentication
     if (!this.tokenManager.isAuthenticated()) {
       this.logger.warn('Initializing ConnectionManager without active authentication');
     }
-
-    // --- Instantiate State and Error Handling ---
+    
+    // Initialize state management
     this.unifiedState = new UnifiedConnectionState(this.logger);
-
-    // --- Instantiate API Clients ---
-    const httpClient = new HttpClient(tokenManager);
-    this.sessionApi = new SessionApi(httpClient);
-
-    // --- Configure WebSocketManager with preventAutoConnect ---
-    const enhancedWsOptions = {
-      ...wsOptions,
-      preventAutoConnect: true // Always prevent auto-connect
-    };
-
-    // --- Instantiate WebSocketManager ---
+    
+    // Initialize HTTP client and APIs
+    this.httpClient = new HttpClient(tokenManager);
+    this.sessionApi = new SessionApi(this.httpClient);
+    
+    // Initialize websocket manager
     this.wsManager = new WebSocketManager(
       tokenManager,
       this.unifiedState,
       this.logger,
-      enhancedWsOptions
+      {
+        ...options.wsOptions,
+        preventAutoConnect: true
+      }
     );
-
-    // --- Instantiate SSEManager with preventAutoConnect ---
-    const enhancedSseOptions = {
-      ...sseOptions,
-      preventAutoConnect: true // Always prevent auto-connect
-    };
-
-    // --- Instantiate SSE manager ---
-    this.sseManager = new ExchangeDataStream(
+    
+    // Initialize resilience manager
+    this.resilienceManager = new ConnectionResilienceManager(
       tokenManager,
-      this.unifiedState,
       this.logger,
-      this.errorHandler,
-      enhancedSseOptions
+      options.resilience
     );
-
-    // --- Instantiate Helper Managers ---
-    this.dataHandlers = new ConnectionDataHandlers(httpClient, this.errorHandler);
-    this.simulatorManager = new ConnectionSimulatorManager(httpClient);
-    this.recoveryManager = new RecoveryManager(
-      this,
-      tokenManager,
-      this.unifiedState
-    );
-
-    // --- Setup Event Listeners ---
+    
+    // Initialize other managers
+    this.dataHandlers = new ConnectionDataHandlers(this.httpClient, AppErrorHandler.getInstance());
+    this.simulatorManager = new ConnectionSimulatorManager(this.httpClient);
+    
+    // Set up event listeners
     this.setupEventListeners();
-    this.logger.info('ConnectionManager Initialization Complete. Waiting for explicit connect call.');
+    
+    this.logger.info('ConnectionManager initialized');
   }
-
+  
   /**
-   * Sets up internal event listeners for sub-managers and state changes.
+   * Sets up event listeners for various components
    */
   private setupEventListeners(): void {
-    this.logger.info('Setting up ConnectionManager event listeners...');
-
-    // --- State Change Listener ---
+    this.logger.info('Setting up ConnectionManager event listeners');
+    
+    // State change listener
     this.unifiedState.on('state_change', (state: ReturnType<UnifiedConnectionState['getState']>) => {
-      if (this.isDisposed) return; // <<< Check disposed flag
+      if (this.isDisposed) return;
+      
       this.emit('state_change', { current: state });
-
-      // Emit derived events only if state is meaningful (not during/after disposal)
+      
+      // Emit derived events
       if (!this.isDisposed) {
-          if (state.overallStatus === ConnectionStatus.CONNECTED) {
-              this.emit('connected');
-          } else if (state.overallStatus === ConnectionStatus.DISCONNECTED) {
-              const wsError = state.webSocketState.error;
-              const sseError = state.sseState.error;
-              const reason = wsError || sseError || 'disconnected';
-              this.emit('disconnected', { reason });
+        if (state.overallStatus === ConnectionStatus.CONNECTED) {
+          this.emit('connected');
+          
+          // Auto-start simulator if desired
+          if (this.desiredState.simulatorRunning) {
+            this.syncSimulatorState();
           }
+        } else if (state.overallStatus === ConnectionStatus.DISCONNECTED) {
+          const reason = state.webSocketState.error || 'disconnected';
+          this.emit('disconnected', { reason });
+        }
       }
     });
-
-    // --- WebSocket State Listener ---
-    this.unifiedState.on('websocket_state_change', ({ state }: { state: ServiceState }) => {
-        if (this.isDisposed) return; // <<< Check disposed flag
-        // Log changes even if disposing, might be useful for debugging shutdown
-        this.logger.info(`WebSocket state changed to: ${state.status}`, { error: state.error });
-    });
-
-     // --- SSE State Listener ---
-     this.unifiedState.on('sse_state_change', ({ state }: { state: ServiceState }) => {
-         if (this.isDisposed) return; // <<< Check disposed flag
-         this.logger.info(`SSE state changed to: ${state.status}`, { error: state.error });
-     });
-
-    // --- Data Event Listeners from SSE Manager ---
-    this.sseManager.on('exchange-data', (data: any) => {
-      if (this.isDisposed) return; // <<< Check disposed flag
-      this.dataHandlers.updateExchangeData(data);
+    
+    // WebSocket event listeners
+    this.wsManager.on('exchange_data', (data: any) => {
+      if (this.isDisposed) return;
+      this.exchangeData = { ...this.exchangeData, ...data };
       this.emit('exchange_data', data);
     });
-
-    this.sseManager.on('order-update', (data: any) => {
-       if (this.isDisposed) return; // <<< Check disposed flag
-       this.logger.info('Received order update via SSE.');
-       this.emit('order_update', data);
+    
+    this.wsManager.on('portfolio_data', (data: any) => {
+      if (this.isDisposed) return;
+      this.portfolioData = { ...this.portfolioData, ...data };
+      this.emit('portfolio_data', data);
     });
-
-    // --- Recovery Event Listeners ---
-    this.recoveryManager.on('recovery_attempt', (data: any) => {
-      if (this.isDisposed) return; // <<< Check disposed flag
-      this.logger.warn('Connection recovery attempt started', data);
+    
+    this.wsManager.on('risk_data', (data: any) => {
+      if (this.isDisposed) return;
+      this.riskData = { ...this.riskData, ...data };
+      this.emit('risk_data', data);
+    });
+    
+    this.wsManager.on('order_update', (data: any) => {
+      if (this.isDisposed) return;
+      this.emit('order_update', data);
+    });
+    
+    // Resilience manager events
+    this.resilienceManager.on('reconnect_scheduled', (data: any) => {
+      if (this.isDisposed) return;
+      this.logger.info(`Reconnection scheduled: attempt ${data.attempt}/${data.maxAttempts} in ${data.delay}ms`);
+      this.unifiedState.updateRecovery(true, data.attempt);
       this.emit('recovery_attempt', data);
     });
-    this.recoveryManager.on('recovery_success', () => {
-      if (this.isDisposed) return; // <<< Check disposed flag
-      this.logger.info('Connection recovery successful.');
+    
+    this.resilienceManager.on('reconnect_success', () => {
+      if (this.isDisposed) return;
+      this.logger.info('Connection recovery successful');
+      this.unifiedState.updateRecovery(false, 0);
       this.emit('recovery_success');
     });
-    this.recoveryManager.on('recovery_failed', (data?: any) => {
-      if (this.isDisposed) return; // <<< Check disposed flag
-      this.logger.error('Connection recovery failed.', data);
+    
+    this.resilienceManager.on('reconnect_failure', (data: any) => {
+      if (this.isDisposed) return;
+      this.logger.error('Connection recovery failed', data);
       this.emit('recovery_failed', data);
     });
-
-    // --- Authentication Listener ---
+    
+    this.resilienceManager.on('max_attempts_reached', (data: any) => {
+      if (this.isDisposed) return;
+      this.logger.error(`Maximum reconnection attempts (${data.maxAttempts}) reached`);
+      this.unifiedState.updateRecovery(false, data.attempts);
+      this.emit('max_reconnect_attempts', data);
+    });
+    
+    // Authentication listener
     this.tokenManager.addRefreshListener(this.handleTokenRefresh);
-
-    this.logger.info('ConnectionManager event listeners setup complete.');
+    
+    this.logger.info('ConnectionManager event listeners setup complete');
   }
-
-  // --- Lifecycle & State Methods ---
-
+  
   /**
-   * Attempts to establish a connection by validating the session and connecting WebSocket.
-   * SSE connection will be triggered automatically if WebSocket connects successfully.
-   * @returns A promise resolving to true if the connection (including session validation) is successful, false otherwise.
+   * Sets the desired state of the connection and simulator
+   * This allows for a more declarative API
    */
-  // Also update the connect() method to verify auth first:
-  public async connect(): Promise<boolean> {
-    // Check disposed flag
+  public setDesiredState(state: Partial<ConnectionDesiredState>): void {
     if (this.isDisposed) {
-      this.logger.error("Cannot connect: ConnectionManager is disposed.");
+      this.logger.error('Cannot set desired state: ConnectionManager is disposed');
+      return;
+    }
+    
+    const oldState = { ...this.desiredState };
+    this.desiredState = { ...this.desiredState, ...state };
+    
+    this.logger.info('Desired state updated', { 
+      oldState, 
+      newState: this.desiredState 
+    });
+    
+    // Synchronize actual state with desired state
+    this.syncConnectionState();
+    this.syncSimulatorState();
+  }
+  
+  /**
+   * Synchronizes the connection state with the desired state
+   */
+  private syncConnectionState(): void {
+    if (this.isDisposed) return;
+    
+    const currentStatus = this.unifiedState.getState().overallStatus;
+    const isConnected = currentStatus === ConnectionStatus.CONNECTED;
+    
+    if (this.desiredState.connected && !isConnected &&
+        currentStatus !== ConnectionStatus.CONNECTING &&
+        currentStatus !== ConnectionStatus.RECOVERING) {
+      // We want to be connected but we're not - connect
+      this.logger.info('Syncing connection state: attempting to connect');
+      this.connect().catch(err => {
+        this.logger.error('Failed to connect during state sync', { error: err.message });
+      });
+    } else if (!this.desiredState.connected && isConnected) {
+      // We don't want to be connected but we are - disconnect
+      this.logger.info('Syncing connection state: disconnecting');
+      this.disconnect('desired_state_change');
+    }
+  }
+  
+  /**
+   * Synchronizes the simulator state with the desired state
+   */
+  private async syncSimulatorState(): Promise<void> {
+    if (this.isDisposed) return;
+    
+    const isConnected = this.unifiedState.getState().overallStatus === ConnectionStatus.CONNECTED;
+    if (!isConnected) return;
+    
+    const currentStatus = this.unifiedState.getState().simulatorStatus;
+    const isRunning = currentStatus === 'RUNNING';
+    
+    if (this.desiredState.simulatorRunning && !isRunning &&
+        currentStatus !== 'STARTING' && currentStatus !== 'STOPPING') {
+      // We want simulator running but it's not - start it
+      this.logger.info('Syncing simulator state: attempting to start simulator');
+      try {
+        await this.startSimulator();
+      } catch (err) {
+        this.logger.error('Failed to start simulator during state sync', { error: err instanceof Error ? err.message : String(err) });
+      }
+    } else if (!this.desiredState.simulatorRunning && isRunning) {
+      // We don't want simulator running but it is - stop it
+      this.logger.info('Syncing simulator state: stopping simulator');
+      try {
+        await this.stopSimulator();
+      } catch (err) {
+        this.logger.error('Failed to stop simulator during state sync', { error: err instanceof Error ? err.message : String(err) });
+      }
+    }
+  }
+  
+  /**
+   * Attempts to establish a connection by validating the session and connecting WebSocket
+   */
+  public async connect(): Promise<boolean> {
+    if (this.isDisposed) {
+      this.logger.error('Cannot connect: ConnectionManager is disposed');
       return false;
     }
     
-    // Explicitly verify authentication before proceeding
     if (!this.tokenManager.isAuthenticated()) {
-      this.logger.error("Cannot connect: Not authenticated");
+      this.logger.error('Cannot connect: Not authenticated');
       this.unifiedState.updateServiceState(ConnectionServiceType.WEBSOCKET, {
         status: ConnectionStatus.DISCONNECTED,
         error: 'Authentication required'
@@ -228,165 +300,195 @@ export class ConnectionManager extends EventEmitter implements ConnectionRecover
       return false;
     }
     
-     // <<< Check disposed flag after await >>>
-    if (this.isDisposed) return false;
-
-
-    // --- Check Current State ---
+    // Update desired state
+    this.desiredState.connected = true;
+    
     const currentState = this.unifiedState.getState();
-    if (currentState.isConnected || currentState.isConnecting || currentState.isRecovering) {
-      this.logger.warn(`Connect call ignored: Already ${currentState.overallStatus}.`);
-      return currentState.isConnected;
+    if (currentState.isConnected) {
+      this.logger.info('Already connected');
+      return true;
     }
-
-    // --- Session Validation Step ---
+    
+    if (currentState.isConnecting || currentState.isRecovering) {
+      this.logger.warn(`Connect call ignored: Already ${currentState.overallStatus}`);
+      return false;
+    }
+    
     try {
-      this.logger.info('Attempting to create or validate session...');
-      // Update state to connecting before async calls
-      this.unifiedState.updateServiceState(ConnectionServiceType.WEBSOCKET, { status: ConnectionStatus.CONNECTING, error: null });
-      this.unifiedState.updateServiceState(ConnectionServiceType.SSE, { status: ConnectionStatus.CONNECTING, error: null });
-
+      this.logger.info('Attempting to create or validate session');
+      
+      // Update state to connecting
+      this.unifiedState.updateServiceState(ConnectionServiceType.WEBSOCKET, {
+        status: ConnectionStatus.CONNECTING,
+        error: null
+      });
+      
+      // Validate session
       const sessionResponse = await this.sessionApi.createSession();
-
-      // <<< Check disposed flag after await >>>
+      
       if (this.isDisposed) {
-          this.logger.warn("ConnectionManager disposed during session validation.");
-          return false;
+        this.logger.warn('ConnectionManager disposed during session validation');
+        return false;
       }
-
+      
       if (!sessionResponse.success) {
         const errorMsg = sessionResponse.errorMessage || 'Failed to establish session with server';
         throw new Error(`Session Error: ${errorMsg}`);
       }
-      this.logger.info('Session validated/created successfully.');
-
-      // --- Proceed with WebSocket Connection ---
-      this.logger.info('Proceeding with WebSocket connection...');
-      const wsConnected = await this.wsManager.connect(); // connect checks disposed flag
-
-       // <<< Check disposed flag after await >>>
+      
+      this.logger.info('Session validated successfully');
+      
+      // Connect WebSocket
+      const wsConnected = await this.wsManager.connect();
+      
       if (this.isDisposed) {
-          this.logger.warn("ConnectionManager disposed during WebSocket connection.");
-          // Ensure WS is disconnected if it managed to connect partially
-          this.wsManager.disconnect("disposed_during_connect");
-          return false;
+        this.logger.warn('ConnectionManager disposed during WebSocket connection');
+        this.wsManager.disconnect('disposed_during_connect');
+        return false;
       }
-
+      
       if (!wsConnected) {
-          this.logger.error('WebSocket connection failed after session validation.');
-          return false;
+        this.logger.error('WebSocket connection failed after session validation');
+        return false;
       }
-      // If WS connects, SSEManager's listener on WS state change should trigger SSE connect
+      
       return true;
-
-    } catch (error: any) {
-      // <<< Check disposed flag in error handler >>>
+      
+    } catch (error) {
       if (this.isDisposed) {
-          this.logger.warn("Connection process failed, but ConnectionManager was disposed. Ignoring error.", { error: error.message });
-          return false;
+        this.logger.warn('Connection process failed, but ConnectionManager was disposed');
+        return false;
       }
-      this.logger.error('Connection process failed.', { error: error.message, stack: error.stack });
-      const errorMsg = error instanceof Error ? error.message : 'Unknown connection error';
-      // Ensure state reflects the failure
+      
+      this.logger.error('Connection process failed', { error });
+      
+      // Update state
       this.unifiedState.updateServiceState(ConnectionServiceType.WEBSOCKET, {
         status: ConnectionStatus.DISCONNECTED,
-        error: errorMsg
+        error: error instanceof Error ? error.message : String(error)
       });
-       this.unifiedState.updateServiceState(ConnectionServiceType.SSE, {
-        status: ConnectionStatus.DISCONNECTED,
-        error: "Connection process failed"
-      });
-      this.errorHandler.handleConnectionError(error, ErrorSeverity.HIGH, 'ConnectionManager.connect');
+      
+      // Record failure in resilience manager
+      this.resilienceManager.recordFailure(error);
+      
+      // Handle error
+      AppErrorHandler.handleConnectionError(
+        error instanceof Error ? error : String(error),
+        ErrorSeverity.HIGH,
+        'ConnectionManager.connect'
+      );
+      
       return false;
     }
   }
-
+  
   /**
-   * Disconnects all underlying connections (WebSocket and SSE).
-   * @param reason - A string indicating the reason for disconnection.
+   * Disconnects the WebSocket connection
    */
   public disconnect(reason: string = 'manual_disconnect'): void {
-    // <<< Allow disconnect even if disposing, but log differently >>>
     if (this.isDisposed && reason !== 'manager_disposed') {
-        this.logger.info(`Disconnect (${reason}) called on already disposed ConnectionManager.`);
-        return;
+      this.logger.info(`Disconnect called on disposed ConnectionManager. Reason: ${reason}`);
+      return;
     }
-    this.logger.warn(`Disconnect requested via ConnectionManager. Reason: ${reason}`);
-    // Disconnect WebSocket; SSE should disconnect via its listener
+    
+    // Update desired state unless it's an internal reason
+    if (!reason.startsWith('internal_')) {
+      this.desiredState.connected = false;
+    }
+    
+    this.logger.warn(`Disconnecting. Reason: ${reason}`);
     this.wsManager.disconnect(reason);
-    // Explicitly disconnect SSE as well to ensure cleanup in case WS state listener fails
-    this.sseManager.disconnect(reason === 'manager_disposed' ? 'dispose' : reason);
-    this.logger.warn('Disconnect process completed via ConnectionManager.');
   }
-
+  
   /**
-   * Handles the result of a token refresh attempt. Updates recovery state and handles failures.
-   * Bound function reference to preserve 'this'.
+   * Handles token refresh events
    */
   private handleTokenRefresh = (success: boolean): void => {
-    if (this.isDisposed) return; // <<< Check disposed flag
-    this.logger.info(`Handling token refresh result in ConnectionManager: success = ${success}`);
+    if (this.isDisposed) return;
+    
+    this.logger.info(`Token refresh result: ${success ? 'success' : 'failure'}`);
+    
     const isAuthenticated = success && this.tokenManager.isAuthenticated();
-
-    // Update recovery manager's view of authentication state
-    this.updateRecoveryAuthState(isAuthenticated); // Checks disposed flag
-
-    if (!success) {
-      this.logger.error('Authentication token refresh failed.');
-      this.errorHandler.handleAuthError('Session expired or token refresh failed.', ErrorSeverity.HIGH, 'TokenRefresh');
+    
+    // Update resilience manager with auth state
+    this.resilienceManager.updateAuthState(isAuthenticated);
+    
+    if (!isAuthenticated) {
+      this.logger.error('Authentication lost, forcing disconnect');
+      this.disconnect('auth_lost');
+      
+      AppErrorHandler.handleAuthError(
+        'Session expired or token refresh failed',
+        ErrorSeverity.HIGH,
+        'TokenRefresh'
+      );
+      
       this.emit('auth_failed', 'Authentication token expired or refresh failed');
     }
   };
-
+  
   /**
-   * Updates the RecoveryManager based on the authentication status and forces disconnect if auth is lost.
-   * @param isAuthenticated - Boolean indicating the current authentication status.
-   */
-  private updateRecoveryAuthState(isAuthenticated: boolean): void {
-    if (this.isDisposed) return; // <<< Check disposed flag
-    this.logger.info(`Updating internal recovery auth state: isAuthenticated = ${isAuthenticated}`);
-    if (!isAuthenticated) {
-      this.logger.warn('Authentication lost, forcing disconnect.');
-      this.disconnect('auth_lost'); // Force disconnect if auth is lost
-    }
-    // Notify recovery manager about auth state change
-    this.recoveryManager.updateAuthState(isAuthenticated);
-  }
-
-  /**
-   * Initiates a connection recovery attempt via the RecoveryManager.
-   * @param reason - A string indicating the reason for attempting recovery.
-   * @returns A promise resolving to true if recovery is successful, false otherwise.
+   * Initiates a connection recovery attempt
    */
   public async attemptRecovery(reason: string = 'manual'): Promise<boolean> {
-    // <<< Check disposed flag early >>>
     if (this.isDisposed) {
-      this.logger.error("Cannot attempt recovery: ConnectionManager is disposed.");
+      this.logger.error('Cannot attempt recovery: ConnectionManager is disposed');
       return false;
     }
-    this.logger.warn(`Connection recovery attempt requested. Reason: ${reason}`);
-    return this.recoveryManager.attemptRecovery(reason);
+    
+    this.logger.warn(`Connection recovery requested. Reason: ${reason}`);
+    
+    // Ensure desired state reflects intention to connect
+    this.desiredState.connected = true;
+    
+    // Use the resilience manager's reconnection mechanism
+    return this.resilienceManager.attemptReconnection(async () => {
+      return this.connect();
+    });
   }
-
+  
   /**
-   * Gets the aggregated current connection state from UnifiedConnectionState.
-   * @returns An object representing the overall connection state.
+   * Gets the current connection state
    */
   public getState(): ReturnType<UnifiedConnectionState['getState']> {
-    // <<< Handle disposed state >>>
     if (this.isDisposed) {
-      this.logger.warn("getState called on disposed ConnectionManager. Returning default state.");
-      // Return a default disconnected state structure
-      const defaultState = new UnifiedConnectionState(this.logger || Logger.getInstance());
+      this.logger.warn('getState called on disposed ConnectionManager');
+      const defaultState = new UnifiedConnectionState(this.logger);
       const state = defaultState.getState();
-      defaultState.dispose(); // Dispose the temporary instance
+      defaultState.dispose();
       return state;
     }
+    
     return this.unifiedState.getState();
   }
-
-  // --- Data & Action Methods ---
-  // (submitOrder, cancelOrder, startSimulator, stopSimulator - add isDisposed checks)
+  
+  /**
+   * Gets the current exchange data
+   */
+  public getExchangeData(): Record<string, any> {
+    if (this.isDisposed) return {};
+    return { ...this.exchangeData };
+  }
+  
+  /**
+   * Gets the current portfolio data
+   */
+  public getPortfolioData(): Record<string, any> {
+    if (this.isDisposed) return {};
+    return { ...this.portfolioData };
+  }
+  
+  /**
+   * Gets the current risk data
+   */
+  public getRiskData(): Record<string, any> {
+    if (this.isDisposed) return {};
+    return { ...this.riskData };
+  }
+  
+  /**
+   * Submits a trading order
+   */
   public async submitOrder(order: {
     symbol: string;
     side: OrderSide;
@@ -395,149 +497,162 @@ export class ConnectionManager extends EventEmitter implements ConnectionRecover
     type: OrderType;
   }): Promise<{ success: boolean; orderId?: string; error?: string }> {
     if (this.isDisposed) return { success: false, error: 'Connection manager disposed' };
+    
     const state = this.getState();
     if (!state.isConnected) {
       const errorMsg = 'Submit order failed: Not connected to trading servers';
       this.logger.error(errorMsg, { state });
       return { success: false, error: errorMsg };
     }
+    
     this.logger.info('Submitting order', { symbol: order.symbol, type: order.type, side: order.side });
-    return this.dataHandlers.submitOrder(order); // Pass the correctly typed order
+    return this.dataHandlers.submitOrder(order);
   }
-
-
+  
+  /**
+   * Cancels a trading order
+   */
   public async cancelOrder(orderId: string): Promise<{ success: boolean; error?: string }> {
     if (this.isDisposed) return { success: false, error: 'Connection manager disposed' };
-    // ... rest of existing method
+    
     const state = this.getState();
-     if (!state.isConnected) {
-       const errorMsg = 'Cancel order failed: Not connected to trading servers';
-       this.logger.error(errorMsg, { state });
-       return { success: false, error: errorMsg };
-     }
-     this.logger.info('Cancelling order', { orderId });
-     return this.dataHandlers.cancelOrder(orderId);
-  }
-
-   public async startSimulator(): Promise<{ success: boolean; status?: string; error?: string }> {
-    if (this.isDisposed) return { success: false, error: 'Connection manager disposed' };
-     // ... rest of existing method
-     const state = this.getState();
-     if (!state.isConnected) {
-        const errorMsg = 'Start simulator failed: Not connected to trading servers';
-        this.logger.error(errorMsg, { state });
-        return { success: false, error: errorMsg };
-      }
-      this.logger.info('Starting simulator');
-      return this.simulatorManager.startSimulator();
-   }
-
-   public async stopSimulator(): Promise<{ success: boolean; error?: string }> {
-    if (this.isDisposed) return { success: false, error: 'Connection manager disposed' };
-     // ... rest of existing method
-     const state = this.getState();
-      if (!state.isConnected) {
-        const errorMsg = 'Stop simulator failed: Not connected to trading servers';
-        this.logger.error(errorMsg, { state });
-        return { success: false, error: errorMsg };
-      }
-      this.logger.info('Stopping simulator');
-      return this.simulatorManager.stopSimulator();
-   }
-
-  // --- Reconnect Methods ---
-  public async reconnect(): Promise<boolean> {
-    if (this.isDisposed) { // <<< Check disposed flag
-      this.logger.error("Cannot reconnect: ConnectionManager is disposed.");
-      return false;
+    if (!state.isConnected) {
+      const errorMsg = 'Cancel order failed: Not connected to trading servers';
+      this.logger.error(errorMsg, { state });
+      return { success: false, error: errorMsg };
     }
-    this.logger.warn('Explicit reconnect requested.');
-    return this.attemptRecovery('explicit_reconnect_request'); // attemptRecovery checks disposed
+    
+    this.logger.info('Cancelling order', { orderId });
+    return this.dataHandlers.cancelOrder(orderId);
   }
-
+  
+  /**
+   * Starts the trading simulator
+   */
+  public async startSimulator(): Promise<{ success: boolean; status?: string; error?: string }> {
+    if (this.isDisposed) return { success: false, error: 'Connection manager disposed' };
+    
+    // Update desired state
+    this.desiredState.simulatorRunning = true;
+    
+    const state = this.getState();
+    if (!state.isConnected) {
+      const errorMsg = 'Start simulator failed: Not connected to trading servers';
+      this.logger.error(errorMsg, { state });
+      return { success: false, error: errorMsg };
+    }
+    
+    this.logger.info('Starting simulator');
+    const result = await this.simulatorManager.startSimulator();
+    
+    if (!result.success) {
+      this.desiredState.simulatorRunning = false;
+    }
+    
+    return result;
+  }
+  
+  /**
+   * Stops the trading simulator
+   */
+  public async stopSimulator(): Promise<{ success: boolean; error?: string }> {
+    if (this.isDisposed) return { success: false, error: 'Connection manager disposed' };
+    
+    // Update desired state
+    this.desiredState.simulatorRunning = false;
+    
+    const state = this.getState();
+    if (!state.isConnected) {
+      const errorMsg = 'Stop simulator failed: Not connected to trading servers';
+      this.logger.error(errorMsg, { state });
+      return { success: false, error: errorMsg };
+    }
+    
+    this.logger.info('Stopping simulator');
+    return this.simulatorManager.stopSimulator();
+  }
+  
+  /**
+   * Initiates a manual reconnection attempt
+   * This is a simplified API for users compared to the more detailed attemptRecovery
+   */
   public async manualReconnect(): Promise<boolean> {
-    if (this.isDisposed) { // <<< Check disposed flag
-      this.logger.error("Cannot manual reconnect: ConnectionManager is disposed.");
+    if (this.isDisposed) {
+      this.logger.error('Cannot reconnect: ConnectionManager is disposed');
       return false;
     }
-    this.logger.warn('Manual reconnect requested by user.');
-    // Signal start of recovery attempt 1 in unified state
-    // Check disposed before updating state
-    if (!this.isDisposed) {
-        this.unifiedState.updateRecovery(true, 1);
-    }
-    return this.attemptRecovery('manual_user_request'); // attemptRecovery checks disposed
+    
+    this.logger.warn('Manual reconnect requested by user');
+    this.unifiedState.updateRecovery(true, 1);
+    return this.attemptRecovery('manual_user_request');
   }
-
-   /**
-   * Disposes of the ConnectionManager and all its sub-managers, cleaning up resources.
-   * <<< REFACTORED dispose method >>>
+  
+  /**
+   * Implements ConnectionRecoveryInterface.getState
+   */
+  getStateForRecovery(): { isConnected: boolean; isConnecting: boolean } {
+    const state = this.getState();
+    return {
+      isConnected: state.isConnected,
+      isConnecting: state.isConnecting || state.isRecovering
+    };
+  }
+  
+  /**
+   * Disposes of resources
    */
   public dispose(): void {
-    // *** Check and set disposed flag immediately ***
     if (this.isDisposed) {
-      this.logger.warn('ConnectionManager already disposed.');
+      this.logger.warn('ConnectionManager already disposed');
       return;
     }
-    this.logger.warn('Disposing ConnectionManager...');
-    this.isDisposed = true; // Set flag early
-
-    // --- Unsubscribe from external events ---
+    
+    this.logger.warn('Disposing ConnectionManager');
+    this.isDisposed = true;
+    
+    // Unsubscribe from token refresh events
     if (this.tokenManager) {
       try {
-        // Use the stored bound function reference for removal
         this.tokenManager.removeRefreshListener(this.handleTokenRefresh);
       } catch (error) {
         this.logger.error('Error removing token refresh listener during dispose', { error });
       }
     }
-    // No direct subscription to unifiedState in this class
-
-    // --- Helper to safely call dispose methods ---
-    const tryDispose = (manager: any, managerName: string) => {
-      if (!manager) return;
-      this.logger.info(`Attempting to dispose ${managerName}...`);
+    
+    // Helper function to safely dispose components
+    const tryDispose = (obj: any, name: string): void => {
+      if (!obj) return;
+      
+      this.logger.info(`Disposing ${name}`);
       try {
-        let disposed = false;
-        if (manager && typeof manager[Symbol.dispose] === 'function') {
-          manager[Symbol.dispose]();
-          disposed = true;
-        } else if (manager && typeof manager.dispose === 'function') {
-          manager.dispose();
-          disposed = true;
+        if (typeof obj[Symbol.dispose] === 'function') {
+          obj[Symbol.dispose]();
+        } else if (typeof obj.dispose === 'function') {
+          obj.dispose();
+        } else {
+          this.logger.warn(`No dispose method found for ${name}`);
         }
-        if(disposed) this.logger.info(`${managerName} disposed successfully.`);
-        else this.logger.warn(`${managerName} does not seem to have a standard dispose method.`);
-
       } catch (error) {
-        this.logger.error(`Error during ${managerName} disposal`, { error });
+        this.logger.error(`Error disposing ${name}`, { error });
       }
     };
-
-    // --- Dispose managers in a safe order ---
-    // Disconnect connections explicitly first via disconnect()
-    this.disconnect('manager_disposed'); // Calls disconnect on wsManager and sseManager
-
-    // Now dispose the managers themselves
-    tryDispose(this.recoveryManager, 'RecoveryManager');
-    tryDispose(this.sseManager, 'ExchangeDataStream/SSEManager'); // Dispose after disconnect call
-    tryDispose(this.wsManager, 'WebSocketManager'); // Dispose after disconnect call
+    
+    // Disconnect WebSocket
+    this.disconnect('manager_disposed');
+    
+    // Dispose components
+    tryDispose(this.resilienceManager, 'ResilienceManager');
+    tryDispose(this.wsManager, 'WebSocketManager');
     tryDispose(this.unifiedState, 'UnifiedConnectionState');
-    // Dispose others if they implement Disposable and hold resources/timers
-    // tryDispose(this.dataHandlers, 'ConnectionDataHandlers');
-    // tryDispose(this.simulatorManager, 'ConnectionSimulatorManager');
-    // tryDispose(this.errorHandler, 'ErrorHandler');
-
-
-    // --- Remove own listeners last ---
-    this.removeAllListeners(); // From EventEmitter base
-
-    this.logger.warn('ConnectionManager disposed.');
+    
+    // Remove event listeners
+    this.removeAllListeners();
+    
+    this.logger.info('ConnectionManager disposed');
   }
-
-
+  
   /**
-   * Implements the [Symbol.dispose] method for the Disposable interface.
+   * Implements the Symbol.dispose method for the Disposable interface
    */
   [Symbol.dispose](): void {
     this.dispose();
