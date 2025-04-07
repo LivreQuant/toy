@@ -36,18 +36,18 @@ export interface ResilienceEvents extends EventMap {
     max_attempts_reached: { attempts: number; maxAttempts: number };
 }
 
-
 export class ConnectionResilienceManager extends TypedEventEmitter<ResilienceEvents> implements Disposable {
+  // Note: Inherits 'protected logger: EnhancedLogger' from base class
   private state: ResilienceState = ResilienceState.STABLE;
   private tokenManager: TokenManager;
-  private logger: EnhancedLogger;
   private reconnectAttempt: number = 0;
   private failureCount: number = 0;
   private lastFailureTime: number = 0;
   private reconnectTimer: number | null = null;
   private suspensionTimer: number | null = null;
   public readonly options: Required<ResilienceOptions>;
-  private isDisposed: boolean = false;
+  // FIX: Remove duplicate private declaration of isDisposed
+  // private isDisposed: boolean = false;
 
   private static DEFAULT_OPTIONS: Required<ResilienceOptions> = {
     initialDelayMs: 1000,
@@ -60,20 +60,16 @@ export class ConnectionResilienceManager extends TypedEventEmitter<ResilienceEve
 
   constructor(
     tokenManager: TokenManager,
-    parentLogger: EnhancedLogger,
-    options?: ResilienceOptions // Accept ResilienceOptions directly
+    parentLogger: EnhancedLogger, // Accept parent logger instance
+    options?: ResilienceOptions
   ) {
-    super('ResilienceManagerEvents');
+    const loggerInstance = parentLogger.createChild('ResilienceManager');
+    super(loggerInstance); // Pass the created child logger instance
+
     this.tokenManager = tokenManager;
-    this.logger = parentLogger.createChild('ResilienceManager');
-    // Merge provided options ensuring correct types
-    this.options = {
-      ...ConnectionResilienceManager.DEFAULT_OPTIONS,
-      ...(options || {}) // Ensure options is not undefined
-    };
+    this.options = { ...ConnectionResilienceManager.DEFAULT_OPTIONS, ...(options || {}) };
     this.logger.info('Resilience manager initialized', { options: this.options });
   }
-
 
   public getState(): { state: ResilienceState; attempt: number; failureCount: number; } {
     return { state: this.state, attempt: this.reconnectAttempt, failureCount: this.failureCount };
@@ -312,7 +308,6 @@ export class ConnectionResilienceManager extends TypedEventEmitter<ResilienceEve
 
   public dispose(): void {
     if (this.isDisposed) return;
-    this.isDisposed = true;
     this.logger.info('Disposing ConnectionResilienceManager...');
     this.stopTimers();
     this.removeAllListeners();

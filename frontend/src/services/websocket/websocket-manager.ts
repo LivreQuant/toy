@@ -9,6 +9,7 @@ import { config } from '../../config';
 import { AppErrorHandler } from '../../utils/app-error-handler';
 import { ErrorSeverity } from '../../utils/error-handler';
 import { TypedEventEmitter } from '../../utils/typed-event-emitter';
+import { EnhancedLogger } from '../../utils/enhanced-logger'; // Import if needed by constructor injection
 import { getLogger } from '../../boot/logging';
 import {
   WebSocketMessage,
@@ -61,15 +62,15 @@ interface PendingResponse {
 
 
 export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> implements Disposable {
-  private logger = getLogger('WebSocketManager');
+  // Note: Inherits 'protected logger: EnhancedLogger' from base class
   private tokenManager: TokenManager;
   private webSocket: WebSocket | null = null;
   private heartbeatManager: HeartbeatManager | null = null;
-  private isDisposed: boolean = false;
+  // FIX: Remove duplicate private declaration of isDisposed
+  // private isDisposed: boolean = false;
   private pendingResponses: Map<string, PendingResponse> = new Map();
   private options: Required<WebSocketOptions>;
   private connectionStatus$ = new BehaviorSubject<ConnectionStatus>(ConnectionStatus.DISCONNECTED);
-  // FIX: Add subscriptions property
   private subscriptions = new Subscription();
   private readonly responseTimeoutMs = 15000;
 
@@ -77,7 +78,11 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
     tokenManager: TokenManager,
     options: WebSocketOptions = {}
   ) {
-    super('WebSocketManagerEvents');
+    // Create logger instance first
+    const loggerInstance = getLogger('WebSocketManager');
+    // Pass logger instance to super()
+    super(loggerInstance);
+
     this.tokenManager = tokenManager;
     const defaultOptions: Required<WebSocketOptions> = {
         heartbeatInterval: 15000,
@@ -201,13 +206,16 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
     if (this.isDisposed || event.currentTarget !== this.webSocket) return;
 
     try {
-      const message = JSON.parse(event.data) as WebSocketMessage; // Assume parse is successful initially
+      // Attempt parsing first
+      const message = JSON.parse(event.data);
+      // Log basic info if parse succeeds
       this.logger.debug(`Received WebSocket message type: ${message?.type}`, { requestId: message?.requestId });
 
-      // Emit generic message event *before* specific handlers
-      this.emit('message', message);
+      // Emit generic message event
+      this.emit('message', message as WebSocketMessage); // Cast needed here after initial parse
 
       // --- Handle specific message types ---
+      // Type guards expect the correctly typed WebSocketMessage union
       if (isServerHeartbeatMessage(message)) {
         this.handleHeartbeatMessage(message);
       } else if (isResponseMessage(message)) {
@@ -225,9 +233,10 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
       } else if (isSessionReadyResponseMessage(message)) {
            this.emit('session_ready_response', message);
       } else {
-           // FIX: Check message structure before accessing .type
-           if (typeof message === 'object' && message && 'type' in message) {
-               this.logger.warn(`Unhandled WebSocket message type: ${message.type}`);
+           // FIX: Refine check for unhandled types, cast to any for the 'in' check
+           const potentialMessage = message as any; // Cast to any for the check
+           if (typeof potentialMessage === 'object' && potentialMessage && 'type' in potentialMessage) {
+               this.logger.warn(`Unhandled WebSocket message type: ${potentialMessage.type}`); // Use potentialMessage here
            } else {
                this.logger.error('Received unhandled WebSocket message with unknown structure', { data: message });
            }
@@ -237,7 +246,7 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
       this.logger.error('Error processing WebSocket message', { error: error.message, data: event.data?.substring(0, 200) });
       this.emit('message_error', { error: error, rawData: event.data });
     }
-  };
+  }; // handleMessage method ends here
 
 
   private handleConnectionOpen(): void {
@@ -428,11 +437,9 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
   public dispose(): void {
     if (this.isDisposed) return;
     this.logger.warn('Disposing WebSocketManager...');
-    this.isDisposed = true;
     this.disconnect('manager_disposed');
     this.removeAllListeners();
-    // FIX: Unsubscribe from subscriptions
-    this.subscriptions.unsubscribe();
+    this.subscriptions.unsubscribe(); // Now valid
     this.connectionStatus$.complete();
     this.logger.info('WebSocketManager disposed.');
   }
