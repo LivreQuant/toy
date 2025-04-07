@@ -1,96 +1,131 @@
-// src/services/websocket/heartbeat-manager.ts (Placeholder)
-import { getLogger } from "../../boot/logging";
-import { EnhancedLogger } from "../../utils/enhanced-logger";
-// Correct path relative to src/services/websocket/
-import { HeartbeatManagerDependencies, HeartbeatManagerOptions } from "./types";
-// Correct path assuming typed-event-emitter is in src/utils/
-import { TypedEventEmitter } from "../../utils/typed-event-emitter";
-import { Disposable } from "../../utils/disposable"; // Import Disposable
+// src/services/websocket/heartbeat-manager.ts
+import { WebSocketManager } from './websocket-manager';
+import { EnhancedLogger } from '../../utils/enhanced-logger';
+import { Disposable } from '../../utils/disposable';
+import { getLogger } from '../../boot/logging';
+import { appState } from '../state/app-state.service';
 
-const logger: EnhancedLogger = getLogger('HeartbeatManager');
+export interface HeartbeatManagerOptions {
+  interval?: number; // How often to send heartbeats (ms)
+  timeout?: number;  // How long to wait for response before considering connection dead (ms)
+}
 
-/**
- * Manages sending heartbeats (pings) and monitoring responses (pongs)
- * to detect unresponsive WebSocket connections.
- *
- * NOTE: This is a placeholder. The actual implementation logic is missing.
- */
-export class HeartbeatManager implements Disposable { // Implement Disposable
-    private ws: WebSocket;
-    private options: Required<HeartbeatManagerOptions>;
-    private pingIntervalId: number | null = null;
-    private pongTimeoutId: number | null = null;
-    private isStarted: boolean = false;
-    private isDisposed: boolean = false;
-    private eventEmitter: TypedEventEmitter<any>; // Store emitter if needed
+export class HeartbeatManager implements Disposable {
+  private wsManager: WebSocketManager;
+  private options: Required<HeartbeatManagerOptions>;
+  private heartbeatIntervalId: number | null = null;
+  private heartbeatTimeoutId: number | null = null;
+  private isStarted: boolean = false;
+  private isDisposed: boolean = false;
+  private logger: EnhancedLogger;
+  private subscription: any = null;
 
-    constructor(dependencies: HeartbeatManagerDependencies) {
-        this.ws = dependencies.ws;
-        this.eventEmitter = dependencies.eventEmitter; // Store emitter
-        const defaults: Required<HeartbeatManagerOptions> = {
-            interval: 15000, // Default 15 seconds
-            timeout: 5000    // Default 5 seconds
-        };
-        this.options = { ...defaults, ...(dependencies.options || {}) };
-        logger.info('HeartbeatManager initialized', { options: this.options });
+  constructor(
+    wsManager: WebSocketManager,
+    options?: HeartbeatManagerOptions
+  ) {
+    this.wsManager = wsManager;
+    this.logger = getLogger('HeartbeatManager');
+    
+    const defaults: Required<HeartbeatManagerOptions> = {
+      interval: 15000, // 15 seconds
+      timeout: 5000    // 5 seconds
+    };
+    
+    this.options = { ...defaults, ...(options || {}) };
+    this.logger.info('HeartbeatManager initialized', { options: this.options });
+  }
+
+  public start(): void {
+    if (this.isStarted || this.isDisposed) return;
+    this.logger.info('Starting heartbeats...');
+    this.isStarted = true;
+    this.scheduleNextHeartbeat();
+    
+    // Subscribe to heartbeat_ack messages
+    this.subscription = this.wsManager.on('heartbeat_ack').subscribe(message => {
+      if (this.isDisposed || !this.isStarted) return;
+      this.clearHeartbeatTimeout();
+      this.logger.debug('Heartbeat acknowledged', { 
+        latency: Date.now() - message.clientTimestamp 
+      });
+    });
+  }
+
+  public stop(): void {
+    if (!this.isStarted) return;
+    this.logger.info('Stopping heartbeats...');
+    this.isStarted = false;
+    this.clearHeartbeatInterval();
+    this.clearHeartbeatTimeout();
+    
+    if (this.subscription) {
+      this.subscription.unsubscribe();
+      this.subscription = null;
     }
+  }
 
-    public start(): void {
-        if (this.isStarted || this.isDisposed) return;
-        logger.info('Starting heartbeats...');
-        this.isStarted = true;
-        this.schedulePing();
+  private scheduleNextHeartbeat(): void {
+    this.clearHeartbeatInterval();
+    this.heartbeatIntervalId = window.setInterval(() => {
+      this.sendHeartbeat();
+    }, this.options.interval);
+  }
+
+  private sendHeartbeat(): void {
+    if (!this.isStarted || this.isDisposed) return;
+    
+    this.logger.debug('Sending heartbeat');
+    this.wsManager.sendHeartbeat();
+    
+    // Set timeout for heartbeat acknowledgment
+    this.clearHeartbeatTimeout();
+    this.heartbeatTimeoutId = window.setTimeout(() => {
+      this.handleHeartbeatTimeout();
+    }, this.options.timeout);
+  }
+
+  private handleHeartbeatTimeout(): void {
+    if (!this.isStarted || this.isDisposed) return;
+    this.logger.error(`Heartbeat timeout after ${this.options.timeout}ms`);
+    
+    // Stop sending heartbeats
+    this.stop();
+    
+    // Notify WebSocketManager that connection is dead
+    if (this.wsManager) {
+      this.logger.warn('Triggering WebSocket disconnect due to heartbeat timeout');
+      this.wsManager.disconnect('heartbeat_timeout');
     }
+  }
 
-    public stop(): void {
-        if (!this.isStarted) return;
-        logger.info('Stopping heartbeats...');
-        this.isStarted = false;
-        if (this.pingIntervalId !== null) { clearInterval(this.pingIntervalId); this.pingIntervalId = null; }
-        if (this.pongTimeoutId !== null) { clearTimeout(this.pongTimeoutId); this.pongTimeoutId = null; }
+  public handleHeartbeatResponse(): void {
+    // This method is kept for backward compatibility
+    this.clearHeartbeatTimeout();
+  }
+
+  private clearHeartbeatInterval(): void {
+    if (this.heartbeatIntervalId !== null) {
+      window.clearInterval(this.heartbeatIntervalId);
+      this.heartbeatIntervalId = null;
     }
+  }
 
-    public handleHeartbeatResponse(): void {
-        if (!this.isStarted || this.isDisposed) return;
-        if (this.pongTimeoutId !== null) { clearTimeout(this.pongTimeoutId); this.pongTimeoutId = null; }
+  private clearHeartbeatTimeout(): void {
+    if (this.heartbeatTimeoutId !== null) {
+      window.clearTimeout(this.heartbeatTimeoutId);
+      this.heartbeatTimeoutId = null;
     }
+  }
 
-    private schedulePing(): void {
-        if (!this.isStarted || this.isDisposed) return;
-        if (this.pingIntervalId !== null) { clearInterval(this.pingIntervalId); }
-        this.pingIntervalId = window.setInterval(() => { this.sendPing(); }, this.options.interval);
-    }
+  public dispose(): void {
+    if (this.isDisposed) return;
+    this.isDisposed = true;
+    this.stop();
+    this.logger.info('HeartbeatManager disposed');
+  }
 
-    private sendPing(): void {
-        if (!this.isStarted || this.isDisposed || !this.ws || this.ws.readyState !== WebSocket.OPEN) {
-            logger.warn('Skipping ping: Not started, disposed, or WebSocket not open.');
-            return;
-        }
-        if (this.pongTimeoutId !== null) { clearTimeout(this.pongTimeoutId); }
-        try {
-            const pingMessage = JSON.stringify({ type: 'ping', timestamp: Date.now() });
-            this.ws.send(pingMessage);
-            this.pongTimeoutId = window.setTimeout(() => { this.handlePongTimeout(); }, this.options.timeout);
-        } catch (error: any) { logger.error('Failed to send ping', { error: error.message }); }
-    }
-
-    private handlePongTimeout(): void {
-        this.pongTimeoutId = null;
-        if (!this.isStarted || this.isDisposed) return;
-        logger.error(`Heartbeat timeout: No response within ${this.options.timeout}ms.`);
-        this.stop();
-        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-            logger.warn('Closing WebSocket due to heartbeat timeout.');
-            this.ws.close(1001, 'Heartbeat Timeout');
-        }
-    }
-
-    public dispose(): void {
-        if(this.isDisposed) return;
-        this.isDisposed = true;
-        this.stop();
-        logger.info("HeartbeatManager disposed.");
-    }
-
-     [Symbol.dispose](): void { this.dispose(); }
+  [Symbol.dispose](): void {
+    this.dispose();
+  }
 }

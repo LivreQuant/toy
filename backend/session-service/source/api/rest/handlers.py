@@ -1,6 +1,6 @@
 """
-REST API request handlers.
-Implements the handlers for the REST API endpoints.
+Simplified REST API request handlers.
+Implements the handlers for the core session and simulator control endpoints.
 """
 import logging
 import json
@@ -8,633 +8,249 @@ import time
 from aiohttp import web
 from opentelemetry import trace
 
-from source.utils.metrics import track_rest_request, track_session_operation, track_simulator_operation
+from source.utils.metrics import track_rest_request
 from source.utils.tracing import optional_trace_span
 
 logger = logging.getLogger('rest_handlers')
-
-# Create a tracer for the handlers
 _tracer = trace.get_tracer("rest_handlers")
 
-
-# Middleware function to track API metrics
-@web.middleware
-async def metrics_middleware(request, handler):
-    start_time = time.time()
-    method = request.method
-    route_name = request.match_info.route.name or 'unknown'
-
-    try:
-        response = await handler(request)
-        duration = time.time() - start_time
-        track_rest_request(method, route_name, response.status, duration)
-        return response
-    except Exception as e:
-        duration = time.time() - start_time
-        track_rest_request(method, route_name, 500, duration)
-        raise
-
-
+# --- Helper to get token ---
 async def get_token_from_request(request):
-    """
-    Extract token from request headers or query parameters
-
-    Args:
-        request: HTTP request
-
-    Returns:
-        Token string or None
-    """
-    # Try Authorization header
+    """Extract token from Authorization header."""
     auth_header = request.headers.get('Authorization')
     if auth_header and auth_header.startswith('Bearer '):
         return auth_header[7:]
-
-    # Try query parameter
-    token = request.query.get('token')
-    if token:
-        return token
-
-    # Try POST body (for JSON requests)
-    content_type = request.headers.get('Content-Type', '')
-    if 'application/json' in content_type and request.body_exists:
-        try:
-            data = await request.json()
-            if data and 'token' in data:
-                return data['token']
-        except:
-            pass
-
     return None
 
-async def handle_get_session_state(request):
-    """
-    Handle session state request to get simulator status and other session info
-    
-    Args:
-        request: HTTP request
-        
-    Returns:
-        JSON response with session state
-    """
-    with optional_trace_span(_tracer, "handle_get_session_state") as span:
-        session_manager = request.app['session_manager']
-        
-        # Get session ID and token from query params
-        session_id = request.query.get('sessionId')
-        token = request.query.get('token')
-        
-        span.set_attribute("session_id", session_id)
-        span.set_attribute("has_token", token is not None)
-        
-        if not session_id or not token:
-            span.set_attribute("error", "Missing sessionId or token")
-            return web.json_response({
-                'success': False,
-                'error': 'Missing sessionId or token'
-            }, status=400)
-        
-        # Validate session
-        user_id = await session_manager.validate_session(session_id, token)
-        span.set_attribute("user_id", user_id)
-        span.set_attribute("session_valid", user_id is not None)
-        
-        if not user_id:
-            span.set_attribute("error", "Invalid session or token")
-            return web.json_response({
-                'success': False,
-                'error': 'Invalid session or token'
-            }, status=401)
-        
-        # Get session details
-        session = await session_manager.get_session(session_id)
-        span.set_attribute("session_found", session is not None)
-        
-        if not session:
-            span.set_attribute("error", "Session not found")
-            return web.json_response({
-                'success': False,
-                'error': 'Session not found'
-            }, status=404)
-        
-        # Extract relevant state info
-        response_data = {
-            'success': True,
-            'sessionId': session_id,
-            'sessionCreatedAt': session.get('created_at', 0),
-            'lastActive': session.get('last_active', 0),
-        }
-        
-        # Add simulator info if available
-        simulator_id = None
-        simulator_status = 'UNKNOWN'
-        
-        if session.get('metadata') and isinstance(session.get('metadata'), dict):
-            metadata = session.get('metadata')
-            simulator_id = metadata.get('simulator_id')
-            simulator_status = metadata.get('simulator_status', 'UNKNOWN')
-        
-        response_data['simulatorId'] = simulator_id
-        response_data['simulatorStatus'] = simulator_status
-        
-        return web.json_response(response_data)
-
-# source/api/rest/handlers.py
-async def handle_session_ready(request):
-    """Session readiness check endpoint"""
-    session_manager = request.app['session_manager']
-    
-    # Get session ID from URL
-    session_id = request.match_info['session_id']
-    
-    # Get token from query params
-    token = request.query.get('token')
-    
-    if not token:
-        return web.json_response({
-            'success': False,
-            'status': 'unauthorized',
-            'message': 'Missing token'
-        }, status=401)
-    
-    # Validate session
-    user_id = await session_manager.validate_session(session_id, token)
-    
-    if not user_id:
-        return web.json_response({
-            'success': False,
-            'status': 'invalid',
-            'message': 'Invalid session or token'
-        }, status=401)
-    
-    # Get session details
-    session = await session_manager.get_session(session_id)
-    
-    if not session:
-        return web.json_response({
-            'success': False,
-            'status': 'not_found',
-            'message': 'Session not found'
-        }, status=404)
-    
-    # Return session readiness status
-    return web.json_response({
-        'success': True,
-        'status': 'ready',
-        'message': 'Session is ready for connection'
-    })
-
-async def handle_list_routes(request):
-    """Debug endpoint to list all registered routes"""
-    all_routes = []
-    for route in request.app.router.routes():
-        info = {
-            "method": route.method,
-            "path": route.resource.canonical if hasattr(route.resource, "canonical") else str(route.resource),
-            "handler": route.handler.__name__ if hasattr(route.handler, "__name__") else str(route.handler)
-        }
-        all_routes.append(info)
-    
-    return web.json_response({
-        "routes": all_routes,
-        "count": len(all_routes)
-    })
+# --- Session Handlers ---
 
 async def handle_create_session(request):
     """
-    Handle session creation request with deviceId in request body
-    and user info from Authorization header
+    Handle session creation request.
 
     Args:
         request: HTTP request
 
     Returns:
-        JSON response
+        JSON response with sessionId.
     """
     with optional_trace_span(_tracer, "handle_create_session") as span:
         session_manager = request.app['session_manager']
-
+        start_time = time.time()
         try:
-            # Log the raw request
-            body = await request.text()
-            logger.info(f"Received session creation request: {body}")
-
-            # Parse request body
             data = await request.json()
-
-            # Log parsed data
-            logger.info(f"Parsed request data: {data}")
-
-            # Extract deviceId from request
             device_id = data.get('deviceId')
-            span.set_attribute("device_id", device_id)
+            span.set_attribute("app.device_id", device_id)
 
             if not device_id:
-                span.set_attribute("error", "Missing deviceId")
-                return web.json_response({
-                    'success': False,
-                    'error': 'Missing deviceId'
-                }, status=400)
+                span.set_attribute("error.message", "Missing deviceId")
+                track_rest_request('POST', 'create_session', 400, time.time() - start_time)
+                return web.json_response({'success': False, 'error': 'Missing deviceId'}, status=400)
 
-            # Get token from Authorization header
-            auth_header = request.headers.get('Authorization')
-            if not auth_header or not auth_header.startswith('Bearer '):
-                span.set_attribute("error", "Missing or invalid Authorization header")
-                return web.json_response({
-                    'success': False,
-                    'error': 'Missing or invalid Authorization header'
-                }, status=401)
+            token = await get_token_from_request(request)
+            span.set_attribute("app.has_token", token is not None)
+            if not token:
+                span.set_attribute("error.message", "Missing Authorization token")
+                track_rest_request('POST', 'create_session', 401, time.time() - start_time)
+                return web.json_response({'success': False, 'error': 'Missing Authorization token'}, status=401)
 
-            token = auth_header[7:]  # Remove 'Bearer ' prefix
-            span.set_attribute("has_token", True)
-
-            # Validate token and extract user ID
+            # Validate token and get user ID
             token_validation = await session_manager.auth_client.validate_token(token)
-            logger.info(f"Token validation result: {token_validation}")
-
             if not token_validation.get('valid', False):
-                span.set_attribute("error", "Invalid token")
-                return web.json_response({
-                    'success': False,
-                    'error': 'Invalid token'
-                }, status=401)
+                span.set_attribute("error.message", "Invalid token")
+                track_rest_request('POST', 'create_session', 401, time.time() - start_time)
+                return web.json_response({'success': False, 'error': 'Invalid token'}, status=401)
 
             user_id = token_validation.get('userId')
-            span.set_attribute("user_id", user_id)
-
+            span.set_attribute("app.user_id", user_id)
             if not user_id:
-                span.set_attribute("error", "User ID not found in token")
-                return web.json_response({
-                    'success': False,
-                    'error': 'User ID not found in token'
-                }, status=401)
+                span.set_attribute("error.message", "User ID not found in token")
+                track_rest_request('POST', 'create_session', 401, time.time() - start_time)
+                return web.json_response({'success': False, 'error': 'User ID not found in token'}, status=401)
 
-            # Get client IP
             client_ip = request.remote
-            span.set_attribute("client_ip", client_ip)
+            span.set_attribute("net.peer.ip", client_ip)
 
-            # Create session with device_id
+            # Create session
             session_id, is_new = await session_manager.create_session(user_id, device_id, token, client_ip)
 
             if not session_id:
-                return web.json_response({
-                    'success': False,
-                    'error': 'Failed to create session'
-                }, status=500)
+                 span.set_attribute("error.message", "Failed to create session")
+                 track_rest_request('POST', 'create_session', 500, time.time() - start_time)
+                 return web.json_response({'success': False, 'error': 'Failed to create session'}, status=500)
 
-            span.set_attribute("session_id", session_id)
-            span.set_attribute("is_new", is_new)
-
-            return web.json_response({
-                'success': True,
-                'sessionId': session_id,
-                'isNew': is_new
-            })
+            span.set_attribute("app.session_id", session_id)
+            span.set_attribute("app.is_new", is_new)
+            track_rest_request('POST', 'create_session', 200, time.time() - start_time)
+            # Return only session ID as per simplification (isNew might be internal detail)
+            return web.json_response({'success': True, 'sessionId': session_id})
 
         except json.JSONDecodeError:
-            span.set_attribute("error", "Invalid JSON in request body")
-            return web.json_response({
-                'success': False,
-                'error': 'Invalid JSON in request body'
-            }, status=400)
+            span.set_attribute("error.message", "Invalid JSON")
+            track_rest_request('POST', 'create_session', 400, time.time() - start_time)
+            return web.json_response({'success': False, 'error': 'Invalid JSON in request body'}, status=400)
         except Exception as e:
-            logger.error(f"Error creating session: {e}")
+            logger.error(f"Error creating session: {e}", exc_info=True)
             span.record_exception(e)
-            return web.json_response({
-                'success': False,
-                'error': 'Server error'
-            }, status=500)
-
-async def handle_get_session(request):
-    """
-    Handle session retrieval request
-    
-    Args:
-        request: HTTP request
-        
-    Returns:
-        JSON response
-    """
-    with optional_trace_span(_tracer, "handle_get_session") as span:
-        session_manager = request.app['session_manager']
-
-        # Get session ID from URL
-        session_id = request.match_info['session_id']
-        span.set_attribute("session_id", session_id)
-
-        # Get token
-        token = await get_token_from_request(request)
-        span.set_attribute("has_token", token is not None)
-
-        if not token:
-            span.set_attribute("error", "Missing authentication token")
-            return web.json_response({
-                'success': False,
-                'error': 'Missing authentication token'
-            }, status=401)
-
-        # Validate session
-        user_id = await session_manager.validate_session(session_id, token)
-        span.set_attribute("user_id", user_id)
-        span.set_attribute("session_valid", user_id is not None)
-
-        if not user_id:
-            span.set_attribute("error", "Session not found")
-            return web.json_response({
-                'success': False,
-                'error': 'Invalid session or token'
-            }, status=401)
-
-        # Get session details
-        session = await session_manager.get_session(session_id)
-        span.set_attribute("session_found", session is not None)
-
-        if not session:
-            span.set_attribute("error", "Session not found")
-            return web.json_response({
-                'success': False,
-                'error': 'Session not found'
-            }, status=404)
-
-        # Return session details
-        track_session_operation("get")
-        return web.json_response({
-            'success': True,
-            'session': session
-        })
+            track_rest_request('POST', 'create_session', 500, time.time() - start_time)
+            return web.json_response({'success': False, 'error': 'Server error'}, status=500)
 
 async def handle_end_session(request):
     """
-    Handle session termination request
-    
+    Handle session termination request.
+
     Args:
         request: HTTP request
-        
+
     Returns:
-        JSON response
+        JSON response indicating success or failure.
     """
-    session_manager = request.app['session_manager']
+    with optional_trace_span(_tracer, "handle_end_session") as span:
+        session_manager = request.app['session_manager']
+        start_time = time.time()
+        try:
+            # End session requires sessionId and token, typically from request body or query/path
+            # Assuming body for DELETE based on previous structure
+            data = await request.json()
+            session_id = data.get('sessionId')
+            token = data.get('token') # Or get from Auth header
+            span.set_attribute("app.session_id", session_id)
+            span.set_attribute("app.has_token", token is not None)
 
-    try:
-        # Parse request body
-        data = await request.json()
+            if not session_id or not token:
+                 span.set_attribute("error.message", "Missing sessionId or token")
+                 track_rest_request('DELETE', 'end_session', 400, time.time() - start_time)
+                 return web.json_response({'success': False, 'error': 'Missing sessionId or token'}, status=400)
 
-        # Extract parameters
-        session_id = data.get('sessionId')
-        token = data.get('token')
+            # End session using SessionManager
+            success, error = await session_manager.end_session(session_id, token)
 
-        if not session_id or not token:
-            return web.json_response({
-                'success': False,
-                'error': 'Missing sessionId or token'
-            }, status=400)
+            if not success:
+                status_code = 401 if "Invalid session or token" in error else 400 # Or 500 for server errors
+                span.set_attribute("error.message", error)
+                track_rest_request('DELETE', 'end_session', status_code, time.time() - start_time)
+                return web.json_response({'success': False, 'error': error}, status=status_code)
 
-        # End session
-        success, error = await session_manager.end_session(session_id, token)
+            track_rest_request('DELETE', 'end_session', 200, time.time() - start_time)
+            return web.json_response({'success': True})
 
-        if not success:
-            return web.json_response({
-                'success': False,
-                'error': error
-            }, status=400)
+        except json.JSONDecodeError:
+            span.set_attribute("error.message", "Invalid JSON")
+            track_rest_request('DELETE', 'end_session', 400, time.time() - start_time)
+            return web.json_response({'success': False, 'error': 'Invalid JSON in request body'}, status=400)
+        except Exception as e:
+            logger.error(f"Error ending session {session_id}: {e}", exc_info=True)
+            span.record_exception(e)
+            track_rest_request('DELETE', 'end_session', 500, time.time() - start_time)
+            return web.json_response({'success': False, 'error': 'Server error'}, status=500)
 
-        return web.json_response({
-            'success': True
-        })
+# --- Simulator Handlers ---
 
-    except json.JSONDecodeError:
-        return web.json_response({
-            'success': False,
-            'error': 'Invalid JSON in request body'
-        }, status=400)
-    except Exception as e:
-        logger.error(f"Error ending session: {e}")
-        return web.json_response({
-            'success': False,
-            'error': 'Server error'
-        }, status=500)
-    
 async def handle_start_simulator(request):
     """
-    Handle simulator start request
-    
+    Handle simulator start request.
+
     Args:
         request: HTTP request
-        
-    Returns:
-        JSON response
-    """
-    session_manager = request.app['session_manager']
 
-    try:
-        # Get token from Authorization header
-        auth_header = request.headers.get('Authorization')
-        if not auth_header or not auth_header.startswith('Bearer '):
-            return web.json_response({
-                'success': False,
-                'error': 'Missing authorization token'
-            }, status=401)
-            
-        token = auth_header[7:]  # Remove 'Bearer ' prefix
-        
-        # Get session ID from query parameter
-        session_id = request.query.get('sessionId')
-        if not session_id:
-            return web.json_response({
-                'success': False,
-                'error': 'Missing sessionId parameter'
-            }, status=400)
-        
-        # Get symbols from query (optional)
-        symbols_param = request.query.get('symbols', '')
-        symbols = symbols_param.split(',') if symbols_param else []
-            
-        # Start simulator
-        simulator_id, endpoint, error = await session_manager.start_simulator(session_id, token, symbols)
-        
-        if error:
-            return web.json_response({
-                'success': False,
-                'error': error
-            }, status=400)
-        
-        return web.json_response({
-            'success': True,
-            'status': 'STARTING',
-            'simulatorId': simulator_id
-        })
-    except Exception as e:
-        logger.error(f"Error starting simulator: {e}")
-        return web.json_response({
-            'success': False, 
-            'error': 'Server error'
-        }, status=500)
+    Returns:
+        JSON response indicating success or failure.
+    """
+    with optional_trace_span(_tracer, "handle_start_simulator") as span:
+        session_manager = request.app['session_manager']
+        start_time = time.time()
+        try:
+            token = await get_token_from_request(request)
+            span.set_attribute("app.has_token", token is not None)
+            if not token:
+                span.set_attribute("error.message", "Missing Authorization token")
+                track_rest_request('GET', 'start_simulator', 401, time.time() - start_time)
+                return web.json_response({'success': False, 'error': 'Missing Authorization token'}, status=401)
+
+            # Session ID from query parameter
+            session_id = request.query.get('sessionId')
+            span.set_attribute("app.session_id", session_id)
+            if not session_id:
+                span.set_attribute("error.message", "Missing sessionId parameter")
+                track_rest_request('GET', 'start_simulator', 400, time.time() - start_time)
+                return web.json_response({'success': False, 'error': 'Missing sessionId parameter'}, status=400)
+
+            # Optional symbols from query parameter
+            symbols_param = request.query.get('symbols', '')
+            symbols = symbols_param.split(',') if symbols_param else None # Pass None if empty
+            span.set_attribute("app.symbols", symbols or [])
+
+            # Start simulator using SessionManager
+            # Returns (simulator_id, endpoint, error_message) - we only care about error here
+            _, _, error = await session_manager.start_simulator(session_id, token, symbols)
+
+            if error:
+                # Determine appropriate status code
+                status_code = 400
+                if "Invalid session" in error:
+                     status_code = 401
+                elif "limit reached" in error or "in progress" in error:
+                     status_code = 409 # Conflict
+                elif "Failed to create" in error or "Server error" in error:
+                     status_code = 500
+
+                span.set_attribute("error.message", error)
+                track_rest_request('GET', 'start_simulator', status_code, time.time() - start_time)
+                return web.json_response({'success': False, 'error': error}, status=status_code)
+
+            # Return simple success, status is communicated via WebSocket
+            track_rest_request('GET', 'start_simulator', 200, time.time() - start_time)
+            return web.json_response({'success': True, 'message': 'Simulator start initiated'})
+
+        except Exception as e:
+            logger.error(f"Error starting simulator for session {session_id}: {e}", exc_info=True)
+            span.record_exception(e)
+            track_rest_request('GET', 'start_simulator', 500, time.time() - start_time)
+            return web.json_response({'success': False, 'error': 'Server error'}, status=500)
 
 async def handle_stop_simulator(request):
     """
-    Handle simulator stop request without requiring simulator_id
-    
-    Args:
-        request: HTTP request
-        
-    Returns:
-        JSON response
-    """
-    session_manager = request.app['session_manager']
-
-    try:
-        # Parse request body
-        data = await request.json()
-
-        # Extract parameters - only need session_id and token
-        session_id = data.get('sessionId')
-        token = data.get('token')
-
-        if not session_id or not token:
-            return web.json_response({
-                'success': False,
-                'error': 'Missing sessionId or token'
-            }, status=400)
-
-        # Stop simulator
-        success, error = await session_manager.stop_simulator(session_id, token)
-
-        if not success:
-            return web.json_response({
-                'success': False,
-                'error': error
-            }, status=400)
-
-        return web.json_response({
-            'success': True
-        })
-
-    except json.JSONDecodeError:
-        return web.json_response({
-            'success': False,
-            'error': 'Invalid JSON in request body'
-        }, status=400)
-    except Exception as e:
-        logger.error(f"Error stopping simulator: {e}")
-        return web.json_response({
-            'success': False,
-            'error': 'Server error'
-        }, status=500)
-
-async def handle_get_simulator_status(request):
-    """
-    Handle simulator status request without requiring simulator_id
-    
-    Args:
-        request: HTTP request
-        
-    Returns:
-        JSON response
-    """
-    session_manager = request.app['session_manager']
-
-    # Get token and session ID from query params
-    token = request.query.get('token')
-    session_id = request.query.get('sessionId')
-
-    if not token or not session_id:
-        return web.json_response({
-            'success': False,
-            'error': 'Missing token or sessionId'
-        }, status=400)
-
-    # Validate session
-    user_id = await session_manager.validate_session(session_id, token)
-    if not user_id:
-        return web.json_response({
-            'success': False,
-            'error': 'Invalid session or token'
-        }, status=401)
-
-    # Get session to access simulator info
-    session = await session_manager.get_session(session_id)
-    if not session:
-        return web.json_response({
-            'success': False,
-            'error': 'Session not found'
-        }, status=404)
-    
-    # Check if this session has a simulator
-    simulator_id = session.get('metadata', {}).get('simulator_id')
-    if not simulator_id:
-        return web.json_response({
-            'success': True,
-            'status': 'NONE'  # No simulator exists
-        })
-
-    # Get status from the simulator manager
-    status = await session_manager.simulator_manager.get_simulator_status(simulator_id)
-
-    return web.json_response({
-        'success': True,
-        'status': status
-    })
-
-
-async def handle_reconnect_session(request):
-    """
-    Handle session reconnection request
+    Handle simulator stop request.
 
     Args:
         request: HTTP request
 
     Returns:
-        JSON response
+        JSON response indicating success or failure.
     """
-    session_manager = request.app['session_manager']
+    with optional_trace_span(_tracer, "handle_stop_simulator") as span:
+        session_manager = request.app['session_manager']
+        start_time = time.time()
+        try:
+            # Stop simulator requires sessionId and token
+            # Assuming body for DELETE based on previous structure
+            data = await request.json()
+            session_id = data.get('sessionId')
+            token = data.get('token') # Or get from Auth header
+            span.set_attribute("app.session_id", session_id)
+            span.set_attribute("app.has_token", token is not None)
 
-    try:
-        # Parse request body
-        data = await request.json()
+            if not session_id or not token:
+                 span.set_attribute("error.message", "Missing sessionId or token")
+                 track_rest_request('DELETE', 'stop_simulator', 400, time.time() - start_time)
+                 return web.json_response({'success': False, 'error': 'Missing sessionId or token'}, status=400)
 
-        # Extract parameters
-        session_id = data.get('sessionId')
-        device_id = data.get('deviceId')
-        attempt = data.get('attempt', 1)
+            # Stop simulator using SessionManager
+            success, error = await session_manager.stop_simulator(session_id, token)
 
-        if not session_id or not device_id:
-            return web.json_response({
-                'success': False,
-                'error': 'Missing sessionId or deviceId'
-            }, status=400)
+            if not success:
+                status_code = 400
+                if "Invalid session" in error:
+                     status_code = 401
+                elif "No active simulator" in error:
+                     status_code = 404 # Not found
+                elif "Server error" in error:
+                     status_code = 500
 
-        # Get token from Authorization header
-        auth_header = request.headers.get('Authorization')
-        if not auth_header or not auth_header.startswith('Bearer '):
-            return web.json_response({
-                'success': False,
-                'error': 'Missing or invalid Authorization header'
-            }, status=401)
+                span.set_attribute("error.message", error)
+                track_rest_request('DELETE', 'stop_simulator', status_code, time.time() - start_time)
+                return web.json_response({'success': False, 'error': error}, status=status_code)
 
-        token = auth_header[7:]  # Remove 'Bearer ' prefix
-
-        # Reconnect to session
-        session_data, error = await session_manager.reconnect_session(session_id, token, device_id, attempt)
-
-        if error:
-            return web.json_response({
-                'success': False,
-                'error': error
-            }, status=400)
-
-        return web.json_response({
-            'success': True,
-            'session': session_data
-        })
-
-    except json.JSONDecodeError:
-        return web.json_response({
-            'success': False,
-            'error': 'Invalid JSON in request body'
-        }, status=400)
-    except Exception as e:
-        logger.error(f"Error reconnecting session: {e}")
-        return web.json_response({
-            'success': False,
-            'error': 'Server error'
-        }, status=500)
+            # Return simple success, status is communicated via WebSocket
+            track_rest_request('DELETE', 'stop_simulator', 200, time.time() - start_time)
+            return web.json_response({'success': True, 'message':

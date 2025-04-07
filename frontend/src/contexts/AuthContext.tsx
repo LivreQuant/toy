@@ -7,6 +7,7 @@ import LoadingSpinner from '../components/Common/LoadingSpinner'; // Assuming co
 // --->>> ADD THIS IMPORT <<<---
 import { appState } from '../services/state/app-state.service'; // Adjust path as needed
 import { getLogger } from '../boot/logging'; // Adjust path as needed
+import { DeviceIdManager } from '../utils/device-id-manager';
 
 const logger = getLogger('AuthContext'); // Initialize logger for this context
 
@@ -78,7 +79,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, tokenManag
   const login = useCallback(async (credentials: LoginRequest): Promise<boolean> => {
     logger.info('Attempting login...');
     setIsAuthLoading(true);
-    // Update global state to show loading
     appState.updateAuthState({ isAuthLoading: true, lastAuthError: null });
 
     try {
@@ -96,26 +96,25 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, tokenManag
       tokenManager.storeTokens(tokenData);
       logger.info('Tokens stored');
 
-      // ------------------------------------------------------------------
-      // 3. --->>> UPDATE GLOBAL APP STATE <<<---
-      // This informs ConnectionManager and other services.
-      logger.info('Updating global app state to authenticated');
+      // Ensure device ID is registered with the session
+      const deviceId = DeviceIdManager.getInstance().getDeviceId();
+      logger.info(`Using device ID for this session: ${deviceId}`);
+
+      // Update global app state
       appState.updateAuthState({
         isAuthenticated: true,
-        isAuthLoading: false, // Set loading to false!
+        isAuthLoading: false,
         userId: response.userId,
         lastAuthError: null,
       });
-      // ------------------------------------------------------------------
 
-      // 4. Update local context state
+      // Update local context state
       setIsAuthenticated(true);
       setUserId(response.userId);
       setIsAuthLoading(false);
       logger.info('AuthContext state updated');
 
-      return true; // Login success
-
+      return true;
     } catch (error: any) {
       logger.error("Login failed", { error: error.message });
       tokenManager.clearTokens(); // Ensure tokens are cleared
