@@ -281,17 +281,18 @@ class SessionManager:
             except Exception as e:
                 logger.error(f"Error in simulator heartbeat task: {e}")
                 await asyncio.sleep(5)  # Shorter interval on error
-                    
-    async def create_session(self, user_id: str, device_id: str, token: str, ip_address: Optional[str] = None) -> Tuple[Optional[str], bool]:
+
+    async def create_session(self, user_id: str, device_id: str, token: str, ip_address: Optional[str] = None) -> Tuple[
+        Optional[str], bool]:
         """
         Create a new session for a user with device ID
-        
+
         Args:
-            user_id: The user ID
+            user_id: The user ID (extracted from the token)
             device_id: The device ID
             token: Authentication token
             ip_address: Client IP address
-            
+
         Returns:
             Tuple of (session_id, is_new)
         """
@@ -300,37 +301,19 @@ class SessionManager:
             span.set_attribute("device_id", device_id)
             span.set_attribute("ip_address", ip_address)
 
-            # Validate token
-            validation = await self.auth_client.validate_token(token)
-
-            if not validation.get('valid', False):
-                logger.warning(f"Invalid token for user {user_id}")
-                span.set_attribute("token_valid", False)
-                return None, False
-
-            # Make sure user in token matches provided user_id
-            token_user_id = validation.get('userId')
-            span.set_attribute("token_user_id", token_user_id)
-
-            if token_user_id != user_id:
-                logger.warning(f"Token user_id {token_user_id} doesn't match provided user_id {user_id}")
-                span.set_attribute("user_id_match", False)
-                span.set_attribute("error", "User ID mismatch")
-                return None, False
-
             try:
                 # Check for existing sessions for this user
                 active_sessions = await self.db_manager.get_active_user_sessions(user_id)
-                
+
                 # If user already has active sessions, end them
                 for session in active_sessions:
                     await self.db_manager.end_session(session.session_id)
                     logger.info(f"Ended previous session {session.session_id} for user {user_id}")
-                    
+
                     # If there was a simulator running, stop it
                     if hasattr(session.metadata, 'simulator_id') and session.metadata.simulator_id:
                         await self.stop_simulator(session.session_id, token, force=True)
-                
+
                 # Create new session
                 session_id, is_new = await self.db_manager.create_session(user_id, ip_address)
 
@@ -363,7 +346,7 @@ class SessionManager:
                 track_session_count(active_sessions)
 
                 return session_id, is_new
-                
+
             except Exception as e:
                 logger.error(f"Error creating session: {e}")
                 span.record_exception(e)
@@ -389,51 +372,55 @@ class SessionManager:
         except Exception as e:
             logger.error(f"Error getting session: {e}")
             return None
-    
-    async def validate_session(self, session_id: str, token: str) -> Optional[str]:
+
+    async def validate_session(self, session_id: str, token: str, device_id: Optional[str] = None) -> Optional[str]:
         """
         Validate session and token
-        
+
         Args:
             session_id: The session ID
             token: Authentication token
-            
+            device_id: Optional device ID to validate
+
         Returns:
             User ID if valid, None otherwise
         """
         # Validate token
         validation = await self.auth_client.validate_token(token)
 
-        logger.info(f"VALIDATION RESULTS: {validation}")
-        
         if not validation.get('valid', False):
             logger.warning(f"Invalid token for session {session_id}")
             return None
-        
+
         # Get user ID from token validation
         user_id = validation.get('userId')
-        
+
         # Get session from database
         session = await self.db_manager.get_session(session_id)
-        
+
         if not session:
             logger.warning(f"Session {session_id} not found")
             return None
-        
+
         # Check if session belongs to user
         if session.user_id != user_id:
             logger.warning(f"Session {session_id} does not belong to user {user_id}")
             return None
-        
+
         # Check if session is expired
         if session.is_expired():
             logger.warning(f"Session {session_id} has expired")
             return None
-        
+
+        # If device_id provided, validate it matches
+        if device_id and hasattr(session.metadata, 'device_id') and session.metadata.device_id != device_id:
+            logger.warning(f"Device ID mismatch for session {session_id}")
+            return None
+
         # Update session activity
         session.update_activity()
         await self.db_manager.update_session_activity(session_id)
-        
+
         return user_id
         
     async def update_session_activity(self, session_id: str) -> bool:

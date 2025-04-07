@@ -202,11 +202,12 @@ async def handle_list_routes(request):
 
 async def handle_create_session(request):
     """
-    Handle session creation request with device_id
-    
+    Handle session creation request with deviceId in request body
+    and user info from Authorization header
+
     Args:
         request: HTTP request
-        
+
     Returns:
         JSON response
     """
@@ -214,26 +215,59 @@ async def handle_create_session(request):
         session_manager = request.app['session_manager']
 
         try:
-            # Get device_id from URL
-            device_id = request.match_info['device_id']
-            span.set_attribute("device_id", device_id)
+            # Log the raw request
+            body = await request.text()
+            logger.info(f"Received session creation request: {body}")
 
             # Parse request body
             data = await request.json()
 
-            # Extract parameters
-            user_id = data.get('userId')
-            token = data.get('token')
+            # Log parsed data
+            logger.info(f"Parsed request data: {data}")
 
-            span.set_attribute("user_id", user_id)
-            span.set_attribute("has_token", token is not None)
+            # Extract deviceId from request
+            device_id = data.get('deviceId')
+            span.set_attribute("device_id", device_id)
 
-            if not user_id or not token or not device_id:
-                span.set_attribute("error", "Missing userId, token, or device_id")
+            if not device_id:
+                span.set_attribute("error", "Missing deviceId")
                 return web.json_response({
                     'success': False,
-                    'error': 'Missing userId, token, or device_id'
+                    'error': 'Missing deviceId'
                 }, status=400)
+
+            # Get token from Authorization header
+            auth_header = request.headers.get('Authorization')
+            if not auth_header or not auth_header.startswith('Bearer '):
+                span.set_attribute("error", "Missing or invalid Authorization header")
+                return web.json_response({
+                    'success': False,
+                    'error': 'Missing or invalid Authorization header'
+                }, status=401)
+
+            token = auth_header[7:]  # Remove 'Bearer ' prefix
+            span.set_attribute("has_token", True)
+
+            # Validate token and extract user ID
+            token_validation = await session_manager.auth_client.validate_token(token)
+            logger.info(f"Token validation result: {token_validation}")
+
+            if not token_validation.get('valid', False):
+                span.set_attribute("error", "Invalid token")
+                return web.json_response({
+                    'success': False,
+                    'error': 'Invalid token'
+                }, status=401)
+
+            user_id = token_validation.get('userId')
+            span.set_attribute("user_id", user_id)
+
+            if not user_id:
+                span.set_attribute("error", "User ID not found in token")
+                return web.json_response({
+                    'success': False,
+                    'error': 'User ID not found in token'
+                }, status=401)
 
             # Get client IP
             client_ip = request.remote
@@ -541,35 +575,43 @@ async def handle_get_simulator_status(request):
         'status': status
     })
 
+
 async def handle_reconnect_session(request):
     """
     Handle session reconnection request
-    
+
     Args:
         request: HTTP request
-        
+
     Returns:
         JSON response
     """
     session_manager = request.app['session_manager']
-
-    # Get device_id from URL
-    device_id = request.match_info['device_id']
 
     try:
         # Parse request body
         data = await request.json()
 
         # Extract parameters
-        token = data.get('token')
         session_id = data.get('sessionId')
+        device_id = data.get('deviceId')
         attempt = data.get('attempt', 1)
 
-        if not token or not session_id:
+        if not session_id or not device_id:
             return web.json_response({
                 'success': False,
-                'error': 'Missing token or sessionId'
+                'error': 'Missing sessionId or deviceId'
             }, status=400)
+
+        # Get token from Authorization header
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return web.json_response({
+                'success': False,
+                'error': 'Missing or invalid Authorization header'
+            }, status=401)
+
+        token = auth_header[7:]  # Remove 'Bearer ' prefix
 
         # Reconnect to session
         session_data, error = await session_manager.reconnect_session(session_id, token, device_id, attempt)

@@ -19,9 +19,9 @@ def setup_rest_routes(app):
         app: The web application
     """
     # Session routes
-    app.router.add_post('/api/sessions/{device_id}', handle_create_session)
+    app.router.add_post('/api/sessions', handle_create_session)
     app.router.add_delete('/api/sessions', handle_end_session)
-    app.router.add_post('/api/sessions/{device_id}/reconnect', handle_reconnect_session)
+    app.router.add_post('/api/reconnect', handle_reconnect_session)
     
     app.router.add_get('/debug/routes', handle_list_routes)
 

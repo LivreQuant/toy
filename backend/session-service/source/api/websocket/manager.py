@@ -22,11 +22,11 @@ logger = logging.getLogger('websocket_manager')
 
 class WebSocketManager:
     """Manages WebSocket connections for sessions"""
-    
+
     def __init__(self, session_manager, redis_client=None):
         """
         Initialize WebSocket manager
-        
+
         Args:
             session_manager: Session manager instance
             redis_client: Optional Redis client for session coordination
@@ -35,8 +35,9 @@ class WebSocketManager:
         self.redis = redis_client
         self.connections = {}  # session_id -> set of ws connections
         self.connection_info = {}  # ws -> connection info
-        self.protocol = WebSocketProtocol(session_manager)
-        
+        # Initialize protocol handler here, passing self.session_manager
+        self.protocol = WebSocketProtocol(self.session_manager, self) # Pass self
+
         # Start cleanup task
         self.cleanup_task = asyncio.create_task(self._cleanup_stale_connections())
 
@@ -61,49 +62,51 @@ class WebSocketManager:
             query = request.query
             session_id = query.get('sessionId')
             token = query.get('token')
+            device_id = query.get('deviceId')
 
             span.set_attribute("session_id", session_id)
             span.set_attribute("has_token", token is not None)
+            span.set_attribute("device_id", device_id)
 
-            if not session_id or not token:
-                error_msg = "Missing sessionId or token"
+            if not session_id or not token or not device_id:
+                error_msg = "Missing sessionId, token, or deviceId"
                 span.set_attribute("error", error_msg)
                 await ws.send_json({
                     'type': 'error',
-                    'error': 'Missing sessionId or token'
+                    'error': error_msg
                 })
                 await ws.close(code=1008, message=b'Missing parameters')
                 track_websocket_error("missing_parameters")
                 return ws
 
-            # Validate session
-            user_id = await self.session_manager.validate_session(session_id, token)
+            # Validate session and get user_id
+            user_id = await self.session_manager.validate_session(session_id, token, device_id) # Pass device_id here
 
             span.set_attribute("user_id", user_id)
             span.set_attribute("session_valid", user_id is not None)
 
             if not user_id:
-                error_msg = "Invalid session or token"
+                error_msg = "Invalid session, token, or deviceId" # Updated error message
                 span.set_attribute("error", error_msg)
                 await ws.send_json({
                     'type': 'error',
-                    'error': 'Invalid session or token'
+                    'error': error_msg
                 })
-                await ws.close(code=1008, message=b'Invalid session')
-                track_websocket_error("invalid_session")
+                await ws.close(code=1008, message=b'Invalid session or device')
+                track_websocket_error("invalid_session_or_device")
                 return ws
 
             # Register connection
             client_id = request.query.get('clientId', f"client-{time.time()}")
             span.set_attribute("client_id", client_id)
 
-            await self._register_connection(ws, session_id, user_id, client_id)
+            await self._register_connection(ws, session_id, user_id, client_id, device_id)
 
-            # Send connected message
+            # Send connected message (Removed sessionId)
             await ws.send_json({
                 'type': 'connected',
-                'sessionId': session_id,
                 'clientId': client_id,
+                'deviceId': device_id, # Keep deviceId for client-side reference if needed
                 'podName': config.kubernetes.pod_name,
                 'timestamp': int(time.time() * 1000)
             })
@@ -129,14 +132,14 @@ class WebSocketManager:
                 await self._unregister_connection(ws)
 
             return ws
-    
-    async def _register_connection(self, ws, session_id, user_id, client_id):
+
+    async def _register_connection(self, ws, session_id, user_id, client_id, device_id):
         """Register a new WebSocket connection"""
-        # Add to connections dict
         with optional_trace_span(self.tracer, "register_websocket_connection") as span:
-            span.set_attribute("session_id", session_id)
+            span.set_attribute("session_id", session_id) # Keep for internal tracing
             span.set_attribute("user_id", user_id)
             span.set_attribute("client_id", client_id)
+            span.set_attribute("device_id", device_id)
 
             if session_id not in self.connections:
                 self.connections[session_id] = set()
@@ -148,6 +151,7 @@ class WebSocketManager:
                 'session_id': session_id,
                 'user_id': user_id,
                 'client_id': client_id,
+                'device_id': device_id,
                 'connected_at': time.time(),
                 'last_activity': time.time()
             }
@@ -177,50 +181,51 @@ class WebSocketManager:
                     'session_id': session_id,
                     'user_id': user_id,
                     'client_id': client_id,
+                    'device_id': device_id,
                     'pod_name': config.kubernetes.pod_name,
                     'timestamp': time.time()
                 }))
 
-            logger.info(f"Registered WebSocket connection for session {session_id}, client {client_id}")
+            logger.info(
+                f"Registered WebSocket connection for session {session_id}, client {client_id}, device {device_id}")
 
     async def _unregister_connection(self, ws):
         """Unregister a WebSocket connection"""
-        # Get connection info
         conn_info = self.connection_info.pop(ws, None)
-        
+
         if not conn_info:
             return
-        
+
         session_id = conn_info['session_id']
         client_id = conn_info['client_id']
         user_id = conn_info['user_id']
-        
+
         # Remove from connections dict
         if session_id in self.connections:
             self.connections[session_id].discard(ws)
-            
-            # Stop market data stream if needed
+
+            # Stop exchange data stream if this was the last connection for the session
             if not self.connections[session_id]:
-                await self.protocol.stop_market_data_stream(session_id)
-                
-                # Remove empty session
+                await self.protocol.stop_exchange_data_stream(session_id) # Use renamed method
+
+                # Remove empty session entry
                 del self.connections[session_id]
-        
+
         # Update session metadata
         connections_count = len(self.connections.get(session_id, set()))
         await self.session_manager.db_manager.update_session_metadata(session_id, {
             'frontend_connections': connections_count,
             'last_ws_disconnection': time.time()
         })
-        
+
         # Update Redis if available
         if self.redis:
             await self.redis.set(
-                f"connection:{session_id}:ws_count", 
+                f"connection:{session_id}:ws_count",
                 connections_count,
                 ex=3600  # 1 hour expiry
             )
-            
+
             # Publish disconnection event
             await self.redis.publish('session_events', json.dumps({
                 'type': 'client_disconnected',
@@ -230,61 +235,71 @@ class WebSocketManager:
                 'pod_name': config.kubernetes.pod_name,
                 'timestamp': time.time()
             }))
-        
+
+        # Update metrics
+        total_connections = sum(len(conns) for conns in self.connections.values())
+        track_websocket_connection_count(total_connections)
+
         logger.info(f"Unregistered WebSocket connection for session {session_id}, client {client_id}")
+
 
     async def _process_message(self, ws, message_data):
         """Process an incoming WebSocket message"""
-        # Get connection info
         conn_info = self.connection_info.get(ws)
         if not conn_info:
             logger.warning("Received message from unknown connection")
             return
-        
+
         # Update last activity time
         conn_info['last_activity'] = time.time()
-        
+
         # Forward to protocol handler
         await self.protocol.process_message(
-            ws, 
-            conn_info['session_id'], 
-            conn_info['user_id'], 
+            ws,
+            conn_info['session_id'],
+            conn_info['user_id'],
             conn_info['client_id'],
             message_data
         )
-    
+
     async def broadcast_to_session(self, session_id, message):
         """
         Broadcast a message to all connections for a session
-        
+
         Args:
             session_id: Session ID to broadcast to
             message: Message to broadcast (dict or string)
         """
         if session_id not in self.connections:
             return
-        
+
         # Prepare message
         if isinstance(message, dict):
+            # Ensure sensitive IDs are not in the message before broadcasting
+            message.pop('sessionId', None)
+            message.pop('simulatorId', None)
             data = json.dumps(message)
         else:
+            # Cannot easily filter string messages, assume they are safe or avoid broadcasting strings
             data = message
-        
+
         # Send to all connections
         for ws in list(self.connections.get(session_id, set())):
             try:
                 if not ws.closed:
                     await ws.send_str(data)
             except Exception as e:
-                logger.error(f"Error broadcasting to WebSocket: {e}")
-    
+                logger.error(f"Error broadcasting to WebSocket for session {session_id}: {e}")
+
+
     async def close_all_connections(self, reason="Server shutting down"):
         """
         Close all active WebSocket connections
-        
+
         Args:
             reason: Reason for closure
         """
+        logger.info(f"Closing all WebSocket connections. Reason: {reason}")
         # Send close message to all connections
         for session_id, connections in list(self.connections.items()):
             for ws in list(connections):
@@ -296,43 +311,49 @@ class WebSocketManager:
                         })
                         await ws.close(code=1001, message=reason.encode())
                 except Exception as e:
-                    logger.error(f"Error closing WebSocket: {e}")
-        
+                    logger.error(f"Error closing WebSocket for session {session_id}: {e}")
+
         # Clear connection tracking
         self.connections.clear()
         self.connection_info.clear()
-        
+
+        # Update metrics
+        track_websocket_connection_count(0)
+
         # Cancel cleanup task
-        if hasattr(self, 'cleanup_task'):
+        if hasattr(self, 'cleanup_task') and self.cleanup_task:
             self.cleanup_task.cancel()
             try:
                 await self.cleanup_task
             except asyncio.CancelledError:
                 pass
-    
+        logger.info("Finished closing WebSocket connections.")
+
+
     async def _cleanup_stale_connections(self):
         """Periodically clean up stale connections"""
         while True:
             try:
                 # Sleep first to avoid immediate cleanup
                 await asyncio.sleep(60)  # Check every minute
-                
+
                 # Find stale connections
                 current_time = time.time()
                 stale_connections = []
-                
+
                 for ws, info in list(self.connection_info.items()):
-                    # Check last activity time (3x heartbeat interval)
+                    # Check last activity time (e.g., 3x heartbeat interval)
                     inactivity = current_time - info.get('last_activity', 0)
                     max_inactivity = config.websocket.heartbeat_interval * 3
-                    
+
                     if inactivity > max_inactivity:
                         stale_connections.append(ws)
-                
+
                 # Close stale connections
                 for ws in stale_connections:
                     if not ws.closed:
                         try:
+                            logger.info(f"Closing stale WebSocket connection for session {self.connection_info.get(ws, {}).get('session_id')}")
                             await ws.send_json({
                                 'type': 'timeout',
                                 'error': 'Connection timeout due to inactivity'
@@ -340,14 +361,15 @@ class WebSocketManager:
                             await ws.close(code=1001, message=b'Connection timeout')
                         except Exception as e:
                             logger.error(f"Error closing stale connection: {e}")
-                    
-                    # Make sure it's unregistered
+
+                    # Make sure it's unregistered if pop failed earlier or connection was already closed
                     await self._unregister_connection(ws)
-                
+
                 if stale_connections:
                     logger.info(f"Cleaned up {len(stale_connections)} stale WebSocket connections")
-                
+
             except asyncio.CancelledError:
+                logger.info("WebSocket cleanup task cancelled.")
                 break
             except Exception as e:
                 logger.error(f"Error in WebSocket cleanup task: {e}")
