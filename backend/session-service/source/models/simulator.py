@@ -8,8 +8,11 @@ from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
 from enum import Enum
 
+
+# In source/models/simulator.py
 class SimulatorStatus(str, Enum):
     """Simulator status enum"""
+    NONE = "NONE"  # Added this
     CREATING = "CREATING"
     STARTING = "STARTING"
     RUNNING = "RUNNING"

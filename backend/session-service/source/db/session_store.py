@@ -222,6 +222,37 @@ class DatabaseManager:
                 track_db_error("get_active_user_sessions")
                 return []
 
+    async def get_all_simulators(self):
+        """Get all simulators from the database"""
+        if not self.pool:
+            await self.connect()
+
+        try:
+            async with self.pool.acquire() as conn:
+                rows = await conn.fetch('''
+                    SELECT * FROM simulator.instances
+                ''')
+
+                simulators = []
+                for row in rows:
+                    simulator = Simulator(
+                        simulator_id=row['simulator_id'],
+                        session_id=row['session_id'],
+                        user_id=row['user_id'],
+                        status=SimulatorStatus(row['status']),
+                        endpoint=row['endpoint'],
+                        created_at=row['created_at'].timestamp(),
+                        last_active=row['last_active'].timestamp(),
+                        initial_symbols=row['initial_symbols'] or [],
+                        initial_cash=row['initial_cash']
+                    )
+                    simulators.append(simulator)
+
+                return simulators
+        except Exception as e:
+            logger.error(f"Error getting all simulators: {e}")
+            return []
+
     async def get_active_sessions(self) -> List[Session]:
         """Get all active sessions"""
         with optional_trace_span(self.tracer, "db_get_active_sessions") as span:
