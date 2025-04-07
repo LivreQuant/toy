@@ -1,3 +1,4 @@
+/* src/components/Common/ConnectionStatus.css */
 .connection-indicator {
     display: flex;
     align-items: center;
@@ -6,116 +7,143 @@
     margin-bottom: 10px;
     background-color: #f5f5f5;
     border: 1px solid #ddd;
+    transition: background-color 0.3s ease, border-color 0.3s ease; /* Smooth transitions */
+    font-size: 0.95em; /* Slightly larger base size */
   }
-  
+
   .indicator-icon {
     margin-right: 12px;
-    font-size: 20px;
+    font-size: 1.2em; /* Slightly larger icon */
+    flex-shrink: 0; /* Prevent icon from shrinking */
   }
-  
+
   .indicator-text {
     display: flex;
     flex-direction: column;
+    flex-grow: 1; /* Allow text to take available space */
+    overflow: hidden; /* Prevent long text from overflowing */
   }
-  
+
   .status-text {
     font-weight: bold;
     margin-bottom: 4px;
+    white-space: nowrap; /* Prevent status text wrap */
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
-  
+
   .simulator-status {
-    font-size: 0.85em;
-    color: #666;
+    font-size: 0.9em; /* Relative to parent */
+    color: #555; /* Slightly darker grey */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
-  
-  /* Connection status classes */
-  .good {
-    background-color: #e6f7e6;
-    border-color: #c3e6c3;
-  }
-  
-  .degraded {
-    background-color: #fff8e1;
-    border-color: #ffe082;
-  }
-  
-  .poor {
-    background-color: #ffebee;
-    border-color: #ffcdd2;
-  }
-  
-  .disconnected {
+
+  /* --- Status Styles --- */
+
+  /* Disconnected / Unknown (Default) */
+  .connection-indicator.disconnected,
+  .connection-indicator.unknown {
     background-color: #f5f5f5;
     border-color: #ddd;
-    color: #999;
+    color: #777; /* Grey text */
   }
-  
-  .connecting {
-    background-color: #e3f2fd;
+   .connection-indicator.disconnected .indicator-icon,
+   .connection-indicator.unknown .indicator-icon {
+     color: #9e9e9e; /* Grey icon */
+   }
+
+  /* Connecting / Recovering */
+  .connection-indicator.connecting,
+  .connection-indicator.recovering {
+    background-color: #e3f2fd; /* Light blue */
     border-color: #bbdefb;
+    color: #1e88e5; /* Blue text */
   }
-  
-  .unknown {
-    background-color: #f5f5f5;
-    border-color: #ddd;
+   .connection-indicator.connecting .indicator-icon,
+   .connection-indicator.recovering .indicator-icon {
+     color: #2196f3; /* Material blue icon */
+   }
+   /* Add spinning animation to icon if desired for connecting/recovering */
+
+
+  /* Connected - Quality Based */
+  .connection-indicator.good {
+    background-color: #e8f5e9; /* Light green */
+    border-color: #c8e6c9;
+    color: #388e3c; /* Darker green text */
   }
-  
-  /* Simulator status classes */
-  .running {
-    color: #4caf50;
+  .connection-indicator.good .indicator-icon {
+     color: #4caf50; /* Material green icon */
+   }
+
+  .connection-indicator.degraded {
+    background-color: #fff8e1; /* Light yellow */
+    border-color: #ffecb3;
+    color: #ffa000; /* Amber text */
   }
-  
-  .starting {
-    color: #2196f3;
+   .connection-indicator.degraded .indicator-icon {
+     color: #ffc107; /* Material amber icon */
+   }
+
+  .connection-indicator.poor {
+    background-color: #ffebee; /* Light red */
+    border-color: #ffcdd2;
+    color: #d32f2f; /* Darker red text */
   }
-  
-  .stopping {
-    color: #ff9800;
-  }
-  
-  .stopped {
-    color: #757575;
-  }
-  
-  .error {
-    color: #f44336;
-  }
-  
+   .connection-indicator.poor .indicator-icon {
+     color: #f44336; /* Material red icon */
+   }
+
+
+  /* --- Simulator Status Text Colors --- */
+  /* These apply to the span inside .indicator-text */
+  .simulator-status.running { color: #4caf50; font-weight: 500; }
+  .simulator-status.starting { color: #2196f3; font-style: italic; }
+  .simulator-status.stopping { color: #ff9800; font-style: italic; }
+  .simulator-status.stopped { color: #757575; }
+  .simulator-status.error { color: #f44336; font-weight: 500; }
+  .simulator-status.unknown { color: #9e9e9e; }
+
+
+  /* --- Action Buttons/Spinners --- */
   .reconnect-button {
-    margin-left: auto;
+    margin-left: auto; /* Push to the right */
     padding: 5px 10px;
     border-radius: 4px;
-    background-color: #2196f3;
+    background-color: #2196f3; /* Material blue */
     color: white;
     border: none;
     cursor: pointer;
     font-size: 0.9em;
+    white-space: nowrap;
+    transition: background-color 0.2s;
   }
-  
   .reconnect-button:hover {
-    background-color: #0d8bf2;
+    background-color: #1976d2; /* Darker blue */
   }
-  
+   .reconnect-button:disabled {
+      background-color: #90caf9;
+      cursor: not-allowed;
+   }
+
   .recovery-progress {
-    margin-left: auto;
+    margin-left: auto; /* Push to the right */
     display: flex;
     align-items: center;
+    padding-left: 10px; /* Space from text */
   }
-  
+
   .recovery-spinner {
     width: 16px;
     height: 16px;
     border: 2px solid rgba(0, 0, 0, 0.1);
-    border-top-color: #2196f3;
+    border-top-color: #2196f3; /* Match reconnect button color */
     border-radius: 50%;
     animation: spin 1s linear infinite;
   }
-  
-  .recovering {
-    background-color: #e3f2fd;
-    border-color: #bbdefb;
-  }
-  
+
   @keyframes spin {
     to { transform: rotate(360deg); }
   }

@@ -10,15 +10,15 @@ export interface SimulatorStatusResponse {
 
 export class SimulatorApi {
   private client: HttpClient;
-  
+
   constructor(client: HttpClient) {
     this.client = client;
   }
-  
+
   async startSimulator(): Promise<SimulatorStatusResponse> {
     return this.client.get<SimulatorStatusResponse>('/simulators');
   }
-  
+
   async stopSimulator(): Promise<SimulatorStatusResponse> {
     return this.client.delete<SimulatorStatusResponse>('/simulators');
   }
