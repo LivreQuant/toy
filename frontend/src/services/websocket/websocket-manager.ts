@@ -12,16 +12,16 @@ import { TypedEventEmitter } from '../../utils/typed-event-emitter';
 import { getLogger } from '../../boot/logging';
 import {
   WebSocketMessage,
-  ServerHeartbeatMessage, // Use specific type
-  isServerHeartbeatMessage, // Use specific type guard
+  ServerHeartbeatMessage,
+  isServerHeartbeatMessage,
   isExchangeDataMessage,
   isOrderUpdateMessage,
   isResponseMessage,
-  ResponseMessage, // Import ResponseMessage type
+  ResponseMessage,
   SessionInvalidatedMessage,
   PortfolioDataMessage,
   RiskDataMessage,
-  isPortfolioDataMessage, // Import missing type guards if needed
+  isPortfolioDataMessage,
   isRiskDataMessage,
   isSessionInvalidatedMessage,
   isSessionReadyResponseMessage
@@ -29,7 +29,7 @@ import {
 import {
   appState,
   ConnectionStatus,
-  ConnectionQuality // FIX: Import ConnectionQuality
+  ConnectionQuality
 } from '../state/app-state.service';
 import { HeartbeatManager } from './heartbeat-manager';
 
@@ -56,7 +56,7 @@ interface PendingResponse {
   resolve: (value: any) => void;
   reject: (reason?: any) => void;
   timeoutId: number;
-  requestTime: number; // Store when request was sent for timeout measurement
+  requestTime: number;
 }
 
 
@@ -66,11 +66,12 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
   private webSocket: WebSocket | null = null;
   private heartbeatManager: HeartbeatManager | null = null;
   private isDisposed: boolean = false;
-  // FIX: Use PendingResponse type
   private pendingResponses: Map<string, PendingResponse> = new Map();
   private options: Required<WebSocketOptions>;
   private connectionStatus$ = new BehaviorSubject<ConnectionStatus>(ConnectionStatus.DISCONNECTED);
-  private readonly responseTimeoutMs = 15000; // Example: 15 second timeout for responses
+  // FIX: Add subscriptions property
+  private subscriptions = new Subscription();
+  private readonly responseTimeoutMs = 15000;
 
   constructor(
     tokenManager: TokenManager,
@@ -142,14 +143,12 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
         const ws = this.webSocket;
         const openHandler = () => {
             this.logger.info("WebSocket onopen event.");
-            if (ws === this.webSocket) {
-               this.handleConnectionOpen();
-               resolve(true);
-            } else { this.logger.warn("onopen event for outdated WebSocket."); }
+            if (ws === this.webSocket) { this.handleConnectionOpen(); resolve(true); }
+            else { this.logger.warn("onopen event for outdated WebSocket."); }
             cleanup();
         };
         const closeHandler = (event: CloseEvent) => {
-             this.logger.warn(`WebSocket onclose event. Code: ${event.code}`);
+             this.logger.warn(`WebSocket onclose event. Code: ${event.code}, Reason: "${event.reason}"`);
             if (ws === this.webSocket) {
                 this.handleConnectionClose(event);
                 if (this.connectionStatus$.getValue() === ConnectionStatus.CONNECTING) resolve(false);
@@ -174,7 +173,6 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
         ws.addEventListener('open', openHandler);
         ws.addEventListener('close', closeHandler);
         ws.addEventListener('error', errorHandler);
-        // FIX: Ensure 'this' context is correct for handleMessage
         ws.addEventListener('message', this.handleMessage);
       });
 
@@ -186,20 +184,13 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
     }
   }
 
-   // FIX: Add public disconnect method
    public disconnect(reason: string = 'manual'): void {
       this.logger.warn(`Disconnect requested. Reason: ${reason}`);
       if (this.webSocket) {
-         // Simulate a clean close event if called manually
-         const event = new CloseEvent('close', {
-            code: 1000, // Normal closure
-            reason: reason,
-            wasClean: true
-         });
-         this.handleConnectionClose(event); // Trigger cleanup and state update
+         const event = new CloseEvent('close', { code: 1000, reason: reason, wasClean: true });
+         this.handleConnectionClose(event);
       } else {
          this.logger.info('Disconnect called but no active WebSocket connection.');
-         // Ensure state is disconnected if somehow it wasn't already
          if (this.connectionStatus$.getValue() !== ConnectionStatus.DISCONNECTED) {
              this.updateStateOnError(`Disconnected: ${reason}`);
          }
@@ -210,33 +201,36 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
     if (this.isDisposed || event.currentTarget !== this.webSocket) return;
 
     try {
-      const message = JSON.parse(event.data) as WebSocketMessage;
-      this.logger.debug(`Received WebSocket message type: ${message.type}`, { requestId: message.requestId });
+      const message = JSON.parse(event.data) as WebSocketMessage; // Assume parse is successful initially
+      this.logger.debug(`Received WebSocket message type: ${message?.type}`, { requestId: message?.requestId });
 
+      // Emit generic message event *before* specific handlers
       this.emit('message', message);
 
-      // FIX: Use specific type guard
+      // --- Handle specific message types ---
       if (isServerHeartbeatMessage(message)) {
         this.handleHeartbeatMessage(message);
-      // FIX: Check for ResponseMessage and call handler
       } else if (isResponseMessage(message)) {
-        this.handleResponseMessage(message); // Call implemented handler
+        this.handleResponseMessage(message);
       } else if (isExchangeDataMessage(message)) {
         this.emit('exchange_data', message.data.symbols);
-      // FIX: Use imported type guards if needed
       } else if (isPortfolioDataMessage(message)) {
           this.emit('portfolio_data', message.data);
       } else if (isRiskDataMessage(message)) {
            this.emit('risk_data', message.data);
       } else if (isOrderUpdateMessage(message)) {
         this.emit('order_update', message.data);
-      // FIX: Use imported type guards if needed
       } else if (isSessionInvalidatedMessage(message)) {
           this.emit('session_invalidated', { reason: message.reason || 'Unknown reason' });
       } else if (isSessionReadyResponseMessage(message)) {
            this.emit('session_ready_response', message);
       } else {
-           this.logger.warn(`Unhandled WebSocket message type: ${message.type}`);
+           // FIX: Check message structure before accessing .type
+           if (typeof message === 'object' && message && 'type' in message) {
+               this.logger.warn(`Unhandled WebSocket message type: ${message.type}`);
+           } else {
+               this.logger.error('Received unhandled WebSocket message with unknown structure', { data: message });
+           }
       }
 
     } catch (error: any) {
@@ -258,8 +252,8 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
     if (!this.heartbeatManager && this.webSocket) {
         this.heartbeatManager = new HeartbeatManager({
           ws: this.webSocket,
-          // FIX: Cast 'this' if TS still complains after TypedEventEmitter logger fix (unlikely needed now)
-          eventEmitter: this, // as TypedEventEmitter<any>,
+          // FIX: Type 'this' should be assignable now with protected logger
+          eventEmitter: this,
           options: {
             interval: this.options.heartbeatInterval,
             timeout: this.options.heartbeatTimeout
@@ -274,7 +268,7 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
     this.logger.warn(`WebSocket connection closed. Code: ${event.code}, Reason: "${event.reason}", Clean: ${event.wasClean}`);
 
     if (this.heartbeatManager) {
-      this.heartbeatManager.dispose(); // Use dispose if available, otherwise stop
+      this.heartbeatManager.dispose();
       this.heartbeatManager = null;
     }
 
@@ -282,24 +276,19 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
     appState.updateConnectionState({
         webSocketStatus: ConnectionStatus.DISCONNECTED,
         lastConnectionError: errorReason,
-        // FIX: Import and use ConnectionQuality
         quality: ConnectionQuality.UNKNOWN,
         heartbeatLatency: null,
     });
     this.connectionStatus$.next(ConnectionStatus.DISCONNECTED);
 
     this.cleanupWebSocket();
-    // FIX: Use implemented clearPendingResponses
     this.clearPendingResponses(`connection_closed_${event.code}`);
   }
 
   private handleConnectionError(event: Event): void {
     if (this.isDisposed) return;
     this.logger.error('WebSocket connection error event occurred.', { event });
-    appState.updateConnectionState({
-        // Don't change status here, let onclose handle it
-        lastConnectionError: 'WebSocket error occurred'
-     });
+    appState.updateConnectionState({ lastConnectionError: 'WebSocket error occurred' });
     AppErrorHandler.handleConnectionError('WebSocket connection error', ErrorSeverity.MEDIUM, 'WebSocketManagerErrorEvent');
   }
 
@@ -307,7 +296,6 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
        appState.updateConnectionState({
            webSocketStatus: ConnectionStatus.DISCONNECTED,
            lastConnectionError: errorMessage,
-           // FIX: Import and use ConnectionQuality
            quality: ConnectionQuality.UNKNOWN,
            heartbeatLatency: null,
        });
@@ -328,31 +316,28 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
          this.webSocket = null;
       }
       if (this.heartbeatManager) {
-           this.heartbeatManager.dispose(); // Use dispose if available
+           this.heartbeatManager.dispose();
            this.heartbeatManager = null;
        }
    }
 
-  // FIX: Implement handleResponseMessage
   private handleResponseMessage(message: ResponseMessage): void {
       const { requestId, success, data, error } = message;
       const pending = this.pendingResponses.get(requestId);
 
       if (pending) {
-          clearTimeout(pending.timeoutId); // Clear the timeout
-          this.pendingResponses.delete(requestId); // Remove from map
+          clearTimeout(pending.timeoutId);
+          this.pendingResponses.delete(requestId);
 
           const duration = Date.now() - pending.requestTime;
           this.logger.debug(`Received response for request ${requestId} in ${duration}ms. Success: ${success}`);
 
           if (success) {
-              pending.resolve(data); // Resolve the promise with data
+              pending.resolve(data);
           } else {
               const errorMessage = error?.message || 'Request failed with no error message';
               this.logger.error(`Request ${requestId} failed`, { error });
-              // Reject the promise with an error object
               const errorObj = new Error(errorMessage);
-              // Attach details if needed
               (errorObj as any).code = error?.code;
               pending.reject(errorObj);
           }
@@ -361,7 +346,6 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
       }
   }
 
-  // FIX: Implement clearPendingResponses
   private clearPendingResponses(reason: string): void {
       if (this.pendingResponses.size === 0) return;
 
@@ -374,7 +358,6 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
   }
 
 
-  // FIX: Use correct type ServerHeartbeatMessage and complete last line
   private handleHeartbeatMessage(message: ServerHeartbeatMessage): void {
     if (this.isDisposed) return;
     this.heartbeatManager?.handleHeartbeatResponse();
@@ -383,13 +366,12 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
     const latency = message.timestamp ? (now - message.timestamp) : -1;
 
      this.emit('heartbeat', {
-       timestamp: message.timestamp || now, // Use now if server didn't send timestamp
+       timestamp: message.timestamp || now,
        latency: latency >= 0 ? latency : -1,
        simulatorStatus: message.simulatorStatus,
-       deviceId: message.deviceId // FIX: Complete property access
+       deviceId: message.deviceId
      });
 
-     // Update AppState directly with quality based on latency
       const quality = appState.calculateConnectionQuality(latency);
       appState.updateConnectionState({
          lastHeartbeatTime: now,
@@ -397,20 +379,13 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
          quality: quality,
          ...(message.simulatorStatus && { simulatorStatus: message.simulatorStatus })
       });
-  } // FIX: Add closing brace for the method
+  }
 
   // --- Sending Messages & Handling Responses ---
-
-  // Example: Send a message expecting a response
-  public async sendRequest<T>(
-        type: string,
-        payload: any,
-        timeout: number = this.responseTimeoutMs
-    ): Promise<T> {
+  public async sendRequest<T>(type: string, payload: any, timeout: number = this.responseTimeoutMs): Promise<T> {
         if (!this.webSocket || this.webSocket.readyState !== WebSocket.OPEN) {
             throw new Error("WebSocket not connected");
         }
-
         const requestId = `${type}-${Date.now()}-${Math.random().toString(16).substring(2, 8)}`;
         const message = { type, payload, requestId };
 
@@ -422,9 +397,7 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
                     reject(new Error(`Request timed out after ${timeout}ms`));
                 }
             }, timeout);
-
             this.pendingResponses.set(requestId, { resolve, reject, timeoutId, requestTime: Date.now() });
-
             try {
                 this.logger.debug(`Sending request ${requestId} (type: ${type})`);
                 this.webSocket?.send(JSON.stringify(message));
@@ -437,12 +410,9 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
         });
     }
 
-   // Example: Send a message without expecting a response
    public sendMessage(type: string, payload?: any): void {
       if (!this.webSocket || this.webSocket.readyState !== WebSocket.OPEN) {
           this.logger.error(`Failed to send message type ${type}: WebSocket not connected.`);
-          // Optionally throw an error or handle silently
-          // throw new Error("WebSocket not connected");
           return;
       }
       try {
@@ -451,24 +421,23 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
          this.webSocket.send(message);
       } catch (error: any) {
          this.logger.error(`Error sending message type ${type}`, { error: error.message });
-         // Handle serialization errors etc.
       }
    }
-
 
   // --- Disposable Implementation ---
   public dispose(): void {
     if (this.isDisposed) return;
     this.logger.warn('Disposing WebSocketManager...');
     this.isDisposed = true;
-    this.disconnect('manager_disposed'); // Trigger cleanup via disconnect
-    this.removeAllListeners(); // Clean up TypedEventEmitter listeners
-    this.subscriptions.unsubscribe(); // Clean up internal RxJS subscriptions
-    this.connectionStatus$.complete(); // Complete the subject
+    this.disconnect('manager_disposed');
+    this.removeAllListeners();
+    // FIX: Unsubscribe from subscriptions
+    this.subscriptions.unsubscribe();
+    this.connectionStatus$.complete();
     this.logger.info('WebSocketManager disposed.');
   }
 
   [Symbol.dispose](): void {
     this.dispose();
   }
-} // FIX: Add closing brace for the class
+}

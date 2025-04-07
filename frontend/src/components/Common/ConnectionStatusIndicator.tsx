@@ -1,4 +1,4 @@
-// src/components/Common/ConnectionStatusIndicator.tsx (Corrected Import)
+// src/components/Common/ConnectionStatusIndicator.tsx
 import React from 'react';
 // Import Enums from AppStateService (or a dedicated types file)
 import { ConnectionStatus, ConnectionQuality, AppState } from '../../services/state/app-state.service';
@@ -14,37 +14,35 @@ const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps> = ({ s
   // Destructure directly from the passed state object
   const {
     overallStatus,
-    connectionQuality,
+    quality, // FIX: Use 'quality' instead of 'connectionQuality'
     simulatorStatus,
     isRecovering,
     recoveryAttempt,
     heartbeatLatency,
+    lastConnectionError, // Get last error message
   } = state;
 
   const getStatusText = () => {
     switch (overallStatus) {
       case ConnectionStatus.CONNECTED:
-        // Show quality only when connected
-        return `Connected (${connectionQuality})`;
+        return `Connected (${quality})`; // Use quality directly
       case ConnectionStatus.CONNECTING:
         return 'Connecting...';
       case ConnectionStatus.RECOVERING:
-        // Display attempt number if available and > 0
         const attemptText = recoveryAttempt && recoveryAttempt > 0 ? ` (Attempt ${recoveryAttempt})` : '';
         return `Reconnecting${attemptText}...`;
       case ConnectionStatus.DISCONNECTED:
-        return 'Disconnected';
+         // Show error message if available and disconnected
+         return `Disconnected${lastConnectionError ? `: ${lastConnectionError.substring(0, 50)}` : ''}${lastConnectionError && lastConnectionError.length > 50 ? '...' : ''}`; // Truncate long errors
       default:
-        // Ensure TS knows this case is handled (or throw error)
         const exhaustiveCheck: never = overallStatus;
         return 'Unknown';
     }
   };
 
   const getQualityClass = () => {
-      // Determine CSS class based on quality, only relevant when connected
-      if (overallStatus !== ConnectionStatus.CONNECTED) return 'unknown'; // Default class if not connected
-      switch(connectionQuality) {
+      if (overallStatus !== ConnectionStatus.CONNECTED) return 'unknown';
+      switch(quality) { // FIX: Use 'quality'
           case ConnectionQuality.GOOD: return 'good';
           case ConnectionQuality.DEGRADED: return 'degraded';
           case ConnectionQuality.POOR: return 'poor';
@@ -53,37 +51,51 @@ const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps> = ({ s
       }
   }
 
-  // Determine the main CSS class based on the overall status
   const getStatusClass = () => {
      switch (overallStatus) {
-        case ConnectionStatus.CONNECTED: return getQualityClass(); // Use quality class when connected
+        case ConnectionStatus.CONNECTED: return getQualityClass();
         case ConnectionStatus.CONNECTING: return 'connecting';
         case ConnectionStatus.RECOVERING: return 'recovering';
         case ConnectionStatus.DISCONNECTED: return 'disconnected';
-        default: return 'unknown'; // Default for any unexpected status
+        default: return 'unknown';
      }
   }
 
-  // Get CSS class for simulator status text color
   const getSimulatorStatusClass = () => {
-     // Use lowercase status name, ensure it matches CSS class names
      return simulatorStatus?.toLowerCase() ?? 'unknown';
   }
 
-  // Determine if the manual reconnect button should be shown
-  // Show if explicitly disconnected, not currently recovering, and handler provided
   const showReconnectButton = overallStatus === ConnectionStatus.DISCONNECTED && !isRecovering && !!onManualReconnect;
 
+  // Determine title/tooltip text for the indicator
+  const getTooltipText = () => {
+     let text = `Status: ${overallStatus}`;
+     if (overallStatus === ConnectionStatus.CONNECTED) {
+         text += ` | Quality: ${quality}`;
+         if (typeof heartbeatLatency === 'number' && heartbeatLatency >= 0) {
+             text += ` | Latency: ${heartbeatLatency.toFixed(0)}ms`;
+         }
+     }
+     if (overallStatus === ConnectionStatus.RECOVERING && recoveryAttempt > 0) {
+         text += ` | Attempt: ${recoveryAttempt}`;
+     }
+     text += ` | Simulator: ${simulatorStatus}`;
+     if (overallStatus === ConnectionStatus.DISCONNECTED && lastConnectionError) {
+         text += ` | Error: ${lastConnectionError}`;
+     }
+     return text;
+  }
+
   return (
-    <div className={`connection-indicator ${getStatusClass()}`}>
-       {/* Use appropriate icons based on status */}
+    <div className={`connection-indicator ${getStatusClass()}`} title={getTooltipText()}>
+       {/* Icons can be improved with an icon library */}
        <span className="indicator-icon">
           {overallStatus === ConnectionStatus.CONNECTED && '🟢'}
           {overallStatus === ConnectionStatus.CONNECTING && '🟡'}
           {/* Show spinner inline when recovering */}
           {overallStatus === ConnectionStatus.RECOVERING && <div className="recovery-spinner" title={`Reconnecting Attempt ${recoveryAttempt}`}></div>}
           {overallStatus === ConnectionStatus.DISCONNECTED && '🔴'}
-          {/* Fallback icon for Unknown status */}
+          {/* Fallback icon */}
           {overallStatus !== ConnectionStatus.CONNECTED &&
            overallStatus !== ConnectionStatus.CONNECTING &&
            overallStatus !== ConnectionStatus.RECOVERING &&
@@ -92,13 +104,10 @@ const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps> = ({ s
       <div className="indicator-text">
         <span className="status-text">{getStatusText()}</span>
         <span className={`simulator-status ${getSimulatorStatusClass()}`}>
-            {/* Conditionally show simulator status and latency */}
             Simulator: {simulatorStatus}
-            {/* Show latency only when connected and latency is available */}
-            {overallStatus === ConnectionStatus.CONNECTED && typeof heartbeatLatency === 'number' && heartbeatLatency >= 0 && ` (Latency: ${heartbeatLatency.toFixed(0)}ms)`}
+            {overallStatus === ConnectionStatus.CONNECTED && typeof heartbeatLatency === 'number' && heartbeatLatency >= 0 && ` (${heartbeatLatency.toFixed(0)}ms)`}
         </span>
       </div>
-      {/* Show reconnect button only when disconnected and not already recovering */}
        {showReconnectButton && (
            <button
                onClick={onManualReconnect}
@@ -108,6 +117,12 @@ const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps> = ({ s
                Reconnect
            </button>
        )}
+       {/* Optional: Show spinner without button when recovering */}
+       {/* {isRecovering && !showReconnectButton && (
+           <div className="recovery-progress">
+               <div className="recovery-spinner"></div>
+           </div>
+       )} */}
     </div>
   );
 };

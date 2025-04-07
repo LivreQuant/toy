@@ -1,36 +1,38 @@
+// src/components/Simulator/OrderEntryForm.tsx
 import React, { useState, useEffect } from 'react';
 import { useConnection } from '../../hooks/useConnection';
 import { useToast } from '../../hooks/useToast';
-import { OrderSide, OrderType } from '../../api/order'; // Import types
+import { OrderSide, OrderType } from '../../api/order';
+// Import ConnectionStatus if needed for comparison
+import { ConnectionStatus } from '../../services/state/app-state.service';
 // Add specific CSS for this form if needed: import './OrderEntryForm.css';
 
 const OrderEntryForm: React.FC = () => {
+  // Get connectionManager instance and the state slice
   const { connectionManager, connectionState } = useConnection();
   const { addToast } = useToast();
 
-  const [symbol, setSymbol] = useState('BTC/USD'); // Default or fetched symbol
+  const [symbol, setSymbol] = useState('BTC/USD');
   const [side, setSide] = useState<OrderSide>('BUY');
   const [type, setType] = useState<OrderType>('LIMIT');
   const [quantity, setQuantity] = useState<number | string>('');
   const [price, setPrice] = useState<number | string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const isConnected = connectionState?.isConnected ?? false;
+  // FIX: Derive isConnected from connectionState status
+  const isConnected = connectionState?.overallStatus === ConnectionStatus.CONNECTED;
   const isSimulatorRunning = connectionState?.simulatorStatus === 'RUNNING';
+  // Combine checks for enabling submission
   const canSubmit = isConnected && isSimulatorRunning;
 
-  // Reset form when connection/simulator stops
   useEffect(() => {
     if (!canSubmit) {
-      // Optionally clear form fields or just disable submission
-      // setSymbol(''); // etc.
       setIsSubmitting(false);
     }
   }, [canSubmit]);
 
   const handleQuantityChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
-    // Allow empty string or positive numbers
     if (value === '' || /^\d*\.?\d*$/.test(value)) {
        setQuantity(value);
     }
@@ -38,7 +40,6 @@ const OrderEntryForm: React.FC = () => {
 
    const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
      const value = e.target.value;
-     // Allow empty string or positive numbers for price if LIMIT order
      if (value === '' || /^\d*\.?\d*$/.test(value)) {
         setPrice(value);
      }
@@ -46,6 +47,7 @@ const OrderEntryForm: React.FC = () => {
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
+    // Use derived canSubmit state
     if (!canSubmit || isSubmitting) return;
 
     const numQuantity = parseFloat(quantity.toString());
@@ -55,11 +57,15 @@ const OrderEntryForm: React.FC = () => {
       addToast('error', 'Invalid quantity.');
       return;
     }
-    if (type === 'LIMIT' && (isNaN(numPrice as number) || (numPrice as number) <= 0)) {
+    if (type === 'LIMIT' && (numPrice === undefined || isNaN(numPrice) || numPrice <= 0)) {
        addToast('error', 'Invalid limit price.');
        return;
     }
-
+    // Ensure connectionManager is available
+    if (!connectionManager) {
+         addToast('error', 'Connection Manager not available.');
+         return;
+    }
 
     setIsSubmitting(true);
     addToast('info', `Submitting ${side} ${type} order for ${numQuantity} ${symbol}...`);
@@ -75,22 +81,26 @@ const OrderEntryForm: React.FC = () => {
 
       if (result.success) {
         addToast('success', `Order submitted successfully! ID: ${result.orderId}`);
-        // Clear form on success
         setQuantity('');
         setPrice('');
       } else {
         addToast('error', `Order submission failed: ${result.error || 'Unknown reason'}`);
       }
     } catch (error: any) {
-      addToast('error', `Order submission error: ${error.message}`);
+      addToast('error', `Order submission error: ${error.message || 'An unexpected error occurred'}`);
+      console.error("Order submission exception:", error); // Log full error for debugging
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  // Add basic CSS classes for buttons if not using a UI library
+  const getButtonClass = (isActive: boolean) => {
+     return `order-button ${isActive ? 'active' : ''}`;
+  }
+
   return (
-    <form onSubmit={handleSubmit}>
-      {/* Symbol Input/Selector (can be enhanced) */}
+    <form onSubmit={handleSubmit} className="order-entry-form">
       <div className="form-group">
         <label htmlFor="symbol">Symbol</label>
         <input
@@ -103,33 +113,28 @@ const OrderEntryForm: React.FC = () => {
         />
       </div>
 
-      {/* Side Selection */}
-      <div className="form-group">
+      <div className="form-group button-group">
         <label>Side</label>
         <div>
-          <button type="button" onClick={() => setSide('BUY')} className={side === 'BUY' ? 'active' : ''} disabled={!canSubmit || isSubmitting}>Buy</button>
-          <button type="button" onClick={() => setSide('SELL')} className={side === 'SELL' ? 'active' : ''} disabled={!canSubmit || isSubmitting}>Sell</button>
-          {/* Add specific styling for active button */}
+          <button type="button" onClick={() => setSide('BUY')} className={getButtonClass(side === 'BUY')} disabled={!canSubmit || isSubmitting}>Buy</button>
+          <button type="button" onClick={() => setSide('SELL')} className={getButtonClass(side === 'SELL')} disabled={!canSubmit || isSubmitting}>Sell</button>
         </div>
       </div>
 
-       {/* Type Selection */}
-      <div className="form-group">
+       <div className="form-group button-group">
         <label>Type</label>
         <div>
-           <button type="button" onClick={() => setType('LIMIT')} className={type === 'LIMIT' ? 'active' : ''} disabled={!canSubmit || isSubmitting}>Limit</button>
-           <button type="button" onClick={() => setType('MARKET')} className={type === 'MARKET' ? 'active' : ''} disabled={!canSubmit || isSubmitting}>Market</button>
+           <button type="button" onClick={() => setType('LIMIT')} className={getButtonClass(type === 'LIMIT')} disabled={!canSubmit || isSubmitting}>Limit</button>
+           <button type="button" onClick={() => setType('MARKET')} className={getButtonClass(type === 'MARKET')} disabled={!canSubmit || isSubmitting}>Market</button>
         </div>
       </div>
 
-
-      {/* Quantity Input */}
       <div className="form-group">
         <label htmlFor="quantity">Quantity</label>
         <input
           id="quantity"
-          type="text" // Use text to allow intermediate decimal points
-          inputMode="decimal" // Hint for mobile keyboards
+          type="text"
+          inputMode="decimal"
           value={quantity}
           onChange={handleQuantityChange}
           placeholder="0.00"
@@ -138,7 +143,6 @@ const OrderEntryForm: React.FC = () => {
         />
       </div>
 
-       {/* Price Input (Conditional for LIMIT orders) */}
        {type === 'LIMIT' && (
          <div className="form-group">
              <label htmlFor="price">Limit Price</label>
@@ -150,15 +154,19 @@ const OrderEntryForm: React.FC = () => {
                 onChange={handlePriceChange}
                 placeholder="0.00"
                 disabled={!canSubmit || isSubmitting}
-                required={type === 'LIMIT'}
+                required={type === 'LIMIT'} // Required only for limit orders
              />
          </div>
        )}
 
-      <button type="submit" disabled={!canSubmit || isSubmitting}>
+      <button type="submit" disabled={!canSubmit || isSubmitting} className="submit-button">
         {isSubmitting ? 'Submitting...' : `Submit ${side} Order`}
       </button>
-      {!canSubmit && <p style={{fontSize: '0.9em', color: '#777', marginTop: '10px'}}>Connect and start simulator to trade.</p>}
+      {!canSubmit && (
+          <p className="form-note">
+              { !isConnected ? "Connect to enable trading." : "Start the simulator to enable trading."}
+          </p>
+      )}
     </form>
   );
 };
