@@ -1,192 +1,228 @@
 // src/api/http-client.ts
 import { TokenManager } from '../services/auth/token-manager';
 import { config } from '../config';
-import { toastService } from '../services/notification/toast-service';
+import { AppErrorHandler } from '../utils/app-error-handler';
+import { ErrorSeverity } from '../utils/error-handler';
+import { getLogger } from '../boot/logging';
+import { EnhancedLogger } from '../utils/enhanced-logger';
 
 export interface RequestOptions extends RequestInit {
   skipAuth?: boolean;
-  retries?: number;
-  suppressErrorToast?: boolean;
-  customErrorMessage?: string;
+  retries?: number; // Used internally for retrying after token refresh or server error
+  suppressErrorToast?: boolean; // Flag to suppress automatic error toasts
+  customErrorMessage?: string; // Custom message for error handling
+  context?: string; // Optional context string for logging/error reporting
 }
+
 
 export class HttpClient {
   private readonly baseUrl: string;
   private readonly tokenManager: TokenManager;
-  private readonly maxRetries: number = 3;
-  
+  private readonly maxRetries: number = 2; // Max retries for 5xx errors
+  private readonly logger: EnhancedLogger = getLogger('HttpClient');
+
   constructor(tokenManager: TokenManager) {
     this.baseUrl = config.apiBaseUrl;
     this.tokenManager = tokenManager;
   }
-  
+
+  // Public methods (no changes needed here, they call the private request method)
   public async get<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
     return this.request<T>('GET', endpoint, undefined, options);
   }
-  
   public async post<T>(endpoint: string, data?: any, options: RequestOptions = {}): Promise<T> {
     return this.request<T>('POST', endpoint, data, options);
   }
-  
   public async put<T>(endpoint: string, data?: any, options: RequestOptions = {}): Promise<T> {
     return this.request<T>('PUT', endpoint, data, options);
   }
-  
   public async delete<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
     return this.request<T>('DELETE', endpoint, undefined, options);
   }
-  
+
+
+  // FIX: Define expected parameters based on internal calls
   private async request<T>(
-    method: string, 
-    endpoint: string, 
-    data?: any, 
+    method: string,
+    endpoint: string,
+    data?: any,
     options: RequestOptions = {},
-    retryCount = 0
+    retryCount: number = 0 // Internal counter for retries
   ): Promise<T> {
-    const url = `${this.baseUrl}${endpoint}`;
-    
-    // Setup request headers
-    const headers = new Headers(options.headers);
-    
-    // Add auth token if needed
-    if (!options.skipAuth) {
+      /* --- FULL IMPLEMENTATION IS MISSING --- */
+      // This is a placeholder structure based on the error handling logic below.
+      // The actual fetch call, header setup, body stringification, etc., needs to be here.
+      // It must handle the promise returned by fetch and either resolve with T or throw.
+
+      const url = `${this.baseUrl}${endpoint}`;
+      const headers = new Headers(options.headers || {});
+      headers.append('Content-Type', 'application/json');
+      // Add Authorization header if needed
+      if (!options.skipAuth) {
+          const token = await this.tokenManager.getAccessToken(); // Handles refresh internally
+          if (!token) {
+              throw new Error("Not authenticated"); // Or handle redirect
+          }
+          headers.append('Authorization', `Bearer ${token}`);
+      }
+
+      const fetchOptions: RequestInit = {
+          ...options,
+          method: method,
+          headers: headers,
+          body: data ? JSON.stringify(data) : undefined,
+      };
+
       try {
-        const token = await this.tokenManager.getAccessToken();
-        if (token) {
-          headers.set('Authorization', `Bearer ${token}`);
-        }
-      } catch (authError) {
-        this.handleError('Authentication failed', options);
-        throw authError;
+          const response = await fetch(url, fetchOptions);
+
+          if (!response.ok) {
+              // Delegate HTTP status code errors to the handler
+              return await this.handleHttpErrorResponse<T>(response, method, endpoint, data, options, retryCount);
+          }
+
+          // Handle successful responses
+          if (response.status === 204) { // No Content
+             // Type assertion needed as response body is empty
+              return undefined as unknown as T;
+          }
+
+          // Assuming successful responses return JSON
+          const responseData = await response.json();
+          return responseData as T;
+
+      } catch (networkError: any) {
+          // Delegate network errors (fetch failure) to the other handler
+          return await this.handleNetworkOrFetchError<T>(networkError, method, endpoint, data, options, retryCount);
       }
-    }
-    
-    // Add content type for JSON if not specified
-    if (data && !headers.has('Content-Type')) {
-      headers.set('Content-Type', 'application/json');
-    }
-    
-    // Build request options
-    const requestOptions: RequestInit = {
-      ...options,
-      method,
-      headers,
-      body: data ? JSON.stringify(data) : undefined,
-      credentials: 'include',
-    };
-    
-    try {
-      const response = await fetch(url, requestOptions);
-      
-      // Handle successful responses
-      if (response.ok) {
-        const contentType = response.headers.get('content-type');
-        if (contentType && contentType.includes('application/json')) {
-          return await response.json();
-        }
-        return {} as T;
-      }
-      
-      // Handle error responses
-      return this.handleErrorResponse<T>(
-        response, 
-        method, 
-        endpoint, 
-        options, 
-        retryCount
-      );
-      
-    } catch (error) {
-      return this.handleNetworkError<T>(
-        error, 
-        method, 
-        endpoint, 
-        options, 
-        retryCount
-      );
-    }
+
+      // --- END OF MISSING IMPLEMENTATION PLACEHOLDER ---
   }
-  
-  private async handleErrorResponse<T>(
-    response: Response, 
-    method: string, 
-    endpoint: string, 
+
+
+  private async handleHttpErrorResponse<T>(
+    response: Response,
+    method: string,
+    endpoint: string,
+    data: any, // Include data for potential retries
     options: RequestOptions,
     retryCount: number
   ): Promise<T> {
-    let errorMessage = `HTTP error! status: ${response.status}`;
-    
+    let errorMessage = options.customErrorMessage || `HTTP Error ${response.status}: ${response.statusText}`;
+    let errorSeverity = ErrorSeverity.MEDIUM; // Default severity
+    let errorDetails: any = null;
     try {
-      // Try to parse error details from response
-      const errorData = await response.json();
-      errorMessage = errorData.message || errorData.error || errorMessage;
-    } catch {
-      // Fallback to status text if JSON parsing fails
-      errorMessage = response.statusText || errorMessage;
+        // Attempt to parse error details from the response body
+        errorDetails = await response.json();
+        // Use detailed message from API if available
+        if (typeof errorDetails?.message === 'string') {
+          errorMessage = errorDetails.message;
+        } else if (typeof errorDetails?.error === 'string') {
+           errorMessage = errorDetails.error;
+        }
+    } catch (e) {
+        // Ignore if body isn't valid JSON or empty
+        this.logger.debug('Could not parse error response body as JSON', { status: response.status, endpoint });
     }
-    
-    // Handle 401 Unauthorized - attempt token refresh
-    if (response.status === 401 && !options.skipAuth) {
+
+    const errorContext = options.context || `HttpClient.${method}.${endpoint.replace('/', '')}`;
+
+    // --- Specific Status Code Handling ---
+    if (response.status === 401 && !options.skipAuth && retryCount < 1) { // Only retry 401 once
+       this.logger.warn('Received 401 Unauthorized, attempting token refresh...', { endpoint });
       try {
         const refreshed = await this.tokenManager.refreshAccessToken();
-        if (refreshed && retryCount < 1) {
-          return this.request<T>(method, endpoint, options.body, options, retryCount + 1);
+        if (refreshed) {
+           this.logger.info('Token refresh successful, retrying original request.', { endpoint });
+           // FIX: Pass 5 arguments to request
+           return this.request<T>(method, endpoint, data, options, retryCount + 1);
+        } else {
+            this.logger.error('Token refresh failed after 401.', { endpoint });
+             errorMessage = options.customErrorMessage || 'Session expired or invalid. Please log in again.';
+             errorSeverity = ErrorSeverity.HIGH;
+             AppErrorHandler.handleAuthError(errorMessage, errorSeverity, errorContext + '.RefreshFailed', { details: errorDetails });
+             throw new Error(errorMessage); // Throw after handling
         }
-      } catch (refreshError) {
-        errorMessage = 'Session expired. Please log in again.';
+      } catch (refreshError: any) {
+        this.logger.error('Error during token refresh attempt', { endpoint, error: refreshError.message });
+         errorMessage = options.customErrorMessage || 'Session refresh failed. Please log in again.';
+         errorSeverity = ErrorSeverity.HIGH;
+         AppErrorHandler.handleAuthError(errorMessage, errorSeverity, errorContext + '.RefreshException', { originalError: refreshError });
+         throw new Error(errorMessage); // Throw after handling
       }
+    } else if (response.status === 403) { // Forbidden
+        errorSeverity = ErrorSeverity.HIGH;
+        errorMessage = options.customErrorMessage || errorDetails?.message || 'Permission denied.';
+        AppErrorHandler.handleAuthError(errorMessage, errorSeverity, errorContext + '.Forbidden', { details: errorDetails });
+    } else if (response.status === 404) { // Not Found
+        errorSeverity = ErrorSeverity.LOW; // Often not a critical error
+        errorMessage = options.customErrorMessage || errorDetails?.message || 'Resource not found.';
+        // Use generic handler, maybe suppress toast?
+        AppErrorHandler.handleGenericError(errorMessage, errorSeverity, errorContext + '.NotFound', { details: errorDetails, suppressToast: options.suppressErrorToast });
+    } else if (response.status >= 400 && response.status < 500) { // Other Client Errors (e.g., 400 Bad Request, 409 Conflict)
+        errorSeverity = ErrorSeverity.MEDIUM;
+        errorMessage = options.customErrorMessage || errorDetails?.message || `Client error ${response.status}.`;
+        AppErrorHandler.handleDataError(errorMessage, errorSeverity, errorContext + `.ClientError${response.status}`, { details: errorDetails, suppressToast: options.suppressErrorToast });
+    } else if (response.status >= 500) { // Server Errors (500, 502, 503, 504)
+        errorSeverity = ErrorSeverity.HIGH;
+        errorMessage = options.customErrorMessage || `Server error (${response.status}). Please try again later.`;
+         // Retry mechanism for server errors (simple example)
+         const maxRetriesForServerError = options.retries ?? this.maxRetries; // Use option or default
+         if (retryCount < maxRetriesForServerError) {
+            const delay = Math.pow(2, retryCount) * 500 + (Math.random() * 500); // Exponential backoff + jitter
+            this.logger.warn(`Server error ${response.status}. Retrying request in ${delay.toFixed(0)}ms (attempt ${retryCount + 1}/${maxRetriesForServerError})`, { endpoint });
+            await new Promise(resolve => setTimeout(resolve, delay));
+             // FIX: Pass 5 arguments to request
+            return this.request<T>(method, endpoint, data, options, retryCount + 1);
+         } else {
+             this.logger.error(`Server error ${response.status} persisted after ${maxRetriesForServerError} retries.`, { endpoint, details: errorDetails });
+             AppErrorHandler.handleConnectionError(errorMessage, errorSeverity, errorContext + `.ServerError${response.status}.Final`, { details: errorDetails, suppressToast: options.suppressErrorToast });
+         }
     }
-    
-    // Handle server errors with retry
-    if (response.status >= 500 && retryCount < (options.retries || this.maxRetries)) {
-      const delay = Math.pow(2, retryCount) * 1000 + Math.random() * 1000;
-      await new Promise(resolve => setTimeout(resolve, delay));
-      return this.request<T>(method, endpoint, options.body, options, retryCount + 1);
+
+    // --- Default Error Handling for unhandled status codes ---
+    if (response.status >= 400) { // Ensure only errors are thrown
+        // Use generic error for anything not specifically handled above
+        AppErrorHandler.handleGenericError(errorMessage, errorSeverity, errorContext + `.Unhandled${response.status}`, { details: errorDetails, suppressToast: options.suppressErrorToast });
+        throw new Error(errorMessage);
     }
-    
-    // Show error toast (unless suppressed)
-    this.handleError(
-      options.customErrorMessage || errorMessage, 
-      options
-    );
-    
-    throw new Error(errorMessage);
+
+    // Should not be reached if response.ok was false, but satisfy TS path checks
+    this.logger.error("handleHttpErrorResponse reached unexpectedly for non-error response", { status: response.status });
+    throw new Error("Unexpected non-error response in error handler");
   }
-  
-  private async handleNetworkError<T>(
-    error: any, 
-    method: string, 
-    endpoint: string, 
-    options: RequestOptions,
-    retryCount: number
-  ): Promise<T> {
-    const errorMessage = error instanceof TypeError 
-      ? 'Network error. Please check your connection.' 
-      : error.message;
-    
-    // Retry for network errors
-    if (error instanceof TypeError && retryCount < (options.retries || this.maxRetries)) {
-      const delay = Math.pow(2, retryCount) * 1000 + Math.random() * 1000;
-      await new Promise(resolve => setTimeout(resolve, delay));
-      return this.request<T>(method, endpoint, options.body, options, retryCount + 1);
-    }
-    
-    // Show error toast (unless suppressed)
-    this.handleError(errorMessage, options);
-    
-    throw error;
-  }
-  
-  private handleError(
-    message: string, 
-    options: RequestOptions
-  ): void {
-    // Only show toast if not suppressed
-    if (!options.suppressErrorToast) {
-      toastService.error(message);
-    }
-    
-    // Optional: Log errors for debugging
-    console.error('HTTP Client Error:', message);
-  }
+
+  // FIX: Add expected parameters and return type
+   private async handleNetworkOrFetchError<T>(
+        error: Error,
+        method: string,
+        endpoint: string,
+        data: any,
+        options: RequestOptions,
+        retryCount: number
+    ): Promise<T> {
+        /* --- FULL IMPLEMENTATION IS MISSING --- */
+        // This should contain logic for handling fetch exceptions (e.g., network down, DNS error).
+        // It might include retries similar to the 5xx handling.
+        const errorMessage = options.customErrorMessage || `Network error: ${error.message}`;
+        const errorContext = options.context || `HttpClient.${method}.${endpoint.replace('/', '')}`;
+        const errorSeverity = ErrorSeverity.HIGH; // Network errors are usually high severity
+
+        this.logger.error('Network or fetch error occurred', { endpoint, error: error.message, retryCount });
+
+        // Example: Simple retry logic (adjust as needed)
+        const maxRetriesForNetworkError = options.retries ?? this.maxRetries;
+        if (retryCount < maxRetriesForNetworkError) {
+            const delay = Math.pow(2, retryCount) * 1000 + (Math.random() * 1000); // Exponential backoff + jitter
+            this.logger.warn(`Network error. Retrying request in ${delay.toFixed(0)}ms (attempt ${retryCount + 1}/${maxRetriesForNetworkError})`, { endpoint });
+            await new Promise(resolve => setTimeout(resolve, delay));
+            // FIX: Pass 5 arguments to request
+            return this.request<T>(method, endpoint, data, options, retryCount + 1);
+        } else {
+            this.logger.error(`Network error persisted after ${maxRetriesForNetworkError} retries.`, { endpoint });
+            AppErrorHandler.handleConnectionError(errorMessage, errorSeverity, errorContext + '.NetworkError.Final', { originalError: error, suppressToast: options.suppressErrorToast });
+            throw new Error(errorMessage); // Throw final error
+        }
+        // --- END OF MISSING IMPLEMENTATION PLACEHOLDER ---
+   }
 }

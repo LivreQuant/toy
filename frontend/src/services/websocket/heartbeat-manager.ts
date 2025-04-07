@@ -1,97 +1,96 @@
-import { EventEmitter } from '../../utils/event-emitter';
-import { HeartbeatManagerDependencies } from './types';
-import { DeviceIdManager } from '../../utils/device-id-manager';
+// src/services/websocket/heartbeat-manager.ts (Placeholder)
+import { getLogger } from "../../boot/logging";
+import { EnhancedLogger } from "../../utils/enhanced-logger";
+// Correct path relative to src/services/websocket/
+import { HeartbeatManagerDependencies, HeartbeatManagerOptions } from "./types";
+// Correct path assuming typed-event-emitter is in src/utils/
+import { TypedEventEmitter } from "../../utils/typed-event-emitter";
+import { Disposable } from "../../utils/disposable"; // Import Disposable
 
-export class HeartbeatManager {
-  private ws: WebSocket;
-  private eventEmitter: EventEmitter;
-  private interval: number;
-  private timeout: number;
-  private heartbeatTimer: number | null = null;
-  private heartbeatTimeoutTimer: number | null = null; // Added for timeout tracking
-  private lastHeartbeatResponseTime: number = 0; // Track response time
+const logger: EnhancedLogger = getLogger('HeartbeatManager');
 
-  constructor({ 
-    ws, 
-    eventEmitter, 
-    options = {} 
-  }: HeartbeatManagerDependencies) {
-    this.ws = ws;
-    this.eventEmitter = eventEmitter;
-    this.interval = options.interval || 15000;
-    this.timeout = options.timeout || 5000;
-  }
+/**
+ * Manages sending heartbeats (pings) and monitoring responses (pongs)
+ * to detect unresponsive WebSocket connections.
+ *
+ * NOTE: This is a placeholder. The actual implementation logic is missing.
+ */
+export class HeartbeatManager implements Disposable { // Implement Disposable
+    private ws: WebSocket;
+    private options: Required<HeartbeatManagerOptions>;
+    private pingIntervalId: number | null = null;
+    private pongTimeoutId: number | null = null;
+    private isStarted: boolean = false;
+    private isDisposed: boolean = false;
+    private eventEmitter: TypedEventEmitter<any>; // Store emitter if needed
 
-  public start(): void {
-    this.stop(); // Ensure any existing timers are cleared
-    this.lastHeartbeatResponseTime = Date.now(); // Initialize response time
-    this.heartbeatTimer = window.setInterval(() => {
-      this.sendHeartbeat();
-    }, this.interval);
-    // Optionally send an initial heartbeat immediately
-    // this.sendHeartbeat();
-  }
-
-  private sendHeartbeat(): void {
-    if (this.ws.readyState === WebSocket.OPEN) {
-      const now = Date.now();
-      // Check if timeout has occurred since last successful response
-      if (now - this.lastHeartbeatResponseTime > this.interval + this.timeout) {
-          console.warn(`Heartbeat timeout: No response received within ${this.interval + this.timeout}ms`);
-          this.eventEmitter.emit('heartbeat_timeout');
-          // Consider triggering disconnect or recovery mechanism here
-          // this.stop(); // Stop sending further heartbeats after timeout
-          return; // Don't send a new heartbeat if timed out
-      }
-
-      const heartbeatMessage = {
-        type: 'heartbeat',
-        timestamp: now,
-        // Use the centralized DeviceIdManager
-        deviceId: DeviceIdManager.getInstance().getDeviceId() 
-      };
-
-      this.ws.send(JSON.stringify(heartbeatMessage));
-
-      // Clear previous timeout timer if exists
-      if (this.heartbeatTimeoutTimer !== null) {
-         clearTimeout(this.heartbeatTimeoutTimer);
-      }
-
-      // Set a timer to check for response timeout specifically for *this* heartbeat
-      this.heartbeatTimeoutTimer = window.setTimeout(() => {
-         // This check might be redundant if the interval check above is sufficient
-         // Or it can provide a more immediate timeout detection after sending
-         console.warn(`Heartbeat timeout: No response for heartbeat sent at ${now}`);
-         this.eventEmitter.emit('heartbeat_timeout');
-         // Maybe trigger recovery here as well
-      }, this.timeout);
-
-    } else {
-      console.warn('Cannot send heartbeat, WebSocket is not open.');
-      // Stop trying if WS is closed
-      this.stop();
+    constructor(dependencies: HeartbeatManagerDependencies) {
+        this.ws = dependencies.ws;
+        this.eventEmitter = dependencies.eventEmitter; // Store emitter
+        const defaults: Required<HeartbeatManagerOptions> = {
+            interval: 15000, // Default 15 seconds
+            timeout: 5000    // Default 5 seconds
+        };
+        this.options = { ...defaults, ...(dependencies.options || {}) };
+        logger.info('HeartbeatManager initialized', { options: this.options });
     }
-  }
 
-  // Method to be called when a heartbeat *response* is received
-  public handleHeartbeatResponse(): void {
-    this.lastHeartbeatResponseTime = Date.now();
-    // Clear the specific timeout timer for the last sent heartbeat
-    if (this.heartbeatTimeoutTimer !== null) {
-        clearTimeout(this.heartbeatTimeoutTimer);
-        this.heartbeatTimeoutTimer = null;
+    public start(): void {
+        if (this.isStarted || this.isDisposed) return;
+        logger.info('Starting heartbeats...');
+        this.isStarted = true;
+        this.schedulePing();
     }
-  }
 
-  public stop(): void {
-    if (this.heartbeatTimer) {
-      clearInterval(this.heartbeatTimer);
-      this.heartbeatTimer = null;
+    public stop(): void {
+        if (!this.isStarted) return;
+        logger.info('Stopping heartbeats...');
+        this.isStarted = false;
+        if (this.pingIntervalId !== null) { clearInterval(this.pingIntervalId); this.pingIntervalId = null; }
+        if (this.pongTimeoutId !== null) { clearTimeout(this.pongTimeoutId); this.pongTimeoutId = null; }
     }
-     if (this.heartbeatTimeoutTimer !== null) {
-      clearTimeout(this.heartbeatTimeoutTimer);
-      this.heartbeatTimeoutTimer = null;
+
+    public handleHeartbeatResponse(): void {
+        if (!this.isStarted || this.isDisposed) return;
+        if (this.pongTimeoutId !== null) { clearTimeout(this.pongTimeoutId); this.pongTimeoutId = null; }
     }
-  }
+
+    private schedulePing(): void {
+        if (!this.isStarted || this.isDisposed) return;
+        if (this.pingIntervalId !== null) { clearInterval(this.pingIntervalId); }
+        this.pingIntervalId = window.setInterval(() => { this.sendPing(); }, this.options.interval);
+    }
+
+    private sendPing(): void {
+        if (!this.isStarted || this.isDisposed || !this.ws || this.ws.readyState !== WebSocket.OPEN) {
+            logger.warn('Skipping ping: Not started, disposed, or WebSocket not open.');
+            return;
+        }
+        if (this.pongTimeoutId !== null) { clearTimeout(this.pongTimeoutId); }
+        try {
+            const pingMessage = JSON.stringify({ type: 'ping', timestamp: Date.now() });
+            this.ws.send(pingMessage);
+            this.pongTimeoutId = window.setTimeout(() => { this.handlePongTimeout(); }, this.options.timeout);
+        } catch (error: any) { logger.error('Failed to send ping', { error: error.message }); }
+    }
+
+    private handlePongTimeout(): void {
+        this.pongTimeoutId = null;
+        if (!this.isStarted || this.isDisposed) return;
+        logger.error(`Heartbeat timeout: No response within ${this.options.timeout}ms.`);
+        this.stop();
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            logger.warn('Closing WebSocket due to heartbeat timeout.');
+            this.ws.close(1001, 'Heartbeat Timeout');
+        }
+    }
+
+    public dispose(): void {
+        if(this.isDisposed) return;
+        this.isDisposed = true;
+        this.stop();
+        logger.info("HeartbeatManager disposed.");
+    }
+
+     [Symbol.dispose](): void { this.dispose(); }
 }

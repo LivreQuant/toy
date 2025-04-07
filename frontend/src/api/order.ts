@@ -29,15 +29,15 @@ export interface OrderStatusResponse {
 
 export class OrdersApi {
   private client: HttpClient;
-  
+
   constructor(client: HttpClient) {
     this.client = client;
   }
-  
+
   async submitOrder(order: SubmitOrderRequest): Promise<SubmitOrderResponse> {
     return this.client.post<SubmitOrderResponse>('/orders/submit', order);
   }
-  
+
   async cancelOrder(orderId: string): Promise<{ success: boolean }> {
     return this.client.post<{ success: boolean }>('/orders/cancel', { orderId });
   }

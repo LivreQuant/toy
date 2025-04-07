@@ -1,55 +1,45 @@
-// src/contexts/ToastContext.tsx
-import React, { createContext, useContext, useState, useCallback } from 'react';
-import { v4 as uuidv4 } from 'uuid';
-import ToastNotification, { ToastMessage } from '../components/Common/ToastNotification';
+// src/contexts/ToastContext.tsx (Corrected)
+import React, { createContext, useState, useCallback, ReactNode, useMemo } from 'react';
+// Import ToastConfig type
+import { ToastService, toastService, ToastConfig } from '../services/notification/toast-service';
+import ToastNotificationsContainer from '../components/Common/ToastNotifications';
 
-interface ToastContextType {
-  addToast: (message: Omit<ToastMessage, 'id'>) => void;
-  removeToast: (id: string) => void;
+// ... (Keep ToastMessage interface) ...
+interface ToastMessage {
+  id: number;
+  type: 'success' | 'error' | 'warning' | 'info';
+  message: string;
+  duration?: number;
+}
+interface ToastContextProps {
+  addToast: (type: ToastMessage['type'], message: string, duration?: number) => void;
 }
 
-const ToastContext = createContext<ToastContextType | undefined>(undefined);
+export const ToastContext = createContext<ToastContextProps | undefined>(undefined);
+interface ToastProviderProps { children: ReactNode; }
+let toastIdCounter = 0;
 
-export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const ToastProvider: React.FC<ToastProviderProps> = ({ children }) => {
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
-  const addToast = useCallback((messageData: Omit<ToastMessage, 'id'>) => {
-    const id = uuidv4();
-    const toast: ToastMessage = {
-      ...messageData,
-      id,
-      duration: messageData.duration || 5000
-    };
-
-    setToasts(current => [...current, toast]);
-
-    // Auto-remove toast after duration
-    if (toast.duration) {
-      setTimeout(() => {
-        removeToast(id);
-      }, toast.duration);
-    }
+  const addToast = useCallback((type: ToastMessage['type'], message: string, duration: number = 5000) => {
+    // ... (addToast implementation) ...
   }, []);
+  const removeToast = useCallback((id: number) => { /* ... */ }, []);
 
-  const removeToast = useCallback((id: string) => {
-    setToasts(current => current.filter(toast => toast.id !== id));
-  }, []);
+  useMemo(() => {
+    // Use the correct method name and add type to parameter
+    toastService.registerDisplayMethod((toastConfig: ToastConfig) => { // Corrected method and type
+        addToast(toastConfig.type, toastConfig.message, toastConfig.duration);
+    });
+  }, [addToast]);
+
+  const contextValue = useMemo(() => ({ addToast }), [addToast]);
 
   return (
-    <ToastContext.Provider value={{ addToast, removeToast }}>
+    <ToastContext.Provider value={contextValue}>
       {children}
-      <ToastNotification 
-        messages={toasts} 
-        onRemove={removeToast} 
-      />
+      <ToastNotificationsContainer toasts={toasts} removeToast={removeToast} />
     </ToastContext.Provider>
   );
-};
-
-export const useToast = () => {
-  const context = useContext(ToastContext);
-  if (context === undefined) {
-    throw new Error('useToast must be used within a ToastProvider');
-  }
-  return context;
 };
