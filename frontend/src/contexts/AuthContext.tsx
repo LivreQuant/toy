@@ -29,24 +29,27 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, tokenManag
   useEffect(() => {
     const checkAuth = () => {
       const authenticated = tokenManager.isAuthenticated();
+      console.log("*** AUTH: Initial auth check: authenticated=", authenticated);
       setIsAuthenticated(authenticated);
       setUserId(authenticated ? tokenManager.getUserId() : null);
       setIsAuthLoading(false); // Finished loading
     };
     checkAuth();
-
+  
     // Listen for token refresh events to update auth state
     const handleRefresh = (success: boolean) => {
-        setIsAuthenticated(success && tokenManager.isAuthenticated());
-        setUserId(success && tokenManager.isAuthenticated() ? tokenManager.getUserId() : null);
+      console.log("*** AUTH: Token refresh event: success=", success);
+      setIsAuthenticated(success && tokenManager.isAuthenticated());
+      setUserId(success && tokenManager.isAuthenticated() ? tokenManager.getUserId() : null);
     };
     tokenManager.addRefreshListener(handleRefresh);
-
+  
     return () => {
-        tokenManager.removeRefreshListener(handleRefresh);
+      tokenManager.removeRefreshListener(handleRefresh);
     };
   }, [tokenManager]);
 
+  // In AuthProvider.tsx - add in login function:
   const login = useCallback(async (credentials: LoginRequest): Promise<boolean> => {
     setIsAuthLoading(true);
     try {
@@ -68,7 +71,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, tokenManag
       setIsAuthenticated(false);
       setUserId(null);
       setIsAuthLoading(false);
-       // Error handling (e.g., toast notification) is likely handled by HttpClient/ErrorHandler
+      // Error handling (e.g., toast notification) is likely handled by HttpClient/ErrorHandler
       return false;
     }
   }, [authApi, tokenManager]);

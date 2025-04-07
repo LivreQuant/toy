@@ -119,9 +119,20 @@ export class AppStateService {
 
   // Selector helper to get a slice of state and ensure emissions only on change
   select<T>(selector: (state: AppState) => T): Observable<T> {
+    console.log("*** AppState: select() called ***");
     return this.state$.pipe(
-      map(selector),
-      distinctUntilChanged() // Important for performance
+      map(state => {
+        const result = selector(state);
+        console.log("*** AppState: select() emitting value ***", { result });
+        return result;
+      }),
+      distinctUntilChanged((prev, curr) => {
+        const isEqual = JSON.stringify(prev) === JSON.stringify(curr);
+        console.log("*** AppState: distinctUntilChanged() ***", { 
+          prev, curr, isEqual, willEmit: !isEqual 
+        });
+        return isEqual;
+      })
     );
   }
 

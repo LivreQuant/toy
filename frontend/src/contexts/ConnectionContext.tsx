@@ -8,25 +8,24 @@ import React, {
   useContext,
 } from 'react';
 import { ConnectionManager } from '../services/connection/connection-manager';
-// Import AppState type, appState instance, AND necessary Enums/initial state structure
+// Fix the import to use the correct type
 import {
   appState,
-  AppState,
   ConnectionStatus,
-  initialState as appInitialState, // Rename imported initialState to avoid conflict
+  initialState as appInitialState,
 } from '../services/state/app-state.service';
 import { Subscription } from 'rxjs';
 import { getLogger } from '../boot/logging';
-import LoadingSpinner from '../components/Common/LoadingSpinner'; // Keep LoadingSpinner
-import { useAuth } from '../hooks/useAuth'; // *** Import useAuth ***
+import LoadingSpinner from '../components/Common/LoadingSpinner';
+import { useAuth } from '../hooks/useAuth';
 
 // Define the shape of your context data
 interface ConnectionContextValue {
-  connectionManager: ConnectionManager; // Provide the instance directly
-  connectionState: AppState['connection']; // Provide reactive state
+  connectionManager: ConnectionManager;
+  connectionState: typeof appInitialState.connection;
   isConnected: boolean;
-  isConnecting: boolean; // Combined connecting/recovering for UI simplicity
-  isRecovering: boolean; // Specific recovery state
+  isConnecting: boolean;
+  isRecovering: boolean;
 }
 
 // Create the context
@@ -36,7 +35,7 @@ export const ConnectionContext = createContext<ConnectionContextValue | undefine
 
 interface ConnectionProviderProps {
   children: ReactNode;
-  connectionManager: ConnectionManager; // Pass the instance from App.tsx
+  connectionManager: ConnectionManager;
 }
 
 const logger = getLogger('ConnectionContext');
@@ -45,25 +44,23 @@ export const ConnectionProvider: React.FC<ConnectionProviderProps> = ({
   children,
   connectionManager,
 }) => {
-  // *** Use Auth State ***
+  // Use Auth State
   const { isAuthenticated, isAuthLoading } = useAuth();
 
   // Local state holds the connection slice from AppState
-  const [connectionState, setConnectionState] = useState<
-    AppState['connection']
-  >(() => appState.getState().connection); // Initialize with current state
+  const [connectionState, setConnectionState] = useState(
+    () => appState.getState().connection
+  );
 
-  // --- Subscribe to Connection State Changes ---
+  // Subscribe to Connection State Changes
   useEffect(() => {
     logger.info(
       'ConnectionProvider subscribing to AppState connection changes.'
     );
-    // Subscribe to the specific connection state slice
     const stateSubscription: Subscription = appState
-      .select((s) => s.connection) // Use select for distinct emissions
+      .select((s) => s.connection)
       .subscribe({
         next: (connState) => {
-          // logger.debug('Received connection state update', connState); // Optional: debug logging
           setConnectionState(connState);
         },
         error: (err) => {
@@ -75,51 +72,26 @@ export const ConnectionProvider: React.FC<ConnectionProviderProps> = ({
       logger.info('ConnectionProvider unsubscribing from connection state.');
       stateSubscription.unsubscribe();
     };
-  }, []); // Empty dependency array: subscribe only once on mount
+  }, []);
 
-  // --- Effect to Manage Desired Connection State Based on Auth ---
+  // Initialize ConnectionManager
   useEffect(() => {
-    // *** WAIT FOR AUTH LOADING ***
-    if (isAuthLoading) {
-      logger.debug('Auth state is loading, delaying connection decision.');
-      // Prevent setting desired state while auth is loading
-      return;
-    }
+    logger.info('ConnectionProvider initialized');
+    
+    return () => {
+      logger.info('ConnectionProvider unmounting');
+    };
+  }, [connectionManager]);
 
-    // --- Auth check is complete ---
-    logger.debug(
-      `Auth check complete. isAuthenticated: ${isAuthenticated}. Setting desired connection state.`
-    );
-    if (isAuthenticated) {
-      // If authenticated, desire connection
-      connectionManager.setDesiredState({ connected: true });
-      // You might also want to control the simulator state here based on user preferences or app logic
-      // Example: connectionManager.setDesiredState({ simulatorRunning: true });
-    } else {
-      // If not authenticated, ensure desired state is disconnected
-      // ConnectionManager's internal sync logic will handle the disconnect if needed
-      connectionManager.setDesiredState({
-        connected: false,
-        simulatorRunning: false,
-      });
-    }
-
-    // No cleanup needed here as ConnectionManager handles its own state persistence
-  }, [isAuthenticated, isAuthLoading, connectionManager]); // Re-run when auth state changes
-
-
-  // --- Provide Context Value ---
-  // Memoize the context value to prevent unnecessary re-renders
+  // Memoize the context value
   const contextValue = useMemo(() => {
-    // Use the latest state, fallback to initial only if somehow null (shouldn't happen with init)
     const currentConnState = connectionState ?? appInitialState.connection;
-    // Simplify connecting state for consumers
     const isConnected =
       currentConnState.overallStatus === ConnectionStatus.CONNECTED;
-    const isConnecting = // Includes CONNECTING and RECOVERING for UI purposes
+    const isConnecting =
       currentConnState.overallStatus === ConnectionStatus.CONNECTING ||
-      currentConnState.isRecovering; // Use isRecovering flag directly
-    const isRecovering = currentConnState.isRecovering; // Expose specific recovery state
+      currentConnState.isRecovering;
+    const isRecovering = currentConnState.isRecovering;
 
     return {
       connectionManager,
@@ -128,22 +100,14 @@ export const ConnectionProvider: React.FC<ConnectionProviderProps> = ({
       isConnecting,
       isRecovering,
     };
-  }, [connectionManager, connectionState]); // Recalculate when state changes
+  }, [connectionManager, connectionState]);
 
-
-  // --- CONDITIONAL RENDERING ---
-  // *** Render loading indicator ONLY while Auth is loading ***
+  // Conditional rendering
   if (isAuthLoading) {
-    // You can return null or a more generic app loading indicator here
-    // Using the specific spinner might still show "Initializing connection..."
-    // It's often better to have a top-level loading screen in App.tsx controlled by isAuthLoading
-    logger.debug('Auth is loading, rendering loading spinner.');
-    // Returning null is usually better here, let ProtectedRoute handle loading/redirects
+    logger.debug('Auth is loading, rendering null');
     return null;
-    // return <LoadingSpinner message="Authenticating..." />; // Or a more generic message
   }
 
-  // Auth is resolved, provide the context to children
   logger.debug('Auth resolved, rendering ConnectionContext.Provider');
   return (
     <ConnectionContext.Provider value={contextValue}>
@@ -152,7 +116,7 @@ export const ConnectionProvider: React.FC<ConnectionProviderProps> = ({
   );
 };
 
-// Custom hook remains the same
+// Custom hook
 export const useConnection = () => {
   const context = useContext(ConnectionContext);
   if (context === undefined) {
