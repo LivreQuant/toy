@@ -202,7 +202,7 @@ async def handle_list_routes(request):
 
 async def handle_create_session(request):
     """
-    Handle session creation request
+    Handle session creation request with device_id
     
     Args:
         request: HTTP request
@@ -214,6 +214,10 @@ async def handle_create_session(request):
         session_manager = request.app['session_manager']
 
         try:
+            # Get device_id from URL
+            device_id = request.match_info['device_id']
+            span.set_attribute("device_id", device_id)
+
             # Parse request body
             data = await request.json()
 
@@ -224,22 +228,21 @@ async def handle_create_session(request):
             span.set_attribute("user_id", user_id)
             span.set_attribute("has_token", token is not None)
 
-            if not user_id or not token:
-                span.set_attribute("error", "Missing userId or token")
+            if not user_id or not token or not device_id:
+                span.set_attribute("error", "Missing userId, token, or device_id")
                 return web.json_response({
                     'success': False,
-                    'error': 'Missing userId or token'
+                    'error': 'Missing userId, token, or device_id'
                 }, status=400)
 
             # Get client IP
             client_ip = request.remote
             span.set_attribute("client_ip", client_ip)
 
-            # Create session
-            session_id, is_new = await session_manager.create_session(user_id, token, client_ip)
+            # Create session with device_id
+            session_id, is_new = await session_manager.create_session(user_id, device_id, token, client_ip)
 
             if not session_id:
-                span.set_attribute("client_ip", client_ip)
                 return web.json_response({
                     'success': False,
                     'error': 'Failed to create session'
@@ -267,7 +270,6 @@ async def handle_create_session(request):
                 'success': False,
                 'error': 'Server error'
             }, status=500)
-
 
 async def handle_get_session(request):
     """
@@ -327,7 +329,6 @@ async def handle_get_session(request):
             'session': session
         })
 
-
 async def handle_end_session(request):
     """
     Handle session termination request
@@ -340,34 +341,55 @@ async def handle_end_session(request):
     """
     session_manager = request.app['session_manager']
 
-    # Get session ID from URL
-    session_id = request.match_info['session_id']
+    try:
+        # Parse request body
+        data = await request.json()
 
-    # Get token
-    token = await get_token_from_request(request)
-    if not token:
+        # Extract parameters
+        session_id = data.get('sessionId')
+        token = data.get('token')
+
+        if not session_id or not token:
+            return web.json_response({
+                'success': False,
+                'error': 'Missing sessionId or token'
+            }, status=400)
+
+        # End session
+        success, error = await session_manager.end_session(session_id, token)
+
+        if not success:
+            return web.json_response({
+                'success': False,
+                'error': error
+            }, status=400)
+
+        return web.json_response({
+            'success': True
+        })
+
+    except json.JSONDecodeError:
         return web.json_response({
             'success': False,
-            'error': 'Missing authentication token'
-        }, status=401)
-
-    # End session
-    success, error = await session_manager.end_session(session_id, token)
-
-    if not success:
-        return web.json_response({
-            'success': False,
-            'error': error
+            'error': 'Invalid JSON in request body'
         }, status=400)
-
-    return web.json_response({
-        'success': True
-    })
-
-
-
+    except Exception as e:
+        logger.error(f"Error ending session: {e}")
+        return web.json_response({
+            'success': False,
+            'error': 'Server error'
+        }, status=500)
+    
 async def handle_start_simulator(request):
-    """Handle simulator start request without requiring session_id"""
+    """
+    Handle simulator start request
+    
+    Args:
+        request: HTTP request
+        
+    Returns:
+        JSON response
+    """
     session_manager = request.app['session_manager']
 
     try:
@@ -381,19 +403,20 @@ async def handle_start_simulator(request):
             
         token = auth_header[7:]  # Remove 'Bearer ' prefix
         
-        # Get user ID from token and find/create their session
-        user_id = await session_manager.get_user_from_token(token)
-        if not user_id:
+        # Get session ID from query parameter
+        session_id = request.query.get('sessionId')
+        if not session_id:
             return web.json_response({
                 'success': False,
-                'error': 'Invalid token'
-            }, status=401)
-            
-        # Get or create session for this user
-        session_id = await session_manager.get_or_create_user_session(user_id, token)
+                'error': 'Missing sessionId parameter'
+            }, status=400)
         
-        # Start simulator using the found/created session
-        simulator_id, endpoint, error = await session_manager.start_simulator(session_id, token)
+        # Get symbols from query (optional)
+        symbols_param = request.query.get('symbols', '')
+        symbols = symbols_param.split(',') if symbols_param else []
+            
+        # Start simulator
+        simulator_id, endpoint, error = await session_manager.start_simulator(session_id, token, symbols)
         
         if error:
             return web.json_response({
@@ -403,7 +426,8 @@ async def handle_start_simulator(request):
         
         return web.json_response({
             'success': True,
-            'status': 'STARTING'
+            'status': 'STARTING',
+            'simulatorId': simulator_id
         })
     except Exception as e:
         logger.error(f"Error starting simulator: {e}")
@@ -411,7 +435,6 @@ async def handle_start_simulator(request):
             'success': False, 
             'error': 'Server error'
         }, status=500)
-
 
 async def handle_stop_simulator(request):
     """
@@ -530,8 +553,8 @@ async def handle_reconnect_session(request):
     """
     session_manager = request.app['session_manager']
 
-    # Get session ID from URL
-    session_id = request.match_info['session_id']
+    # Get device_id from URL
+    device_id = request.match_info['device_id']
 
     try:
         # Parse request body
@@ -539,16 +562,17 @@ async def handle_reconnect_session(request):
 
         # Extract parameters
         token = data.get('token')
+        session_id = data.get('sessionId')
         attempt = data.get('attempt', 1)
 
-        if not token:
+        if not token or not session_id:
             return web.json_response({
                 'success': False,
-                'error': 'Missing token'
+                'error': 'Missing token or sessionId'
             }, status=400)
 
         # Reconnect to session
-        session_data, error = await session_manager.reconnect_session(session_id, token, attempt)
+        session_data, error = await session_manager.reconnect_session(session_id, token, device_id, attempt)
 
         if error:
             return web.json_response({

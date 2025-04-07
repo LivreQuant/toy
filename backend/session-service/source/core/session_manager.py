@@ -281,13 +281,14 @@ class SessionManager:
             except Exception as e:
                 logger.error(f"Error in simulator heartbeat task: {e}")
                 await asyncio.sleep(5)  # Shorter interval on error
-                
-    async def create_session(self, user_id: str, token: str, ip_address: Optional[str] = None) -> Tuple[Optional[str], bool]:
+                    
+    async def create_session(self, user_id: str, device_id: str, token: str, ip_address: Optional[str] = None) -> Tuple[Optional[str], bool]:
         """
-        Create a new session for a user
+        Create a new session for a user with device ID
         
         Args:
             user_id: The user ID
+            device_id: The device ID
             token: Authentication token
             ip_address: Client IP address
             
@@ -296,6 +297,7 @@ class SessionManager:
         """
         with optional_trace_span(self.tracer, "create_session") as span:
             span.set_attribute("user_id", user_id)
+            span.set_attribute("device_id", device_id)
             span.set_attribute("ip_address", ip_address)
 
             # Validate token
@@ -306,13 +308,9 @@ class SessionManager:
                 span.set_attribute("token_valid", False)
                 return None, False
 
-            logger.warning(f"COMPARE: {validation}")
-
             # Make sure user in token matches provided user_id
             token_user_id = validation.get('userId')
             span.set_attribute("token_user_id", token_user_id)
-
-            logger.warning(f"COMPARE: {token_user_id} | {user_id}")
 
             if token_user_id != user_id:
                 logger.warning(f"Token user_id {token_user_id} doesn't match provided user_id {user_id}")
@@ -320,32 +318,42 @@ class SessionManager:
                 span.set_attribute("error", "User ID mismatch")
                 return None, False
 
-            # Create session in database
             try:
+                # Check for existing sessions for this user
+                active_sessions = await self.db_manager.get_active_user_sessions(user_id)
+                
+                # If user already has active sessions, end them
+                for session in active_sessions:
+                    await self.db_manager.end_session(session.session_id)
+                    logger.info(f"Ended previous session {session.session_id} for user {user_id}")
+                    
+                    # If there was a simulator running, stop it
+                    if hasattr(session.metadata, 'simulator_id') and session.metadata.simulator_id:
+                        await self.stop_simulator(session.session_id, token, force=True)
+                
+                # Create new session
                 session_id, is_new = await self.db_manager.create_session(user_id, ip_address)
 
-                if is_new:
-                    # Set additional metadata
-                    await self.db_manager.update_session_metadata(session_id, {
+                # Set additional metadata including device_id
+                await self.db_manager.update_session_metadata(session_id, {
+                    'pod_name': self.pod_name,
+                    'ip_address': ip_address,
+                    'device_id': device_id
+                })
+
+                # Track session creation
+                track_session_operation("create")
+
+                # Publish session creation event if Redis is available
+                if self.redis:
+                    await self.redis.publish('session_events', json.dumps({
+                        'type': 'session_created',
+                        'session_id': session_id,
+                        'user_id': user_id,
+                        'device_id': device_id,
                         'pod_name': self.pod_name,
-                        'ip_address': ip_address
-                    })
-
-                    # Track session creation
-                    track_session_operation("create_new")
-
-                    # Publish session creation event if Redis is available
-                    if self.redis:
-                        await self.redis.publish('session_events', json.dumps({
-                            'type': 'session_created',
-                            'session_id': session_id,
-                            'user_id': user_id,
-                            'pod_name': self.pod_name,
-                            'timestamp': time.time()
-                        }))
-                else:
-                    # Track session reuse
-                    track_session_operation("create_existing")
+                        'timestamp': time.time()
+                    }))
 
                 span.set_attribute("session_id", session_id)
                 span.set_attribute("is_new", is_new)
@@ -355,11 +363,12 @@ class SessionManager:
                 track_session_count(active_sessions)
 
                 return session_id, is_new
+                
             except Exception as e:
                 logger.error(f"Error creating session: {e}")
                 span.record_exception(e)
                 return None, False
-    
+
     async def get_session(self, session_id: str) -> Optional[Dict[str, Any]]:
         """
         Get session details
@@ -594,13 +603,14 @@ class SessionManager:
                 span.set_attribute("error", str(e))
                 return "unknown", False
 
-    async def start_simulator(self, session_id: str, token: str) -> Tuple[Optional[str], Optional[str], str]:
+    async def start_simulator(self, session_id: str, token: str, symbols: List[str] = None) -> Tuple[Optional[str], Optional[str], str]:
         """
         Start a simulator for a session
         
         Args:
             session_id: The session ID
             token: Authentication token
+            symbols: List of symbols to track
             
         Returns:
             Tuple of (simulator_id, endpoint, error_message)
@@ -623,17 +633,11 @@ class SessionManager:
                 if status['status'] in ['RUNNING', 'STARTING']:
                     return session.metadata.simulator_id, session.metadata.simulator_endpoint, ""
             
-            # Get subscription symbols from session metadata
-            symbols = []
-            for sub_type, subscription in session.metadata.subscriptions.items():
-                if hasattr(subscription, 'symbols'):
-                    symbols.extend(subscription.symbols)
-            
             # Create new simulator
             simulator, error = await self.simulator_manager.create_simulator(
                 session_id, 
                 user_id,
-                symbols if symbols else None
+                symbols
             )
             
             if not simulator:
@@ -660,7 +664,7 @@ class SessionManager:
         except Exception as e:
             logger.error(f"Error starting simulator: {e}")
             return None, None, str(e)
-
+        
     async def get_user_from_token(self, token: str) -> Optional[str]:
         """Extract user ID from token"""
         validation = await self.auth_client.validate_token(token)
@@ -758,14 +762,15 @@ class SessionManager:
                 logger.error(f"Error stopping simulator: {e}")
                 span.record_exception(e)
                 return False, str(e)
-            
-    async def reconnect_session(self, session_id: str, token: str, attempt: int = 1) -> Tuple[Optional[Dict[str, Any]], str]:
+        
+    async def reconnect_session(self, session_id: str, token: str, device_id: str, attempt: int = 1) -> Tuple[Optional[Dict[str, Any]], str]:
         """
         Reconnect to a session, potentially restarting a simulator
         
         Args:
             session_id: The session ID
             token: Authentication token
+            device_id: Device ID
             attempt: Reconnection attempt number
             
         Returns:
@@ -781,6 +786,10 @@ class SessionManager:
             # Get session
             session = await self.db_manager.get_session(session_id)
             
+            # Verify device_id matches
+            if session.metadata.device_id != device_id:
+                return None, "Device ID mismatch"
+            
             # Check if simulator needs restart
             simulator_needs_restart = False
             
@@ -791,13 +800,6 @@ class SessionManager:
                 if status['status'] not in ['RUNNING', 'STARTING']:
                     simulator_needs_restart = True
             
-            # Restart simulator if needed
-            if simulator_needs_restart:
-                simulator_id, endpoint, error = await self.start_simulator(session_id, token)
-                
-                if error:
-                    logger.warning(f"Failed to restart simulator during reconnect: {error}")
-            
             # Update session metadata
             await self.db_manager.update_session_metadata(session_id, {
                 'reconnect_count': session.metadata.reconnect_count + 1,
@@ -807,7 +809,11 @@ class SessionManager:
             # Get updated session
             session = await self.db_manager.get_session(session_id)
             
-            return session.to_dict(), ""
+            # Return session data with simulator_needs_restart flag
+            session_dict = session.to_dict()
+            session_dict['simulator_needs_restart'] = simulator_needs_restart
+            
+            return session_dict, ""
         except Exception as e:
             logger.error(f"Error reconnecting session: {e}")
             return None, str(e)

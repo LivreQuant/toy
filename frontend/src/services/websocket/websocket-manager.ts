@@ -134,7 +134,14 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
       const deviceId = DeviceIdManager.getInstance().getDeviceId();
       const params = new URLSearchParams({ token, deviceId });
       const wsUrl = `${config.wsBaseUrl}?${params.toString()}`;
-      this.logger.debug(`Connecting to WebSocket URL: ${config.wsBaseUrl}`);
+
+      // --- ADDED LOGGING HERE ---
+      // Log the full URL including token and device ID for debugging purposes.
+      // Ensure this log level is appropriate for your environment (debug is usually fine for dev).
+      this.logger.debug(`Attempting WebSocket connection to URL: ${wsUrl}`);
+      // --- END ADDED LOGGING ---
+
+      this.logger.debug(`Connecting to WebSocket URL: ${config.wsBaseUrl}`); // Existing log (base URL only)
 
       this.webSocket = new WebSocket(wsUrl);
 

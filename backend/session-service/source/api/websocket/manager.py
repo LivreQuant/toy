@@ -199,8 +199,11 @@ class WebSocketManager:
         if session_id in self.connections:
             self.connections[session_id].discard(ws)
             
-            # Remove empty session
+            # Stop market data stream if needed
             if not self.connections[session_id]:
+                await self.protocol.stop_market_data_stream(session_id)
+                
+                # Remove empty session
                 del self.connections[session_id]
         
         # Update session metadata
@@ -229,7 +232,7 @@ class WebSocketManager:
             }))
         
         logger.info(f"Unregistered WebSocket connection for session {session_id}, client {client_id}")
-    
+
     async def _process_message(self, ws, message_data):
         """Process an incoming WebSocket message"""
         # Get connection info

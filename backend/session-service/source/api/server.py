@@ -19,7 +19,6 @@ from source.api.clients.exchange_client import ExchangeClient
 from source.core.session_manager import SessionManager
 from source.api.rest.routes import setup_rest_routes
 from source.api.websocket.manager import WebSocketManager
-from source.api.sse.adapter import SSEAdapter
 from source.models.simulator import SimulatorStatus
 
 # Import Redis for pub/sub if available
@@ -40,6 +39,7 @@ class SessionServer:
         self.running = False
         self.initialized = False
         self.shutdown_event = asyncio.Event()
+    
     
     async def initialize(self):
         """Initialize all server components"""
@@ -80,17 +80,12 @@ class SessionServer:
         # Initialize WebSocket manager
         self.websocket_manager = WebSocketManager(self.session_manager, self.redis)
         
-        # Initialize SSE adapter
-        self.sse_adapter = SSEAdapter(self.exchange_client, self.session_manager, self.redis)
-        
         # Make components available in application context
         self.app['db_manager'] = self.db_manager
         self.app['auth_client'] = self.auth_client
         self.app['exchange_client'] = self.exchange_client
         self.app['session_manager'] = self.session_manager
         self.app['websocket_manager'] = self.websocket_manager
-        self.app['sse_adapter'] = self.sse_adapter
-        self.app['redis'] = self.redis
 
         # Add middleware for metrics and tracing
         from source.api.rest.handlers import metrics_middleware
@@ -104,9 +99,6 @@ class SessionServer:
         
         # Register WebSocket handler
         self.app.router.add_get('/ws', self.websocket_manager.handle_connection)
-        
-        # Register SSE handler
-        self.app.router.add_get('/stream', self.sse_adapter.handle_stream)
         
         # Add health check endpoints
         self.app.router.add_get('/health', self.health_check)
@@ -297,6 +289,7 @@ class SessionServer:
         self.running = True
         logger.info(f"Server started at http://{host}:{port}")
     
+    
     async def shutdown(self):
         """Gracefully shut down the server"""
         if not self.running:
@@ -305,7 +298,7 @@ class SessionServer:
         logger.info("Shutting down server")
         self.running = False
         
-        # New: Force cleanup of this pod's sessions
+        # Force cleanup of this pod's sessions
         await self._cleanup_pod_sessions()
         
         # Unregister pod from Redis
@@ -333,9 +326,6 @@ class SessionServer:
         
         # Close WebSocket connections
         await self.websocket_manager.close_all_connections("Server shutting down")
-        
-        # Close SSE connections
-        await self.sse_adapter.close_all_streams()
         
         # Close API clients
         await self.auth_client.close()
