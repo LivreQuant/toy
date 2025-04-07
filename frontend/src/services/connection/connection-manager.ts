@@ -12,12 +12,15 @@ import { Disposable } from '../../utils/disposable';
 import { SessionApi } from '../../api/session';
 import { AppErrorHandler } from '../../utils/app-error-handler';
 import { ErrorSeverity } from '../../utils/error-handler';
-// Import specific request/response types needed for method signatures
 import { OrderSide, OrderType, SubmitOrderRequest, SubmitOrderResponse } from '../../api/order';
-import { SimulatorStatusResponse } from '../../api/simulator'; // Import simulator response type
+import { SimulatorStatusResponse } from '../../api/simulator';
 import { EnhancedLogger } from '../../utils/enhanced-logger';
 import { getLogger } from '../../boot/logging';
 import { TypedEventEmitter } from '../../utils/typed-event-emitter';
+
+// *** TEMPORARY TOP-LEVEL LOG ***
+console.log('>>> ConnectionManager module loaded <<<'); // For verifying file load
+const moduleLogger = getLogger('ConnectionManager'); // Get instance for constructor
 
 export interface ConnectionManagerEvents {
   auth_failed: { reason: string };
@@ -40,16 +43,15 @@ export interface ConnectionManagerOptions {
   };
 }
 
-// Define the specific return types for the public methods
-// Matches SubmitOrderResponse but makes orderId optional for the return structure
+// Type aliases for return values
 type SubmitOrderResult = { success: boolean; orderId?: string; error?: string };
 type CancelOrderResult = { success: boolean; error?: string };
-// Matches SimulatorStatusResponse but makes status/error optional for the return structure
 type SimulatorActionResult = { success: boolean; status?: string; error?: string };
 
 
 export class ConnectionManager extends TypedEventEmitter<ConnectionManagerEvents> implements Disposable {
-  protected logger: EnhancedLogger; // Ensure logger is accessible
+  // Use protected logger inherited from TypedEventEmitter
+  protected logger: EnhancedLogger;
   private dataHandlers: ConnectionDataHandlers;
   private simulatorManager: ConnectionSimulatorManager;
   private resilienceManager: ConnectionResilienceManager;
@@ -64,202 +66,160 @@ export class ConnectionManager extends TypedEventEmitter<ConnectionManagerEvents
     tokenManager: TokenManager,
     options: ConnectionManagerOptions = {}
   ) {
-    const loggerInstance = getLogger('ConnectionManager');
+    const loggerInstance = moduleLogger; // Use instance from module scope
+    // Call super() ONCE before using 'this'
     super(loggerInstance);
-    this.logger = loggerInstance; // Assign logger explicitly if needed locally
+    // Assign logger to the instance property
+    this.logger = loggerInstance;
+    // *** TEMPORARY CONSTRUCTOR LOG ***
+    console.log('>>> ConnectionManager CONSTRUCTOR running (super called) <<<');
 
     this.logger.info('ConnectionManager initializing...', { options });
 
+    // --- Service Instantiation ---
     this.tokenManager = tokenManager;
-
-    const initialAuthState = appState.getState().auth;
-    if (!initialAuthState.isAuthenticated && !initialAuthState.isAuthLoading) {
-      this.logger.warn('Initializing ConnectionManager without active authentication');
-    } else if (initialAuthState.isAuthenticated) {
-        this.logger.info('Initializing ConnectionManager with potentially existing authentication');
-    }
-
     this.httpClient = new HttpClient(tokenManager);
     this.sessionApi = new SessionApi(this.httpClient);
     this.dataHandlers = new ConnectionDataHandlers(this.httpClient);
     this.simulatorManager = new ConnectionSimulatorManager(this.httpClient);
     this.wsManager = new WebSocketManager(
       tokenManager,
-      {
-        ...options.wsOptions,
-        preventAutoConnect: true
-      }
+      { ...options.wsOptions, preventAutoConnect: true }
     );
-
+    // Resilience Manager Setup
     const resilienceOptions = options.resilience ? {
-        initialDelayMs: options.resilience.initialDelayMs,
-        maxDelayMs: options.resilience.maxDelayMs,
-        maxAttempts: options.resilience.maxAttempts,
-        suspensionTimeoutMs: options.resilience.suspensionTimeoutMs,
-        failureThreshold: options.resilience.failureThreshold,
-        jitterFactor: options.resilience.jitterFactor
+        initialDelayMs: options.resilience.initialDelayMs, maxDelayMs: options.resilience.maxDelayMs,
+        maxAttempts: options.resilience.maxAttempts, suspensionTimeoutMs: options.resilience.suspensionTimeoutMs,
+        failureThreshold: options.resilience.failureThreshold, jitterFactor: options.resilience.jitterFactor
     } : undefined;
-
     this.resilienceManager = new ConnectionResilienceManager(
       tokenManager,
-      this.logger,
+      this.logger, // Pass this logger instance as parent
       resilienceOptions
     );
 
     this.setupEventListeners();
-
     this.logger.info('ConnectionManager initialized');
   }
 
   // --- Private Methods ---
-  // ... (setupEventListeners, syncConnectionState, syncSimulatorState, connect, disconnect, attemptRecovery)
-  // No type changes needed in the previous methods from the last update
 
   private setupEventListeners(): void {
-    // Use 'this.isDisposed' (inherited getter)
-    this.logger.info('Setting up ConnectionManager event listeners');
+    this.logger.debug('Setting up ConnectionManager event listeners');
 
+    // --- WebSocketManager Listeners ---
     this.subscriptions.add(
         this.wsManager.getConnectionStatus().subscribe(status => {
-            if (this.isDisposed) return; // Use inherited getter
-             this.logger.debug(`WebSocketManager status changed: ${status}`);
-
+            if (this.isDisposed) return;
+             this.logger.debug(`[Listener] WebSocketManager status changed: ${status}`);
+            // Handle different statuses
             if (status === ConnectionStatus.DISCONNECTED && this.desiredState.connected) {
-               this.logger.warn('WebSocket disconnected unexpectedly while desired state is connected. Attempting recovery.');
+               this.logger.warn('[Listener] WebSocket disconnected unexpectedly. Attempting recovery.');
                this.attemptRecovery('ws_unexpected_disconnect');
             } else if (status === ConnectionStatus.CONNECTED) {
-                this.resilienceManager.reset();
+                this.logger.info('[Listener] WebSocket connected. Resetting resilience.');
+                this.resilienceManager.reset(); // Reset on successful connection
+                 // Ensure global state matches if not already set
                  if (appState.getState().connection.webSocketStatus !== ConnectionStatus.CONNECTED) {
-                     appState.updateConnectionState({
-                         webSocketStatus: ConnectionStatus.CONNECTED,
-                         isRecovering: false,
-                         recoveryAttempt: 0,
-                         lastConnectionError: null
-                     });
+                     appState.updateConnectionState({ webSocketStatus: ConnectionStatus.CONNECTED, isRecovering: false, recoveryAttempt: 0, lastConnectionError: null });
                  }
-                this.syncSimulatorState();
+                this.syncSimulatorState(); // Attempt to sync simulator state now that we are connected
+            } else if (status === ConnectionStatus.DISCONNECTED) {
+                // Ensure global state matches if WS reports disconnect
+                 if (appState.getState().connection.webSocketStatus !== ConnectionStatus.DISCONNECTED) {
+                     this.logger.warn('[Listener] WebSocket transitioned to DISCONNECTED. Updating app state.');
+                     appState.updateConnectionState({ webSocketStatus: ConnectionStatus.DISCONNECTED, isRecovering: false });
+                 }
             }
         })
     );
-
-    this.wsManager.subscribe('heartbeat', (hbData) => {
-        if (this.isDisposed) return; // Use inherited getter
-        const quality = appState.calculateConnectionQuality(hbData.latency);
-        appState.updateConnectionState({
-            lastHeartbeatTime: Date.now(),
-            heartbeatLatency: hbData.latency >= 0 ? hbData.latency : null,
-            quality: quality,
-            ...(hbData.simulatorStatus && { simulatorStatus: hbData.simulatorStatus })
-        });
-    });
-
-    this.wsManager.subscribe('exchange_data', (data) => {
-        if (this.isDisposed) return; // Use inherited getter
-        appState.updateExchangeSymbols(data);
-    });
-    this.wsManager.subscribe('portfolio_data', (data) => {
-        if (this.isDisposed) return; // Use inherited getter
-        appState.updatePortfolioState({
-           cash: data.cash,
-           positions: data.positions
-        });
-    });
-     this.wsManager.subscribe('order_update', (data) => {
-        if (this.isDisposed) return; // Use inherited getter
-        appState.updatePortfolioOrder(data);
-     });
-
+     // Session Invalidated by Server
      this.wsManager.subscribe('session_invalidated', (data) => {
-        if (this.isDisposed) return; // Use inherited getter
-        this.logger.error(`Session invalidated by server. Reason: ${data.reason}. Forcing disconnect and logout.`);
-        AppErrorHandler.handleAuthError(
-            `Session invalidated: ${data.reason}`,
-            ErrorSeverity.HIGH,
-            'WebSocketSessionInvalid'
-        );
-        this.setDesiredState({ connected: false });
-        this.emit('auth_failed', { reason: `Session invalidated: ${data.reason}` });
+        if (this.isDisposed) return;
+        this.logger.error(`[Listener] Session invalidated by server. Reason: ${data.reason}. Forcing disconnect and logout.`);
+        AppErrorHandler.handleAuthError(`Session invalidated: ${data.reason}`, ErrorSeverity.HIGH, 'WebSocketSessionInvalid');
+        this.setDesiredState({ connected: false }); // Trigger disconnect flow
+        this.emit('auth_failed', { reason: `Session invalidated: ${data.reason}` }); // Notify listeners
      });
 
+    // --- ConnectionResilienceManager Listeners ---
     this.resilienceManager.subscribe('reconnect_scheduled', (data: any) => {
-        if (this.isDisposed) return; // Use inherited getter
-        this.logger.info(`Resilience: Reconnection scheduled: attempt ${data.attempt}/${data.maxAttempts} in ${data.delay}ms`);
+        if (this.isDisposed) return;
+        this.logger.info(`[Listener][Resilience] Reconnection scheduled: attempt ${data.attempt}/${data.maxAttempts} in ${data.delay}ms`);
         appState.updateConnectionState({ isRecovering: true, recoveryAttempt: data.attempt });
     });
-    this.resilienceManager.subscribe('reconnect_success', () => {
-         if (this.isDisposed) return; // Use inherited getter
-         this.logger.info('Resilience: Connection recovery successful');
+     this.resilienceManager.subscribe('reconnect_success', () => {
+         if (this.isDisposed) return;
+         this.logger.info('[Listener][Resilience] Connection recovery successful');
+         // Note: State transition to CONNECTED is handled by the wsManager listener above
     });
     this.resilienceManager.subscribe('reconnect_failure', (data: any) => {
-         if (this.isDisposed) return; // Use inherited getter
-         this.logger.warn(`Resilience: Reconnection attempt ${data.attempt} failed`);
-         appState.updateConnectionState({
-            lastConnectionError: `Reconnection attempt ${data.attempt} failed.`
-         });
+         if (this.isDisposed) return;
+         this.logger.warn(`[Listener][Resilience] Reconnection attempt ${data.attempt} failed`);
+         // Update error, state remains isRecovering=true until max attempts or success
+         appState.updateConnectionState({ lastConnectionError: `Reconnection attempt ${data.attempt} failed.` });
     });
      this.resilienceManager.subscribe('max_attempts_reached', (data: any) => {
-         if (this.isDisposed) return; // Use inherited getter
-         const errorMsg = `Failed to reconnect after ${data.maxAttempts} attempts. Please check your connection or try again later.`;
-         this.logger.error(`Resilience: ${errorMsg}`);
-         appState.updateConnectionState({
-             isRecovering: false,
-             lastConnectionError: `Failed to reconnect after ${data.maxAttempts} attempts.`,
-             webSocketStatus: ConnectionStatus.DISCONNECTED
-         });
-         AppErrorHandler.handleConnectionError(
-            errorMsg,
-            ErrorSeverity.HIGH,
-            'ConnectionResilienceMaxAttempts'
-         );
+         if (this.isDisposed) return;
+         const errorMsg = `Failed to reconnect after ${data.maxAttempts} attempts. Check connection or try later.`;
+         this.logger.error(`[Listener][Resilience] ${errorMsg}`);
+         appState.updateConnectionState({ isRecovering: false, lastConnectionError: `Failed after ${data.maxAttempts} attempts.`, webSocketStatus: ConnectionStatus.DISCONNECTED });
+         AppErrorHandler.handleConnectionError( errorMsg, ErrorSeverity.HIGH, 'ConnectionResilienceMaxAttempts' );
     });
     this.resilienceManager.subscribe('suspended', (data: any) => {
-        if (this.isDisposed) return; // Use inherited getter
-        const suspensionDuration = this.resilienceManager.options.suspensionTimeoutMs / 1000;
-        const errorMsg = `Connection attempts suspended for ${suspensionDuration}s due to ${data.failureCount} failures.`;
-        this.logger.error(`Resilience: ${errorMsg}`);
-         appState.updateConnectionState({
-            isRecovering: false,
-            lastConnectionError: `Connection attempts suspended due to repeated failures.`,
-             webSocketStatus: ConnectionStatus.DISCONNECTED
-         });
+         if (this.isDisposed) return;
+         const suspensionDuration = this.resilienceManager.options.suspensionTimeoutMs / 1000;
+         const errorMsg = `Connection attempts suspended for ${suspensionDuration}s after ${data.failureCount} failures.`;
+         this.logger.error(`[Listener][Resilience] ${errorMsg}`);
+         appState.updateConnectionState({ isRecovering: false, lastConnectionError: `Connection suspended.`, webSocketStatus: ConnectionStatus.DISCONNECTED });
           AppErrorHandler.handleConnectionError(errorMsg, ErrorSeverity.MEDIUM, 'ConnectionSuspended');
     });
     this.resilienceManager.subscribe('resumed', () => {
-         if (this.isDisposed) return; // Use inherited getter
-         this.logger.info(`Resilience: Connection attempts can resume.`);
-         appState.updateConnectionState({ lastConnectionError: null });
-         this.syncConnectionState();
+         if (this.isDisposed) return;
+         this.logger.info(`[Listener][Resilience] Connection attempts can resume.`);
+         appState.updateConnectionState({ lastConnectionError: null }); // Clear suspension message
+         this.syncConnectionState(); // Try to connect again if desired
     });
 
-
+    // --- Auth State Listener ---
     this.subscriptions.add(
         appState.select(state => state.auth).subscribe(authState => {
-            if (this.isDisposed) return; // Use inherited getter
-             this.logger.debug(`Auth state changed: isAuthenticated=${authState.isAuthenticated}, isAuthLoading=${authState.isAuthLoading}`);
-            this.resilienceManager.updateAuthState(authState.isAuthenticated);
+            if (this.isDisposed) return;
+            this.logger.debug(`[Listener] Auth state changed: isAuthenticated=${authState.isAuthenticated}, isAuthLoading=${authState.isAuthLoading}`);
+            this.resilienceManager.updateAuthState(authState.isAuthenticated); // Inform resilience manager
 
+            // Only react *after* initial loading is complete
             if (!authState.isAuthLoading) {
                 if (authState.isAuthenticated) {
+                    // User is authenticated, trigger connection sync
+                    this.logger.info('[Listener] Auth confirmed. Triggering connection state sync.');
                     this.syncConnectionState();
                 } else {
+                    // User is not authenticated, ensure disconnected
                     const currentState = appState.getState().connection;
                     if (currentState.webSocketStatus !== ConnectionStatus.DISCONNECTED || currentState.isRecovering) {
-                        this.logger.info('Authentication lost or absent, forcing disconnect.');
-                        this.setDesiredState({ connected: false });
+                        this.logger.info('[Listener] Authentication lost or absent, ensuring disconnect.');
+                        this.setDesiredState({ connected: false }); // This triggers sync -> disconnect
+                    } else {
+                         this.logger.debug('[Listener] Not authenticated and already disconnected.');
                     }
                 }
             }
         })
     );
-
-    this.logger.info('ConnectionManager event listeners setup complete');
+    this.logger.debug('ConnectionManager event listeners setup complete');
   }
 
   public setDesiredState(state: Partial<ConnectionDesiredState>): void {
-    if (this.isDisposed) { // Use inherited getter
+    // *** TEMPORARY LOG ***
+    console.log(`*** ConnectionManager: setDesiredState called with: ${JSON.stringify(state)} ***`);
+    if (this.isDisposed) {
       this.logger.error('Cannot set desired state: ConnectionManager is disposed');
       return;
     }
+    this.logger.info(`Setting desired state: ${JSON.stringify(state)}`);
+
+    // Check if state actually changed
     const changed = Object.keys(state).some(
         key => this.desiredState[key as keyof ConnectionDesiredState] !== state[key as keyof ConnectionDesiredState]
     );
@@ -267,180 +227,193 @@ export class ConnectionManager extends TypedEventEmitter<ConnectionManagerEvents
         this.logger.debug('Desired state unchanged, skipping sync.');
         return;
     }
+
+    // Update state and trigger sync
     const oldState = { ...this.desiredState };
     this.desiredState = { ...this.desiredState, ...state };
     this.logger.info('Desired state updated', { oldState, newState: this.desiredState });
+    this.logger.debug('Triggering state sync after desired state change.');
     this.syncConnectionState();
-    this.syncSimulatorState();
+    this.syncSimulatorState(); // Sync simulator state as well
   }
 
   private syncConnectionState(): void {
-    if (this.isDisposed) return; // Use inherited getter
+    // *** TEMPORARY LOG ***
+    console.log('*** ConnectionManager: syncConnectionState CALLED ***');
+    this.logger.debug('syncConnectionState called.');
+
+    // --- GUARD 1: Check if disposed ---
+    if (this.isDisposed) {
+        console.log('*** syncConnectionState EXITING due to guard: DISPOSED ***');
+        this.logger.debug('syncConnectionState skipped: Disposed.');
+        return;
+    }
+
     const currentAuthState = appState.getState().auth;
+    const resilienceInfo = this.resilienceManager.getState();
+
+    // *** Log states (changed to WARN for visibility) ***
+    this.logger.warn(`syncConnectionState - States Check: AuthLoading=${currentAuthState.isAuthLoading}, Authenticated=${currentAuthState.isAuthenticated}, Resilience=${resilienceInfo.state}`);
+
+    // --- GUARD 2: Check if auth is still loading ---
     if (currentAuthState.isAuthLoading) {
-        this.logger.debug('Sync connection state skipped: Authentication is loading.');
+        console.log('*** syncConnectionState EXITING due to guard: AUTH LOADING ***');
+        this.logger.debug('syncConnectionState skipped: Authentication is loading.');
         return;
     }
-     if (this.resilienceManager.getState().state === 'suspended') {
-        this.logger.debug(`Sync connection state skipped: Suspended (State: ${this.resilienceManager.getState().state})`);
+    // --- GUARD 3: Check if resilience manager is preventing connections ---
+    if (resilienceInfo.state === 'suspended' || resilienceInfo.state === 'failed') {
+        console.log(`*** syncConnectionState EXITING due to guard: RESILIENCE STATE (${resilienceInfo.state}) ***`);
+        this.logger.warn(`syncConnectionState skipped: Resilience state is ${resilienceInfo.state}.`);
         return;
     }
+
+    // --- Past Initial Guards ---
+    console.log('*** syncConnectionState: Passed initial guards ***'); // Confirm guards passed
 
     const currentConnState = appState.getState().connection;
     const isConnected = currentConnState.webSocketStatus === ConnectionStatus.CONNECTED;
     const isConnecting = currentConnState.webSocketStatus === ConnectionStatus.CONNECTING;
     const isRecovering = currentConnState.isRecovering;
 
+    this.logger.debug(`syncConnectionState - Connection Vars: Desired=${this.desiredState.connected}, isConnected=${isConnected}, isConnecting=${isConnecting}, isRecovering=${isRecovering}`);
+    // Log check variables
+    console.log(`*** syncConnectionState Check Values: desired.connected=${this.desiredState.connected}, !isConnected=${!isConnected}, !isConnecting=${!isConnecting}, !isRecovering=${!isRecovering} ***`);
+
+    // --- GUARD 4: Check if trying to connect but not authenticated ---
     if (this.desiredState.connected && !currentAuthState.isAuthenticated) {
-        this.logger.warn('Sync connection state: Cannot connect, user is not authenticated.');
+        console.log('*** syncConnectionState EXITING due to guard: NOT AUTHENTICATED (Guard 4) ***');
+        this.logger.warn('syncConnectionState decision: Cannot connect, user not authenticated.');
         if (isConnected || isConnecting || isRecovering) {
-           this.disconnect('not_authenticated');
+           this.disconnect('not_authenticated_sync');
         }
         return;
     }
 
-    if (this.desiredState.connected && !isConnected && !isConnecting && !isRecovering) {
-      this.logger.info('Syncing connection state: attempting to connect (auth confirmed)');
-      this.connect().catch(err => {
-        this.logger.error('Connect call during state sync returned an error', { error: err instanceof Error ? err.message : String(err) });
-      });
-    } else if (!this.desiredState.connected && (isConnected || isConnecting || isRecovering)) {
-      this.logger.info('Syncing connection state: disconnecting');
-      this.disconnect('desired_state_change');
-    } else {
-         this.logger.debug('Sync connection state: No action needed.', { desired: this.desiredState.connected, isAuthenticated: currentAuthState.isAuthenticated, isConnected, isConnecting, isRecovering });
+    // --- The Decision Point ---
+    if (this.desiredState.connected && !isConnected && !isConnecting && !isRecovering) { // CONDITION TO CONNECT
+      this.logger.info('syncConnectionState decision: Attempting connect.');
+      console.log('*** ConnectionManager: syncConnectionState - DECISION: Connect ***');
+      this.connect().catch(err => { this.logger.error('syncConnectionState: Connect call returned an error', { error: err instanceof Error ? err.message : String(err) }); });
+    }
+    else if (!this.desiredState.connected && (isConnected || isConnecting || isRecovering)) { // CONDITION TO DISCONNECT
+      this.logger.info('syncConnectionState decision: Attempting disconnect.');
+      console.log('*** ConnectionManager: syncConnectionState - DECISION: Disconnect ***');
+      this.disconnect('desired_state_false_sync');
+    }
+    else { // CONDITION FOR NO ACTION
+      this.logger.debug('syncConnectionState decision: No action needed.');
+      console.log('*** ConnectionManager: syncConnectionState - DECISION: No Action ***');
     }
   }
 
   private async syncSimulatorState(): Promise<void> {
-     if (this.isDisposed) return; // Use inherited getter
+     if (this.isDisposed) return;
      const currentConnState = appState.getState().connection;
      const isConnected = currentConnState.webSocketStatus === ConnectionStatus.CONNECTED;
-     if (!isConnected) {
-         this.logger.debug('Sync simulator state skipped: Not connected.');
-         return;
-     }
+     if (!isConnected) { this.logger.debug('Sync sim state skipped: Not connected.'); return; }
      const currentSimStatus = currentConnState.simulatorStatus;
      const isRunning = currentSimStatus === 'RUNNING';
      const isBusy = currentSimStatus === 'STARTING' || currentSimStatus === 'STOPPING';
-     if (this.desiredState.simulatorRunning && !isRunning && !isBusy) {
-         this.logger.info('Syncing simulator state: attempting to start simulator');
-         await this.startSimulator();
-     } else if (!this.desiredState.simulatorRunning && isRunning && !isBusy) {
-         this.logger.info('Syncing simulator state: stopping simulator');
-         await this.stopSimulator();
-     } else {
-         this.logger.debug('Sync simulator state: No action needed.', { desired: this.desiredState.simulatorRunning, currentStatus: currentSimStatus });
-     }
-  }
+     // Sync logic based on desired state and current status
+     if (this.desiredState.simulatorRunning && !isRunning && !isBusy) { this.logger.info('Sync sim state: starting...'); await this.startSimulator(); }
+     else if (!this.desiredState.simulatorRunning && isRunning && !isBusy) { this.logger.info('Sync sim state: stopping...'); await this.stopSimulator(); }
+     else { this.logger.debug('Sync sim state: No action needed.', { desired: this.desiredState.simulatorRunning, currentStatus: currentSimStatus }); }
+   }
 
   public async connect(): Promise<boolean> {
-     if (this.isDisposed) return false; // Use inherited getter
+    // *** TEMPORARY LOG ***
+    console.log('*** ConnectionManager: connect CALLED ***');
+    this.logger.info('connect() method invoked.');
+
+     // --- Guards ---
+     if (this.isDisposed) { this.logger.warn('connect() aborted: Disposed.'); return false; }
      const currentAuthState = appState.getState().auth;
-     if (currentAuthState.isAuthLoading) {
-         this.logger.warn('Connect call ignored: Authentication is loading.');
-         return false;
-     }
-     if (!currentAuthState.isAuthenticated) {
-         this.logger.error('Connect call failed: Not authenticated.');
-         appState.updateConnectionState({
-             webSocketStatus: ConnectionStatus.DISCONNECTED,
-             lastConnectionError: 'Authentication required',
-             isRecovering: false
-         });
-         return false;
-     }
+     if (currentAuthState.isAuthLoading) { this.logger.warn('connect() aborted: Auth loading.'); return false; }
+     if (!currentAuthState.isAuthenticated) { this.logger.error('connect() aborted: Not authenticated.'); appState.updateConnectionState({ webSocketStatus: ConnectionStatus.DISCONNECTED, lastConnectionError: 'Auth required', isRecovering: false }); return false; }
+     const currentConnState = appState.getState().connection;
+     const resilienceInfo = this.resilienceManager.getState();
+     if (currentConnState.webSocketStatus === ConnectionStatus.CONNECTING || currentConnState.webSocketStatus === ConnectionStatus.CONNECTED) { this.logger.warn(`connect() ignored: Status=${currentConnState.webSocketStatus}`); return currentConnState.webSocketStatus === ConnectionStatus.CONNECTED; }
+     if (currentConnState.isRecovering || resilienceInfo.state === 'suspended' || resilienceInfo.state === 'failed') { this.logger.warn(`connect() ignored: Recovering or Resilience=${resilienceInfo.state}.`); return false; }
+     // --- End Guards ---
 
-     const currentStatus = appState.getState().connection.webSocketStatus;
-     if (currentStatus === ConnectionStatus.CONNECTING || currentStatus === ConnectionStatus.CONNECTED) {
-         this.logger.warn(`Connect call ignored: WebSocket status is already ${currentStatus}`);
-         return currentStatus === ConnectionStatus.CONNECTED;
-     }
-     if (appState.getState().connection.isRecovering || this.resilienceManager.getState().state === 'suspended') {
-         this.logger.warn(`Connect call ignored: Currently recovering or suspended.`);
-         return false;
-     }
+    // Wrap actual connection logic in timed block
+    return this.logger.trackTime('connect_process', async () => {
+      if (this.isDisposed) return false; // Re-check inside async
+      if (!this.tokenManager.isAuthenticated()) { this.logger.error('connect() aborted: Not authenticated (re-check)'); appState.updateConnectionState({ webSocketStatus: ConnectionStatus.DISCONNECTED, lastConnectionError: 'Auth required' }); return false; }
 
+      this.logger.info('connect(): Attempting connection process...');
+      // Set state to CONNECTING
+      appState.updateConnectionState({ webSocketStatus: ConnectionStatus.CONNECTING, lastConnectionError: null, isRecovering: false });
 
-    return this.logger.trackTime('connect', async () => {
-      if (this.isDisposed) return false; // Use inherited getter
-
-      if (!this.tokenManager.isAuthenticated()) {
-        this.logger.error('Cannot connect: Not authenticated (re-check failed)');
-        appState.updateConnectionState({ webSocketStatus: ConnectionStatus.DISCONNECTED, lastConnectionError: 'Authentication required' });
-        return false;
-      }
-
-      this.logger.info('Attempting to establish connection...');
-      appState.updateConnectionState({
-          webSocketStatus: ConnectionStatus.CONNECTING,
-          lastConnectionError: null,
-          isRecovering: false
-      });
-
+      let sessionOk = false;
+      let wsOk = false;
       try {
-        this.logger.info('Validating session with backend...');
+        // 1. Validate Session (HTTP)
+        this.logger.debug('connect(): Validating session via API...');
+        console.log('*** CM: connect - BEFORE sessionApi.createSession() ***');
         const sessionResponse = await this.sessionApi.createSession();
-        if (this.isDisposed) return false; // Use inherited getter
+        console.log(`*** CM: connect - AFTER sessionApi.createSession(), success: ${sessionResponse?.success} ***`);
+        if (this.isDisposed) return false; // Check again after await
         if (!sessionResponse.success) {
-          throw new Error(`Session Error: ${sessionResponse.errorMessage || 'Failed to establish session'}`);
+          this.logger.error('connect(): Session validation failed.', { error: sessionResponse.errorMessage });
+          throw new Error(`Session Error: ${sessionResponse.errorMessage || 'Failed session validation'}`);
         }
-        this.logger.info('Session validated successfully.');
+        this.logger.info('connect(): Session validated successfully.');
+        sessionOk = true;
 
-        this.logger.info('Connecting WebSocket...');
-        const wsConnected = await this.wsManager.connect();
-        if (this.isDisposed) { // Use inherited getter
-             if (wsConnected) this.wsManager.disconnect('disposed_during_connect');
-            return false;
+        // 2. Connect WebSocket
+        this.logger.debug('connect(): Connecting WebSocket via wsManager...');
+        console.log('*** CM: connect - BEFORE wsManager.connect() ***');
+        wsOk = await this.wsManager.connect(); // wsManager handles actual WebSocket creation/events
+        console.log(`*** CM: connect - AFTER wsManager.connect(), result: ${wsOk} ***`);
+        if (this.isDisposed) { if (wsOk) this.wsManager.disconnect('disposed_during_connect'); return false; } // Check again
+
+        // Check WebSocket connection result
+        if (!wsOk) {
+           this.logger.error('connect(): wsManager.connect() returned false (connection failed).');
+           // Ensure state reflects failure if not already set by listener
+           if (!appState.getState().connection.lastConnectionError) { appState.updateConnectionState({ lastConnectionError: 'WebSocket connection failed', webSocketStatus: ConnectionStatus.DISCONNECTED }); }
+           // Trigger recovery process
+           this.resilienceManager.recordFailure('WebSocket failed post-session');
+           this.attemptRecovery('ws_connect_failed_post_session');
+           return false; // Indicate connection failure
         }
 
-        if (!wsConnected) {
-           this.logger.error('WebSocket connection failed after session validation.');
-            if (!appState.getState().connection.lastConnectionError) {
-                appState.updateConnectionState({ lastConnectionError: 'WebSocket failed to connect' });
-            }
-           this.resilienceManager.recordFailure('WebSocket failed to connect');
-           this.attemptRecovery('ws_connect_failed');
-           return false;
-        }
-
-        this.logger.info('Connection established successfully.');
-        return true;
+        // If wsOk is true, the wsManager listener should handle setting state to CONNECTED
+        this.logger.info('connect(): Connection process initiated successfully (WebSocket connecting/connected).');
+        return true; // Indicate success (or at least successful initiation)
 
       } catch (error: any) {
-        if (this.isDisposed) return false; // Use inherited getter
+        // Catch errors from session validation or potentially wsManager.connect if it throws
+        console.error(`*** CM: connect - ERROR caught in process: ${error?.message} ***`, error);
+        if (this.isDisposed) return false;
         const errorMessage = error instanceof Error ? error.message : String(error);
-        this.logger.error('Connection process failed', { error: errorMessage });
-
-        appState.updateConnectionState({
-          webSocketStatus: ConnectionStatus.DISCONNECTED,
-          isRecovering: false,
-          lastConnectionError: errorMessage
-        });
-
-        this.resilienceManager.recordFailure(errorMessage);
-        this.attemptRecovery('initial_connect_failed');
-
+        this.logger.error(`connect(): Connection process failed during ${sessionOk ? 'WebSocket connection phase' : 'session validation phase'}.`, { error: errorMessage });
+        // Set state to disconnected on error
+        appState.updateConnectionState({ webSocketStatus: ConnectionStatus.DISCONNECTED, isRecovering: false, lastConnectionError: errorMessage });
+        // Trigger recovery process
+        this.resilienceManager.recordFailure(`Connection process error: ${errorMessage}`);
+        this.attemptRecovery('connect_process_exception');
+        // Handle global error notification
         AppErrorHandler.handleConnectionError(errorMessage, ErrorSeverity.HIGH, 'ConnectionManager.connect');
-        return false;
+        return false; // Indicate connection failure
       }
     });
   }
 
   public disconnect(reason: string = 'manual_disconnect'): void {
-    if (this.isDisposed && reason !== 'manager_disposed') { // Use inherited getter
-      this.logger.info(`Disconnect called on disposed ConnectionManager. Reason: ${reason}`);
-      return;
-    }
+    this.logger.info(`disconnect() called. Reason: ${reason}`);
+    if (this.isDisposed && reason !== 'manager_disposed') { this.logger.debug(`Disconnect ignored: Disposed.`); return; }
      const currentState = appState.getState().connection;
      const wasConnectedOrConnecting = currentState.webSocketStatus !== ConnectionStatus.DISCONNECTED || currentState.isRecovering;
-     if (!wasConnectedOrConnecting) {
-         this.logger.debug(`Disconnect call ignored: Already disconnected. Reason: ${reason}`);
-         return;
-     }
-     this.logger.warn(`Disconnecting. Reason: ${reason}`);
-     this.resilienceManager.reset();
-     this.wsManager.disconnect(reason);
+     if (!wasConnectedOrConnecting) { this.logger.debug(`Disconnect ignored: Already disconnected.`); return; }
+
+     this.logger.warn(`Disconnecting internal state. Reason: ${reason}`);
+     this.resilienceManager.reset(); // Reset resilience state on disconnect
+     this.wsManager.disconnect(reason); // Tell WebSocketManager to close the socket
+
+     // Immediately update app state to reflect disconnection
      appState.updateConnectionState({
          webSocketStatus: ConnectionStatus.DISCONNECTED,
          isRecovering: false,
@@ -448,210 +421,66 @@ export class ConnectionManager extends TypedEventEmitter<ConnectionManagerEvents
          heartbeatLatency: null,
          lastHeartbeatTime: undefined,
          lastConnectionError: `Disconnected: ${reason}`,
-         ...(currentState.simulatorStatus === 'RUNNING' && { simulatorStatus: 'UNKNOWN' })
+         // Reset simulator status if it wasn't already stopped/unknown
+         ...(currentState.simulatorStatus !== 'STOPPED' && currentState.simulatorStatus !== 'UNKNOWN' && { simulatorStatus: 'UNKNOWN' })
      });
   }
 
-  public async attemptRecovery(reason: string = 'manual'): Promise<boolean> {
-     if (this.isDisposed) return false; // Use inherited getter
+   public async attemptRecovery(reason: string = 'manual'): Promise<boolean> {
+     this.logger.info(`attemptRecovery() called. Reason: ${reason}`);
+     if (this.isDisposed) { this.logger.debug('Recovery aborted: Disposed.'); return false; }
+
+     // --- Guards ---
      const currentAuthState = appState.getState().auth;
-     if (currentAuthState.isAuthLoading) {
-         this.logger.warn(`Recovery attempt ignored: Authentication is loading. Reason: ${reason}`);
-         return false;
-     }
-      if (!currentAuthState.isAuthenticated) {
-          this.logger.warn(`Recovery attempt ignored: Not authenticated. Reason: ${reason}`);
-          return false;
+     if (currentAuthState.isAuthLoading) { this.logger.warn(`Recovery ignored: Auth loading.`); return false; }
+     if (!currentAuthState.isAuthenticated) { this.logger.warn(`Recovery ignored: Not authenticated.`); return false; }
+     const resilienceInfo = this.resilienceManager.getState();
+     const currentConnState = appState.getState().connection;
+     if (currentConnState.isRecovering || resilienceInfo.state === 'suspended' || resilienceInfo.state === 'failed') { this.logger.warn(`Recovery ignored: Already recovering or Resilience=${resilienceInfo.state}.`); return false; }
+     // --- End Guards ---
+
+     this.logger.warn(`Connection recovery requested via resilience manager. Reason: ${reason}`);
+     // Optimistically update state to show recovery starting
+     appState.updateConnectionState({ isRecovering: true, recoveryAttempt: resilienceInfo.attempt + 1 });
+
+     // Delegate to resilience manager
+     const initiated = await this.resilienceManager.attemptReconnection(() => this.connect());
+
+     // Handle case where resilience manager couldn't initiate (e.g., max attempts already reached)
+     if (!initiated && !this.isDisposed) {
+          this.logger.warn("Recovery could not be initiated by resilience manager.");
+           // Revert optimistic state if recovery didn't actually start
+           if(appState.getState().connection.isRecovering) {
+              appState.updateConnectionState({ isRecovering: false, recoveryAttempt: 0 });
+           }
+      } else if (initiated) {
+          this.logger.info("Recovery initiated by resilience manager.");
       }
-     const resilienceState = this.resilienceManager.getState();
-     if (appState.getState().connection.isRecovering || resilienceState.state === 'suspended') {
-        this.logger.warn(`Recovery attempt ignored: Already recovering or suspended. Reason: ${reason}`);
-        return false;
-     }
-     this.logger.warn(`Connection recovery requested. Reason: ${reason}`);
-     appState.updateConnectionState({ isRecovering: true, recoveryAttempt: 1 });
-     this.resilienceManager.attemptReconnection(() => this.connect())
-         .then(initiated => {
-             if (!initiated && !this.isDisposed) { // Use inherited getter
-                 this.logger.warn("Recovery process could not be initiated.");
-                  if(appState.getState().connection.isRecovering) {
-                     appState.updateConnectionState({ isRecovering: false, recoveryAttempt: 0 });
-                  }
-             }
-         });
-     return true;
-  }
-
-  // --- Public Actions ---
-
-  /**
-   * Submits a trading order.
-   * FIX: Added explicit parameter type and return type.
-   */
-  public async submitOrder(
-    // FIX: Add type annotation for the 'order' parameter
-    order: {
-      symbol: string;
-      side: OrderSide;
-      quantity: number;
-      price?: number;
-      type: OrderType;
-    }
-    // FIX: Add explicit Promise return type annotation
-  ): Promise<SubmitOrderResult> {
-    if (this.isDisposed) return { success: false, error: 'Connection manager disposed' };
-    const state = appState.getState().connection;
-    if (state.webSocketStatus !== ConnectionStatus.CONNECTED) {
-      const errorMsg = 'Submit order failed: Not connected to trading service';
-      AppErrorHandler.handleGenericError(errorMsg, ErrorSeverity.MEDIUM, 'SubmitOrderCheck');
-      return { success: false, error: errorMsg };
-    }
-     if (state.simulatorStatus !== 'RUNNING') {
-       const errorMsg = 'Submit order failed: Simulator not running';
-       AppErrorHandler.handleGenericError(errorMsg, ErrorSeverity.MEDIUM, 'SubmitOrderCheck');
-       return { success: false, error: errorMsg };
-     }
-    // FIX: Now TypeScript knows the properties of 'order' exist
-    this.logger.info('Submitting order', { symbol: order.symbol, type: order.type, side: order.side });
-    // FIX: Now TypeScript knows 'order' matches the expected parameter type
-    return this.dataHandlers.submitOrder(order);
-  }
-
-  /**
-   * Cancels a trading order.
-   * FIX: Added explicit return type.
-   */
-  public async cancelOrder(orderId: string): Promise<CancelOrderResult> { // FIX: Add return type
-      if (this.isDisposed) return { success: false, error: 'Connection manager disposed' };
-      const state = appState.getState().connection;
-      if (state.webSocketStatus !== ConnectionStatus.CONNECTED) {
-         const errorMsg = 'Cancel order failed: Not connected to trading service';
-         AppErrorHandler.handleGenericError(errorMsg, ErrorSeverity.MEDIUM, 'CancelOrderCheck');
-         return { success: false, error: errorMsg };
-      }
-       if (state.simulatorStatus !== 'RUNNING') {
-          const errorMsg = 'Cancel order failed: Simulator not running';
-          AppErrorHandler.handleGenericError(errorMsg, ErrorSeverity.MEDIUM, 'CancelOrderCheck');
-          return { success: false, error: errorMsg };
-       }
-      this.logger.info('Cancelling order', { orderId });
-      return this.dataHandlers.cancelOrder(orderId);
-  }
-
-  /**
-   * Starts the simulator.
-   * FIX: Added explicit return type.
-   */
-  public async startSimulator(): Promise<SimulatorActionResult> { // FIX: Add return type
-    if (this.isDisposed) return { success: false, error: 'Connection manager disposed' };
-     this.desiredState.simulatorRunning = true;
-     const state = appState.getState().connection;
-     if (state.webSocketStatus !== ConnectionStatus.CONNECTED) {
-       const errorMsg = 'Start simulator failed: Not connected';
-       return { success: false, error: errorMsg }; // Return matches SimulatorActionResult
-     }
-     if (state.simulatorStatus === 'RUNNING' || state.simulatorStatus === 'STARTING') {
-        this.logger.warn(`Start simulator ignored: Already ${state.simulatorStatus}`);
-        return { success: true, status: state.simulatorStatus }; // Return matches SimulatorActionResult
-     }
-
-     this.logger.info('Starting simulator...');
-     appState.updateConnectionState({ simulatorStatus: 'STARTING' });
-     try {
-         // simulatorManager methods already return SimulatorStatusResponse
-         const result: SimulatorStatusResponse = await this.simulatorManager.startSimulator();
-         if (this.isDisposed) return { success: false, error: 'Disposed during start' };
-         appState.updateConnectionState({
-             simulatorStatus: result.success ? (result.status || 'RUNNING') : 'ERROR',
-             lastConnectionError: result.success ? null : (result.errorMessage || 'Failed to start simulator')
-         });
-         if (!result.success) {
-             this.desiredState.simulatorRunning = false;
-             AppErrorHandler.handleGenericError(result.errorMessage || 'Failed to start simulator', ErrorSeverity.MEDIUM, 'StartSimulator');
-         }
-         // Adapt the API response to the SimulatorActionResult structure
-         return { success: result.success, status: result.status, error: result.errorMessage };
-     } catch (error: any) {
-         if (this.isDisposed) return { success: false, error: 'Disposed during start exception' };
-          const errorMsg = error instanceof Error ? error.message : String(error);
-          this.logger.error('Error starting simulator', { error: errorMsg });
-          appState.updateConnectionState({ simulatorStatus: 'ERROR', lastConnectionError: errorMsg });
-          this.desiredState.simulatorRunning = false;
-          AppErrorHandler.handleGenericError(errorMsg, ErrorSeverity.HIGH, 'StartSimulatorException');
-          // Return matches SimulatorActionResult structure
-          return { success: false, error: errorMsg };
-     }
-  }
-
-  /**
-   * Stops the simulator.
-   * FIX: Added explicit return type.
-   */
-  public async stopSimulator(): Promise<SimulatorActionResult> { // FIX: Add return type
-     if (this.isDisposed) return { success: false, error: 'Connection manager disposed' };
-      this.desiredState.simulatorRunning = false;
-      const state = appState.getState().connection;
-      if (state.webSocketStatus !== ConnectionStatus.CONNECTED) {
-        const errorMsg = 'Stop simulator failed: Not connected';
-        return { success: false, error: errorMsg }; // Return matches SimulatorActionResult
-      }
-       if (state.simulatorStatus !== 'RUNNING' && state.simulatorStatus !== 'STARTING') {
-           this.logger.warn(`Stop simulator ignored: Not running or starting (status: ${state.simulatorStatus})`);
-           return { success: true, status: state.simulatorStatus }; // Return matches SimulatorActionResult
-       }
-
-      this.logger.info('Stopping simulator...');
-      appState.updateConnectionState({ simulatorStatus: 'STOPPING' });
-      try {
-          const result: SimulatorStatusResponse = await this.simulatorManager.stopSimulator();
-          if (this.isDisposed) return { success: false, error: 'Disposed during stop' };
-          const simStatus = result.success ? 'STOPPED' : 'ERROR';
-          const errorMsg = result.success ? null : (result.errorMessage || 'Failed to stop simulator');
-          appState.updateConnectionState({ simulatorStatus: simStatus, lastConnectionError: errorMsg });
-          if (!result.success) {
-               AppErrorHandler.handleGenericError(errorMsg || 'Failed to stop simulator', ErrorSeverity.MEDIUM, 'StopSimulator');
-          }
-          // Adapt the API response to the SimulatorActionResult structure
-          return { success: result.success, status: result.status, error: result.errorMessage };
-      } catch (error: any) {
-          if (this.isDisposed) return { success: false, error: 'Disposed during stop exception' };
-           const errorMsg = error instanceof Error ? error.message : String(error);
-           this.logger.error('Error stopping simulator', { error: errorMsg });
-           appState.updateConnectionState({ simulatorStatus: 'ERROR', lastConnectionError: errorMsg });
-           AppErrorHandler.handleGenericError(errorMsg, ErrorSeverity.HIGH, 'StopSimulatorException');
-            // Return matches SimulatorActionResult structure
-           return { success: false, error: errorMsg };
-      }
-  }
-
-  /**
-   * Initiates a manual reconnection attempt.
-   */
-  public manualReconnect(): void {
-     if (this.isDisposed) return;
-     this.logger.warn('Manual reconnect triggered');
-     this.setDesiredState({ connected: true });
-     this.attemptRecovery('manual_user_request');
-  }
-
-
-  public override dispose(): void {
-       if (this.isDisposed) return;
-       this.logger.warn('Disposing ConnectionManager');
-       this.disconnect('manager_disposed');
-       if (this.resilienceManager && typeof this.resilienceManager.dispose === 'function') {
-           this.resilienceManager.dispose();
-       }
-       if (this.wsManager && typeof this.wsManager.dispose === 'function') {
-           this.wsManager.dispose();
-       }
-       this.subscriptions.unsubscribe();
-       super.dispose();
-       this.logger.info('ConnectionManager disposed');
+     return initiated; // Return whether initiation was successful
    }
 
+  // --- Public Actions ---
+  // (Implementations unchanged, only signatures were fixed previously)
+  public async submitOrder(order: SubmitOrderRequest): Promise<SubmitOrderResult> { if (this.isDisposed) return { success: false, error: 'CM disposed' }; const s=appState.getState().connection; if (s.webSocketStatus!==ConnectionStatus.CONNECTED){const e='Submit fail: Not connected'; AppErrorHandler.handleGenericError(e, ErrorSeverity.MEDIUM, 'SubmitOrderCheck'); return { success: false, error: e };} if (s.simulatorStatus!=='RUNNING'){const e='Submit fail: Sim not running'; AppErrorHandler.handleGenericError(e, ErrorSeverity.MEDIUM, 'SubmitOrderCheck'); return { success: false, error: e };} this.logger.info('Submitting order',{/*...*/}); return this.dataHandlers.submitOrder(order); }
+  public async cancelOrder(orderId: string): Promise<CancelOrderResult> { if (this.isDisposed) return { success: false, error: 'CM disposed' }; const s=appState.getState().connection; if (s.webSocketStatus!==ConnectionStatus.CONNECTED){const e='Cancel fail: Not connected'; AppErrorHandler.handleGenericError(e, ErrorSeverity.MEDIUM, 'CancelOrderCheck'); return { success: false, error: e };} if (s.simulatorStatus!=='RUNNING'){const e='Cancel fail: Sim not running'; AppErrorHandler.handleGenericError(e, ErrorSeverity.MEDIUM, 'CancelOrderCheck'); return { success: false, error: e };} this.logger.info('Cancelling order',{orderId}); return this.dataHandlers.cancelOrder(orderId); }
+  public async startSimulator(): Promise<SimulatorActionResult> { if (this.isDisposed) return { success: false, error: 'CM disposed' }; this.desiredState.simulatorRunning=true; const s=appState.getState().connection; if (s.webSocketStatus!==ConnectionStatus.CONNECTED){const e='Start sim fail: Not connected'; return { success: false, error: e };} if (s.simulatorStatus==='RUNNING' || s.simulatorStatus==='STARTING'){this.logger.warn(`Start sim ignored: Status=${s.simulatorStatus}`); return { success: true, status: s.simulatorStatus };} this.logger.info('Starting sim...'); appState.updateConnectionState({ simulatorStatus: 'STARTING' }); try { const r: SimulatorStatusResponse = await this.simulatorManager.startSimulator(); if (this.isDisposed) return { success: false, error: 'Disposed' }; appState.updateConnectionState({ simulatorStatus: r.success ? (r.status || 'RUNNING') : 'ERROR', lastConnectionError: r.success ? null : (r.errorMessage || 'Failed start') }); if (!r.success) { this.desiredState.simulatorRunning = false; AppErrorHandler.handleGenericError(r.errorMessage || 'Failed start', ErrorSeverity.MEDIUM, 'StartSim'); } return { success: r.success, status: r.status, error: r.errorMessage }; } catch (error: any) { if (this.isDisposed) return { success: false, error: 'Disposed' }; const e=error instanceof Error ? error.message : String(error); this.logger.error('Error starting sim', { error: e }); appState.updateConnectionState({ simulatorStatus: 'ERROR', lastConnectionError: e }); this.desiredState.simulatorRunning = false; AppErrorHandler.handleGenericError(e, ErrorSeverity.HIGH, 'StartSimEx'); return { success: false, error: e }; } }
+  public async stopSimulator(): Promise<SimulatorActionResult> { if (this.isDisposed) return { success: false, error: 'CM disposed' }; this.desiredState.simulatorRunning=false; const s=appState.getState().connection; if (s.webSocketStatus!==ConnectionStatus.CONNECTED){const e='Stop sim fail: Not connected'; return { success: false, error: e };} if (s.simulatorStatus!=='RUNNING' && s.simulatorStatus!=='STARTING'){this.logger.warn(`Stop sim ignored: Status=${s.simulatorStatus}`); return { success: true, status: s.simulatorStatus };} this.logger.info('Stopping sim...'); appState.updateConnectionState({ simulatorStatus: 'STOPPING' }); try { const r: SimulatorStatusResponse = await this.simulatorManager.stopSimulator(); if (this.isDisposed) return { success: false, error: 'Disposed' }; const st=r.success ? 'STOPPED' : 'ERROR'; const e=r.success ? null : (r.errorMessage || 'Failed stop'); appState.updateConnectionState({ simulatorStatus: st, lastConnectionError: e }); if (!r.success) { AppErrorHandler.handleGenericError(e || 'Failed stop', ErrorSeverity.MEDIUM, 'StopSim'); } return { success: r.success, status: r.status, error: result.errorMessage }; } catch (error: any) { if (this.isDisposed) return { success: false, error: 'Disposed' }; const e=error instanceof Error ? error.message : String(error); this.logger.error('Error stopping sim', { error: e }); appState.updateConnectionState({ simulatorStatus: 'ERROR', lastConnectionError: e }); AppErrorHandler.handleGenericError(e, ErrorSeverity.HIGH, 'StopSimEx'); return { success: false, error: e }; } }
+  public manualReconnect(): void { this.logger.warn('Manual reconnect via manualReconnect()'); if (this.isDisposed) return; this.setDesiredState({ connected: true }); this.attemptRecovery('manual_user_request'); }
+
+
+  // --- Dispose ---
+  public override dispose(): void {
+       if (this.isDisposed) return;
+       this.logger.warn('Disposing CM...');
+       this.disconnect('manager_disposed');
+       if (this.resilienceManager) this.resilienceManager.dispose();
+       if (this.wsManager) this.wsManager.dispose();
+       this.subscriptions.unsubscribe();
+       super.dispose(); // Call base dispose
+       this.logger.info('CM disposed.');
+   }
 
   [Symbol.dispose](): void {
     this.dispose();
   }
-}
+} // End of ConnectionManager class

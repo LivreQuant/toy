@@ -1,14 +1,12 @@
 // src/pages/SimulatorPage.tsx
-import React, { useEffect, useState, useCallback } from 'react'; // Added useCallback
+import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useConnection } from '../hooks/useConnection';
 import { useRequireAuth } from '../hooks/useRequireAuth';
 import { useToast } from '../hooks/useToast';
-import OrderEntryForm from '../components/Simulator/OrderEntryForm';
-import ConnectionStatusIndicator from '../components/Common/ConnectionStatusIndicator';
+import OrderEntryForm from '../components/Simulator/OrderEntryForm'; // Assuming component exists
+import ConnectionStatusIndicator from '../components/Common/ConnectionStatusIndicator'; // Assuming component exists
 import './SimulatorPage.css';
-// Assuming ConnectionStatus exists and is needed, if not remove it
-// import { ConnectionStatus } from '../services/state/app-state.service';
 
 const SimulatorPage: React.FC = () => {
   useRequireAuth();
@@ -24,22 +22,45 @@ const SimulatorPage: React.FC = () => {
   const isSimulatorRunning = simulatorStatus === 'RUNNING';
   const isSimulatorBusy = simulatorStatus === 'STARTING' || simulatorStatus === 'STOPPING';
 
-  // Set desired state on mount/unmount (optional, depends on desired behavior)
-  // useEffect(() => {
-  //    // Indicate desire to be connected when entering the page
-  //    if (connectionManager) {
-  //       connectionManager.setDesiredState({ connected: true });
-  //    }
-  //    // Clean up: Optionally set desired state to disconnected on unmount?
-  //    // return () => {
-  //    //    if (connectionManager) {
-  //    //       // connectionManager.setDesiredState({ connected: false }); // Or keep connected?
-  //    //    }
-  //    // };
-  // }, [connectionManager]);
+  // Handler to attempt stopping the simulator
+  const handleStopSimulator = useCallback(async () => {
+      if (!connectionManager || isSimulatorBusy || !isSimulatorRunning) return false; // Return success status
+      setIsSimActionLoading(true);
+       addToast('info', 'Attempting to stop simulator...');
+      let success = false; // Track success
+      try {
+           const result = await connectionManager.stopSimulator();
+           if (result.success) {
+               addToast('success', `Simulator stopped (Status: ${result.status || 'STOPPED'})`);
+               success = true; // Mark as successful
+           } else {
+               addToast('error', `Failed to stop simulator: ${result.error || 'Unknown reason'}`);
+           }
+       } catch (error: any) {
+           addToast('error', `Error stopping simulator: ${error.message}`);
+       } finally {
+          setIsSimActionLoading(false);
+       }
+       return success; // Return success status
+   }, [connectionManager, isSimulatorBusy, isSimulatorRunning, addToast]);
 
+   // --- NEW: Handler to Stop Simulator and Go Home ---
+   const handleShutdownAndGoHome = useCallback(async () => {
+        // Prevent action if already busy or not running
+        if (isSimulatorBusy || !isSimulatorRunning) return;
 
-  const handleStartSimulator = useCallback(async () => {
+        const stopped = await handleStopSimulator(); // Call existing stop logic
+
+        // Navigate home regardless of whether stop succeeded,
+        // or only navigate on success? Your choice.
+        // This example navigates regardless.
+        // if (stopped) { // Uncomment this line to only navigate if stop was successful
+             navigate('/home');
+        // }
+   }, [handleStopSimulator, navigate, isSimulatorBusy, isSimulatorRunning]);
+   // --- End New Handler ---
+
+   const handleStartSimulator = useCallback(async () => {
       if (!connectionManager || isSimulatorBusy || isSimulatorRunning) return;
       setIsSimActionLoading(true);
       addToast('info', 'Attempting to start simulator...');
@@ -57,27 +78,11 @@ const SimulatorPage: React.FC = () => {
       }
    }, [connectionManager, isSimulatorBusy, isSimulatorRunning, addToast]);
 
-   const handleStopSimulator = useCallback(async () => {
-      if (!connectionManager || isSimulatorBusy || !isSimulatorRunning) return;
-      setIsSimActionLoading(true);
-       addToast('info', 'Attempting to stop simulator...');
-      try {
-           const result = await connectionManager.stopSimulator();
-           if (result.success) {
-               addToast('success', `Simulator stopped (Status: ${result.status || 'STOPPED'})`);
-           } else {
-               addToast('error', `Failed to stop simulator: ${result.error || 'Unknown reason'}`);
-           }
-       } catch (error: any) {
-           addToast('error', `Error stopping simulator: ${error.message}`);
-       } finally {
-          setIsSimActionLoading(false);
-       }
-   }, [connectionManager, isSimulatorBusy, isSimulatorRunning, addToast]);
-
    const handleGoBack = useCallback(() => {
-       navigate(-1); // Navigate back to the previous page
-   }, [navigate]);
+       // Consider stopping the simulator if user navigates back? Optional.
+       // if (isSimulatorRunning) { handleStopSimulator(); }
+       navigate(-1); // Navigate back to the previous page (likely HomePage)
+   }, [navigate /*, isSimulatorRunning, handleStopSimulator */]); // Add dependencies if uncommenting stop logic
 
    const handleManualReconnect = useCallback(() => {
        if (connectionManager) {
@@ -92,7 +97,10 @@ const SimulatorPage: React.FC = () => {
         <header className="simulator-header">
             <h1>Trading Simulator</h1>
             <div className="simulator-controls">
+                {/* Back button remains */}
                 <button onClick={handleGoBack} className="control-button secondary">Back</button>
+
+                {/* Start Button */}
                 <button
                     onClick={handleStartSimulator}
                     disabled={!isConnected || isSimulatorRunning || isSimulatorBusy || isSimActionLoading}
@@ -100,31 +108,43 @@ const SimulatorPage: React.FC = () => {
                 >
                    {simulatorStatus === 'STARTING' ? 'Starting...' : 'Start Simulator'}
                 </button>
+
+                {/* --- NEW: Shutdown and Go Home Button --- */}
                 <button
-                    onClick={handleStopSimulator}
-                    disabled={!isConnected || !isSimulatorRunning || isSimulatorBusy || isSimActionLoading}
-                    className="control-button stop-button"
+                    onClick={handleShutdownAndGoHome} // Use new handler
+                    disabled={!isConnected || !isSimulatorRunning || isSimulatorBusy || isSimActionLoading} // Similar disabled logic to stop
+                    className="control-button danger" // Use danger style or create a specific one
+                    title="Stop simulator and return to home"
                 >
-                   {simulatorStatus === 'STOPPING' ? 'Stopping...' : 'Stop Simulator'}
+                   {simulatorStatus === 'STOPPING' ? 'Stopping...' : 'Shutdown & Home'}
                 </button>
+                 {/* You might want to keep the original Stop button or remove it */}
+                 {/*
+                 <button
+                     onClick={handleStopSimulator}
+                     disabled={!isConnected || !isSimulatorRunning || isSimulatorBusy || isSimActionLoading}
+                     className="control-button stop-button"
+                 >
+                    {simulatorStatus === 'STOPPING' ? 'Stopping...' : 'Stop Simulator'}
+                 </button>
+                 */}
             </div>
         </header>
 
-         {/* Pass connectionState slice only if it exists */}
-         {connectionState && (
+         {connectionState ? (
             <ConnectionStatusIndicator
                 state={connectionState}
                 onManualReconnect={handleManualReconnect}
             />
+         ) : (
+            <p>Loading connection state...</p>
          )}
 
         <div className="simulator-content">
              <div className="market-data-container">
                  <h2>Market Data / Charts</h2>
-                 {/* FIX: Removed erroneous '>' after comment */}
-                 {/* FIX: Corrected JSX Structure */}
                  {isConnected && isSimulatorRunning ? (
-                    <div> {/* Replace with actual Market Data component */}
+                    <div>
                         <p>Market Data/Charts Area (Connected & Simulator Running)</p>
                     </div>
                  ) : (
@@ -137,7 +157,6 @@ const SimulatorPage: React.FC = () => {
              </div>
              <div className="order-entry-container">
                  <h2 className="order-entry-title">Order Entry</h2>
-                 {/* Use derived state directly */}
                  {isConnected && isSimulatorRunning ? (
                     <OrderEntryForm />
                  ) : (
@@ -149,8 +168,7 @@ const SimulatorPage: React.FC = () => {
                  )}
              </div>
         </div>
-        {/* FIX: Removed extra closing div that likely caused TS2304/TS1005 etc. */}
-    </div> // This corresponds to the opening div with className="simulator-page"
+    </div>
   );
 };
 
