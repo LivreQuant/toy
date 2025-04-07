@@ -1,7 +1,7 @@
 // src/api/session.ts
 import { HttpClient } from './http-client';
 // Removed SessionManager import as getDeviceId is static on DeviceIdManager
-import { DeviceIdManager } from '../utils/device-id-manager'; 
+import { DeviceIdManager } from '../utils/device-id-manager';
 
 // Interfaces remain the same
 export interface SessionResponse {
@@ -33,7 +33,7 @@ export class SessionApi {
    */
   async createSession(): Promise<SessionResponse> {
     // Use the static method from DeviceIdManager
-    const deviceId = DeviceIdManager.getInstance().getDeviceId(); 
+    const deviceId = DeviceIdManager.getInstance().getDeviceId();
     return this.client.post<SessionResponse>('/sessions', {
       deviceId // Send deviceId in the request body
     });
@@ -55,4 +55,3 @@ export class SessionApi {
   //   return this.client.get<SessionStateResponse>('/sessions/state');
   // }
 }
-

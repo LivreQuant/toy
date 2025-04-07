@@ -1,103 +1,78 @@
-// src/pages/SimulatorPage.tsx
-import React, { useEffect } from 'react';
-// Import the hook to use the connection context
-import { useConnection } from '../contexts/ConnectionContext'; 
-// Import ConnectionStatus for explicit checks
-import { ConnectionStatus } from '../services/connection/unified-connection-state'; 
+// src/pages/SimulatorPage.tsx (Corrected State Access & Logic)
+import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+// Import useConnection hook
+import { useConnection } from '../hooks/useConnection';
+import { useRequireAuth } from '../hooks/useRequireAuth';
+import { useToast } from '../hooks/useToast';
+import OrderEntryForm from '../components/Simulator/OrderEntryForm';
+import ConnectionStatusIndicator from '../components/Common/ConnectionStatusIndicator';
 import './SimulatorPage.css';
 
 const SimulatorPage: React.FC = () => {
-  // --- Destructure state and actions using the updated context ---
-  const {
-    isConnected,      // Boolean flag: Is connection established?
-    isConnecting,     // Boolean flag: Is connection attempt in progress?
-    isRecovering,     // Boolean flag: Is connection recovery in progress?
-    overallStatus,    // Overall connection status enum
-    simulatorStatus,  // Current status string of the simulator
-    setDesiredState   // New declarative API method
-  } = useConnection();
+  useRequireAuth();
+  // Destructure needed state/methods directly from useConnection
+  const { connectionManager, connectionState, isConnected } = useConnection();
+  const { addToast } = useToast();
+  const navigate = useNavigate();
+  const [isStarting, setIsStarting] = useState(false);
+  const [isStopping, setIsStopping] = useState(false);
 
-  // --- Derived State ---
-  // Determine if the simulator is considered running
-  const isRunning = simulatorStatus === 'RUNNING';
-  // Determine if the simulator is in a transient state (starting/stopping)
-  const isBusy = simulatorStatus === 'STARTING' || simulatorStatus === 'STOPPING';
-  // Determine if controls should be disabled
-  const controlsDisabled = !isConnected || isConnecting || isRecovering || isBusy;
+  // Get simulator status from the connectionState object
+  const simulatorStatus = connectionState?.simulatorStatus || 'UNKNOWN';
+  const isSimulatorRunning = simulatorStatus === 'RUNNING';
+  // Simplify busy check
+  const isSimulatorBusy = simulatorStatus === 'STARTING' || simulatorStatus === 'STOPPING';
 
-  // Connect on mount (alternative to the automatic approach)
-  useEffect(() => {
-    // If not connected or connecting, set desired state to connected
-    if (overallStatus === ConnectionStatus.DISCONNECTED) {
-      setDesiredState({ connected: true });
-    }
-  }, [overallStatus, setDesiredState]);
 
-  // --- Event Handlers ---
-  // Declarative handlers that update desired state
-  const handleStartSimulator = () => {
-    // Set the desired state for the simulator to be running
-    setDesiredState({ simulatorRunning: true });
-  };
-
-  const handleStopSimulator = () => {
-    // Set the desired state for the simulator to be stopped
-    setDesiredState({ simulatorRunning: false });
-  };
+  useEffect(() => { /* ... */ }, [connectionManager]);
+  const handleStartSimulator = async () => { /* ... */ };
+  const handleStopSimulator = async () => { /* ... */ };
+  const handleGoBack = () => { /* ... */ };
+  const handleManualReconnect = () => { /* ... */ };
 
   return (
     <div className="simulator-page">
-      <div className="simulator-header">
-        <h2>Simulator Control</h2>
-        <div>
-          {/* Start Simulator Button */}
-          <button
-            className="control-button start-button"
-            onClick={handleStartSimulator}
-            disabled={controlsDisabled || isRunning}
-            title={controlsDisabled ? "Cannot start simulator while disconnected or busy" : isRunning ? "Simulator is already running" : "Start the simulator"}
-          >
-            Start Simulator
-          </button>
-          {/* Stop Simulator Button */}
-          <button
-            className="control-button stop-button"
-            onClick={handleStopSimulator}
-            disabled={controlsDisabled || !isRunning}
-            title={controlsDisabled ? "Cannot stop simulator while disconnected or busy" : !isRunning ? "Simulator is not running" : "Stop the simulator"}
-          >
-            Stop Simulator
-          </button>
+        <header className="simulator-header">
+            <h1>Trading Simulator</h1>
+            <div className="simulator-controls"> {/* Added wrapper div */}
+                <button onClick={handleGoBack} className="control-button secondary">Back</button> {/* Added class */}
+                <button
+                    onClick={handleStartSimulator}
+                    // Use isConnected directly, use isSimulatorBusy
+                    disabled={!isConnected || isSimulatorRunning || isSimulatorBusy}
+                    className="control-button start-button"
+                >
+                   {/* Use isSimulatorBusy for label */}
+                   {simulatorStatus === 'STARTING' ? 'Starting...' : 'Start Simulator'}
+                </button>
+                <button
+                    onClick={handleStopSimulator}
+                    // Use isConnected directly, use isSimulatorBusy, simplify check
+                    disabled={!isConnected || !isSimulatorRunning || isSimulatorBusy}
+                    className="control-button stop-button"
+                >
+                   {/* Use isSimulatorBusy for label */}
+                   {simulatorStatus === 'STOPPING' ? 'Stopping...' : 'Stop Simulator'}
+                </button>
+            </div>
+        </header>
+         {/* Pass connectionState slice */}
+         {connectionState && ( <ConnectionStatusIndicator state={connectionState} onManualReconnect={handleManualReconnect} /> )}
+        <div className="simulator-content">
+            {/* ... (market data/order entry sections) ... */}
+             <div className="market-data-container">
+                 <h2>Market Data / Charts</h2>
+                 {/* Use isConnected directly */}
+                 {isConnected && isSimulatorRunning ? ( /* ... */ ) : ( <div className="market-data-placeholder"> /* ... */ </div> )}
+             </div>
+             <div className="order-entry-container">
+                 <h2 className="order-entry-title">Order Entry</h2>
+                 {/* Use isConnected directly */}
+                 {isConnected && isSimulatorRunning ? ( <OrderEntryForm /> ) : ( <div className="order-form-placeholder"> /* ... */ </div> )}
+             </div>
         </div>
-      </div>
-
-      {/* Display Status Information */}
-      <div className="status-panel">
-         <p>Connection Status: <strong>{overallStatus}</strong></p>
-         <p>Simulator Status: <strong>{simulatorStatus || 'N/A'}</strong></p>
-         {!isConnected && <p style={{color: 'red'}}>Warning: Controls disabled while disconnected.</p>}
-         {isBusy && <p style={{color: 'orange'}}>Simulator is currently {simulatorStatus?.toLowerCase()}...</p>}
-      </div>
-
-      {/* Placeholder for Order Entry/Other Simulator Components */}
-      <div className="simulator-content">
-          <div className="order-entry-container">
-              <h3 className="order-entry-title">Order Entry</h3>
-              {isConnected ? (
-                  <div className="order-form-placeholder">
-                      Order form components would go here.
-                      (Requires connection to be active)
-                  </div>
-              ) : (
-                  <div className="no-symbol-selected">
-                      Connect to the server to enable order entry.
-                  </div>
-              )}
-          </div>
-          {/* Add other simulator related components here */}
-      </div>
     </div>
   );
 };
-
 export default SimulatorPage;

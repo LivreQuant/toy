@@ -1,22 +1,62 @@
-/* ToastNotification.css */
+/* src/components/Common/ToastNotification.css */
 .toast-container {
     position: fixed;
-    bottom: 20px;
+    bottom: 20px; /* Position at bottom */
+    right: 20px;  /* Position at right */
+    /* Alternative: Top-right
+    top: 20px;
     right: 20px;
-    z-index: 1000;
+    bottom: auto;
+    */
+    z-index: 1050; /* High z-index to be above most elements */
+    width: auto; /* Container takes width of its content */
+    max-width: 350px; /* Max width for toasts */
   }
-  
+
   .toast {
-    padding: 10px;
-    margin: 10px;
-    border-radius: 4px;
+    padding: 12px 18px; /* More padding */
+    margin-bottom: 10px; /* Space between toasts */
+    border-radius: 6px; /* Slightly more rounded */
     color: white;
     display: flex;
-    justify-content: space-between;
+    justify-content: space-between; /* Space between message and close button */
     align-items: center;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); /* Softer shadow */
+    opacity: 0.95; /* Slight transparency */
+    transition: transform 0.3s ease-out, opacity 0.3s ease-out; /* Animation */
+    word-break: break-word; /* Prevent long words from overflowing */
+    font-size: 0.95rem;
   }
-  
-  .toast-error { background-color: #ff4d4f; }
-  .toast-success { background-color: #52c41a; }
-  .toast-warning { background-color: #faad14; }
-  .toast-info { background-color: #1890ff; }
+
+/* Optional: Add enter/exit animations */
+/*
+  .toast-enter { ... }
+  .toast-enter-active { ... }
+  .toast-exit { ... }
+  .toast-exit-active { ... }
+*/
+
+
+  /* Background colors for different toast types */
+  .toast-error   { background-color: #d32f2f; } /* Darker Red */
+  .toast-success { background-color: #388e3c; } /* Darker Green */
+  .toast-warning { background-color: #ffa000; } /* Amber */
+  .toast-info    { background-color: #1976d2; } /* Darker Blue */
+
+  /* Style for the close button (example) */
+  .toast button {
+    background: none;
+    border: none;
+    color: white;
+    opacity: 0.8;
+    margin-left: 15px; /* Space from text */
+    cursor: pointer;
+    font-size: 1.4em; /* Larger close icon */
+    line-height: 1;
+    padding: 0 5px; /* Easier to click */
+    transition: opacity 0.2s;
+  }
+
+  .toast button:hover {
+    opacity: 1;
+  }

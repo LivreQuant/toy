@@ -1,46 +1,41 @@
 // src/services/connection/connection-data-handlers.ts
-
 import { HttpClient } from '../../api/http-client';
-import { OrdersApi } from '../../api/order';
-// *** Use the imported ErrorHandler instance, not static calls ***
-import { ErrorHandler, ErrorSeverity } from '../../utils/error-handler'; // Keep imports
-import { Logger } from '../../utils/logger'; // Optional: Add logger if needed for data handling logic
+import { OrdersApi, OrderSide, OrderType } from '../../api/order'; // Import types
+// Import the specific ErrorHandler instance/singleton access
+import { AppErrorHandler } from '../../utils/app-error-handler';
+import { ErrorSeverity } from '../../utils/error-handler';
+import { EnhancedLogger } from '../../utils/enhanced-logger';
+import { getLogger } from '../../boot/logging';
 
 export class ConnectionDataHandlers {
-  private exchangeData: Record<string, any> = {};
+  private exchangeData: Record<string, any> = {}; // Internal cache for data if needed
   private ordersApi: OrdersApi;
-  // +++ ADDED: Store the injected ErrorHandler instance +++
-  private errorHandler: ErrorHandler;
-  // Optional: Add logger instance if needed
-  // private logger: Logger;
+  // ErrorHandler instance is retrieved via AppErrorHandler singleton
+  // private errorHandler: ErrorHandler; // No need to store if using static methods
+  private logger: EnhancedLogger;
 
-  // +++ MODIFIED: Add errorHandler parameter +++
-  // Optional: Add logger parameter if needed
   constructor(
-    httpClient: HttpClient,
-    errorHandler: ErrorHandler
-    // logger?: Logger // Optional logger injection
+    httpClient: HttpClient
+    // ErrorHandler is accessed via static AppErrorHandler.getInstance()
+    // Logger is obtained via getLogger
   ) {
     this.ordersApi = new OrdersApi(httpClient);
-    // +++ ADDED: Assign the injected instance +++
-    this.errorHandler = errorHandler;
-    // Optional: Assign logger
-    // this.logger = logger || Logger.getInstance(); // Use injected or default logger
+    this.logger = getLogger('ConnectionDataHandlers'); // Get logger instance
+    this.logger.info('ConnectionDataHandlers initialized');
   }
 
   /**
-   * Updates the internal cache of exchange data.
+   * Updates the internal cache of exchange data (if used).
    * @param data - The new exchange data.
    */
   public updateExchangeData(data: Record<string, any>): void {
-    // Consider deep merging or specific updates based on data structure if needed
+    // Simple merge, consider deep merging or specific updates if needed
     this.exchangeData = { ...this.exchangeData, ...data };
-    // Optional: Log data update
-    // this.logger?.info('Exchange data updated');
+    this.logger.debug('Internal exchange data cache updated');
   }
 
   /**
-   * Retrieves a copy of the cached exchange data.
+   * Retrieves a copy of the cached exchange data (if used).
    * @returns A copy of the exchange data object.
    */
   public getExchangeData(): Record<string, any> {
@@ -51,93 +46,135 @@ export class ConnectionDataHandlers {
 
   /**
    * Submits a trading order via the OrdersApi.
-   * Handles API errors using the injected ErrorHandler.
+   * Handles API errors using AppErrorHandler.
    * @param order - The order details.
    * @returns A promise resolving to the submission result.
    */
   public async submitOrder(order: {
     symbol: string;
-    side: 'BUY' | 'SELL';
+    side: OrderSide;
     quantity: number;
-    price?: number;
-    type: 'MARKET' | 'LIMIT';
+    price?: number; // Required for LIMIT orders
+    type: OrderType;
   }): Promise<{ success: boolean; orderId?: string; error?: string }> {
+    const logContext = { symbol: order.symbol, side: order.side, type: order.type, quantity: order.quantity };
+    this.logger.info('Attempting to submit order', logContext);
+
+    // Basic client-side validation (more robust validation recommended)
+    if (order.type === 'LIMIT' && (typeof order.price !== 'number' || order.price <= 0)) {
+        const errorMsg = 'Invalid limit price for LIMIT order.';
+        this.logger.error(errorMsg, logContext);
+        AppErrorHandler.handleDataError(errorMsg, ErrorSeverity.LOW, 'SubmitOrderValidation');
+        return { success: false, error: errorMsg };
+    }
+     if (typeof order.quantity !== 'number' || order.quantity <= 0) {
+         const errorMsg = 'Invalid order quantity.';
+         this.logger.error(errorMsg, logContext);
+         AppErrorHandler.handleDataError(errorMsg, ErrorSeverity.LOW, 'SubmitOrderValidation');
+         return { success: false, error: errorMsg };
+     }
+
+
     try {
-      // Add idempotency key if your API supports it
-      const requestId = `order-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
+      // Add idempotency key using a simple timestamp/random combo
+      const requestId = `order-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
       const response = await this.ordersApi.submitOrder({
         ...order,
         requestId // Include the request ID
       });
 
-      if (!response.success) {
-        // *** MODIFIED: Use the injected errorHandler instance ***
-        const errorMsg = response.errorMessage || `Failed to submit ${order.type} ${order.side} order for ${order.symbol}`;
-        this.errorHandler.handleDataError(
-          errorMsg,
-          ErrorSeverity.MEDIUM, // Or HIGH depending on severity
-          'OrderSubmission' // Specific context
-        );
+      if (response.success) {
+          this.logger.info(`Order submitted successfully`, { ...logContext, orderId: response.orderId });
+      } else {
+          // Log API-reported failure and notify user via error handler
+          this.logger.warn(`Order submission failed via API`, { ...logContext, error: response.errorMessage });
+          AppErrorHandler.handleDataError(
+            response.errorMessage || `Failed to submit ${order.type} ${order.side} order for ${order.symbol}`,
+            ErrorSeverity.MEDIUM,
+            'OrderSubmissionApiFail',
+            { orderDetails: logContext } // Pass details to handler
+          );
       }
 
+      // Return the result from the API
       return {
         success: response.success,
         orderId: response.orderId,
-        error: response.errorMessage // Pass back specific API error message if available
+        error: response.errorMessage
       };
-    } catch (error) {
-      // Handle exceptions during the API call
-      const errorToHandle = error instanceof Error ? error : new Error(String(error) || 'Order submission failed due to an unexpected error');
-      this.errorHandler.handleDataError(
-          errorToHandle, // Pass the corrected error object
-          ErrorSeverity.HIGH,
-          'OrderSubmissionException'
-      );
+
+    } catch (error: any) {
+      // Handle exceptions during the API call itself (e.g., network error bubbled up)
+      this.logger.error(`Exception during order submission`, { ...logContext, error: error.message });
+      const errorToHandle = error instanceof Error ? error : new Error(String(error) || 'Order submission failed unexpectedly');
+      // Use handleGenericError or handleConnectionError depending on the expected error type from HttpClient
+       AppErrorHandler.handleGenericError(
+           errorToHandle,
+           ErrorSeverity.HIGH, // Exceptions during submission are usually high severity
+           'OrderSubmissionException',
+           { orderDetails: logContext }
+       );
 
       return {
         success: false,
-        error: errorToHandle.message // Return a user-friendly message derived from the exception
+        error: errorToHandle.message // Return the exception message
       };
     }
   }
 
   /**
    * Cancels a trading order via the OrdersApi.
-   * Handles API errors using the injected ErrorHandler.
+   * Handles API errors using AppErrorHandler.
    * @param orderId - The ID of the order to cancel.
    * @returns A promise resolving to the cancellation result.
    */
   public async cancelOrder(orderId: string): Promise<{ success: boolean; error?: string }> {
-    try {
-      const response = await this.ordersApi.cancelOrder(orderId);
+      this.logger.info(`Attempting to cancel order: ${orderId}`);
 
-      if (!response.success) {
-        // *** MODIFIED: Use the injected errorHandler instance ***
-        const errorMsg = `Failed to cancel order ${orderId}`;
-        this.errorHandler.handleDataError(
-          errorMsg,
-          ErrorSeverity.MEDIUM,
-          'OrderCancellation'
-        );
-        return { success: false, error: errorMsg }; // Return specific error
+      if (!orderId) {
+          const errorMsg = "Cannot cancel order: No Order ID provided.";
+          this.logger.error(errorMsg);
+          AppErrorHandler.handleDataError(errorMsg, ErrorSeverity.LOW, 'CancelOrderValidation');
+          return { success: false, error: errorMsg };
       }
 
-      // Success case
-      return { success: true };
+      try {
+          const response = await this.ordersApi.cancelOrder(orderId);
 
-    } catch (error) {
-      // Handle exceptions during the API call
-      const errorToHandle = error instanceof Error ? error : new Error(String(error) || 'Order cancellation failed due to an unexpected error');
-      this.errorHandler.handleDataError(
-          errorToHandle, // Pass the corrected error object
-          ErrorSeverity.HIGH,
-          'OrderCancellationException'
-      );
+          if (response.success) {
+              this.logger.info(`Order cancellation request successful for ID: ${orderId}`);
+          } else {
+              // Log API-reported failure and notify user
+               const errorMsg = `API failed to cancel order ${orderId}`; // More generic message from API needed ideally
+               this.logger.warn(errorMsg, { orderId });
+               // Assume API doesn't return specific error message here, adjust if it does
+              AppErrorHandler.handleDataError(
+                errorMsg,
+                ErrorSeverity.MEDIUM,
+                'OrderCancellationApiFail',
+                { orderId }
+              );
+               // Return failure, but API might not provide detailed error
+               return { success: false, error: errorMsg };
+          }
 
-      return {
-        success: false,
-        error: errorToHandle.message // Return a user-friendly message
-      };
-    }
+          return { success: true }; // Return success
+
+      } catch (error: any) {
+          // Handle exceptions during the API call
+           this.logger.error(`Exception during order cancellation for ID: ${orderId}`, { error: error.message });
+           const errorToHandle = error instanceof Error ? error : new Error(String(error) || 'Order cancellation failed unexpectedly');
+           AppErrorHandler.handleGenericError(
+               errorToHandle,
+               ErrorSeverity.HIGH,
+               'OrderCancellationException',
+               { orderId }
+           );
+
+          return {
+            success: false,
+            error: errorToHandle.message
+          };
+      }
   }
 }

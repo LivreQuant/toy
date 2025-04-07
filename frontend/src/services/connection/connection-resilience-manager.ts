@@ -1,321 +1,325 @@
 // src/services/connection/connection-resilience-manager.ts
-import { EventEmitter } from '../../utils/event-emitter';
-import { Logger } from '../../utils/logger';
+import { TypedEventEmitter, EventMap } from '../../utils/typed-event-emitter';
+import { EnhancedLogger } from '../../utils/enhanced-logger';
 import { TokenManager } from '../auth/token-manager';
 import { AppErrorHandler } from '../../utils/app-error-handler';
 import { ErrorSeverity } from '../../utils/error-handler';
+import { Disposable } from '../../utils/disposable';
 
-// Connection resilience states
 export enum ResilienceState {
-  STABLE = 'stable',          // Normal operation
-  DEGRADED = 'degraded',      // Some recoverable errors
-  RECOVERING = 'recovering',  // Actively attempting to recover
-  SUSPENDED = 'suspended',    // Temporarily suspended due to repeated failures
-  FAILED = 'failed'           // Failed to recover after max attempts
+  STABLE = 'stable',
+  DEGRADED = 'degraded',
+  RECOVERING = 'recovering',
+  SUSPENDED = 'suspended',
+  FAILED = 'failed'
 }
 
 export interface ResilienceOptions {
-  initialDelayMs?: number;       // Initial backoff delay (ms)
-  maxDelayMs?: number;           // Maximum backoff delay (ms)
-  maxAttempts?: number;          // Maximum recovery attempts
-  resetTimeoutMs?: number;       // Time after which to reset failure count (ms)
-  failureThreshold?: number;     // Failures before entering SUSPENDED state
-  jitterFactor?: number;         // Random factor for backoff (0-1)
+  initialDelayMs?: number;
+  maxDelayMs?: number;
+  maxAttempts?: number;
+  suspensionTimeoutMs?: number; // Correct name
+  failureThreshold?: number;
+  jitterFactor?: number;
 }
 
-export class ConnectionResilienceManager extends EventEmitter {
+export interface ResilienceEvents extends EventMap {
+    failure_recorded: { count: number; threshold: number; state: ResilienceState; error?: any };
+    state_changed: { oldState: ResilienceState; newState: ResilienceState; reason: string };
+    suspended: { failureCount: number; resumeTime: number };
+    resumed: void; // Payload is void
+    reset: void; // Payload is void
+    reconnect_scheduled: { attempt: number; maxAttempts: number; delay: number; when: number };
+    reconnect_attempt: { attempt: number; maxAttempts: number };
+    reconnect_success: { attempt: number };
+    reconnect_failure: { attempt: number; error?: any };
+    max_attempts_reached: { attempts: number; maxAttempts: number };
+}
+
+
+export class ConnectionResilienceManager extends TypedEventEmitter<ResilienceEvents> implements Disposable {
   private state: ResilienceState = ResilienceState.STABLE;
   private tokenManager: TokenManager;
-  private logger: Logger;
+  private logger: EnhancedLogger;
   private reconnectAttempt: number = 0;
   private failureCount: number = 0;
   private lastFailureTime: number = 0;
   private reconnectTimer: number | null = null;
   private suspensionTimer: number | null = null;
-  private options: Required<ResilienceOptions>;
+  public readonly options: Required<ResilienceOptions>;
   private isDisposed: boolean = false;
-  
-  // Default options
+
   private static DEFAULT_OPTIONS: Required<ResilienceOptions> = {
-    initialDelayMs: 1000,     // 1 second
-    maxDelayMs: 30000,        // 30 seconds
-    maxAttempts: 10,          // 10 attempts
-    resetTimeoutMs: 60000,    // 1 minute
-    failureThreshold: 5,      // 5 failures
-    jitterFactor: 0.3         // 30% jitter
+    initialDelayMs: 1000,
+    maxDelayMs: 30000,
+    maxAttempts: 10,
+    suspensionTimeoutMs: 60000, // Correct name
+    failureThreshold: 5,
+    jitterFactor: 0.3
   };
-  
+
   constructor(
     tokenManager: TokenManager,
-    logger: Logger,
-    options?: ResilienceOptions
+    parentLogger: EnhancedLogger,
+    options?: ResilienceOptions // Accept ResilienceOptions directly
   ) {
-    super();
-    
+    super('ResilienceManagerEvents');
     this.tokenManager = tokenManager;
-    this.logger = logger.createChild('ResilienceManager');
+    this.logger = parentLogger.createChild('ResilienceManager');
+    // Merge provided options ensuring correct types
     this.options = {
       ...ConnectionResilienceManager.DEFAULT_OPTIONS,
-      ...options
+      ...(options || {}) // Ensure options is not undefined
     };
-    
     this.logger.info('Resilience manager initialized', { options: this.options });
   }
-  
-  /**
-   * Gets the current resilience state
-   */
-  public getState(): {
-    state: ResilienceState;
-    attempt: number;
-    maxAttempts: number;
-    failureCount: number;
-    failureThreshold: number;
-  } {
-    return {
-      state: this.state,
-      attempt: this.reconnectAttempt,
-      maxAttempts: this.options.maxAttempts,
-      failureCount: this.failureCount,
-      failureThreshold: this.options.failureThreshold
-    };
+
+
+  public getState(): { state: ResilienceState; attempt: number; failureCount: number; } {
+    return { state: this.state, attempt: this.reconnectAttempt, failureCount: this.failureCount };
   }
-  
-  /**
-   * Records a connection failure and manages state transitions
-   */
+
+
   public recordFailure(errorInfo?: any): void {
-    if (this.isDisposed) return;
-    
+    if (this.isDisposed || this.state === ResilienceState.SUSPENDED || this.state === ResilienceState.FAILED) {
+        this.logger.debug(`Failure recording skipped in state: ${this.state}`);
+        return;
+    }
+
     this.failureCount++;
     this.lastFailureTime = Date.now();
-    
-    this.logger.warn(`Connection failure recorded (${this.failureCount}/${this.options.failureThreshold})`, errorInfo);
-    
-    // Check if we need to suspend recovery attempts due to repeated failures
-    if (this.failureCount >= this.options.failureThreshold) {
-      this.enterSuspendedState();
+    this.logger.warn(`Connection failure recorded (${this.failureCount}/${this.options.failureThreshold})`, { error: errorInfo });
+
+    this.emit('failure_recorded', {
+        count: this.failureCount,
+        threshold: this.options.failureThreshold,
+        state: this.state,
+        error: errorInfo
+    });
+
+    if (this.failureCount >= this.options.failureThreshold && this.state !== ResilienceState.RECOVERING) {
+        this.transitionToState(ResilienceState.SUSPENDED, 'Failure threshold reached');
     }
-    
-    this.emit('failure', {
-      count: this.failureCount,
-      threshold: this.options.failureThreshold,
-      state: this.state,
-      error: errorInfo
-    });
   }
-  
-  /**
-   * Enters the SUSPENDED state where connection attempts are temporarily paused
-   */
-  private enterSuspendedState(): void {
-    if (this.state === ResilienceState.SUSPENDED) return;
-    
-    this.stopTimers();
-    this.state = ResilienceState.SUSPENDED;
-    this.logger.error(`Entering SUSPENDED state due to repeated failures (${this.failureCount}). Pausing reconnection attempts for ${this.options.resetTimeoutMs}ms.`);
-    
-    AppErrorHandler.handleConnectionError(
-      `Connection attempts temporarily suspended after ${this.failureCount} failures.`,
-      ErrorSeverity.HIGH,
-      'ConnectionResilience'
-    );
-    
-    // Schedule a timer to exit the suspended state
-    this.suspensionTimer = window.setTimeout(() => {
-      this.exitSuspendedState();
-    }, this.options.resetTimeoutMs);
-    
-    this.emit('suspended', {
-      failureCount: this.failureCount,
-      resumeTime: Date.now() + this.options.resetTimeoutMs
-    });
-  }
-  
-  /**
-   * Exits the SUSPENDED state, allowing connection attempts to resume
-   */
-  private exitSuspendedState(): void {
-    if (this.state !== ResilienceState.SUSPENDED) return;
-    
-    this.state = ResilienceState.STABLE;
-    this.failureCount = 0;
-    this.reconnectAttempt = 0;
-    this.suspensionTimer = null;
-    
-    this.logger.info('Exiting SUSPENDED state. Connection attempts can now resume.');
-    
-    this.emit('resumed', {
-      message: 'Connection attempts can now resume.'
-    });
-  }
-  
-  /**
-   * Manually resets the resilience state, clearing all counters and timers
-   */
-  public reset(): void {
-    this.stopTimers();
-    this.state = ResilienceState.STABLE;
-    this.failureCount = 0;
-    this.reconnectAttempt = 0;
-    this.logger.info('Resilience state manually reset.');
-    this.emit('reset');
-  }
-  
-  /**
-   * Starts the reconnection process with exponential backoff
-   * @param connectCallback - Function to call when attempting reconnection
-   * @returns Promise resolving to whether reconnection should be attempted
-   */
-  public async attemptReconnection(
-    connectCallback: () => Promise<boolean>
-  ): Promise<boolean> {
-    if (this.isDisposed) {
-      this.logger.warn('Reconnection attempt canceled: manager is disposed');
+
+
+  public async attemptReconnection(connectCallback: () => Promise<boolean>): Promise<boolean> {
+    if (this.isDisposed || this.state === ResilienceState.SUSPENDED || this.state === ResilienceState.FAILED) {
+      this.logger.warn(`Reconnection attempt cancelled: State is ${this.state}`);
       return false;
     }
-    
-    // Check if in a state where reconnection is not allowed
-    if (this.state === ResilienceState.SUSPENDED) {
-      this.logger.warn('Reconnection attempt canceled: currently in SUSPENDED state');
-      return false;
+    if (this.reconnectTimer !== null) {
+      this.logger.warn('Reconnection attempt cancelled: Already scheduled');
+      return true;
     }
-    
-    // Check if reconnection is already in progress
-    if (this.state === ResilienceState.RECOVERING) {
-      this.logger.warn('Reconnection already in progress');
-      return false;
-    }
-    
-    // Check authentication
     if (!this.tokenManager.isAuthenticated()) {
-      this.logger.error('Reconnection attempt canceled: not authenticated');
+      this.logger.error('Reconnection attempt cancelled: Not authenticated');
+      this.reset();
       return false;
     }
-    
-    // Check max attempts
+
     if (this.reconnectAttempt >= this.options.maxAttempts) {
-      this.state = ResilienceState.FAILED;
-      this.logger.error(`Maximum reconnection attempts (${this.options.maxAttempts}) reached`);
-      
-      AppErrorHandler.handleConnectionError(
-        `Failed to reconnect after ${this.options.maxAttempts} attempts.`,
-        ErrorSeverity.HIGH,
-        'ConnectionResilience'
-      );
-      
-      this.emit('max_attempts_reached', {
-        attempts: this.reconnectAttempt,
-        maxAttempts: this.options.maxAttempts
-      });
-      
+      this.logger.error(`Maximum reconnection attempts (${this.options.maxAttempts}) reached.`);
+      this.transitionToState(ResilienceState.FAILED, 'Max attempts reached');
       return false;
     }
-    
-    // Enter recovering state
-    this.state = ResilienceState.RECOVERING;
+
+    this.transitionToState(ResilienceState.RECOVERING, 'Starting recovery attempt');
     this.reconnectAttempt++;
-    
-    // Calculate backoff delay with jitter
-    const baseDelay = Math.min(
-      this.options.maxDelayMs,
-      this.options.initialDelayMs * Math.pow(2, this.reconnectAttempt - 1)
-    );
-    
-    const jitter = 1 - this.options.jitterFactor + (Math.random() * this.options.jitterFactor * 2);
-    const delay = Math.floor(baseDelay * jitter);
-    
+
+    const delay = this.calculateBackoffDelay();
     this.logger.info(`Scheduling reconnection attempt ${this.reconnectAttempt}/${this.options.maxAttempts} in ${delay}ms`);
-    
+
     this.emit('reconnect_scheduled', {
       attempt: this.reconnectAttempt,
       maxAttempts: this.options.maxAttempts,
       delay,
       when: Date.now() + delay
     });
-    
-    // Return a promise that resolves after the backoff period
-    return new Promise((resolve) => {
-      this.reconnectTimer = window.setTimeout(async () => {
-        this.reconnectTimer = null;
-        
-        // Check if we're still authenticated and not disposed
-        if (this.isDisposed || !this.tokenManager.isAuthenticated()) {
-          this.logger.warn('Reconnection canceled: disposed or not authenticated');
-          resolve(false);
-          return;
-        }
-        
-        this.logger.info(`Executing reconnection attempt ${this.reconnectAttempt}`);
-        
-        try {
-          // Execute the provided connect callback
-          const connected = await connectCallback();
-          
-          if (connected) {
-            this.state = ResilienceState.STABLE;
-            this.failureCount = 0;
-            this.reconnectAttempt = 0;
-            this.logger.info('Reconnection successful');
-            this.emit('reconnect_success');
-          } else {
-            this.logger.warn(`Reconnection attempt ${this.reconnectAttempt} failed`);
-            this.emit('reconnect_failure', {
-              attempt: this.reconnectAttempt,
-              maxAttempts: this.options.maxAttempts
-            });
-          }
-          
-          resolve(connected);
-        } catch (error) {
-          this.logger.error(`Error during reconnection attempt`, { error });
-          this.recordFailure(error);
-          resolve(false);
-        }
-      }, delay);
-    });
+
+    this.reconnectTimer = window.setTimeout(() => {
+      this.executeReconnectAttempt(connectCallback);
+    }, delay);
+
+    return true;
   }
-  
-  /**
-   * Handles authentication state changes
-   * @param isAuthenticated - Whether the user is currently authenticated
-   */
+
+
+  public reset(): void {
+    this.logger.info('Manual reset called.');
+    this.stopTimers();
+    this.failureCount = 0;
+    this.reconnectAttempt = 0;
+    const changed = this.state !== ResilienceState.STABLE; // Check if state actually changes
+    this.transitionToState(ResilienceState.STABLE, 'Manual reset or successful connection');
+    // FIX: Pass undefined for void payload
+    if (changed) this.emit('reset', undefined); // Only emit reset event if state was not already stable
+  }
+
+
   public updateAuthState(isAuthenticated: boolean): void {
     if (this.isDisposed) return;
-    
-    if (!isAuthenticated) {
-      this.stopTimers();
-      this.state = ResilienceState.STABLE;
-      this.failureCount = 0;
-      this.reconnectAttempt = 0;
-      this.logger.info('Authentication lost, resetting reconnection state');
+    if (!isAuthenticated && this.state !== ResilienceState.STABLE) {
+       this.logger.info('Authentication lost, resetting resilience state.');
+       this.reset();
     }
   }
-  
-  /**
-   * Stops all active timers
-   */
-  private stopTimers(): void {
-    if (this.reconnectTimer !== null) {
-      window.clearTimeout(this.reconnectTimer);
+
+
+  private async executeReconnectAttempt(connectCallback: () => Promise<boolean>): Promise<void> {
       this.reconnectTimer = null;
-    }
-    
-    if (this.suspensionTimer !== null) {
-      window.clearTimeout(this.suspensionTimer);
-      this.suspensionTimer = null;
-    }
+
+      if (this.isDisposed || this.state !== ResilienceState.RECOVERING || !this.tokenManager.isAuthenticated()) {
+          this.logger.warn(`Reconnect execution skipped: Disposed, state changed (${this.state}), or logged out.`);
+          if (this.state !== ResilienceState.RECOVERING && !this.isDisposed) this.reset();
+          return;
+       }
+
+      this.logger.info(`Executing reconnection attempt ${this.reconnectAttempt}`);
+      this.emit('reconnect_attempt', { attempt: this.reconnectAttempt, maxAttempts: this.options.maxAttempts });
+
+      try {
+          const connected = await connectCallback();
+          if (this.isDisposed) return;
+
+          if (connected) {
+              this.logger.info(`Reconnection attempt ${this.reconnectAttempt} successful.`);
+              this.transitionToState(ResilienceState.STABLE, 'Reconnection successful');
+              this.failureCount = 0;
+              const successfulAttempt = this.reconnectAttempt; // Capture attempt number before reset
+              this.reconnectAttempt = 0;
+              this.emit('reconnect_success', { attempt: successfulAttempt });
+          } else {
+              this.logger.warn(`Reconnection attempt ${this.reconnectAttempt} failed.`);
+              this.emit('reconnect_failure', { attempt: this.reconnectAttempt });
+              this.recordFailure(`Reconnection attempt ${this.reconnectAttempt} failed.`);
+              if (this.state === ResilienceState.RECOVERING) {
+                 this.attemptReconnection(connectCallback);
+              }
+          }
+      } catch (error: any) {
+           if (this.isDisposed) return;
+           this.logger.error(`Exception during reconnection attempt ${this.reconnectAttempt}`, { error: error.message });
+           this.emit('reconnect_failure', { attempt: this.reconnectAttempt, error });
+           this.recordFailure(error instanceof Error ? error : new Error(String(error)));
+           if (this.state === ResilienceState.RECOVERING) {
+              this.attemptReconnection(connectCallback);
+           }
+      }
   }
-  
-  /**
-   * Performs cleanup when the manager is no longer needed
-   */
+
+
+  private calculateBackoffDelay(): number {
+      const baseDelay = Math.min(
+          this.options.maxDelayMs,
+          this.options.initialDelayMs * Math.pow(2, this.reconnectAttempt - 1)
+      );
+      const jitterRange = this.options.jitterFactor * baseDelay;
+      const delay = Math.max(0, Math.floor(baseDelay + (Math.random() * jitterRange * 2) - jitterRange));
+      return delay;
+  }
+
+
+  private transitionToState(newState: ResilienceState, reason: string): void {
+      const oldState = this.state;
+      if (oldState === newState) return;
+
+      this.state = newState;
+      this.logger.warn(`State transitioned: ${oldState} -> ${newState} (Reason: ${reason})`);
+      this.emit('state_changed', { oldState, newState, reason });
+
+      switch (newState) {
+          case ResilienceState.SUSPENDED:
+              this.enterSuspendedStateLogic();
+              break;
+          case ResilienceState.FAILED:
+              this.enterFailedStateLogic();
+              break;
+          case ResilienceState.STABLE:
+               // Reset counters when explicitly transitioning TO stable
+               this.failureCount = 0;
+               this.reconnectAttempt = 0;
+               this.stopTimers(); // Ensure any timers are cleared
+               break;
+          case ResilienceState.RECOVERING:
+                // Reset failure count when starting recovery? Or keep it? Decide policy.
+                // Keeping it allows triggering suspension even during recovery attempts.
+                // this.failureCount = 0; // Optional reset here
+                this.stopTimers(); // Stop suspension timer if it was running
+                break;
+      }
+  }
+
+
+  private enterSuspendedStateLogic(): void {
+      this.stopTimers();
+      AppErrorHandler.handleConnectionError(
+          `Connection attempts suspended for ${this.options.suspensionTimeoutMs / 1000}s after ${this.failureCount} failures.`,
+          ErrorSeverity.HIGH,
+          'ConnectionResilience'
+      );
+      this.suspensionTimer = window.setTimeout(() => {
+          this.exitSuspendedState();
+      }, this.options.suspensionTimeoutMs);
+      this.emit('suspended', {
+          failureCount: this.failureCount,
+          resumeTime: Date.now() + this.options.suspensionTimeoutMs
+      });
+  }
+
+
+   private exitSuspendedState(): void {
+       if (this.state !== ResilienceState.SUSPENDED || this.isDisposed) return;
+       this.logger.info('Exiting SUSPENDED state. Connection attempts can now resume.');
+       this.suspensionTimer = null;
+       this.failureCount = 0;
+       this.reconnectAttempt = 0;
+       this.transitionToState(ResilienceState.STABLE, 'Suspension ended');
+       // FIX: Pass undefined for void payload
+       this.emit('resumed', undefined);
+   }
+
+
+  private enterFailedStateLogic(): void {
+      this.stopTimers();
+       AppErrorHandler.handleConnectionError(
+          `Failed to establish connection after ${this.options.maxAttempts} attempts. Manual intervention may be required.`,
+          ErrorSeverity.FATAL,
+          'ConnectionResilience'
+       );
+      this.emit('max_attempts_reached', {
+        attempts: this.reconnectAttempt,
+        maxAttempts: this.options.maxAttempts
+      });
+  }
+
+
+  private stopTimers(): void {
+      let timerCleared = false;
+      if (this.reconnectTimer !== null) {
+          window.clearTimeout(this.reconnectTimer);
+          this.reconnectTimer = null;
+          timerCleared = true;
+      }
+      if (this.suspensionTimer !== null) {
+          window.clearTimeout(this.suspensionTimer);
+          this.suspensionTimer = null;
+          timerCleared = true;
+      }
+      if(timerCleared) this.logger.debug('Cleared active timers.');
+  }
+
+
   public dispose(): void {
     if (this.isDisposed) return;
-    
     this.isDisposed = true;
+    this.logger.info('Disposing ConnectionResilienceManager...');
     this.stopTimers();
     this.removeAllListeners();
-    this.logger.info('Connection resilience manager disposed');
+    this.logger.info('ConnectionResilienceManager disposed.');
+  }
+
+  [Symbol.dispose](): void {
+    this.dispose();
   }
 }

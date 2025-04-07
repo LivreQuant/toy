@@ -1,267 +1,199 @@
 // src/services/session/session-manager.ts
 import { DeviceIdManager } from '../../utils/device-id-manager';
-import { StorageService } from '../storage/storage-service'; // Adjust path as needed
-import { Logger } from '../../utils/logger';
+import { StorageService } from '../storage/storage-service';
+import { EnhancedLogger } from '../../utils/enhanced-logger';
 
-// Define the UserPreferences interface for managing user-specific settings
 export interface UserPreferences {
-  theme: 'light' | 'dark' | 'system'; // UI theme preference
-  chartTimeframe: '1d' | '1w' | '1m' | '3m' | '1y'; // Default chart timeframe
-  notifications: boolean; // Whether notifications are enabled
-  language: string; // User's preferred language
+  theme: 'light' | 'dark' | 'system';
+  chartTimeframe: '1d' | '1w' | '1m' | '3m' | '1y';
+  notificationsEnabled: boolean;
+  language: string;
 }
 
-// Define the AccountSettings interface for account-related configurations
 export interface AccountSettings {
-  defaultTradeSize: number; // Default quantity for trades
-  riskLevel: 'low' | 'medium' | 'high'; // User-defined risk tolerance
-  autoLogoutMinutes: number; // Inactivity timeout in minutes
-  twoFactorEnabled: boolean; // Whether 2FA is active
+  defaultTradeSize: number;
+  riskLevel: 'low' | 'medium' | 'high';
+  autoLogoutMinutes: number;
+  twoFactorEnabled: boolean;
 }
 
-// Define the structure for session data stored
 export interface SessionData {
-  deviceId: string; // Unique identifier for the device/browser session
-  lastActive: number; // Timestamp (milliseconds) of the last user activity
-  reconnectAttempts: number; // Counter for connection recovery attempts
-  podName?: string | null; // Optional: Identifier for the backend pod serving the session
-  userPreferences?: UserPreferences; // Nested user preferences object
-  accountSettings?: AccountSettings; // Nested account settings object
+  deviceId: string;
+  userId: string | number | null;
+  lastActive: number;
+  userPreferences?: UserPreferences;
+  accountSettings?: AccountSettings;
 }
 
-/**
- * Manages user session data, including preferences, settings, and activity.
- * Uses dependency injection for storage and logging, making it testable.
- */
-export class SessionManager {
-  // Injected StorageService instance for persistence
-  private readonly storageService: StorageService;
-  // Injected Logger instance for logging
-  private readonly logger: Logger;
-  // Key used for storing session data in the StorageService
-  private readonly SESSION_KEY = 'trading_simulator_session';
-  // Duration in milliseconds after which a session is considered expired locally
-  private readonly SESSION_EXPIRY = 8 * 60 * 60 * 1000; // 8 hours
 
-  /**
-   * Creates an instance of SessionManager.
-   * @param storageService - An instance conforming to the StorageService interface (e.g., LocalStorageService).
-   * @param logger - An instance of the Logger utility.
-   */
-  constructor(storageService: StorageService, logger: Logger) {
+export class SessionManager {
+  private readonly storageService: StorageService;
+  private readonly logger: EnhancedLogger;
+  private readonly SESSION_KEY = 'trading_app_session';
+  private readonly ACTIVITY_UPDATE_THROTTLE = 60 * 1000;
+  private lastActivityUpdateTimestamp = 0;
+
+  constructor(storageService: StorageService, parentLogger: EnhancedLogger) {
     this.storageService = storageService;
-    // Create a child logger specific to SessionManager for better context in logs
-    this.logger = logger.createChild('SessionManager');
+    this.logger = parentLogger.createChild('SessionManager');
     this.logger.info('SessionManager Initialized');
   }
 
-  /**
-   * Retrieves the unique device ID using the centralized DeviceIdManager.
-   * @returns The device ID string.
-   */
   public getDeviceId(): string {
-    // Uses the static DeviceIdManager as per previous decision
-    return DeviceIdManager.getInstance().getDeviceId(); 
+    return DeviceIdManager.getInstance().getDeviceId();
   }
 
-  /**
-   * Saves the provided session data, merging it with existing data.
-   * Always updates the 'lastActive' timestamp.
-   * @param data - Partial session data to save or update.
-   */
-  public saveSession(data: Partial<SessionData>): void {
-    // Retrieve current session data or create a default structure if none exists
-    const existingData = this.getSession() || {
-      reconnectAttempts: 0,
-      lastActive: Date.now(),
-      deviceId: this.getDeviceId(), // Ensure deviceId is included
-    };
+   /**
+    * Saves partial session data, merging it with existing data if present.
+    * Automatically updates 'lastActive' timestamp on every save.
+    * Ensures 'deviceId' is always present and correct.
+    * FIX: Allow 'lastActive' to be passed in, omit only 'deviceId'.
+    * @param dataToSave - Partial session data to save or update.
+    */
+   public saveSessionData(dataToSave: Partial<Omit<SessionData, 'deviceId'>>): void {
+       const currentData = this.getSessionDataInternal(); // Get existing data or defaults
+       const currentDeviceId = this.getDeviceId(); // Get current device ID
 
-    // Merge existing data with the new partial data, ensuring lastActive is current
-    const updatedData = {
-      ...existingData,
-      ...data,
-      lastActive: Date.now()
-    } as SessionData;
+       // Merge, ensuring deviceId is correct and lastActive is updated
+       const updatedData: SessionData = {
+           ...currentData, // Start with existing or default
+           ...dataToSave, // Overwrite with changes (including potentially lastActive)
+           deviceId: currentDeviceId, // Always enforce current device ID
+           // If lastActive wasn't in dataToSave, use current time as default update
+           lastActive: dataToSave.lastActive ?? Date.now(),
+       };
 
-    try {
-      // Persist the updated session data using the injected storage service
-      this.storageService.setItem(this.SESSION_KEY, JSON.stringify(updatedData));
-      this.logger.info('Session data saved successfully.');
-    } catch (e: any) {
-      // Log any errors during the save operation
-      this.logger.error('Failed to save session data', { error: e.message, stack: e.stack });
+       try {
+           this.storageService.setItem(this.SESSION_KEY, JSON.stringify(updatedData));
+           this.logger.debug('Session data saved successfully.');
+       } catch (e: any) {
+           this.logger.error('Failed to save session data', { error: e.message });
+       }
+   }
+
+   public getSessionData(): SessionData | null {
+       const session = this.getSessionDataInternal();
+       if (!session.deviceId) return null;
+       return session;
+   }
+
+   private getSessionDataInternal(): SessionData {
+       try {
+           const sessionStr = this.storageService.getItem(this.SESSION_KEY);
+           const defaultSession: SessionData = { userId: null, lastActive: 0, deviceId: '', userPreferences: this.getDefaultUserPreferences(), accountSettings: this.getDefaultAccountSettings() };
+
+           if (!sessionStr) {
+               this.logger.info('No session data found in storage. Returning default structure.');
+               return defaultSession;
+           }
+
+           const session = JSON.parse(sessionStr) as SessionData;
+
+           if (typeof session.lastActive !== 'number' || typeof session.deviceId !== 'string') {
+               this.logger.error('Invalid session data structure found, clearing.', { session });
+               this.clearSessionData();
+               return defaultSession;
+           }
+
+           const currentDeviceId = this.getDeviceId();
+           if (session.deviceId !== currentDeviceId) {
+               this.logger.warn('Session deviceId mismatch, clearing previous session data.', { sessionDeviceId: session.deviceId, currentDeviceId });
+               this.clearSessionData();
+                // Keep userId? Or clear? Clearing is safer.
+               return { ...defaultSession, userId: null };
+           }
+
+           // Ensure preferences and settings exist (merge defaults if missing)
+           session.userPreferences = { ...this.getDefaultUserPreferences(), ...(session.userPreferences || {}) };
+           session.accountSettings = { ...this.getDefaultAccountSettings(), ...(session.accountSettings || {}) };
+
+
+           return session;
+
+       } catch (e: any) {
+           this.logger.error('Failed to parse session data from storage, clearing.', { error: e.message });
+           this.clearSessionData();
+           return this.getSessionDataInternal(); // Return defaults after clearing
+       }
+   }
+
+
+  public updateActivityTimestamp(): void {
+    const now = Date.now();
+    if (now - this.lastActivityUpdateTimestamp > this.ACTIVITY_UPDATE_THROTTLE) {
+        const session = this.getSessionDataInternal();
+        if (session) { // Only update if session exists (even default)
+            this.logger.debug('Updating session last active timestamp.');
+            this.lastActivityUpdateTimestamp = now;
+            // FIX: Correct call to saveSessionData
+            this.saveSessionData({ lastActive: now }); // Pass only the changed field
+        }
     }
   }
 
-  /**
-   * Retrieves the current session data from storage.
-   * Performs validation and expiry checks.
-   * @returns The SessionData object if valid and not expired, otherwise null.
-   */
-  public getSession(): SessionData | null {
+  public clearSessionData(): void {
     try {
-      // Retrieve the raw session string from storage
-      const sessionStr = this.storageService.getItem(this.SESSION_KEY);
-      if (!sessionStr) {
-        // Log if no session data is found (this is normal on first visit or after clearing)
-        this.logger.info('No session data found in storage.');
-        return null;
-      }
-
-      // Parse the JSON string into a SessionData object
-      const session = JSON.parse(sessionStr) as SessionData;
-
-      // Basic validation: check for essential fields
-      if (!session.deviceId || !session.lastActive) {
-         this.logger.error('Invalid session data structure found, clearing.', { session });
-         this.clearSession(); // Clear corrupted data
-         return null;
-      }
-
-      // Check for local session expiry based on last activity time
-      if (Date.now() - session.lastActive > this.SESSION_EXPIRY) {
-        this.logger.warn(`Session expired locally (last active: ${new Date(session.lastActive).toISOString()}). Clearing.`);
-        this.clearSession();
-        return null;
-      }
-
-      // Consistency check: Ensure the deviceId in the stored session matches the current one
-      const currentDeviceId = this.getDeviceId();
-      if (session.deviceId !== currentDeviceId) {
-          this.logger.warn('Session deviceId mismatch, clearing session.', { sessionDeviceId: session.deviceId, currentDeviceId: currentDeviceId });
-          this.clearSession();
-          return null;
-      }
-
-      // Return the valid session data
-      return session;
-    } catch (e: any) {
-      // Log errors during parsing (e.g., corrupted JSON)
-      this.logger.error('Failed to parse session data from storage', { error: e.message, stack: e.stack });
-      this.clearSession(); // Clear potentially corrupted data
-      return null;
-    }
-  }
-
-  /**
-   * Updates the 'lastActive' timestamp in the session data.
-   * Includes throttling to avoid excessive writes to storage.
-   */
-  public updateActivity(): void {
-    const session = this.getSession();
-    if (session) {
-      // Throttle updates: Only update if last activity was more than 60 seconds ago
-      const throttleInterval = 60 * 1000; // 1 minute
-      if (Date.now() - session.lastActive > throttleInterval) {
-         this.logger.info('Updating session last active timestamp.');
-         // Call saveSession with empty data to trigger merge and update lastActive
-         this.saveSession({});
-      }
-    } else {
-        // Log if trying to update activity without an active session
-        this.logger.warn('Attempted to update activity on non-existent session.');
-    }
-  }
-
-  /**
-   * Removes the session data from storage.
-   */
-  public clearSession(): void {
-    try {
-      // Use the injected storage service to remove the item
       this.storageService.removeItem(this.SESSION_KEY);
+      this.lastActivityUpdateTimestamp = 0;
       this.logger.info('Session data cleared from storage.');
     } catch (e: any) {
-       // Log errors during removal
-       this.logger.error('Failed to clear session data', { error: e.message, stack: e.stack });
+       this.logger.error('Failed to clear session data', { error: e.message });
     }
   }
 
-  /**
-   * Increments the connection recovery attempt counter stored in the session.
-   * @returns The new reconnect attempt count, or 0 if no session exists.
-   */
-  public incrementReconnectAttempts(): number {
-    const session = this.getSession();
-    // Return 0 if there's no session to update
-    if (!session) return 0;
+  // --- User Preferences Management ---
 
-    // Calculate the new count (defaulting to 0 if property doesn't exist yet)
-    const reconnectAttempts = (session.reconnectAttempts || 0) + 1;
-    // Save the updated count back to the session
-    this.saveSession({ reconnectAttempts });
-    this.logger.warn(`Reconnect attempt incremented to ${reconnectAttempts}`);
-    return reconnectAttempts;
+  public getUserPreferences(): UserPreferences { // Return default if not found
+    return this.getSessionDataInternal().userPreferences || this.getDefaultUserPreferences();
   }
 
-  /**
-   * Resets the connection recovery attempt counter to 0 in the session data.
-   */
-  public resetReconnectAttempts(): void {
-    const session = this.getSession();
-    // Only reset if there's a session and the count is currently greater than 0
-    if (session?.reconnectAttempts && session.reconnectAttempts > 0) {
-        this.logger.info('Resetting reconnect attempts to 0.');
-        this.saveSession({ reconnectAttempts: 0 });
-    }
-  }
-
-  /**
-   * Retrieves the user preferences object from the session data.
-   * @returns The UserPreferences object or null if not set or no session exists.
-   */
-  public getUserPreferences(): UserPreferences | null {
-    const session = this.getSession();
-    return session?.userPreferences || null;
-  }
-
-  /**
-   * Updates the user preferences in the session data by merging new values.
-   * @param preferences - A partial UserPreferences object with the values to update.
-   */
   public updateUserPreferences(preferences: Partial<UserPreferences>): void {
-    const session = this.getSession();
-    if (!session) {
-       this.logger.error('Cannot update preferences, no active session.');
-       return; // Exit if no session exists
-    }
-
-    // Get current preferences or an empty object, then merge with new values
-    const currentPrefs = session.userPreferences || {} as UserPreferences;
+    const currentPrefs = this.getUserPreferences(); // Gets current or default
     const updatedPrefs = { ...currentPrefs, ...preferences };
-
     this.logger.info('Updating user preferences.');
-    // Save the session with the updated preferences object
-    this.saveSession({ userPreferences: updatedPrefs });
+    this.saveSessionData({ userPreferences: updatedPrefs });
   }
 
-  /**
-   * Retrieves the account settings object from the session data.
-   * @returns The AccountSettings object or null if not set or no session exists.
-   */
-  public getAccountSettings(): AccountSettings | null {
-    const session = this.getSession();
-    return session?.accountSettings || null;
+   private getDefaultUserPreferences(): UserPreferences {
+       return {
+           theme: 'system',
+           chartTimeframe: '1d',
+           notificationsEnabled: true,
+           language: navigator.language || 'en-US' // Use browser language as default
+       };
+   }
+
+  // --- Account Settings Management ---
+
+  public getAccountSettings(): AccountSettings { // Return default if not found
+    return this.getSessionDataInternal().accountSettings || this.getDefaultAccountSettings();
   }
 
-  /**
-   * Updates the account settings in the session data by merging new values.
-   * @param settings - A partial AccountSettings object with the values to update.
-   */
   public updateAccountSettings(settings: Partial<AccountSettings>): void {
-    const session = this.getSession();
-    if (!session) {
-        this.logger.error('Cannot update account settings, no active session.');
-        return; // Exit if no session exists
-    }
-
-     // Get current settings or an empty object, then merge with new values
-     const currentSettings = session.accountSettings || {} as AccountSettings;
+     const currentSettings = this.getAccountSettings(); // Gets current or default
      const updatedSettings = { ...currentSettings, ...settings };
-
-     this.logger.info('Updating account settings.');
-     // Save the session with the updated settings object
-     this.saveSession({ accountSettings: updatedSettings });
+     this.logger.info('Updating account settings in local session.');
+     this.saveSessionData({ accountSettings: updatedSettings });
   }
+
+   private getDefaultAccountSettings(): AccountSettings {
+       return {
+           defaultTradeSize: 1,
+           riskLevel: 'medium',
+           autoLogoutMinutes: 30,
+           twoFactorEnabled: false
+       };
+   }
+
+   // --- User ID Management ---
+
+   public setUserId(userId: string | number | null): void {
+       this.logger.info(`Setting session User ID to: ${userId}`);
+       // Only update userId, preserve other fields
+       this.saveSessionData({ userId: userId });
+   }
+
+    public getUserId(): string | number | null {
+        return this.getSessionDataInternal()?.userId || null;
+    }
 }
