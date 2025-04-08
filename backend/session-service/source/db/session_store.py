@@ -470,7 +470,22 @@ class DatabaseManager:
                             ON CONFLICT (session_id) 
                             DO UPDATE SET metadata = $2
                         ''', session_id, json.dumps(merged_metadata))
+
+                        # Add log at the beginning
+                        logger.info(f"Updating metadata for session {session_id} with updates: {json.dumps(metadata_updates)}")
                         
+                        # After fetching current metadata
+                        if current_metadata:
+                            logger.info(f"Current metadata for session {session_id}: {json.dumps(current_metadata if isinstance(current_metadata, dict) else current_metadata)}")
+                        else:
+                            logger.warning(f"No existing metadata found for session {session_id} before update")
+                        
+                        # Before update
+                        logger.info(f"Merged metadata for session {session_id}: {json.dumps(merged_metadata)}")
+                        
+                        # After update
+                        logger.info(f"Successfully updated metadata for session {session_id}")
+    
                         return True
                         
             except Exception as e:
@@ -479,7 +494,7 @@ class DatabaseManager:
                 track_db_error("update_session_metadata")
                 return False
             
-    async def get_session(self, session_id: str) -> Optional[Session]:
+    async def get_session(self, session_id: str) -> Session:
         """
         Get a session by ID
         
@@ -523,6 +538,8 @@ class DatabaseManager:
                             expires_at=session_row['expires_at'].timestamp()
                         )
                         
+                        logger.info(f"Session Store - Session object type: {type(session)}")
+                                      
                         # Add metadata if exists
                         if metadata_row and metadata_row['metadata']:
                             metadata_dict = metadata_row['metadata']
@@ -532,7 +549,24 @@ class DatabaseManager:
                             else:
                                 # Handle case where metadata might be a JSON string
                                 session.metadata = SessionMetadata.parse_raw(metadata_dict)
+                              
+                        # Add detailed logging
+                        logger.info(f"Fetching session {session_id} from database")
                         
+                        # After fetching session data
+                        if not session_row:
+                            logger.warning(f"Session {session_id} not found in database")
+                            return None
+                        logger.info(f"Found session {session_id} for user {session_row['user_id']}")
+                        
+                        # After fetching metadata
+                        if metadata_row and metadata_row['metadata']:
+                            logger.info(f"Found metadata for session {session_id}: {json.dumps(metadata_row['metadata'] if isinstance(metadata_row['metadata'], dict) else metadata_row['metadata'])}")
+                        else:
+                            logger.warning(f"No metadata found for session {session_id}")
+                        
+                        logger.info(f"Session Store - Session object type: {type(session)}")
+
                         return session
                         
             except Exception as e:

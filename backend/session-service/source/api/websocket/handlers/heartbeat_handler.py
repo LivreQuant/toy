@@ -73,6 +73,18 @@ async def handle_heartbeat(
         session = await session_manager.get_session(session_id)
         
         if session:
+            logger.info(f"Heartbeat handling - Session object type: {type(session)}")
+            logger.info(f"Heartbeat handling - Session attributes: {dir(session)}")
+            if hasattr(session, 'metadata'):
+                logger.info(f"Heartbeat handling - Metadata type: {type(session.metadata)}")
+                logger.info(f"Heartbeat handling - Metadata attributes: {dir(session.metadata)}")
+                if hasattr(session.metadata, 'device_id'):
+                    logger.info(f"Heartbeat handling - Found device_id in metadata: {session.metadata.device_id}")
+                else:
+                    logger.warning(f"Heartbeat handling - No device_id attribute in metadata")
+            else:
+                logger.warning(f"Heartbeat handling - No metadata attribute in session")
+                
             session_valid_server = True # Assume valid if found
             
             # Access metadata as an attribute of the Session object
