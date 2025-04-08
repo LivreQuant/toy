@@ -1,0 +1,40 @@
+# websocket/emitters/exchange_emitter.py
+"""
+Handles formatting and broadcasting exchange data updates.
+"""
+import logging
+import time
+from typing import Dict, Any, TYPE_CHECKING
+
+# Assuming metrics/tracing utilities are accessible
+from source.utils.metrics import track_websocket_message
+
+# Type hint WebSocketManager to avoid circular dependency
+if TYPE_CHECKING:
+    from ..manager import WebSocketManager
+
+logger = logging.getLogger('websocket_emitter_exchange')
+
+
+async def send_exchange_update(
+        manager: 'WebSocketManager',  # Pass manager instance for broadcasting
+        *,
+        session_id: str,
+        data: Dict[str, Any]  # The raw data containing symbols, orders, positions etc.
+):
+    """Formats and broadcasts the 'exchange_data_status' message."""
+    payload = {
+        'type': 'exchange_data_status',
+        'timestamp': int(time.time() * 1000),
+        'symbols': data.get('symbols', {}),
+        'userOrders': data.get('userOrders', {}),
+        'userPositions': data.get('userPositions', {})
+    }
+    logger.debug(f"Broadcasting 'exchange_data_status' for session {session_id}")
+
+    # Use the manager's broadcast utility
+    await manager.broadcast_to_session(session_id, payload)
+
+    # Track metric for sent message (might be tracked per-client in broadcast,
+    # but tracking once per broadcast event here might be sufficient)
+    track_websocket_message("sent_broadcast", "exchange_data_status")
