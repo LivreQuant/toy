@@ -21,7 +21,7 @@ from opentelemetry import trace, context
 from source.utils.metrics import track_websocket_connection_count, track_websocket_error
 from source.utils.tracing import optional_trace_span
 from source.config import config
-from source.session.manager import SessionManager
+from source.core.session_manager import SessionManager
 
 # WebSocket Components
 from .dispatcher import WebSocketDispatcher
@@ -57,10 +57,8 @@ class WebSocketManager:
     # --- handle_connection remains the same as the previous refactor ---
     async def handle_connection(self, request: web.Request) -> web.WebSocketResponse:
         """Handle incoming HTTP request, authentication, registration, and message loop."""
-        current_span: Optional[trace.Span] = trace.get_current_span()
-        tracer_context = context.attach(trace.set_span_in_context(current_span)) if current_span else None
 
-        with optional_trace_span(self.tracer, "handle_websocket_connection", context=tracer_context) as span:
+        with optional_trace_span(self.tracer, "handle_websocket_connection") as span:
             ws = web.WebSocketResponse(heartbeat=config.websocket.heartbeat_interval, autoping=True)
             try: await ws.prepare(request)
             except Exception as prepare_err:

@@ -77,10 +77,8 @@ class WebSocketDispatcher:
         message = None
         message_type = "unknown"
         # Propagate active span context if available
-        current_span: Optional[trace.Span] = trace.get_current_span()
-        tracer_context = context.attach(trace.set_span_in_context(current_span)) if current_span else None
 
-        with optional_trace_span(self.tracer, "dispatch_websocket_message", context=tracer_context) as span:
+        with optional_trace_span(self.tracer, "dispatch_websocket_message") as span:
             span.set_attribute("session_id", session_id)
             span.set_attribute("client_id", client_id)
             span.set_attribute("raw_message_preview", raw_data[:100])

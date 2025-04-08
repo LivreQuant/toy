@@ -41,17 +41,18 @@ class SessionMetadata(BaseModel):
     """Session metadata"""
     frontend_connections: int = 0
     last_ws_connection: Optional[float] = None
+    last_sse_connection: Optional[float] = None
     reconnect_count: int = 0
     connection_quality: ConnectionQuality = ConnectionQuality.GOOD
     heartbeat_latency: Optional[int] = None
     missed_heartbeats: int = 0
     subscriptions: Dict[str, Subscription] = Field(default_factory=dict)
+    device_id: Optional[str] = None
     simulator_id: Optional[str] = None
     simulator_endpoint: Optional[str] = None
     simulator_status: SimulatorStatus = SimulatorStatus.NONE
     user_agent: Optional[str] = None
     ip_address: Optional[str] = None
-    device_id: Optional[str] = None
     pod_name: Optional[str] = None
     pod_transferred: bool = False
     previous_pod: Optional[str] = None

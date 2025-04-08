@@ -287,7 +287,6 @@ async def handle_create_session(request):
 
             return web.json_response({
                 'success': True,
-                'sessionId': session_id,
                 'isNew': is_new
             })
 

@@ -443,7 +443,6 @@ class SessionManager:
                      span.set_attribute("error", "DB session creation failed")
                      return None, False
 
-
                 # Set essential metadata including the validated device_id and current pod
                 await self.db_manager.update_session_metadata(session_id, {
                     'pod_name': self.pod_name,
