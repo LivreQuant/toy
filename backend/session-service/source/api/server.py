@@ -1,3 +1,4 @@
+# source/api/server.py
 """
 Session service main server.
 Coordinates all components and handles HTTP/WebSocket/SSE endpoints.
@@ -12,12 +13,21 @@ from typing import Dict, Any, Optional, List
 import aiohttp_cors
 from aiohttp import web
 
+# Prometheus client integration
+from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+
 from source.config import config
 from source.db.session_store import DatabaseManager
 from source.api.clients.auth_client import AuthClient
 from source.api.clients.exchange_client import ExchangeClient
-from source.core.session_manager import SessionManager
+from source.core.session.session_manager import SessionManager
 from source.api.rest.routes import setup_rest_routes
+# --- Refactored Middleware Import Location ---
+# Assuming metrics_middleware is now defined in middleware.py
+from source.api.rest.middleware import metrics_middleware
+# Assuming tracing_middleware exists here or adjust path as needed
+from source.utils.middleware import tracing_middleware
+# -------------------------------------------
 from source.api.websocket.manager import WebSocketManager
 from source.models.simulator import SimulatorStatus
 
@@ -27,283 +37,407 @@ try:
     REDIS_AVAILABLE = True
 except ImportError:
     REDIS_AVAILABLE = False
+    aioredis = None # Define for type hinting checks
 
 logger = logging.getLogger('server')
 
 class SessionServer:
     """Main session service server"""
-    
+
     def __init__(self):
         """Initialize server components"""
-        self.app = web.Application()
+        # Apply middleware directly during Application creation for cleaner setup
+        self.app = web.Application(middlewares=[
+            metrics_middleware, # Apply metrics middleware
+            tracing_middleware  # Apply tracing middleware
+        ])
+        self._runner = None # Initialize runner attribute
         self.running = False
         self.initialized = False
         self.shutdown_event = asyncio.Event()
-    
-    
+
+        # Initialize component placeholders
+        self.redis: Optional[aioredis.Redis] = None
+        self.db_manager: Optional[DatabaseManager] = None
+        self.auth_client: Optional[AuthClient] = None
+        self.exchange_client: Optional[ExchangeClient] = None
+        self.session_manager: Optional[SessionManager] = None
+        self.websocket_manager: Optional[WebSocketManager] = None
+        self.pubsub_task: Optional[asyncio.Task] = None
+
+
     async def initialize(self):
         """Initialize all server components"""
         if self.initialized:
+            logger.debug("Server already initialized.")
             return
-        
+
         logger.info("Initializing server components")
-        
+
         # Initialize Redis if available
-        self.redis = None
         if REDIS_AVAILABLE:
             try:
                 self.redis = await self._init_redis()
-                logger.info("Redis connection established")
+                if self.redis:
+                    logger.info("Redis connection established and listener started.")
+                else:
+                     logger.warning("Redis initialization returned None.") # Should not happen if _init_redis raises errors
             except Exception as e:
-                logger.warning(f"Failed to connect to Redis: {e}")
-                logger.warning("Continuing without Redis - some features will be limited")
-        
+                logger.warning(f"Failed to connect to Redis: {e}. Continuing without Redis features.")
+                self.redis = None # Ensure it's None on failure
+        else:
+             logger.info("Redis client library not found. Skipping Redis initialization.")
+
         # Initialize database
-        self.db_manager = DatabaseManager()
-        await self.db_manager.connect()
-        
+        try:
+            self.db_manager = DatabaseManager()
+            await self.db_manager.connect()
+            logger.info("Database connection established.")
+        except Exception as e:
+            logger.critical(f"Failed to connect to database: {e}. Cannot start server.", exc_info=True)
+            raise RuntimeError(f"Database connection failed: {e}") from e
+
         # Initialize API clients
         self.auth_client = AuthClient()
         self.exchange_client = ExchangeClient()
-        
+        logger.info("API clients initialized.")
+
         # Initialize session manager
         self.session_manager = SessionManager(
             self.db_manager,
             self.auth_client,
             self.exchange_client,
-            self.redis
+            self.redis # Pass redis client (or None)
         )
-        
-        # Start background tasks
+        logger.info("Session manager initialized.")
+
+        # Start background tasks (ensure session_manager is initialized first)
         await self.session_manager.start_cleanup_task()
-        
-        # Initialize WebSocket manager
+        logger.info("Session cleanup task started.")
+
+        # Initialize WebSocket manager (ensure session_manager is initialized first)
         self.websocket_manager = WebSocketManager(self.session_manager, self.redis)
-        
+        logger.info("WebSocket manager initialized.")
+
         # Make components available in application context
         self.app['db_manager'] = self.db_manager
         self.app['auth_client'] = self.auth_client
         self.app['exchange_client'] = self.exchange_client
         self.app['session_manager'] = self.session_manager
         self.app['websocket_manager'] = self.websocket_manager
+        self.app['redis'] = self.redis # Add redis to context if needed by handlers
 
-        # Add middleware for metrics and tracing
-        from source.api.rest.handlers import metrics_middleware
-        from source.utils.middleware import tracing_middleware
-
-        self.app.middlewares.append(metrics_middleware)
-        self.app.middlewares.append(tracing_middleware)
+        # Middleware is now applied during app = web.Application(...) creation above
 
         # Set up routes
         setup_rest_routes(self.app)
-        
+        logger.info("REST routes configured.")
+
         # Register WebSocket handler
         self.app.router.add_get('/ws', self.websocket_manager.handle_connection)
-        
+        logger.info("WebSocket route '/ws' configured.")
+
         # Add health check endpoints
         self.app.router.add_get('/health', self.health_check)
         self.app.router.add_get('/readiness', self.readiness_check)
-        self.app.router.add_get('/metrics', self.metrics_endpoint)  # Expose Prometheus metrics
+        self.app.router.add_get('/metrics', self.metrics_endpoint) # Expose Prometheus metrics
+        logger.info("Health, readiness, and metrics routes configured.")
 
         # Set up CORS
         self._setup_cors()
-        
-        # Set up signal handlers
+        logger.info("CORS configured.")
+
+        # Set up signal handlers (can be here or in main.py)
+        # Keeping them here as server class manages lifecycle
         loop = asyncio.get_running_loop()
         for sig in (signal.SIGINT, signal.SIGTERM):
-            loop.add_signal_handler(sig, lambda: asyncio.create_task(self.shutdown()))
-        
+            loop.add_signal_handler(sig, lambda s=sig: asyncio.create_task(self._handle_signal(s)))
+
         self.initialized = True
         logger.info("Server initialization complete")
 
-    # source/api/server.py (add to the class)
+    async def _handle_signal(self, sig):
+        """Handle termination signals."""
+        logger.warning(f"Received signal {sig.name}. Initiating shutdown...")
+        # Prevent double shutdown calls if signal received multiple times quickly
+        if not self.shutdown_event.is_set() and self.running:
+             await self.shutdown()
+        else:
+             logger.info("Shutdown already in progress or server not running.")
+
+
     async def metrics_endpoint(self, request):
         """Prometheus metrics endpoint"""
-        from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+        # generate_latest needs to be called within the handler
+        try:
+            metrics_data = generate_latest()
+            return web.Response(
+                body=metrics_data,
+                content_type=CONTENT_TYPE_LATEST
+            )
+        except Exception as e:
+            logger.error(f"Error generating Prometheus metrics: {e}", exc_info=True)
+            return web.Response(status=500, text="Error generating metrics")
 
-        metrics_data = generate_latest()
-        return web.Response(
-            body=metrics_data,
-            content_type=CONTENT_TYPE_LATEST
-        )
 
-    async def _init_redis(self) -> aioredis.Redis:
-        """Initialize Redis connection"""
+    async def _init_redis(self) -> Optional[aioredis.Redis]:
+        """Initialize Redis connection, pub/sub, and registration"""
+        logger.info(f"Connecting to Redis at {config.redis.host}:{config.redis.port}")
         redis_client = aioredis.Redis(
             host=config.redis.host,
             port=config.redis.port,
             db=config.redis.db,
             password=config.redis.password,
-            decode_responses=True
+            decode_responses=True,
+            socket_connect_timeout=5, # Add timeout
+            socket_keepalive=True,    # Enable keepalive
         )
-        
+
         # Verify connection
         await redis_client.ping()
-        
+        logger.info("Redis PING successful.")
+
         # Register pod with Redis
         pod_info = {
             'name': config.kubernetes.pod_name,
-            'host': config.server.host,
+            'host': config.server.host, # Consider using POD_IP env var if available
             'port': config.server.port,
             'started_at': time.time()
         }
-        
+
+        # Use pipelining for atomic operations if possible, or sequential calls
         await redis_client.hset(f"pod:{config.kubernetes.pod_name}", mapping=pod_info)
         await redis_client.sadd("active_pods", config.kubernetes.pod_name)
-        
-        # Start Redis pubsub if needed
+        logger.info(f"Pod '{config.kubernetes.pod_name}' registered in Redis.")
+
+        # Start Redis pubsub listener task
         self.pubsub_task = asyncio.create_task(self._run_pubsub(redis_client))
-        
+        logger.info("Redis pub/sub listener task started.")
+
         return redis_client
-    
-    async def _run_pubsub(self, redis_client):
-        """Process Redis pub/sub messages"""
-        pubsub = redis_client.pubsub()
-        await pubsub.subscribe("session_events")
-        
+
+    async def _run_pubsub(self, redis_client: aioredis.Redis):
+        """Listen for and process Redis pub/sub messages"""
+        pubsub = redis_client.pubsub(ignore_subscribe_messages=True)
+        channel = "session_events"
+        await pubsub.subscribe(channel)
+        logger.info(f"Subscribed to Redis channel: {channel}")
+
         try:
-            async for message in pubsub.listen():
-                if message['type'] == 'message':
+            while self.running: # Check if server is still running
+                message = await pubsub.get_message(timeout=1.0) # Use timeout to allow loop check
+                if message and message.get('type') == 'message':
                     await self._handle_pubsub_message(message)
+                await asyncio.sleep(0.01) # Prevent tight loop if no messages
         except asyncio.CancelledError:
-            await pubsub.unsubscribe("session_events")
-            raise
-    
-    async def _handle_pubsub_message(self, message):
-        """Handle Redis pub/sub message"""
-        try:
-            data = json.loads(message['data'])
-            event_type = data.get('type')
-            
-            # Skip messages from this pod
-            if data.get('pod_name') == config.kubernetes.pod_name:
-                return
-            
-            logger.debug(f"Received pub/sub event: {event_type}")
-            
-            # Handle specific events
-            if event_type == 'session_created':
-                # Another pod created a session - nothing to do
-                pass
-            elif event_type == 'session_ended':
-                # Another pod ended a session - nothing to do
-                pass
-            elif event_type == 'simulator_started':
-                # Another pod started a simulator - notify WebSocket clients if we have any
-                session_id = data.get('session_id')
-                simulator_id = data.get('simulator_id')
-                
-                if session_id and self.websocket_manager:
-                    await self.websocket_manager.broadcast_to_session(session_id, {
-                        'type': 'simulator_update',
-                        'status': 'STARTING',
-                        'simulator_id': simulator_id
-                    })
-            elif event_type == 'simulator_stopped':
-                # Another pod stopped a simulator - notify WebSocket clients if we have any
-                session_id = data.get('session_id')
-                simulator_id = data.get('simulator_id')
-                
-                if session_id and self.websocket_manager:
-                    await self.websocket_manager.broadcast_to_session(session_id, {
-                        'type': 'simulator_update',
-                        'status': 'STOPPED',
-                        'simulator_id': simulator_id
-                    })
-            elif event_type == 'pod_offline':
-                # Another pod went offline - check for orphaned sessions
-                # This would involve more complex logic to take over sessions
-                pass
+            logger.info("Pub/sub task cancelled.")
+        except (aioredis.exceptions.ConnectionError, aioredis.exceptions.TimeoutError) as e:
+             logger.error(f"Redis connection error in pub/sub listener: {e}. Attempting to reconnect...")
+             # Implement reconnection logic if desired, otherwise task will exit
+             # For now, just log and exit the task. Consider raising to trigger higher level handling.
+             self.pubsub_task = None # Clear the task reference
         except Exception as e:
-            logger.error(f"Error handling pub/sub message: {e}")
-    
+            logger.error(f"Unexpected error in pub/sub listener: {e}", exc_info=True)
+            self.pubsub_task = None # Clear the task reference
+        finally:
+            if pubsub: # Ensure pubsub object exists before unsubscribe
+                try:
+                    await pubsub.unsubscribe(channel)
+                    await pubsub.close() # Close the pubsub connection properly
+                    logger.info(f"Unsubscribed from Redis channel: {channel}")
+                except Exception as e:
+                     logger.error(f"Error closing pubsub: {e}")
+
+
+    async def _handle_pubsub_message(self, message: Dict[str, Any]):
+        """Handle specific Redis pub/sub message"""
+        try:
+            # Ensure data is a string before loading JSON
+            message_data_raw = message.get('data')
+            if not isinstance(message_data_raw, (str, bytes)):
+                 logger.warning(f"Received pub/sub message with non-string data: {type(message_data_raw)}")
+                 return
+
+            data = json.loads(message_data_raw)
+            event_type = data.get('type')
+            source_pod = data.get('pod_name')
+
+            # Skip messages originating from this pod
+            if source_pod == config.kubernetes.pod_name:
+                return
+
+            logger.debug(f"Received pub/sub event '{event_type}' from pod '{source_pod}'")
+
+            # Handle specific events (ensure websocket_manager exists)
+            if not self.websocket_manager:
+                 logger.warning("Websocket manager not available to handle pub/sub message.")
+                 return
+
+            session_id = data.get('session_id')
+            simulator_id = data.get('simulator_id')
+
+            if event_type == 'simulator_started' and session_id:
+                await self.websocket_manager.broadcast_to_session(session_id, {
+                    'type': 'simulator_update',
+                    'status': 'STARTING', # Or 'RUNNING' depending on event timing
+                    'simulator_id': simulator_id
+                })
+            elif event_type == 'simulator_stopped' and session_id:
+                await self.websocket_manager.broadcast_to_session(session_id, {
+                    'type': 'simulator_update',
+                    'status': 'STOPPED',
+                    'simulator_id': simulator_id
+                })
+            elif event_type == 'session_ended' and session_id:
+                 # Maybe close local WebSocket connections for this ended session
+                 await self.websocket_manager.close_session_connections(session_id, f"Session ended by {source_pod}")
+
+            # Add handling for other events like 'pod_offline' if needed
+
+        except json.JSONDecodeError as e:
+            logger.error(f"Error decoding JSON from pub/sub message: {e}. Data: '{message.get('data')}'")
+        except Exception as e:
+            logger.error(f"Error handling pub/sub message: {e}", exc_info=True)
+
     def _setup_cors(self):
         """Set up CORS for API endpoints"""
-        cors = aiohttp_cors.setup(self.app, defaults={
-            "*": aiohttp_cors.ResourceOptions(
-                allow_credentials=True,
+        # Allow all origins specified in config, or '*' if none/empty
+        origins = config.server.cors_allowed_origins or ["*"]
+        logger.info(f"Setting up CORS for origins: {origins}")
+
+        cors_options = aiohttp_cors.ResourceOptions(
+                allow_credentials=True, # Important for cookies/auth headers
                 expose_headers="*",
-                allow_headers="*",
-                allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+                allow_headers="*", # Be more specific in production if possible
+                allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"] # Include common methods
             )
-        })
-        
-        # Apply CORS to all routes except WebSocket and SSE
+        defaults = {origin: cors_options for origin in origins}
+
+        cors = aiohttp_cors.setup(self.app, defaults=defaults)
+
+        # Apply CORS to all routes
         for route in list(self.app.router.routes()):
-            path = route.resource.canonical
-            if not (path == '/ws' or path == '/stream'):
+            # Skip WebSocket routes as CORS doesn't apply directly
+            # Health/metrics endpoints might not need CORS depending on setup
+            # path = route.resource.canonical if hasattr(route.resource, 'canonical') else str(route.resource)
+            # if path != '/ws': # Example exclusion
+            try:
                 cors.add(route)
-    
+            except ValueError:
+                 # Might happen if route already has CORS via other means, log if needed
+                 # logger.warning(f"Could not add CORS to route: {route.method} {path}")
+                 pass
+
     async def health_check(self, request):
-        """Simple health check endpoint"""
+        """Simple liveness check endpoint"""
+        # Basic check: if this handler runs, the server process is alive
         return web.json_response({
             'status': 'UP',
             'timestamp': time.time(),
             'pod': config.kubernetes.pod_name
         })
-    
+
     async def readiness_check(self, request):
-        """Comprehensive readiness check"""
-        # Check all dependencies
-        db_ready = await self.db_manager.check_connection()
-        auth_ready = await self.auth_client.check_service()
-        
-        if db_ready and auth_ready:
-            return web.json_response({
-                'status': 'READY',
-                'timestamp': time.time(),
-                'pod': config.kubernetes.pod_name,
-                'checks': {
-                    'database': 'UP',
-                    'auth_service': 'UP',
-                    'redis': 'UP' if self.redis else 'NOT CONFIGURED'
-                }
-            })
+        """Comprehensive readiness check for dependencies"""
+        checks = {}
+        all_ready = True
+
+        # Check DB connection
+        if self.db_manager:
+            db_ready = await self.db_manager.check_connection()
+            checks['database'] = 'UP' if db_ready else 'DOWN'
+            if not db_ready: all_ready = False
         else:
-            return web.json_response({
-                'status': 'NOT READY',
-                'timestamp': time.time(),
-                'pod': config.kubernetes.pod_name,
-                'checks': {
-                    'database': 'UP' if db_ready else 'DOWN',
-                    'auth_service': 'UP' if auth_ready else 'DOWN',
-                    'redis': 'UP' if self.redis else 'NOT CONFIGURED'
-                }
-            }, status=503)
-    
+            checks['database'] = 'NOT INITIALIZED'
+            all_ready = False
+
+        # Check Auth service
+        if self.auth_client:
+            auth_ready = await self.auth_client.check_service()
+            checks['auth_service'] = 'UP' if auth_ready else 'DOWN'
+            if not auth_ready: all_ready = False
+        else:
+             checks['auth_service'] = 'NOT INITIALIZED'
+             all_ready = False
+
+        # Check Redis connection (if configured)
+        if REDIS_AVAILABLE:
+            if self.redis:
+                try:
+                    await self.redis.ping()
+                    checks['redis'] = 'UP'
+                except Exception:
+                    checks['redis'] = 'DOWN'
+                    all_ready = False
+            else:
+                # If Redis was expected but failed init
+                checks['redis'] = 'DOWN (Init Failed)'
+                all_ready = False
+        else:
+            checks['redis'] = 'NOT CONFIGURED'
+
+        # Add other checks (e.g., essential background tasks running) if needed
+
+        status_code = 200 if all_ready else 503 # Service Unavailable if not ready
+        return web.json_response({
+            'status': 'READY' if all_ready else 'NOT READY',
+            'timestamp': time.time(),
+            'pod': config.kubernetes.pod_name,
+            'checks': checks
+        }, status=status_code)
+
     async def start(self):
-        """Start the server"""
+        """Start the server after initialization"""
         if not self.initialized:
-            await self.initialize()
-        
+            logger.warning("Server not initialized. Calling initialize().")
+            await self.initialize() # Ensure initialized
+
+        if self.running:
+             logger.warning("Server start() called but already running.")
+             return
+
         host = config.server.host
         port = config.server.port
-        
-        # Start the application
-        runner = web.AppRunner(self.app)
-        await runner.setup()
-        
-        site = web.TCPSite(runner, host, port)
-        await site.start()
-        
-        self.running = True
-        logger.info(f"Server started at http://{host}:{port}")
-    
-    
+
+        # Start the application runner
+        self._runner = web.AppRunner(self.app)
+        await self._runner.setup()
+
+        site = web.TCPSite(self._runner, host, port, shutdown_timeout=config.server.shutdown_timeout)
+        try:
+            await site.start()
+            self.running = True
+            logger.info(f"Server successfully started at http://{host}:{port}")
+        except OSError as e:
+             logger.critical(f"Failed to start server on {host}:{port}: {e}. Port likely in use.", exc_info=True)
+             # Perform cleanup before exiting or raising
+             await self._runner.cleanup()
+             raise RuntimeError(f"Failed to bind to {host}:{port}") from e
+
+
     async def shutdown(self):
-        """Gracefully shut down the server"""
+        """Gracefully shut down the server and clean up resources"""
+        if self.shutdown_event.is_set():
+             logger.info("Shutdown already complete or in progress.")
+             return
         if not self.running:
+            logger.warning("Shutdown called but server wasn't running.")
+            # Still set the event to allow wait_for_shutdown to complete if called
+            self.shutdown_event.set()
             return
-        
-        logger.info("Shutting down server")
-        self.running = False
-        
-        # Force cleanup of this pod's sessions
+
+        logger.info("Initiating graceful shutdown...")
+        self.running = False # Mark as not running early
+
+        # 1. Stop accepting new connections (handled by AppRunner cleanup later)
+
+        # 2. Clean up sessions/simulators managed by this pod
         await self._cleanup_pod_sessions()
-        
-        # Unregister pod from Redis
+
+        # 3. Unregister pod from service discovery (Redis)
         if self.redis:
             try:
+                logger.info(f"Unregistering pod '{config.kubernetes.pod_name}' from Redis.")
                 await self.redis.srem("active_pods", config.kubernetes.pod_name)
                 await self.redis.publish("session_events", json.dumps({
                     'type': 'pod_offline',
@@ -311,165 +445,199 @@ class SessionServer:
                     'timestamp': time.time()
                 }))
             except Exception as e:
-                logger.error(f"Error unregistering pod from Redis: {e}")
-        
-        # Cancel background tasks
-        if hasattr(self, 'pubsub_task'):
+                logger.error(f"Error unregistering pod from Redis: {e}", exc_info=True)
+
+        # 4. Cancel background tasks (Pub/Sub listener)
+        if self.pubsub_task and not self.pubsub_task.done():
+            logger.info("Cancelling Redis pub/sub listener task...")
             self.pubsub_task.cancel()
             try:
-                await self.pubsub_task
+                await asyncio.wait_for(self.pubsub_task, timeout=2.0) # Give it time to clean up
             except asyncio.CancelledError:
-                pass
-        
-        # Stop session manager tasks
-        await self.session_manager.stop_cleanup_task()
-        
-        # Close WebSocket connections
-        await self.websocket_manager.close_all_connections("Server shutting down")
-        
-        # Close API clients
-        await self.auth_client.close()
-        await self.exchange_client.close()
-        
-        # Close Redis connection
-        if self.redis:
-            await self.redis.close()
-        
-        # Close database connection
-        await self.db_manager.close()
-        
-        logger.info("Server shutdown complete")
-        self.shutdown_event.set()
+                logger.info("Pub/sub listener task successfully cancelled.")
+            except asyncio.TimeoutError:
+                 logger.warning("Pub/sub listener task did not finish cancelling within timeout.")
+            except Exception as e:
+                 logger.error(f"Error waiting for pub/sub task cancellation: {e}", exc_info=True)
+
+        # 5. Stop session manager tasks (Cleanup task)
+        if self.session_manager:
+            logger.info("Stopping session manager cleanup task...")
+            await self.session_manager.stop_cleanup_task()
+
+        # 6. Close WebSocket connections
+        if self.websocket_manager:
+            logger.info("Closing all WebSocket connections...")
+            await self.websocket_manager.close_all_connections("Server is shutting down")
+
+        # 7. Close external connections (API clients, Redis, DB)
+        if self.auth_client: await self.auth_client.close()
+        if self.exchange_client: await self.exchange_client.close()
+        if self.redis: await self.redis.close() # Close the main connection pool
+        if self.db_manager: await self.db_manager.close()
+        logger.info("Closed external connections (Clients, Redis, DB).")
+
+        # 8. Stop the AppRunner (stops accepting connections and cleans up sites)
+        if self._runner:
+            logger.info("Cleaning up aiohttp AppRunner...")
+            await self._runner.cleanup()
+            logger.info("AppRunner cleanup complete.")
+
+        logger.info("Server shutdown sequence finished.")
+        self.shutdown_event.set() # Signal that shutdown is complete
+
 
     async def _cleanup_pod_sessions(self):
-        """Clean up sessions associated with this pod before shutdown"""
+        """Clean up sessions and simulators associated with this pod before shutdown"""
+        logger.info("Starting cleanup of sessions managed by this pod.")
+        if not self.session_manager or not self.db_manager:
+             logger.error("Session Manager or DB Manager not available for cleanup.")
+             return
+
         try:
-            # Get all sessions associated with this pod
-            pod_sessions = await self.session_manager.db_manager.get_sessions_with_criteria({
+            # Get all active sessions potentially managed by this pod
+            # A better approach might be to query sessions explicitly marked with this pod_name
+            # For now, let's assume session_manager knows which ones are local or needs a method
+            # This part needs refinement based on how sessions are tracked per pod.
+            # Using the original query for now:
+            pod_sessions: List[Any] = await self.db_manager.get_sessions_with_criteria({
                 'pod_name': config.kubernetes.pod_name
+                # Add 'status': 'active' or similar if applicable
             })
-            
+
             if not pod_sessions:
-                logger.info("No sessions to clean up for this pod")
+                logger.info("No active sessions found for this pod to clean up.")
                 return
-                
-            logger.info(f"Cleaning up {len(pod_sessions)} sessions before pod termination")
-            
+
+            logger.info(f"Found {len(pod_sessions)} sessions potentially managed by this pod. Initiating cleanup...")
+
             # Process simulators in parallel for faster shutdown
             simulator_tasks = []
-            
-            for session in pod_sessions:
-                # Check if session has a simulator running
-                if (hasattr(session.metadata, 'simulator_id') and 
-                    session.metadata.simulator_id and 
-                    hasattr(session.metadata, 'simulator_status') and
-                    session.metadata.simulator_status != SimulatorStatus.STOPPED.value):
-                    
-                    simulator_id = session.metadata.simulator_id
-                    simulator_endpoint = getattr(session.metadata, 'simulator_endpoint', None)
-                    
-                    # Create task to stop simulator
+            sessions_to_update = []
+
+            for session_data in pod_sessions:
+                # Access metadata safely, assuming it might be None or not a dict
+                metadata = getattr(session_data, 'metadata', {})
+                if not isinstance(metadata, dict): metadata = {}
+
+                session_id = getattr(session_data, 'session_id', None)
+                if not session_id: continue # Skip if no session ID found
+
+                simulator_id = metadata.get('simulator_id')
+                simulator_status = metadata.get('simulator_status')
+                simulator_endpoint = metadata.get('simulator_endpoint')
+
+                sessions_to_update.append(session_id)
+
+                # Check if session has a simulator running or starting
+                if simulator_id and simulator_status not in [SimulatorStatus.STOPPED.value, SimulatorStatus.ERROR.value, None]:
+                    logger.info(f"Scheduling simulator {simulator_id} for session {session_id} for shutdown.")
+                    # Create task to stop simulator using fallbacks
                     task = asyncio.create_task(
                         self._stop_simulator_with_fallbacks(
-                            session.session_id, 
-                            simulator_id, 
+                            session_id,
+                            simulator_id,
                             simulator_endpoint
                         )
                     )
                     simulator_tasks.append(task)
-                    
-                    # Update session metadata to indicate cleanup is in progress
-                    await self.session_manager.db_manager.update_session_metadata(
-                        session.session_id,
-                        {
-                            'simulator_status': 'STOPPING',
-                            'cleanup_initiated_at': time.time()
-                        }
-                    )
-            
+                else:
+                    logger.debug(f"No active simulator found for session {session_id} to stop.")
+
+
             # Wait for simulator shutdowns with timeout
             if simulator_tasks:
-                # Allow up to 10 seconds for graceful shutdowns
+                logger.info(f"Waiting for {len(simulator_tasks)} simulator shutdown tasks...")
+                # Allow timeout for graceful shutdowns
                 done, pending = await asyncio.wait(
-                    simulator_tasks, 
-                    timeout=10.0,
+                    simulator_tasks,
+                    timeout=config.server.shutdown_timeout - 2.0, # Allow margin
                     return_when=asyncio.ALL_COMPLETED
                 )
-                
-                # Cancel any pending tasks that didn't complete in time
-                for task in pending:
-                    task.cancel()
-                    
-                logger.info(f"Completed {len(done)}/{len(simulator_tasks)} simulator shutdowns")
-                
-                # For any pending/incomplete shutdowns, force K8s cleanup
-                if pending:
-                    for session in pod_sessions:
-                        if hasattr(session.metadata, 'simulator_id') and session.metadata.simulator_id:
-                            # Directly delete K8s resources as last resort
-                            try:
-                                await self.session_manager.k8s_client.delete_simulator_deployment(
-                                    session.metadata.simulator_id
-                                )
-                                logger.info(f"Force deleted simulator {session.metadata.simulator_id} resources")
-                            except Exception as e:
-                                logger.error(f"Error force deleting simulator: {e}")
-            
-            # Update all session states to indicate cleanup
-            for session in pod_sessions:
-                # Mark the session for transfer to another pod
-                await self.session_manager.db_manager.update_session_metadata(
-                    session.session_id,
-                    {
-                        'pod_terminating': True,
-                        'termination_time': time.time(),
-                        'simulator_status': SimulatorStatus.STOPPED.value if hasattr(session.metadata, 'simulator_id') else None
-                    }
-                )
-                
-                # Notify clients via WebSocket that they should reconnect
-                if self.websocket_manager:
-                    await self.websocket_manager.broadcast_to_session(
-                        session.session_id,
-                        {
-                            'type': 'pod_terminating', 
-                            'message': 'Service instance is shutting down, please reconnect'
-                        }
-                    )
-        
-        except Exception as e:
-            logger.error(f"Error cleaning up pod sessions: {e}")
 
-    async def _stop_simulator_with_fallbacks(self, session_id, simulator_id, simulator_endpoint):
-        """Stop simulator with multiple fallback strategies"""
-        try:
-            # Strategy 1: Try gRPC call if endpoint is available
-            if simulator_endpoint:
-                try:
-                    result = await self.session_manager.exchange_client.stop_simulator(
-                        simulator_endpoint, session_id
-                    )
-                    if result.get('success'):
-                        logger.info(f"Successfully stopped simulator {simulator_id} via gRPC")
-                        return True
-                    else:
-                        logger.warning(f"Failed to stop simulator {simulator_id} via gRPC: {result.get('error')}")
-                except Exception as e:
-                    logger.warning(f"Error calling stop_simulator via gRPC: {e}")
-            
-            # Strategy 2: Delete K8s resources directly
-            try:
-                await self.session_manager.k8s_client.delete_simulator_deployment(simulator_id)
-                logger.info(f"Deleted simulator {simulator_id} K8s resources")
-                return True
-            except Exception as e:
-                logger.error(f"Failed to delete simulator {simulator_id} K8s resources: {e}")
-                return False
-                
+                logger.info(f"Completed {len(done)} simulator shutdown tasks.")
+                if pending:
+                    logger.warning(f"{len(pending)} simulator shutdown tasks timed out or were cancelled.")
+                    # Cancel any pending tasks explicitly
+                    for task in pending:
+                        task.cancel()
+                        try:
+                            await task # Allow cancellation to propagate
+                        except asyncio.CancelledError:
+                            pass
+                        except Exception as e:
+                             logger.error(f"Error awaiting cancelled simulator task: {e}", exc_info=True)
+                    # Optionally add direct K8s delete here for timed-out ones if needed
+
+
+            # Update all affected session states in DB
+            logger.info(f"Updating metadata for {len(sessions_to_update)} sessions to mark pod termination.")
+            update_metadata = {
+                    'pod_terminating': True,
+                    'termination_time': time.time(),
+                    # Mark simulator as stopped if we attempted cleanup, even if it failed/timed out
+                    # K8s garbage collection should handle orphaned resources eventually
+                    'simulator_status': SimulatorStatus.STOPPED.value
+                }
+
+            # Batch update sessions if DB manager supports it, otherwise loop
+            for s_id in sessions_to_update:
+                 try:
+                    await self.db_manager.update_session_metadata(s_id, update_metadata)
+
+                    # Notify clients via WebSocket that they should reconnect
+                    if self.websocket_manager:
+                        await self.websocket_manager.broadcast_to_session(
+                            s_id,
+                            {
+                                'type': 'pod_terminating',
+                                'message': 'Service instance is shutting down, please reconnect'
+                            }
+                        )
+                 except Exception as e:
+                      logger.error(f"Error updating session {s_id} metadata during shutdown: {e}", exc_info=True)
+
+            logger.info("Session cleanup phase complete.")
+
         except Exception as e:
-            logger.error(f"Error in _stop_simulator_with_fallbacks: {e}")
+            logger.error(f"Error during _cleanup_pod_sessions: {e}", exc_info=True)
+
+
+    async def _stop_simulator_with_fallbacks(self, session_id: str, simulator_id: str, simulator_endpoint: Optional[str]):
+        """Attempt to stop simulator via gRPC, fallback to K8s delete."""
+        logger.debug(f"Attempting graceful stop for simulator {simulator_id} (Session: {session_id})")
+
+        # Ensure clients are available
+        if not self.exchange_client or not self.session_manager or not getattr(self.session_manager, 'k8s_client', None):
+            logger.error("Required clients (Exchange, K8s) not available for simulator stop.")
             return False
-        
+
+        # Strategy 1: Try gRPC call if endpoint is available
+        if simulator_endpoint:
+            try:
+                logger.debug(f"Using gRPC endpoint {simulator_endpoint} to stop simulator {simulator_id}")
+                result = await self.exchange_client.stop_simulator(simulator_endpoint, session_id)
+                if result.get('success'):
+                    logger.info(f"Successfully stopped simulator {simulator_id} via gRPC")
+                    return True
+                else:
+                    logger.warning(f"gRPC stop call failed for simulator {simulator_id}: {result.get('error')}")
+            except Exception as e:
+                logger.warning(f"Error calling stop_simulator via gRPC for {simulator_id}: {e}")
+
+        # Strategy 2: Delete K8s resources directly if gRPC failed or wasn't possible
+        logger.warning(f"Falling back to K8s resource deletion for simulator {simulator_id}")
+        try:
+            await self.session_manager.k8s_client.delete_simulator_deployment(simulator_id)
+            logger.info(f"Successfully deleted K8s resources for simulator {simulator_id}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to delete K8s resources for simulator {simulator_id}: {e}", exc_info=True)
+            return False
+
+
     async def wait_for_shutdown(self):
-        """Wait for server shutdown to complete"""
+        """Wait until the shutdown process is complete."""
+        logger.info("Server running. Waiting for shutdown signal...")
         await self.shutdown_event.wait()
+        logger.info("Shutdown signal received and processed. Exiting wait.")

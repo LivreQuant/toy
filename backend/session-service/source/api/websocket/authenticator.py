@@ -9,7 +9,7 @@ from aiohttp import web
 
 # Assuming SessionManager type hint is available
 if TYPE_CHECKING:
-    from source.core.session_manager import SessionManager
+    from source.core.session.session_manager import SessionManager
 
 # Import custom exceptions
 from .exceptions import (

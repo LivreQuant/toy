@@ -11,7 +11,7 @@ from aiohttp import web
 
 # Assuming SessionManager has db_manager, or pass db_manager directly
 # Adjust import path as needed
-from source.core.session_manager import SessionManager
+from source.core.session.session_manager import SessionManager
 from source.utils.metrics import track_websocket_connection_count
 
 logger = logging.getLogger('websocket_registry')

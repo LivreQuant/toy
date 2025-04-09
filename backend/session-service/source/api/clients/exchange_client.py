@@ -25,10 +25,6 @@ from source.api.grpc.exchange_simulator_pb2 import (
     GetSimulatorStatusRequest,
     # Import message types used in ExchangeDataUpdate
     ExchangeDataUpdate,
-    MarketData,
-    OrderUpdate,
-    PortfolioStatus,
-    SubmitOrderRequest # Import enum definition if needed
 )
 from source.api.grpc.exchange_simulator_pb2_grpc import ExchangeSimulatorStub
 

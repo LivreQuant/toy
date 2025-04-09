@@ -16,7 +16,7 @@ from source.utils.tracing import optional_trace_span
 # Type hints for managers without circular import
 if TYPE_CHECKING:
     from ..manager import WebSocketManager
-    from source.core.session_manager import SessionManager # Adjust import path
+    from source.core.session.session_manager import SessionManager # Adjust import path
 
 logger = logging.getLogger('websocket_handler_reconnect')
 

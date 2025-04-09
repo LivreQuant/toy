@@ -21,7 +21,7 @@ from opentelemetry import trace, context
 from source.utils.metrics import track_websocket_connection_count, track_websocket_error
 from source.utils.tracing import optional_trace_span
 from source.config import config
-from source.core.session_manager import SessionManager
+from source.core.session.session_manager import SessionManager
 
 # WebSocket Components
 from .dispatcher import WebSocketDispatcher

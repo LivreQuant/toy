@@ -33,7 +33,7 @@ from source.utils.tracing import optional_trace_span
 # Type hint for WebSocketManager and SessionManager without circular import
 if TYPE_CHECKING:
     from .manager import WebSocketManager
-    from source.core.session_manager import SessionManager
+    from source.core.session.session_manager import SessionManager
 
 logger = logging.getLogger('websocket_dispatcher')
 
