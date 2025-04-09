@@ -51,12 +51,10 @@ class SimulatorManager:
             self,
             session_id: str,
             user_id: str,
-            initial_symbols: Optional[List[str]] = None,
-            initial_cash: float = 100000.0
     ) -> Tuple[Optional[Simulator], str]:
         """Delegate to simulator creator component"""
         return await self.creator.create_simulator(
-            session_id, user_id, initial_symbols, initial_cash)
+            session_id, user_id)
 
     async def stop_simulator(self, simulator_id: str) -> Tuple[bool, str]:
         """Delegate to simulator lifecycle component"""

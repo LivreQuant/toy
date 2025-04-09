@@ -608,7 +608,7 @@ class PostgresStore:
                 await conn.execute('''
                     INSERT INTO simulator.instances (
                         simulator_id, session_id, user_id, status, 
-                        endpoint, created_at, last_active, initial_symbols, initial_cash
+                        endpoint, created_at, last_active
                     ) VALUES ($1, $2, $3, $4, $5, to_timestamp($6), to_timestamp($7), $8, $9)
                 ''',
                                    simulator.simulator_id,
@@ -618,8 +618,6 @@ class PostgresStore:
                                    simulator.endpoint,
                                    simulator.created_at,
                                    simulator.last_active,
-                                   json.dumps(simulator.initial_symbols),
-                                   simulator.initial_cash
                                    )
 
                 return True
@@ -712,8 +710,6 @@ class PostgresStore:
                     endpoint=row['endpoint'],
                     created_at=row['created_at'].timestamp(),
                     last_active=row['last_active'].timestamp(),
-                    initial_symbols=row['initial_symbols'] or [],
-                    initial_cash=row['initial_cash']
                 )
         except Exception as e:
             logger.error(f"Error getting simulator from PostgreSQL: {e}")
@@ -750,8 +746,6 @@ class PostgresStore:
                     endpoint=row['endpoint'],
                     created_at=row['created_at'].timestamp(),
                     last_active=row['last_active'].timestamp(),
-                    initial_symbols=row['initial_symbols'] or [],
-                    initial_cash=row['initial_cash']
                 )
         except Exception as e:
             logger.error(f"Error getting simulator by session from PostgreSQL: {e}")
@@ -788,8 +782,6 @@ class PostgresStore:
                         endpoint=row['endpoint'],
                         created_at=row['created_at'].timestamp(),
                         last_active=row['last_active'].timestamp(),
-                        initial_symbols=row['initial_symbols'] or [],
-                        initial_cash=row['initial_cash']
                     )
                     simulators.append(simulator)
 
@@ -824,8 +816,6 @@ class PostgresStore:
                         endpoint=row['endpoint'],
                         created_at=row['created_at'].timestamp(),
                         last_active=row['last_active'].timestamp(),
-                        initial_symbols=row['initial_symbols'] or [],
-                        initial_cash=row['initial_cash']
                     )
                     simulators.append(simulator)
 

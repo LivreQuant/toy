@@ -20,15 +20,11 @@ async def send_exchange_update(
         manager: 'WebSocketManager',  # Pass manager instance for broadcasting
         *,
         session_id: str,
-        data: Dict[str, Any]  # The raw data containing symbols, orders, positions etc.
 ):
     """Formats and broadcasts the 'exchange_data_status' message."""
     payload = {
         'type': 'exchange_data_status',
         'timestamp': int(time.time() * 1000),
-        'symbols': data.get('symbols', {}),
-        'userOrders': data.get('userOrders', {}),
-        'userPositions': data.get('userPositions', {})
     }
     logger.debug(f"Broadcasting 'exchange_data_status' for session {session_id}")
 

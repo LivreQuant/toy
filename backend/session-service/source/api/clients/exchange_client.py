@@ -137,8 +137,6 @@ class ExchangeClient:
             endpoint: str,
             session_id: str,
             user_id: str,
-            initial_symbols: List[str] = None,
-            initial_cash: float = 100000.0
     ) -> Dict[str, Any]:
         """
         Start a simulator instance
@@ -147,8 +145,6 @@ class ExchangeClient:
             endpoint: The endpoint of the exchange manager service
             session_id: The session ID
             user_id: The user ID
-            initial_symbols: Initial symbols to track
-            initial_cash: Initial cash amount
 
         Returns:
             Dict with start results
@@ -159,14 +155,12 @@ class ExchangeClient:
             span.set_attribute("net.peer.name", endpoint)
             span.set_attribute("app.session_id", session_id)
             span.set_attribute("app.user_id", user_id)
-            span.set_attribute("app.initial_symbols_count", len(initial_symbols or []))
-            span.set_attribute("app.initial_cash", initial_cash)
 
             try:
                 # Execute request with circuit breaker
                 response = await self.circuit_breaker.execute(
                     self._start_simulator_request,
-                    endpoint, session_id, user_id, initial_symbols, initial_cash
+                    endpoint, session_id, user_id
                 )
                 span.set_attribute("app.success", response.get('success', False))
                 if response.get('simulator_id'):
@@ -191,8 +185,6 @@ class ExchangeClient:
             endpoint: str,
             session_id: str,
             user_id: str,
-            initial_symbols: List[str] = None,
-            initial_cash: float = 100000.0
     ) -> Dict[str, Any]:
         """Make the actual start simulator request"""
         _, stub = await self.get_channel(endpoint)
@@ -200,8 +192,6 @@ class ExchangeClient:
         request = StartSimulatorRequest(
             session_id=session_id,
             user_id=user_id,
-            initial_symbols=initial_symbols or [],
-            initial_cash=initial_cash
         )
 
         start_time = time.time()
@@ -378,7 +368,6 @@ class ExchangeClient:
             endpoint: str,
             session_id: str,
             client_id: str,
-            symbols: List[str] = None
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """
         Stream exchange data (market, portfolio, orders) from the exchange simulator (renamed)
@@ -387,7 +376,6 @@ class ExchangeClient:
             endpoint: The endpoint of the simulator
             session_id: The session ID
             client_id: The client ID
-            symbols: Optional list of symbols to stream
 
         Yields:
             Dict with comprehensive exchange data updates
@@ -398,14 +386,12 @@ class ExchangeClient:
             span.set_attribute("net.peer.name", endpoint)
             span.set_attribute("app.session_id", session_id)
             span.set_attribute("app.client_id", client_id)
-            span.set_attribute("app.symbols", symbols or [])
 
             _, stub = await self.get_channel(endpoint)
 
             request = StreamRequest(
                 session_id=session_id,
                 client_id=client_id,
-                symbols=symbols or []
             )
 
             # This streaming endpoint doesn't use circuit breaker to allow long-running streams

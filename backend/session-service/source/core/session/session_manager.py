@@ -124,9 +124,9 @@ class SessionManager:
         """Delegate to session operations"""
         return await self.session_ops.end_session(session_id, token)
 
-    async def start_simulator(self, session_id, token, symbols=None):
+    async def start_simulator(self, session_id, token):
         """Delegate to simulator operations"""
-        return await self.simulator_ops.start_simulator(session_id, token, symbols)
+        return await self.simulator_ops.start_simulator(session_id, token)
 
     async def stop_simulator(self, session_id, token=None, force=False):
         """Delegate to simulator operations"""

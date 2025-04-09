@@ -56,8 +56,6 @@ class KubernetesClient:
             simulator_id: str,
             session_id: str,
             user_id: str,
-            initial_symbols: List[str] = None,
-            initial_cash: float = 100000.0
     ) -> str:
         """
         Create a new simulator deployment in Kubernetes
@@ -66,8 +64,6 @@ class KubernetesClient:
             simulator_id: Unique ID for the simulator
             session_id: Session ID
             user_id: User ID
-            initial_symbols: Initial stock symbols to track
-            initial_cash: Initial portfolio cash
             
         Returns:
             The service endpoint for the simulator
@@ -83,7 +79,6 @@ class KubernetesClient:
             client.V1EnvVar(name="SIMULATOR_ID", value=simulator_id),
             client.V1EnvVar(name="SESSION_ID", value=session_id),
             client.V1EnvVar(name="USER_ID", value=user_id),
-            client.V1EnvVar(name="INITIAL_CASH", value=str(initial_cash)),
 
             # Database connection variables
             client.V1EnvVar(name="DB_HOST", value="postgres"),
@@ -108,13 +103,6 @@ class KubernetesClient:
                 )
             ),
         ]
-
-        # Add initial symbols if provided
-        if initial_symbols:
-            env_vars.append(client.V1EnvVar(
-                name="INITIAL_SYMBOLS",
-                value=",".join(initial_symbols)
-            ))
 
         # Create deployment
         deployment = client.V1Deployment(

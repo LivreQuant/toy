@@ -27,7 +27,7 @@ class SimulatorOperations:
         self.manager = session_manager
         self.tracer = trace.get_tracer("simulator_operations")
 
-    async def start_simulator(self, session_id: str, token: str, symbols: List[str] = None) -> Tuple[
+    async def start_simulator(self, session_id: str, token: str) -> Tuple[
         Optional[str], Optional[str], str]:
         """
         Start a simulator for a session, ensuring only one runs per session.
@@ -35,7 +35,6 @@ class SimulatorOperations:
         Args:
             session_id: The session ID
             token: Authentication token
-            symbols: List of symbols to track (optional, uses default if None)
 
         Returns:
             Tuple of (simulator_id, endpoint, error_message) - IDs are for internal use, not frontend.
@@ -44,7 +43,6 @@ class SimulatorOperations:
         """
         with optional_trace_span(self.tracer, "start_simulator") as span:
             span.set_attribute("session_id", session_id)
-            span.set_attribute("has_symbols", symbols is not None)
 
             # 1. Validate session
             user_id = await self.manager.session_ops.validate_session(session_id, token)  # Validation updates activity
@@ -92,8 +90,6 @@ class SimulatorOperations:
                 simulator_obj, error = await self.manager.simulator_manager.create_simulator(
                     session_id,
                     user_id,
-                    symbols  # Pass symbols if provided
-                    # initial_cash can be added if needed
                 )
 
                 span.set_attribute("simulator_creation_requested", True)

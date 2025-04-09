@@ -19,7 +19,6 @@ async def handle_start_simulator(request):
     """
     Handle simulator start request.
     Requires sessionId in query params and token in Authorization header.
-    Optionally takes 'symbols' query parameter.
 
     Args:
         request: HTTP request

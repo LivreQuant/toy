@@ -30,8 +30,6 @@ class Simulator(BaseModel):
     endpoint: Optional[str] = None
     created_at: float = Field(default_factory=time.time)
     last_active: float = Field(default_factory=time.time)
-    initial_symbols: List[str] = Field(default_factory=list)
-    initial_cash: float = 100000.0
 
     def update_activity(self):
         """Update last activity timestamp"""
@@ -47,8 +45,6 @@ class Simulator(BaseModel):
             "endpoint": self.endpoint,
             "created_at": self.created_at,
             "last_active": self.last_active,
-            "initial_symbols": self.initial_symbols,
-            "initial_cash": self.initial_cash
         }
 
     @classmethod

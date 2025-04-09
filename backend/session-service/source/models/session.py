@@ -38,7 +38,6 @@ class SimulatorStatus(str, Enum):
 
 class Subscription(BaseModel):
     """Data subscription model"""
-    symbols: List[str] = Field(default_factory=list)
     timestamp: float = Field(default_factory=time.time)
 
 

@@ -1,131 +1,113 @@
-The Session Service: Core Functionality and Path to Production
-What the Session Service Does
-The session service acts as a crucial middleware component that bridges your frontend client applications with the backend exchange simulator services running in AWS EKS. It handles three key communication channels:
+# Session Service Flow Diagram
 
-REST API for Control Operations:
+The session service is a backend component that manages user sessions, handles connection management through WebSockets, and orchestrates exchange simulators. Here's a flow diagram of how the system works:
 
-Creates and manages user sessions
-Starts and stops exchange simulators
-Provides status information about sessions and simulators
-Handles reconnection logic when clients disconnect
+## Startup Flow
 
+1. **Initialization (main.py)**
+   - Configures logging, tracing, and metrics
+   - Creates SessionServer instance
+   - Calls initialize() and start()
+   - Sets up signal handlers for graceful shutdown
 
-WebSockets for Persistent Connections:
+2. **Server Initialization (server.py)**
+   - Initializes core components:
+     - DatabaseManager (PostgreSQL + Redis)
+     - AuthClient
+     - ExchangeClient
+     - SessionManager
+     - WebSocketManager
+   - Sets up routes (REST API, WebSocket, health endpoints)
+   - Configures middleware (metrics, tracing)
+   - Configures CORS
 
-Maintains continuous bidirectional communication with frontend clients
-Processes heartbeats to detect connection issues
-Monitors connection quality and recommends reconnection when needed
-Supports session affinity in a distributed environment
+3. **Background Tasks Start**
+   - Session cleanup task (expired sessions)
+   - Simulator heartbeat task
+   - WebSocket cleanup task (stale connections)
 
+## Request Flows
 
-Server-Sent Events (SSE) for Data Streaming:
+### REST API Flow (Session Creation)
 
-Provides efficient one-way streaming of market data to the frontend
-Converts gRPC stream data to browser-friendly SSE format
-Handles reconnection and state restoration when streams disconnect
-Buffers data to manage backpressure
+1. Client sends HTTP POST to `/api/sessions` with device ID and auth token
+2. Request passes through middleware (metrics_middleware, tracing_middleware)
+3. `handle_create_session` extracts token and device ID
+4. AuthClient validates token and extracts user ID
+5. SessionManager.create_session:
+   - Checks for existing sessions
+   - Creates new session in database
+   - Sets metadata (device ID, pod name)
+   - Updates metrics
+   - Sends events via Redis
+6. Response with session ID sent to client
 
+### WebSocket Connection Flow
 
-Backend Communication via gRPC:
+1. Client connects to `/ws` with session ID, device ID, and token
+2. WebSocketManager.handle_connection processes request
+3. Authentication via authenticate_websocket_request:
+   - Validates token
+   - Verifies session
+   - Creates session if needed
+4. WebSocketRegistry registers connection
+5. WebSocketManager sends 'connected' message to client
+6. WebSocketDispatcher processes incoming messages:
+   - Heartbeat messages
+   - Reconnect messages
+7. WebSocketManager handles outbound messages:
+   - Exchange data updates
+   - Error messages
+   - Connection state messages
 
-Communicates with authorization services to validate tokens
-Connects to exchange simulators to stream market data
-Manages the lifecycle of exchange simulator instances
+### Simulator Management Flow
 
+1. Client requests simulator start via REST API or WebSocket
+2. SessionManager.simulator_ops.start_simulator:
+   - Validates session
+   - Checks existing simulators
+   - Creates new simulator record
+3. SimulatorManager.create_simulator:
+   - Creates database record
+   - Provisions Kubernetes deployment via KubernetesClient
+   - Starts simulator via ExchangeClient (gRPC)
+4. WebSocket clients receive simulator status updates
+5. Exchange data streams from simulator to clients via WebSocket
 
+## Data Flow Between Components
 
-This architecture effectively decouples your frontend from the implementation details of the backend services, providing a clean interface for browser-based clients while leveraging the efficiency of gRPC for service-to-service communication.
-What It Lacks to Become Production-Ready
-While the designed service provides solid core functionality, here's what it would need to become truly production-grade:
-1. Robust Error Handling and Retry Logic
+- **SessionManager**: Central coordinator that delegates to specialized components
+  - session_ops: Handles session lifecycle
+  - simulator_ops: Manages simulator lifecycle
+  - reconnection: Handles client reconnection logic
+  - connection_quality: Assesses connection health
 
-Circuit Breakers: Implement circuit breaking for backend services to prevent cascading failures
-More Sophisticated Retry Logic: Add exponential backoff with jitter for all backend communications
-Error Categorization: Classify errors (transient vs. permanent) and handle them appropriately
+- **DatabaseManager**: Data persistence layer
+  - PostgreSQL: Primary storage for sessions and simulators
+  - Redis: Caching, real-time updates, cross-pod coordination
 
-2. Security Enhancements
+- **WebSocketManager**: Manages client connections
+  - WebSocketRegistry: Tracks active connections
+  - WebSocketDispatcher: Routes incoming messages
+  - StreamManager: Manages background streams
+  - Emitters: Formats and sends outbound messages
 
-TLS Implementation: Add proper mutual TLS for all gRPC connections
-Input Validation: Add comprehensive request validation and sanitization
-Rate Limiting: Implement per-user and per-IP rate limiting
-Token Security: Add JTI (JWT ID) tracking to prevent token replay attacks
-CSRF Protection: Add Cross-Site Request Forgery protection for REST endpoints
+- **CircuitBreaker**: Prevents cascading failures when calling external services
 
-3. Observability
+## Shutdown Flow
 
-Structured Logging: Replace basic logging with structured logging (JSON format)
-Metrics Collection: Add Prometheus metrics for all key operations
-Distributed Tracing: Implement OpenTelemetry tracing across all components
-Health Check Improvements: Add more sophisticated health checks with degraded states
-Alerting Integration: Add hooks for alerting systems
+1. Signal handler or explicit shutdown call triggers server.shutdown()
+2. Server stops accepting new connections
+3. _cleanup_pod_sessions:
+   - Identifies sessions managed by this pod
+   - Stops associated simulators
+   - Updates session metadata
+   - Notifies clients to reconnect
+4. Components close connections:
+   - WebSocketManager closes all client connections
+   - External clients (AuthClient, ExchangeClient)
+   - Database connections
+5. Background tasks are cancelled
+6. server.shutdown_event is set, allowing wait_for_shutdown() to complete
 
-4. Performance Optimizations
-
-Connection Pooling: Improve database connection pooling with proper sizing
-Caching Layer: Add Redis caching for frequently accessed session data
-Load Shedding: Implement graceful load shedding during traffic spikes
-Optimized WebSocket Frame Handling: Add compression and batching for WebSocket messages
-
-5. Operational Improvements
-
-Configuration Management: Use a proper configuration management system instead of environment variables
-Graceful Rolling Updates: Improve shutdown sequence to handle k8s rolling updates
-Database Migrations: Add an automated migration system for schema changes
-Feature Flags: Implement feature flags for gradual rollout of new features
-Service Discovery: Use a service registry rather than hardcoded service addresses
-
-6. Testing and Validation
-
-Comprehensive Test Suite: Add unit, integration, and end-to-end tests
-Load Testing: Add tools and scripts for performance testing
-Chaos Testing: Add tests for unexpected failures and network partitions
-Validation Schemas: Add JSON Schema validation for all API contracts
-
-7. Documentation
-
-API Documentation: Add OpenAPI/Swagger specs for all REST endpoints
-Architectural Documentation: Add detailed architecture diagrams and rationale
-Operational Runbooks: Add procedures for common operational tasks
-Metrics Documentation: Document all metrics and their interpretation
-
-8. Scaling and Resilience
-
-Cross-Region Support: Add support for multi-region deployment
-Session Replication: Add cross-region session replication for disaster recovery
-Auto-scaling Rules: Define clear auto-scaling triggers and limits
-Resource Management: Add resource quotas and limits per user
-
-By addressing these areas, your session service would become a truly production-ready component capable of handling enterprise-level requirements for scalability, security, observability, and operational excellence.
-
-
-
-
-
----------
-I'm working on a cloud-based trading simulator platform deployed on AWS EKS. The system uses a microservice architecture with:
-
-1. React frontend (CloudFront/S3) communicating via REST, WebSockets, and SSE
-2. Authorization service (JWT authentication)
-3. Session manager service (connection bridging between frontend and exchange)
-4. Exchange simulator service (stateful trading engines, one per user)
-5. Order service (validation and submission)
-6. PostgreSQL for persistent data and Redis for caching
-
-Our current focus is on [specific component or feature to work on next]. We're prioritizing reliability, real-time data flow, and session management across Kubernetes pods.
-
-Please help me implement/improve [specific task or component], considering:
-- How it integrates with existing services
-- Error handling and reconnection strategies
-- Performance optimization for trading data
-- AWS EKS deployment considerations
-
-The code follows TypeScript for frontend and Python/gRPC for backend services.
--------------
-I'm working on improving the reliability and resilience of communication between my frontend (hosted on CloudFront/S3) and session manager service running in AWS EKS. We've already implemented circuit breakers and enhanced reconnection strategies with jitter in both the frontend code and backend services.
-
-Now, I'd like to focus on optimizing the AWS ALB Ingress Controller configuration to ensure reliable and persistent connections, especially for WebSockets and SSE streams. Specifically, I need help with:
-
-1. Properly configuring sticky sessions in the ALB Ingress to ensure consistent routing to the same backend pods
-2. Setting up connection draining to handle pod terminations gracefully during deployments
-3. Optimizing timeouts and keep-alive settings for long-lived connections
-4. Enhancing health check configuration for better detection of unhealthy pods
+This architecture enables reliable session management and real-time data exchange between clients and simulators, with graceful error handling and proper cleanup of resources.

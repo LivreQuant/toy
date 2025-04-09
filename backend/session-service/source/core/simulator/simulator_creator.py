@@ -32,8 +32,6 @@ class SimulatorCreator:
             self,
             session_id: str,
             user_id: str,
-            initial_symbols: Optional[List[str]] = None,
-            initial_cash: float = 100000.0
     ) -> Tuple[Optional[Simulator], str]:
         """
         Create a new simulator instance
@@ -41,9 +39,7 @@ class SimulatorCreator:
         Args:
             session_id: The session ID
             user_id: The user ID
-            initial_symbols: Initial symbols to track
-            initial_cash: Initial cash amount
-            
+
         Returns:
             Tuple of (simulator, error_message)
         """
@@ -52,8 +48,6 @@ class SimulatorCreator:
 
             span.set_attribute("session_id", session_id)
             span.set_attribute("user_id", user_id)
-            span.set_attribute("initial_symbols_count", len(initial_symbols or []))
-            span.set_attribute("initial_cash", initial_cash)
 
             # Check user simulator limits
             existing_simulators = await self.manager.db_manager.get_active_user_simulators(user_id)
@@ -81,8 +75,6 @@ class SimulatorCreator:
                 session_id=session_id,
                 user_id=user_id,
                 status=SimulatorStatus.CREATING,
-                initial_symbols=initial_symbols or [],
-                initial_cash=initial_cash
             )
 
             try:
@@ -95,8 +87,6 @@ class SimulatorCreator:
                     simulator.simulator_id,
                     session_id,
                     user_id,
-                    initial_symbols,
-                    initial_cash
                 )
 
                 # Update simulator with endpoint
@@ -114,8 +104,6 @@ class SimulatorCreator:
                     exchange_manager_endpoint,
                     session_id,
                     user_id,
-                    initial_symbols,
-                    initial_cash
                 )
 
                 if not result.get('success'):
