@@ -109,7 +109,6 @@ async def handle_create_session(request):
             track_session_operation("create")
             return web.json_response({
                 'success': True,
-                'sessionId': session_id,  # Return sessionId for client use
                 'isNew': is_new
             })
 
@@ -268,11 +267,6 @@ async def handle_get_session_state(request):
 
         response_data = {
             'success': True,
-            'sessionId': session_id,
-            'sessionCreatedAt': session.get('created_at', 0),  # Consider formatting as ISO string
-            'lastActive': session.get('last_active', 0),  # Consider formatting as ISO string
-            'simulatorId': simulator_id,
-            'simulatorStatus': simulator_status,
         }
 
         track_session_operation("get_state")

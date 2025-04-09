@@ -31,15 +31,6 @@ from source.models.simulator import SimulatorStatus
 
 from source.core.session.session_manager import SessionManager
 
-# Import Redis for pub/sub if available
-try:
-    import redis.asyncio as aioredis
-
-    REDIS_AVAILABLE = True
-except ImportError:
-    REDIS_AVAILABLE = False
-    aioredis = None  # Define for type hinting checks
-
 logger = logging.getLogger('server')
 
 
@@ -59,7 +50,6 @@ class SessionServer:
         self.shutdown_event = asyncio.Event()
 
         # Initialize component placeholders
-        self.redis: Optional[aioredis.Redis] = None
         self.db_manager: Optional[DatabaseManager] = None
         self.auth_client: Optional[AuthClient] = None
         self.exchange_client: Optional[ExchangeClient] = None
@@ -187,11 +177,11 @@ class SessionServer:
         await self._cleanup_pod_sessions()
 
         # 3. Unregister pod from service discovery (Redis)
-        if self.redis:
+        if self.db_manager.redis:
             try:
                 logger.info(f"Unregistering pod '{config.kubernetes.pod_name}' from Redis.")
-                await self.redis.srem("active_pods", config.kubernetes.pod_name)
-                await self.redis.publish("session_events", json.dumps({
+                await self.db_manager.redis.srem("active_pods", config.kubernetes.pod_name)
+                await self.db_manager.redis.publish("session_events", json.dumps({
                     'type': 'pod_offline',
                     'pod_name': config.kubernetes.pod_name,
                     'timestamp': time.time()
@@ -225,7 +215,7 @@ class SessionServer:
         # 7. Close external connections (API clients, Redis, DB)
         if self.auth_client: await self.auth_client.close()
         if self.exchange_client: await self.exchange_client.close()
-        if self.redis: await self.redis.close()  # Close the main connection pool
+        if self.db_manager.redis: await self.db_manager.redis.close()  # Close the main connection pool
         if self.db_manager: await self.db_manager.close()
         logger.info("Closed external connections (Clients, Redis, DB).")
 
@@ -265,7 +255,9 @@ class SessionServer:
         if self.db_manager:
             db_ready = await self.db_manager.check_connection()
             checks['database'] = 'UP' if db_ready else 'DOWN'
-            if not db_ready: all_ready = False
+            if not db_ready:
+                all_ready = False
+                logger.warning("Database connection check failed!")
         else:
             checks['database'] = 'NOT INITIALIZED'
             all_ready = False
@@ -274,28 +266,11 @@ class SessionServer:
         if self.auth_client:
             auth_ready = await self.auth_client.check_service()
             checks['auth_service'] = 'UP' if auth_ready else 'DOWN'
-            if not auth_ready: all_ready = False
+            if not auth_ready:
+                all_ready = False
         else:
             checks['auth_service'] = 'NOT INITIALIZED'
             all_ready = False
-
-        # Check Redis connection (if configured)
-        if REDIS_AVAILABLE:
-            if self.redis:
-                try:
-                    await self.redis.ping()
-                    checks['redis'] = 'UP'
-                except Exception:
-                    checks['redis'] = 'DOWN'
-                    all_ready = False
-            else:
-                # If Redis was expected but failed init
-                checks['redis'] = 'DOWN (Init Failed)'
-                all_ready = False
-        else:
-            checks['redis'] = 'NOT CONFIGURED'
-
-        # Add other checks (e.g., essential background tasks running) if needed
 
         status_code = 200 if all_ready else 503  # Service Unavailable if not ready
         return web.json_response({

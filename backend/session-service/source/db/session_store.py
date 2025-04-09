@@ -37,10 +37,8 @@ class DatabaseManager:
         logger.info("Connected to database")
 
         # Try to connect to Redis (may continue if Redis is not available)
-        try:
-            await self.redis.connect()
-        except Exception as e:
-            logger.warning(f"Failed to connect to Redis: {e}. Some features may be limited.")
+        await self.redis.connect()
+        logger.info("Connected to redis")
 
     async def close(self):
         """Close database connections"""

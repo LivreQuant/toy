@@ -124,9 +124,9 @@ class SimulatorOperations:
                     # Continue, but log the issue
 
                 # 6. Publish simulator started event if Redis is available
-                if self.manager.redis:
+                if self.manager.db_manager.redis:
                     try:
-                        await self.manager.redis.publish('session_events', json.dumps({
+                        await self.manager.db_manager.redis.publish('session_events', json.dumps({
                             'type': 'simulator_started',
                             'session_id': session_id,
                             'simulator_id': new_sim_id,
@@ -239,13 +239,13 @@ class SimulatorOperations:
                     # Don't fail the call if simulator stop itself succeeded
 
                 # 5. Publish simulator stopped event if Redis is available
-                if self.manager.redis:
+                if self.manager.db_manager.redis:
                     # Get user_id if forcing and session was found
                     if force and not user_id:
                         user_id = session.user_id
 
                     try:
-                        await self.manager.redis.publish('session_events', json.dumps({
+                        await self.manager.db_manager.redis.publish('session_events', json.dumps({
                             'type': 'simulator_stopped',
                             'session_id': session_id,
                             'simulator_id': simulator_id,  # Include ID in event

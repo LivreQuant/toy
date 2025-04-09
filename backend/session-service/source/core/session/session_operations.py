@@ -89,9 +89,9 @@ class SessionOperations:
                 track_session_operation("create")
 
                 # Publish session creation event if Redis is available
-                if self.manager.redis:
+                if self.manager.db_manager.redis:
                     try:
-                        await self.manager.redis.publish('session_events', json.dumps({
+                        await self.manager.db_manager.redis.publish('session_events', json.dumps({
                             'type': 'session_created',
                             'session_id': session_id,
                             'user_id': user_id,
@@ -324,9 +324,9 @@ class SessionOperations:
                 track_session_count(active_session_count, self.manager.pod_name)
 
                 # 7. Publish session end event if Redis is available
-                if self.manager.redis:
+                if self.manager.db_manager.redis:
                     try:
-                        await self.manager.redis.publish('session_events', json.dumps({
+                        await self.manager.db_manager.redis.publish('session_events', json.dumps({
                             'type': 'session_ended',
                             'session_id': session_id,
                             'user_id': user_id,
