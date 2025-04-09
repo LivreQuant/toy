@@ -2,7 +2,8 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from typing import Optional
-from .enums import OrderSide, OrderType, OrderStatus
+from source.models.enums import OrderSide, OrderType, OrderStatus
+
 
 @dataclass
 class Order:

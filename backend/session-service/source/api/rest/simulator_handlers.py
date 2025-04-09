@@ -32,39 +32,48 @@ async def handle_start_simulator(request):
 
         try:
             # Get token from Authorization header
-            auth_header = request.headers.get('Authorization')
-            if not auth_header or not auth_header.startswith('Bearer '):
-                span.set_attribute("error", "Missing or invalid Authorization header")
+            token = await get_token_from_request(request)
+            if not token:
+                logger.warning("Missing authorization token in request")
                 return web.json_response({
                     'success': False,
-                    'error': 'Missing or invalid Authorization header'
+                    'error': 'Missing authorization token'
                 }, status=401)
-
-            token = await get_token_from_request(request)
-            span.set_attribute("has_token", True)
-
+            
             # Extract user ID from token
             validation = await session_manager.auth_client.validate_token(token)
+            
             if not validation.get('valid', False):
+                logger.warning(f"Invalid token validation result: {validation}")
                 return web.json_response({
                     'success': False,
                     'error': 'Invalid authentication token'
                 }, status=401)
 
             user_id = validation.get('userId')
+            logger.info(f"Token validated successfully for user_id: {user_id}")
+            
             if not user_id:
+                logger.warning("Token validation succeeded but no userId returned")
                 return web.json_response({
                     'success': False,
                     'error': 'User ID not found in token'
                 }, status=401)
 
-            # Get active session for user (or create one if needed)
+            # Get active session for user
+            logger.info(f"Attempting to get active sessions for user: {user_id}")
             active_sessions = await session_manager.db_manager.get_active_user_sessions(user_id)
+            logger.info(f"Found {len(active_sessions)} active sessions for user {user_id}")
+            
+            # Debug: print details of what we found
+            for idx, sess in enumerate(active_sessions):
+                logger.info(f"Session {idx}: id={sess.session_id}, status={sess.status}, expires_at={sess.expires_at}")
 
-            # Use the first active session (assuming one user has one primary active session)
+            # Use the first active session
             session = active_sessions[0]
             session_id = session.session_id
-
+            logger.info(f"Using existing session {session_id} for user {user_id}")
+        
             # Start simulator (session validation should happen inside start_simulator)
             # start_simulator should return: (simulator_id, endpoint, error_message)
             simulator_id, endpoint, error = await session_manager.start_simulator(session_id, token)

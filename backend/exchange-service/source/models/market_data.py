@@ -1,5 +1,6 @@
 from dataclasses import dataclass
-from typing import Dict, List, Any, Optional
+from typing import Dict, Any
+
 
 @dataclass
 class MarketData:
@@ -11,7 +12,7 @@ class MarketData:
     ask_size: int
     last_price: float
     last_size: int
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary representation"""
         return {

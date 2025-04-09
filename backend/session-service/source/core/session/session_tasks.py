@@ -221,6 +221,7 @@ class SessionTasks:
                 await self.manager.db_manager.update_session_metadata(session_id, {
                     'last_simulator_heartbeat_sent': time.time()
                 })
+                await self.manager.db_manager.update_simulator_activity(simulator_id)
                 logger.debug(f"Successfully sent heartbeat to simulator {simulator_id}")
                 return True
             else:

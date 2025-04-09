@@ -6,6 +6,7 @@ import asyncio
 
 logger = logging.getLogger('database')
 
+
 class DatabaseManager:
     def __init__(self):
         self.pool = None
@@ -43,45 +44,3 @@ class DatabaseManager:
             await self.pool.close()
             self.pool = None
             logger.info("Closed database connections")
-
-    async def update_simulator_stopped(self, session_id: str, simulator_id: str, reason: str = "Self-terminated"):
-        """
-        Update simulator status to STOPPED and clear from session
-        
-        Args:
-            session_id: Session ID
-            simulator_id: Simulator ID
-            reason: Reason for stopping
-        """
-        if not self.pool:
-            await self.connect()
-
-        try:
-            async with self.pool.acquire() as conn:
-                # Update simulator status
-                await conn.execute('''
-                    UPDATE simulator.instances
-                    SET status = 'STOPPED'
-                    WHERE simulator_id = $1
-                ''', simulator_id)
-                
-                # Update session metadata
-                await conn.execute('''
-                    UPDATE session.session_metadata
-                    SET metadata = jsonb_set(
-                        jsonb_set(
-                            metadata,
-                            '{simulator_status}',
-                            '"STOPPED"'
-                        ),
-                        '{termination_reason}',
-                        $1
-                    )
-                    WHERE session_id = $2
-                ''', f'"{reason}"', session_id)
-                
-                logger.info(f"Updated database: Marked simulator {simulator_id} as STOPPED")
-                return True
-        except Exception as e:
-            logger.error(f"Error updating simulator status: {e}")
-            return False

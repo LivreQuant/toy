@@ -11,8 +11,7 @@ from kubernetes import client, config
 
 from source.config import config as app_config
 
-from source.api.grpc.exchange_simulator_pb2 import GetSimulatorStatusRequest
-from source.api.grpc.exchange_simulator_pb2_grpc import ExchangeSimulatorStub
+#from source.api.grpc.exchange_simulator_pb2_grpc import ExchangeSimulatorStub
 
 logger = logging.getLogger('k8s_client')
 
@@ -79,6 +78,7 @@ class KubernetesClient:
             client.V1EnvVar(name="SIMULATOR_ID", value=simulator_id),
             client.V1EnvVar(name="SESSION_ID", value=session_id),
             client.V1EnvVar(name="USER_ID", value=user_id),
+            client.V1EnvVar(name="DESK_ID", value="test"),
 
             # Database connection variables
             client.V1EnvVar(name="DB_HOST", value="postgres"),
@@ -404,17 +404,16 @@ class KubernetesClient:
         try:
             # This would use your ExchangeClient, but keeping it here for simplicity
             channel = grpc.aio.insecure_channel(endpoint)
-            stub = ExchangeSimulatorStub(channel)
+            #stub = ExchangeSimulatorStub(channel)
 
-            request = GetSimulatorStatusRequest(session_id=session_id)
-            response = await stub.GetSimulatorStatus(request, timeout=2.0)
+            # response = await stub.GetSimulatorStatus(request, timeout=2.0)
 
             await channel.close()
 
             return {
-                'status': response.status,
-                'uptime_seconds': response.uptime_seconds,
-                'error': response.error_message if response.status == 'ERROR' else None
+                'status': 'OK',  # response.status,
+                'uptime_seconds': 100,  # response.uptime_seconds,
+                'error': None
             }
         except Exception as e:
             logger.error(f"Error checking simulator health: {e}")

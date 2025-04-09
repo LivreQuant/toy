@@ -60,16 +60,16 @@ class SimulatorCreator:
                 track_simulator_operation("create", "limit_exceeded")
                 return None, error_msg
 
-            # Check if there's an existing simulator for this session
+            # Check if there's an existing RUNNING simulator for this session
             existing_simulator = await self.manager.db_manager.get_simulator_by_session(session_id)
-            if existing_simulator and existing_simulator.status != SimulatorStatus.STOPPED:
-                logger.info(f"Returning existing simulator for session {session_id}")
+            if existing_simulator and existing_simulator.status == SimulatorStatus.RUNNING:
+                logger.info(f"Returning existing active simulator for session {session_id}")
                 span.set_attribute("simulator_id", existing_simulator.simulator_id)
                 span.set_attribute("simulator_status", existing_simulator.status.value)
                 span.set_attribute("reused_existing", True)
                 track_simulator_operation("reuse_existing")
                 return existing_simulator, ""
-
+            
             # Create new simulator
             simulator = Simulator(
                 session_id=session_id,

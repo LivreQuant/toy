@@ -6,21 +6,19 @@ import logging
 import asyncio
 import time
 import grpc
-from typing import Dict, List, Any, AsyncGenerator
+from typing import Dict, Any, AsyncGenerator
 from opentelemetry import trace
 
 from source.utils.circuit_breaker import CircuitBreaker, CircuitOpenError
 
-from source.utils.metrics import track_external_request, track_circuit_breaker_state, track_circuit_breaker_failure
+from source.utils.metrics import track_circuit_breaker_state, track_circuit_breaker_failure
 from source.utils.tracing import optional_trace_span
 
 from source.api.grpc.exchange_simulator_pb2 import (
-    StartSimulatorRequest,
-    StopSimulatorRequest,
     StreamRequest,
-    HeartbeatRequest,
-    GetSimulatorStatusRequest,
     ExchangeDataUpdate,
+    HeartbeatRequest,
+    HeartbeatResponse,
 )
 from source.api.grpc.exchange_simulator_pb2_grpc import ExchangeSimulatorStub
 
@@ -131,160 +129,6 @@ class ExchangeClient:
             self.channels.clear()
             self.stubs.clear()
         logger.info("Finished closing gRPC channels.")
-
-    async def start_simulator(
-            self,
-            endpoint: str,
-            session_id: str,
-            user_id: str,
-    ) -> Dict[str, Any]:
-        """
-        Start a simulator instance
-
-        Args:
-            endpoint: The endpoint of the exchange manager service
-            session_id: The session ID
-            user_id: The user ID
-
-        Returns:
-            Dict with start results
-        """
-        with optional_trace_span(self.tracer, "start_simulator_rpc") as span:
-            span.set_attribute("rpc.service", "ExchangeSimulator")
-            span.set_attribute("rpc.method", "StartSimulator")
-            span.set_attribute("net.peer.name", endpoint)
-            span.set_attribute("app.session_id", session_id)
-            span.set_attribute("app.user_id", user_id)
-
-            try:
-                # Execute request with circuit breaker
-                response = await self.circuit_breaker.execute(
-                    self._start_simulator_request,
-                    endpoint, session_id, user_id
-                )
-                span.set_attribute("app.success", response.get('success', False))
-                if response.get('simulator_id'):
-                    span.set_attribute("app.simulator_id", response['simulator_id'])
-                if response.get('error'):
-                    span.set_attribute("error.message", response['error'])
-                return response
-            except CircuitOpenError as e:
-                logger.warning(f"Circuit open for exchange service (start_simulator): {e}")
-                span.set_attribute("error.message", "Exchange service unavailable (Circuit Open)")
-                span.set_attribute("app.circuit_open", True)
-                track_circuit_breaker_failure("exchange_service")  # Track failure
-                return {'success': False, 'error': 'Exchange service unavailable'}
-            except Exception as e:
-                logger.error(f"Error starting simulator via gRPC: {e}", exc_info=True)
-                span.record_exception(e)
-                span.set_attribute("error.message", str(e))
-                return {'success': False, 'error': str(e)}
-
-    async def _start_simulator_request(
-            self,
-            endpoint: str,
-            session_id: str,
-            user_id: str,
-    ) -> Dict[str, Any]:
-        """Make the actual start simulator request"""
-        _, stub = await self.get_channel(endpoint)
-
-        request = StartSimulatorRequest(
-            session_id=session_id,
-            user_id=user_id,
-        )
-
-        start_time = time.time()
-        try:
-            response = await stub.StartSimulator(request, timeout=15)  # Increased timeout slightly
-            duration = time.time() - start_time
-            track_external_request("exchange_service", "StartSimulator", 200, duration)
-
-            return {
-                'success': response.success,
-                'simulator_id': response.simulator_id,
-                'error': response.error_message if not response.success else None
-            }
-        except grpc.aio.AioRpcError as e:
-            duration = time.time() - start_time
-            track_external_request("exchange_service", "StartSimulator", e.code(), duration)
-            logger.error(f"gRPC error starting simulator ({e.code()}): {e.details()}")
-            track_circuit_breaker_failure("exchange_service")  # Track failure
-            raise  # Re-raise for circuit breaker
-        except Exception as e:
-            duration = time.time() - start_time
-            track_external_request("exchange_service", "StartSimulator", 500, duration)  # Generic error
-            logger.error(f"Unexpected error in _start_simulator_request: {e}")
-            track_circuit_breaker_failure("exchange_service")  # Track failure
-            raise  # Re-raise for circuit breaker
-
-    async def stop_simulator(self, endpoint: str, session_id: str) -> Dict[str, Any]:
-        """
-        Stop a simulator instance
-
-        Args:
-            endpoint: The endpoint of the simulator
-            session_id: The session ID
-
-        Returns:
-            Dict with stop results
-        """
-        with optional_trace_span(self.tracer, "stop_simulator_rpc") as span:
-            span.set_attribute("rpc.service", "ExchangeSimulator")
-            span.set_attribute("rpc.method", "StopSimulator")
-            span.set_attribute("net.peer.name", endpoint)
-            span.set_attribute("app.session_id", session_id)
-            try:
-                # Execute request with circuit breaker
-                response = await self.circuit_breaker.execute(
-                    self._stop_simulator_request, endpoint, session_id
-                )
-                span.set_attribute("app.success", response.get('success', False))
-                if response.get('error'):
-                    span.set_attribute("error.message", response['error'])
-                return response
-            except CircuitOpenError as e:
-                logger.warning(f"Circuit open for exchange service (stop_simulator): {e}")
-                span.set_attribute("error.message", "Exchange service unavailable (Circuit Open)")
-                span.set_attribute("app.circuit_open", True)
-                track_circuit_breaker_failure("exchange_service")
-                return {'success': False, 'error': 'Exchange service unavailable'}
-            except Exception as e:
-                logger.error(f"Error stopping simulator via gRPC: {e}", exc_info=True)
-                span.record_exception(e)
-                span.set_attribute("error.message", str(e))
-                return {'success': False, 'error': str(e)}
-
-    async def _stop_simulator_request(self, endpoint: str, session_id: str) -> Dict[str, Any]:
-        """Make the actual stop simulator request"""
-        _, stub = await self.get_channel(endpoint)
-
-        request = StopSimulatorRequest(
-            session_id=session_id
-        )
-
-        start_time = time.time()
-        try:
-            response = await stub.StopSimulator(request, timeout=10)
-            duration = time.time() - start_time
-            track_external_request("exchange_service", "StopSimulator", 200, duration)
-
-            return {
-                'success': response.success,
-                'error': response.error_message if not response.success else None
-            }
-        except grpc.aio.AioRpcError as e:
-            duration = time.time() - start_time
-            track_external_request("exchange_service", "StopSimulator", e.code(), duration)
-            logger.error(f"gRPC error stopping simulator ({e.code()}): {e.details()}")
-            track_circuit_breaker_failure("exchange_service")
-            raise  # Re-raise for circuit breaker
-        except Exception as e:
-            duration = time.time() - start_time
-            track_external_request("exchange_service", "StopSimulator", 500, duration)
-            logger.error(f"Unexpected error in _stop_simulator_request: {e}")
-            track_circuit_breaker_failure("exchange_service")
-            raise  # Re-raise for circuit breaker
 
     async def heartbeat(self, endpoint: str, session_id: str, client_id: str) -> Dict[str, Any]:
         """
@@ -490,82 +334,3 @@ class ExchangeClient:
             }
 
         return result
-
-    async def get_simulator_status(
-            self,
-            endpoint: str,
-            session_id: str
-    ) -> Dict[str, Any]:
-        """
-        Get the status of a simulator instance (for connection management)
-
-        Args:
-            endpoint: The endpoint of the simulator
-            session_id: The session ID
-
-        Returns:
-            Dict with simulator connectivity status
-        """
-        with optional_trace_span(self.tracer, "get_simulator_status_rpc") as span:
-            span.set_attribute("rpc.service", "ExchangeSimulator")
-            span.set_attribute("rpc.method", "GetSimulatorStatus")
-            span.set_attribute("net.peer.name", endpoint)
-            span.set_attribute("app.session_id", session_id)
-            try:
-                # Execute request with circuit breaker
-                response = await self.circuit_breaker.execute(
-                    self._get_simulator_status_request, endpoint, session_id
-                )
-                span.set_attribute("app.status", response.get('status', 'UNKNOWN'))
-                if response.get('error'):
-                    span.set_attribute("error.message", response['error'])
-                return response
-            except CircuitOpenError as e:
-                logger.warning(f"Circuit open for exchange service (get_simulator_status): {e}")
-                span.set_attribute("error.message", "Exchange service unavailable (Circuit Open)")
-                span.set_attribute("app.circuit_open", True)
-                track_circuit_breaker_failure("exchange_service")
-                return {'status': 'UNKNOWN', 'error': 'Exchange service unavailable'}
-            except Exception as e:
-                logger.error(f"Error getting simulator status via gRPC: {e}", exc_info=True)
-                span.record_exception(e)
-                span.set_attribute("error.message", str(e))
-                return {'status': 'ERROR', 'error': str(e)}
-
-    async def _get_simulator_status_request(
-            self,
-            endpoint: str,
-            session_id: str
-    ) -> Dict[str, Any]:
-        """Make the actual simulator status request"""
-        _, stub = await self.get_channel(endpoint)
-
-        request = GetSimulatorStatusRequest(
-            session_id=session_id
-        )
-
-        start_time = time.time()
-        try:
-            # Increased timeout slightly as this might involve more work on simulator side
-            response = await stub.GetSimulatorStatus(request, timeout=7)
-            duration = time.time() - start_time
-            track_external_request("exchange_service", "GetSimulatorStatus", 200, duration)
-
-            return {
-                'status': response.status,  # String status from proto
-                # 'simulator_id': response.simulator_id, # Avoid sending back
-                'uptime_seconds': response.uptime_seconds,
-                'error': response.error_message if response.status == 'ERROR' else None
-            }
-        except grpc.aio.AioRpcError as e:
-            duration = time.time() - start_time
-            track_external_request("exchange_service", "GetSimulatorStatus", e.code(), duration)
-            logger.error(f"gRPC error getting simulator status ({e.code()}): {e.details()}")
-            track_circuit_breaker_failure("exchange_service")
-            raise  # Re-raise for circuit breaker
-        except Exception as e:
-            duration = time.time() - start_time
-            track_external_request("exchange_service", "GetSimulatorStatus", 500, duration)
-            logger.error(f"Unexpected error in _get_simulator_status_request: {e}")
-            track_circuit_breaker_failure("exchange_service")
-            raise  # Re-raise for circuit breaker

@@ -136,8 +136,6 @@ data:
         endpoint TEXT,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         last_active TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        initial_symbols JSONB,
-        initial_cash FLOAT NOT NULL DEFAULT 100000.0
     );
     
     -- Indexes for performance
