@@ -5,7 +5,6 @@ Handles client connection quality updates and metrics.
 import logging
 import time
 from typing import Dict, Any, Tuple
-from enum import Enum
 from opentelemetry import trace
 
 from source.utils.metrics import track_connection_quality
@@ -14,9 +13,10 @@ from source.models.session import ConnectionQuality
 
 logger = logging.getLogger('connection_quality')
 
+
 class ReconnectionHandler:
     """Handles connection quality assessment and updates"""
-    
+
     def __init__(self, session_manager):
         """
         Initialize with reference to session manager
@@ -26,12 +26,12 @@ class ReconnectionHandler:
         """
         self.manager = session_manager
         self.tracer = trace.get_tracer("connection_quality")
-        
+
     async def update_connection_quality(
-        self,
-        session_id: str,
-        token: str,
-        metrics: Dict[str, Any]
+            self,
+            session_id: str,
+            token: str,
+            metrics: Dict[str, Any]
     ) -> Tuple[str, bool]:
         """
         Update connection quality metrics based on client report.
@@ -51,7 +51,7 @@ class ReconnectionHandler:
             span.set_attribute("metrics.connection_type", metrics.get('connection_type', 'unknown'))
 
             # 1. Validate session
-            user_id = await self.manager.session_ops.validate_session(session_id, token) # Validation updates activity
+            user_id = await self.manager.session_ops.validate_session(session_id, token)  # Validation updates activity
             span.set_attribute("user_id", user_id)
             span.set_attribute("session_valid", user_id is not None)
 
@@ -63,7 +63,7 @@ class ReconnectionHandler:
                 # 2. Determine quality based on metrics (logic moved from Session model)
                 latency_ms = metrics.get('latency_ms', 0)
                 missed_heartbeats = metrics.get('missed_heartbeats', 0)
-                quality = ConnectionQuality.GOOD # Default
+                quality = ConnectionQuality.GOOD  # Default
                 reconnect_recommended = False
 
                 if missed_heartbeats >= 3:
@@ -80,16 +80,16 @@ class ReconnectionHandler:
 
                 # 3. Update database metadata
                 update_success = await self.manager.db_manager.update_session_metadata(session_id, {
-                    'connection_quality': quality.value, # Store enum value as string
+                    'connection_quality': quality.value,  # Store enum value as string
                     'heartbeat_latency': latency_ms,
                     'missed_heartbeats': missed_heartbeats,
-                    'last_quality_update': time.time() # Track update time
+                    'last_quality_update': time.time()  # Track update time
                 })
 
                 if not update_success:
-                     logger.warning(f"Failed to update session metadata for connection quality on {session_id}")
-                     span.set_attribute("db_update_failed", True)
-                     # Don't fail the call, but log it
+                    logger.warning(f"Failed to update session metadata for connection quality on {session_id}")
+                    span.set_attribute("db_update_failed", True)
+                    # Don't fail the call, but log it
 
                 # 4. Track connection quality metric
                 track_connection_quality(quality.value, self.manager.pod_name)

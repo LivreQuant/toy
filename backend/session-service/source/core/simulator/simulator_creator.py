@@ -4,7 +4,7 @@ Handles creating new simulator instances including database and Kubernetes resou
 """
 import logging
 import time
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Optional, Tuple
 from opentelemetry import trace
 
 from source.models.simulator import Simulator, SimulatorStatus

@@ -4,16 +4,16 @@ REST API request handlers for simulator operations.
 """
 import logging
 import json
-import time
 from aiohttp import web
 from opentelemetry import trace
 
 from source.utils.metrics import track_simulator_operation
 from source.utils.tracing import optional_trace_span
-from .utils import get_token_from_request # May need token validation
+from source.api.rest.utils import get_token_from_request
 
-logger = logging.getLogger('simulator_handlers') # Updated logger name
-_tracer = trace.get_tracer("simulator_handlers") # Updated tracer name
+logger = logging.getLogger('simulator_handlers')  # Updated logger name
+_tracer = trace.get_tracer("simulator_handlers")  # Updated tracer name
+
 
 async def handle_start_simulator(request):
     """
@@ -41,7 +41,7 @@ async def handle_start_simulator(request):
                     'error': 'Missing or invalid Authorization header'
                 }, status=401)
 
-            token = auth_header[7:]  # Remove 'Bearer ' prefix
+            token = await get_token_from_request(request)
             span.set_attribute("has_token", True)
 
             # Extract user ID from token
@@ -58,14 +58,14 @@ async def handle_start_simulator(request):
                     'success': False,
                     'error': 'User ID not found in token'
                 }, status=401)
-                
+
             # Get active session for user (or create one if needed)
             active_sessions = await session_manager.db_manager.get_active_user_sessions(user_id)
-                    
+
             # Use the first active session (assuming one user has one primary active session)
             session = active_sessions[0]
             session_id = session.session_id
-            
+
             # Start simulator (session validation should happen inside start_simulator)
             # start_simulator should return: (simulator_id, endpoint, error_message)
             simulator_id, endpoint, error = await session_manager.start_simulator(session_id, token)
@@ -74,13 +74,13 @@ async def handle_start_simulator(request):
 
             if error:
                 # Determine status code based on error
-                status = 400 # Default bad request
+                status = 400  # Default bad request
                 if "Invalid session or token" in error or "ownership" in error:
                     status = 401
                 elif "not found" in error:
                     status = 404
                 elif "already running" in error or "limit reached" in error:
-                    status = 409 # Conflict
+                    status = 409  # Conflict
                 track_simulator_operation("start")
                 return web.json_response({
                     'success': False,
@@ -90,7 +90,7 @@ async def handle_start_simulator(request):
             track_simulator_operation("start")
             return web.json_response({
                 'success': True,
-                'status': 'STARTING', # Indicate async start
+                'status': 'STARTING',  # Indicate async start
             })
 
         except Exception as e:
@@ -125,9 +125,10 @@ async def handle_stop_simulator(request):
                     'success': False,
                     'error': 'Missing authorization token'
                 }, status=401)
-                
-            token = auth_header[7:]  # Remove 'Bearer ' prefix
-            
+
+            token = await get_token_from_request(request)
+            span.set_attribute("has_token", True)
+
             # Extract user ID from token
             validation = await session_manager.auth_client.validate_token(token)
             if not validation.get('valid', False):
@@ -135,36 +136,36 @@ async def handle_stop_simulator(request):
                     'success': False,
                     'error': 'Invalid authentication token'
                 }, status=401)
-            
+
             user_id = validation.get('userId')
             if not user_id:
                 return web.json_response({
                     'success': False,
                     'error': 'User ID not found in token'
                 }, status=401)
-            
+
             # Get active session for user
             active_sessions = await session_manager.db_manager.get_active_user_sessions(user_id)
-            
+
             if not active_sessions:
                 return web.json_response({
                     'success': False,
                     'error': 'No active session found'
                 }, status=404)
-            
+
             # Use the first active session
             session = active_sessions[0]
             session_id = session.session_id
-            
+
             # Stop simulator associated with this session
             success, error = await session_manager.stop_simulator(session_id, token)
-            
+
             span.set_attribute("stop_success", success)
 
             if not success:
                 span.set_attribute("error", error)
-                 # Determine status code based on error
-                status = 400 # Default
+                # Determine status code based on error
+                status = 400  # Default
                 if "Invalid session or token" in error or "ownership" in error:
                     status = 401
                 elif "not found" in error or "no simulator" in error:
@@ -195,4 +196,3 @@ async def handle_stop_simulator(request):
                 'success': False,
                 'error': 'Server error during simulator stop'
             }, status=500)
-

@@ -19,6 +19,7 @@ from source.config import config
 
 logger = logging.getLogger('redis_store')
 
+
 class RedisStore:
     """Redis access for session service"""
 
@@ -76,7 +77,7 @@ class RedisStore:
 
                         # Start pub/sub listener
                         self.pubsub_task = asyncio.create_task(self._run_pubsub())
-                        
+
                         return
 
                     except Exception as e:
@@ -176,7 +177,7 @@ class RedisStore:
             logger.error(f"Error decoding JSON from pub/sub message: {e}")
         except Exception as e:
             logger.error(f"Error handling pub/sub message: {e}")
-    
+
     def register_pubsub_handler(self, event_type: str, handler_func):
         """Register a handler for a specific pub/sub event type"""
         self.pubsub_handlers[event_type] = handler_func
@@ -226,13 +227,13 @@ class RedisStore:
                 'pod_name': self.pod_name,
                 'last_access': time.time()
             })
-            
+
             # Set expiration
             await self.redis.expire(f"session:{session_id}", ttl_seconds)
-            
+
             # Store user -> sessions mapping
             await self.redis.sadd(f"user_sessions:{user_id}", session_id)
-            
+
             return True
         except Exception as e:
             logger.error(f"Error caching session in Redis: {e}")
@@ -255,10 +256,10 @@ class RedisStore:
         try:
             # Update last access time
             await self.redis.hset(f"session:{session_id}", "last_access", time.time())
-            
+
             # Refresh expiration
             await self.redis.expire(f"session:{session_id}", ttl_seconds)
-            
+
             return True
         except Exception as e:
             logger.error(f"Error updating session activity in Redis: {e}")
@@ -339,11 +340,11 @@ class RedisStore:
         try:
             # Remove session
             await self.redis.delete(f"session:{session_id}")
-            
+
             # Remove from user's sessions if user_id provided
             if user_id:
                 await self.redis.srem(f"user_sessions:{user_id}", session_id)
-            
+
             return True
         except Exception as e:
             logger.error(f"Error invalidating session in Redis: {e}")
@@ -372,7 +373,7 @@ class RedisStore:
                 'timestamp': time.time(),
                 **data
             }
-            
+
             # Publish to channel
             await self.redis.publish('session_events', json.dumps(full_data))
             return True
@@ -398,7 +399,7 @@ class RedisStore:
         try:
             # Add to session's connections
             await self.redis.sadd(f"session_ws:{session_id}", client_id)
-            
+
             # Store connection info
             await self.redis.hset(f"ws_conn:{client_id}", mapping={
                 'session_id': session_id,
@@ -406,10 +407,10 @@ class RedisStore:
                 'connected_at': time.time(),
                 'last_activity': time.time()
             })
-            
+
             # Update session ws connection count
             await self.redis.hincrby(f"session:{session_id}", "ws_connections", 1)
-            
+
             return True
         except Exception as e:
             logger.error(f"Error tracking WebSocket connection in Redis: {e}")
@@ -432,13 +433,13 @@ class RedisStore:
         try:
             # Remove from session's connections
             await self.redis.srem(f"session_ws:{session_id}", client_id)
-            
+
             # Remove connection info
             await self.redis.delete(f"ws_conn:{client_id}")
-            
+
             # Update session ws connection count
             await self.redis.hincrby(f"session:{session_id}", "ws_connections", -1)
-            
+
             return True
         except Exception as e:
             logger.error(f"Error removing WebSocket connection from Redis: {e}")

@@ -6,6 +6,7 @@ Initializes and starts the server with proper signal handling and graceful shutd
 import asyncio
 import logging
 import signal
+import uvloop
 import sys
 
 from source.config import config
@@ -67,8 +68,6 @@ if __name__ == "__main__":
     try:
         # Use uvloop for better performance if available
         try:
-            import uvloop
-
             uvloop.install()
             logger.info("Using uvloop for asyncio")
         except ImportError:

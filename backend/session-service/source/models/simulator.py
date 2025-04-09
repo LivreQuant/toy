@@ -20,6 +20,7 @@ class SimulatorStatus(str, Enum):
     STOPPED = "STOPPED"
     ERROR = "ERROR"
 
+
 class Simulator(BaseModel):
     """Exchange simulator model"""
     simulator_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -31,11 +32,11 @@ class Simulator(BaseModel):
     last_active: float = Field(default_factory=time.time)
     initial_symbols: List[str] = Field(default_factory=list)
     initial_cash: float = 100000.0
-    
+
     def update_activity(self):
         """Update last activity timestamp"""
         self.last_active = time.time()
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization"""
         return {
@@ -49,12 +50,12 @@ class Simulator(BaseModel):
             "initial_symbols": self.initial_symbols,
             "initial_cash": self.initial_cash
         }
-    
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'Simulator':
         """Create from dictionary"""
         # Convert status string to enum if needed
         if 'status' in data and isinstance(data['status'], str):
             data['status'] = SimulatorStatus(data['status'])
-        
+
         return cls(**data)

@@ -20,6 +20,7 @@ from source.db.redis_store import RedisStore
 
 logger = logging.getLogger('session_store')
 
+
 class DatabaseManager:
     """Coordinates PostgreSQL and Redis storage for session service"""
 
@@ -51,13 +52,13 @@ class DatabaseManager:
         """Check database connection health"""
         # Primary check is PostgreSQL (required for operation)
         pg_healthy = await self.postgres.check_connection()
-        
+
         # Redis check (optional, service can run with limited functionality)
         redis_healthy = await self.redis.check_connection()
-        
+
         if not redis_healthy:
             logger.warning("Redis connection check failed. Some features may be limited.")
-            
+
         # Overall health depends primarily on PostgreSQL
         return pg_healthy
 
@@ -72,16 +73,16 @@ class DatabaseManager:
         with optional_trace_span(self.tracer, "create_session") as span:
             # Primary storage in PostgreSQL
             session_id, is_new = await self.postgres.create_session(user_id, ip_address)
-            
+
             if session_id:
                 span.set_attribute("session_id", session_id)
                 span.set_attribute("is_new", is_new)
-                
+
                 # Cache in Redis for fast access
                 try:
                     ttl_seconds = config.session.timeout_seconds
                     await self.redis.cache_session(session_id, user_id, ttl_seconds)
-                    
+
                     # Publish event via Redis
                     await self.redis.publish_session_event('session_created', {
                         'session_id': session_id,
@@ -90,7 +91,7 @@ class DatabaseManager:
                 except Exception as e:
                     # Log but continue - Redis is secondary
                     logger.warning(f"Redis operations failed during session creation: {e}")
-            
+
             return session_id, is_new
 
     async def get_session_from_db(self, session_id: str) -> Optional[Session]:
@@ -99,10 +100,10 @@ class DatabaseManager:
         """
         with optional_trace_span(self.tracer, "get_session") as span:
             span.set_attribute("session_id", session_id)
-            
+
             # Always get from PostgreSQL for complete data
             session = await self.postgres.get_session_from_db(session_id)
-            
+
             if session:
                 # Update Redis cache
                 try:
@@ -111,7 +112,7 @@ class DatabaseManager:
                 except Exception as e:
                     # Non-critical error
                     logger.debug(f"Redis cache update failed for session {session_id}: {e}")
-            
+
             return session
 
     async def update_session_metadata(self, session_id: str, metadata_updates: Dict[str, Any]) -> bool:
@@ -120,9 +121,9 @@ class DatabaseManager:
         """
         # Update in PostgreSQL (primary)
         success = await self.postgres.update_session_metadata(session_id, metadata_updates)
-        
+
         # No specific Redis updates needed for metadata - it's primarily accessed from PostgreSQL
-        
+
         return success
 
     async def update_session_activity(self, session_id: str) -> bool:
@@ -131,7 +132,7 @@ class DatabaseManager:
         """
         # Update in PostgreSQL (primary)
         success = await self.postgres.update_session_activity(session_id)
-        
+
         # Also update Redis TTL/activity
         try:
             ttl_seconds = config.session.timeout_seconds
@@ -139,7 +140,7 @@ class DatabaseManager:
         except Exception as e:
             # Non-critical error
             logger.debug(f"Redis activity update failed for session {session_id}: {e}")
-        
+
         return success
 
     async def update_session_status(self, session_id: str, status: str) -> bool:
@@ -148,7 +149,7 @@ class DatabaseManager:
         """
         # Update in PostgreSQL (primary)
         success = await self.postgres.update_session_status(session_id, status)
-        
+
         # If marking as EXPIRED, invalidate in Redis
         if status == SessionStatus.EXPIRED.value:
             try:
@@ -157,10 +158,10 @@ class DatabaseManager:
                 if not user_id:
                     session = await self.postgres.get_session_from_db(session_id)
                     user_id = session.user_id if session else None
-                
+
                 # Invalidate the session in Redis
                 await self.redis.invalidate_session(session_id, user_id)
-                
+
                 # Publish event via Redis
                 await self.redis.publish_session_event('session_ended', {
                     'session_id': session_id,
@@ -169,7 +170,7 @@ class DatabaseManager:
             except Exception as e:
                 # Non-critical error
                 logger.debug(f"Redis session invalidation failed for {session_id}: {e}")
-        
+
         return success
 
     async def get_sessions_with_criteria(self, criteria: Dict[str, Any]) -> List[Session]:
@@ -198,9 +199,9 @@ class DatabaseManager:
         """
         # Primary cleanup in PostgreSQL
         count = await self.postgres.cleanup_expired_sessions()
-        
+
         # Redis cleanup happens automatically via key expiration
-        
+
         return count
 
     # Simulator operations
@@ -209,7 +210,7 @@ class DatabaseManager:
         Create a new simulator
         """
         success = await self.postgres.create_simulator(simulator)
-        
+
         if success:
             # Publish event via Redis
             try:
@@ -221,7 +222,7 @@ class DatabaseManager:
             except Exception as e:
                 # Non-critical error
                 logger.debug(f"Redis event publishing failed for simulator creation: {e}")
-        
+
         return success
 
     async def update_simulator_endpoint(self, simulator_id: str, endpoint: str) -> bool:
@@ -235,7 +236,7 @@ class DatabaseManager:
         Update simulator status
         """
         success = await self.postgres.update_simulator_status(simulator_id, status)
-        
+
         if success and status == SimulatorStatus.STOPPED:
             # Get simulator info for event publishing
             simulator = await self.postgres.get_simulator(simulator_id)
@@ -250,7 +251,7 @@ class DatabaseManager:
                 except Exception as e:
                     # Non-critical error
                     logger.debug(f"Redis event publishing failed for simulator stop: {e}")
-        
+
         return success
 
     async def get_simulator(self, simulator_id: str) -> Optional[Simulator]:

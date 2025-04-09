@@ -7,7 +7,7 @@ import time
 import aiohttp
 import asyncio
 from opentelemetry import trace
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
 from source.config import config
 from source.utils.circuit_breaker import CircuitBreaker, CircuitOpenError
@@ -16,15 +16,16 @@ from source.utils.tracing import optional_trace_span
 
 logger = logging.getLogger('auth_client')
 
+
 class AuthClient:
     """Client for the authentication service"""
-    
+
     def __init__(self):
         """Initialize the auth service client"""
         self.base_url = config.services.auth_service_url
         self.session = None
         self._conn_lock = asyncio.Lock()
-        
+
         # Create circuit breaker
         self.circuit_breaker = CircuitBreaker(
             name="auth_service",
@@ -50,14 +51,14 @@ class AuthClient:
                 timeout = aiohttp.ClientTimeout(total=10, connect=3)
                 self.session = aiohttp.ClientSession(timeout=timeout)
         return self.session
-    
+
     async def close(self):
         """Close HTTP session"""
         async with self._conn_lock:
             if self.session and not self.session.closed:
                 await self.session.close()
                 self.session = None
-    
+
     async def validate_token(self, token: str) -> Dict[str, Any]:
         """
         Validate a JWT token with the auth service
@@ -86,7 +87,7 @@ class AuthClient:
                 span.record_exception(e)
                 span.set_attribute("error", str(e))
                 return {'valid': False, 'error': str(e)}
-    
+
     async def _validate_token_request(self, token: str) -> Dict[str, Any]:
         """Make the actual validation request"""
         with optional_trace_span(self.tracer, "validate_token_request") as span:
@@ -97,9 +98,9 @@ class AuthClient:
             logger.info(f"REQUEST AUTH VALID: {self.base_url}/api/auth/validate")
             try:
                 async with session.post(
-                    f'{self.base_url}/api/auth/validate',
-                    headers=headers,
-                    timeout=aiohttp.ClientTimeout(total=5)
+                        f'{self.base_url}/api/auth/validate',
+                        headers=headers,
+                        timeout=aiohttp.ClientTimeout(total=5)
                 ) as response:
                     data = await response.json()
 
@@ -108,7 +109,7 @@ class AuthClient:
                     track_external_request("auth_service", "validate_token", response.status, duration)
 
                     logger.info(f"RECIEVE VALIDATION: {response}")
-                    
+
                     span.set_attribute("http.status_code", response.status)
                     span.set_attribute("token_valid", data.get('valid', False))
 
@@ -131,7 +132,7 @@ class AuthClient:
                 span.set_attribute("error", "Request timeout")
                 track_circuit_breaker_failure("auth_service")
                 raise
-    
+
     async def check_service(self) -> bool:
         """Check if auth service is available"""
         try:

@@ -9,12 +9,12 @@ from typing import Dict, Set, Any, Optional, Tuple, ItemsView, List
 
 from aiohttp import web
 
-# Assuming SessionManager has db_manager, or pass db_manager directly
-# Adjust import path as needed
 from source.core.session.session_manager import SessionManager
+
 from source.utils.metrics import track_websocket_connection_count
 
 logger = logging.getLogger('websocket_registry')
+
 
 class WebSocketRegistry:
     """Stores and manages active WebSocket connections and their metadata."""
@@ -31,18 +31,18 @@ class WebSocketRegistry:
         # ws -> connection metadata dictionary
         self._connection_info: Dict[web.WebSocketResponse, Dict[str, Any]] = {}
         # Store db_manager for convenience
-        self._db_manager = session_manager.db_manager # Assuming this path exists
+        self._db_manager = session_manager.db_manager  # Assuming this path exists
 
         logger.info("WebSocketRegistry initialized.")
 
     async def register(
-        self,
-        ws: web.WebSocketResponse,
-        *,
-        session_id: str,
-        user_id: Any,
-        client_id: str,
-        device_id: str
+            self,
+            ws: web.WebSocketResponse,
+            *,
+            session_id: str,
+            user_id: Any,
+            client_id: str,
+            device_id: str
     ) -> bool:
         """
         Register a new WebSocket connection.
@@ -58,7 +58,8 @@ class WebSocketRegistry:
             True if registration was successful, False otherwise (e.g., already registered).
         """
         if ws in self._connection_info:
-            logger.warning(f"Attempted to register already registered WebSocket: client={client_id}, session={session_id}")
+            logger.warning(
+                f"Attempted to register already registered WebSocket: client={client_id}, session={session_id}")
             return False
 
         # Add to session -> ws mapping
@@ -80,19 +81,21 @@ class WebSocketRegistry:
         # Run this as a background task to avoid blocking registration? For now, await.
         try:
             await self._db_manager.update_session_metadata(session_id, {
-                'device_id': device_id, # Update device ID on new connection potentially
+                'device_id': device_id,  # Update device ID on new connection potentially
                 'frontend_connections': len(self._connections[session_id]),
                 'last_ws_connection': time.time()
             })
         except Exception as e:
-            logger.error(f"Failed to update session metadata during registration for session {session_id}: {e}", exc_info=True)
+            logger.error(f"Failed to update session metadata during registration for session {session_id}: {e}",
+                         exc_info=True)
             # Should we rollback registration? For now, proceed.
 
         # Update global connection count metric
         total_connections = self.get_total_connection_count()
         track_websocket_connection_count(total_connections)
 
-        logger.info(f"WebSocket registered: session={session_id}, client={client_id}, device={device_id}. Total={total_connections}")
+        logger.info(
+            f"WebSocket registered: session={session_id}, client={client_id}, device={device_id}. Total={total_connections}")
         return True
 
     async def unregister(self, ws: web.WebSocketResponse) -> Tuple[Optional[str], Optional[str], bool]:
@@ -130,7 +133,7 @@ class WebSocketRegistry:
             # Should not happen if conn_info was found, but handle defensively
             logger.warning(f"Session {session_id} not found in _connections during unregister for client {client_id}.")
             session_connection_count = 0
-            session_became_empty = True # Assume empty if session key doesn't exist
+            session_became_empty = True  # Assume empty if session key doesn't exist
 
         # Update session metadata in DB
         try:
@@ -139,13 +142,15 @@ class WebSocketRegistry:
                 'last_ws_disconnection': time.time()
             })
         except Exception as e:
-             logger.error(f"Failed to update session metadata during unregistration for session {session_id}: {e}", exc_info=True)
+            logger.error(f"Failed to update session metadata during unregistration for session {session_id}: {e}",
+                         exc_info=True)
 
         # Update global connection count metric
         total_connections = self.get_total_connection_count()
         track_websocket_connection_count(total_connections)
 
-        logger.info(f"WebSocket unregistered: session={session_id}, client={client_id}. Total={total_connections}. Session empty={session_became_empty}")
+        logger.info(
+            f"WebSocket unregistered: session={session_id}, client={client_id}. Total={total_connections}. Session empty={session_became_empty}")
         return session_id, client_id, session_became_empty
 
     def get_connection_info(self, ws: web.WebSocketResponse) -> Optional[Dict[str, Any]]:
@@ -158,11 +163,11 @@ class WebSocketRegistry:
         if conn_info:
             conn_info['last_activity'] = time.time()
         # else:
-            # logger.warning("Attempted to update activity for non-registered WebSocket.")
+        # logger.warning("Attempted to update activity for non-registered WebSocket.")
 
     def get_session_connections(self, session_id: str) -> Set[web.WebSocketResponse]:
         """Return the set of WebSocket connections for a given session ID."""
-        return self._connections.get(session_id, set()) # Return copy or original? Return original for now.
+        return self._connections.get(session_id, set())  # Return copy or original? Return original for now.
 
     def get_all_connection_info_items(self) -> ItemsView[web.WebSocketResponse, Dict[str, Any]]:
         """

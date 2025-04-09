@@ -5,14 +5,14 @@ Handles creating, stopping, and monitoring exchange simulators.
 import logging
 import time
 import json
-from typing import Dict, List, Any, Optional, Tuple
+from typing import List, Optional, Tuple
 from opentelemetry import trace
 
 from source.models.simulator import SimulatorStatus
-from source.utils.metrics import track_simulator_operation, track_simulator_count
 from source.utils.tracing import optional_trace_span
 
 logger = logging.getLogger('simulator_operations')
+
 
 class SimulatorOperations:
     """Handles simulator-related operations"""
@@ -27,7 +27,8 @@ class SimulatorOperations:
         self.manager = session_manager
         self.tracer = trace.get_tracer("simulator_operations")
 
-    async def start_simulator(self, session_id: str, token: str, symbols: List[str] = None) -> Tuple[Optional[str], Optional[str], str]:
+    async def start_simulator(self, session_id: str, token: str, symbols: List[str] = None) -> Tuple[
+        Optional[str], Optional[str], str]:
         """
         Start a simulator for a session, ensuring only one runs per session.
 
@@ -46,7 +47,7 @@ class SimulatorOperations:
             span.set_attribute("has_symbols", symbols is not None)
 
             # 1. Validate session
-            user_id = await self.manager.session_ops.validate_session(session_id, token) # Validation updates activity
+            user_id = await self.manager.session_ops.validate_session(session_id, token)  # Validation updates activity
             span.set_attribute("user_id", user_id)
             span.set_attribute("session_valid", user_id is not None)
 
@@ -58,7 +59,7 @@ class SimulatorOperations:
             try:
                 # 2. Get current session details
                 session = await self.manager.db_manager.get_session_from_db(session_id)
-                if not session: # Should not happen
+                if not session:  # Should not happen
                     logger.error(f"Session {session_id} passed validation but not found for starting simulator.")
                     span.set_attribute("error", "Session vanished after validation")
                     return None, None, "Session not found unexpectedly"
@@ -75,16 +76,15 @@ class SimulatorOperations:
                     # Verify simulator is actually running via K8s check or gRPC status?
                     # For now, trust the DB status if it's STARTING or RUNNING
                     if sim_status in [SimulatorStatus.STARTING, SimulatorStatus.RUNNING]:
-                         logger.info(f"Simulator {sim_id} already active for session {session_id}. Returning existing.")
-                         span.add_event("Returning existing active simulator")
-                         # Return existing details (for internal use)
-                         return sim_id, sim_endpoint, ""
+                        logger.info(f"Simulator {sim_id} already active for session {session_id}. Returning existing.")
+                        span.add_event("Returning existing active simulator")
+                        # Return existing details (for internal use)
+                        return sim_id, sim_endpoint, ""
                     # If status is CREATING or STOPPING, maybe wait or return error?
                     elif sim_status in [SimulatorStatus.CREATING, SimulatorStatus.STOPPING]:
-                         error_msg = f"Simulator action already in progress ({sim_status.value}). Please wait."
-                         span.set_attribute("error", error_msg)
-                         return None, None, error_msg
-
+                        error_msg = f"Simulator action already in progress ({sim_status.value}). Please wait."
+                        span.set_attribute("error", error_msg)
+                        return None, None, error_msg
 
                 # 4. Create new simulator via SimulatorManager
                 logger.info(f"Requesting new simulator creation for session {session_id}")
@@ -92,7 +92,7 @@ class SimulatorOperations:
                 simulator_obj, error = await self.manager.simulator_manager.create_simulator(
                     session_id,
                     user_id,
-                    symbols # Pass symbols if provided
+                    symbols  # Pass symbols if provided
                     # initial_cash can be added if needed
                 )
 
@@ -107,22 +107,21 @@ class SimulatorOperations:
                 # Simulator created successfully by manager (DB updated, K8s started)
                 new_sim_id = simulator_obj.simulator_id
                 new_endpoint = simulator_obj.endpoint
-                new_status = simulator_obj.status # Should be STARTING or RUNNING
+                new_status = simulator_obj.status  # Should be STARTING or RUNNING
                 span.set_attribute("new_simulator_id", new_sim_id)
                 span.set_attribute("new_simulator_endpoint", new_endpoint)
                 span.set_attribute("new_simulator_status", new_status.value)
-
 
                 # 5. Update session metadata with the new simulator details
                 update_success = await self.manager.db_manager.update_session_metadata(session_id, {
                     'simulator_id': new_sim_id,
                     'simulator_endpoint': new_endpoint,
-                    'simulator_status': new_status.value # Store enum value
+                    'simulator_status': new_status.value  # Store enum value
                 })
                 if not update_success:
-                     logger.warning(f"Failed to update session metadata after starting simulator {new_sim_id}")
-                     span.set_attribute("metadata_update_failed", True)
-                     # Continue, but log the issue
+                    logger.warning(f"Failed to update session metadata after starting simulator {new_sim_id}")
+                    span.set_attribute("metadata_update_failed", True)
+                    # Continue, but log the issue
 
                 # 6. Publish simulator started event if Redis is available
                 if self.manager.redis:
@@ -135,7 +134,7 @@ class SimulatorOperations:
                             'timestamp': time.time()
                         }))
                     except Exception as e:
-                         logger.error(f"Failed to publish simulator start event to Redis for {session_id}: {e}")
+                        logger.error(f"Failed to publish simulator start event to Redis for {session_id}: {e}")
 
                 logger.info(f"Successfully started simulator {new_sim_id} for session {session_id}")
                 # Return new details (for internal use)

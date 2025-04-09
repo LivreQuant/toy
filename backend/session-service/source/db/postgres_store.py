@@ -13,7 +13,7 @@ from typing import Dict, List, Any, Optional, Tuple
 
 from opentelemetry import trace
 
-from source.utils.metrics import track_db_operation, track_db_error, TimedOperation
+from source.utils.metrics import track_db_operation, track_cleanup_operation, track_db_error, TimedOperation
 from source.utils.tracing import optional_trace_span
 
 from source.models.session import Session, SessionStatus, SessionMetadata
@@ -22,6 +22,7 @@ from source.models.simulator import Simulator, SimulatorStatus
 from source.config import config
 
 logger = logging.getLogger('postgres_store')
+
 
 class PostgresStore:
     """PostgreSQL database access for session service"""
@@ -196,7 +197,7 @@ class PostgresStore:
 
             if not self.pool:
                 await self.connect()
-                
+
             try:
                 with TimedOperation(track_db_operation, "get_session"):
                     async with self.pool.acquire() as conn:
@@ -205,16 +206,16 @@ class PostgresStore:
                             SELECT * FROM session.active_sessions 
                             WHERE session_id = $1 AND expires_at > NOW()
                         ''', session_id)
-                        
+
                         if not session_row:
                             return None
-                        
+
                         # Get session metadata
                         metadata_row = await conn.fetchrow('''
                             SELECT metadata FROM session.session_metadata
                             WHERE session_id = $1
                         ''', session_id)
-                        
+
                         # Create session object
                         session = Session(
                             session_id=session_row['session_id'],
@@ -224,9 +225,9 @@ class PostgresStore:
                             last_active=session_row['last_active'].timestamp(),
                             expires_at=session_row['expires_at'].timestamp()
                         )
-                        
+
                         logger.info(f"Session Store - Session object type: {type(session)}")
-                                      
+
                         # Add metadata if exists
                         if metadata_row and metadata_row['metadata']:
                             metadata_dict = metadata_row['metadata']
@@ -236,24 +237,25 @@ class PostgresStore:
                             else:
                                 # Handle case where metadata might be a JSON string
                                 session.metadata = SessionMetadata.parse_raw(metadata_dict)
-                              
+
                         # Add detailed logging
                         logger.info(f"Fetching session {session_id} from database")
-                        
+
                         # After fetching session data
                         if not session_row:
                             logger.warning(f"Session {session_id} not found in database")
                             return None
                         logger.info(f"Found session {session_id} for user {session_row['user_id']}")
-                        
+
                         # After fetching metadata
                         if metadata_row and metadata_row['metadata']:
-                            logger.info(f"Found metadata for session {session_id}: {json.dumps(metadata_row['metadata'] if isinstance(metadata_row['metadata'], dict) else metadata_row['metadata'])}")
+                            logger.info(
+                                f"Found metadata for session {session_id}: {json.dumps(metadata_row['metadata'] if isinstance(metadata_row['metadata'], dict) else metadata_row['metadata'])}")
                         else:
                             logger.warning(f"No metadata found for session {session_id}")
 
                         return session
-                        
+
             except Exception as e:
                 logger.error(f"Error getting session from PostgreSQL: {e}")
                 span.record_exception(e)
@@ -273,10 +275,10 @@ class PostgresStore:
         """
         with optional_trace_span(self.tracer, "db_update_session_metadata") as span:
             span.set_attribute("session_id", session_id)
-            
+
             if not self.pool:
                 await self.connect()
-                
+
             try:
                 with TimedOperation(track_db_operation, "update_session_metadata"):
                     async with self.pool.acquire() as conn:
@@ -285,22 +287,22 @@ class PostgresStore:
                             SELECT metadata FROM session.session_metadata
                             WHERE session_id = $1
                         ''', session_id)
-                        
+
                         # Merge with updates
                         if current_metadata:
                             # Convert to dict if it's a string
                             if isinstance(current_metadata, str):
                                 current_metadata = json.loads(current_metadata)
-                                
+
                             # Update with new values
                             merged_metadata = {**current_metadata, **metadata_updates}
                         else:
                             # Create new metadata
                             merged_metadata = metadata_updates
-                        
+
                         # Always include timestamp
                         merged_metadata['updated_at'] = time.time()
-                        
+
                         # Update in database
                         await conn.execute('''
                             INSERT INTO session.session_metadata (session_id, metadata)
@@ -310,22 +312,24 @@ class PostgresStore:
                         ''', session_id, json.dumps(merged_metadata))
 
                         # Add log at the beginning
-                        logger.info(f"Updating metadata for session {session_id} with updates: {json.dumps(metadata_updates)}")
-                        
+                        logger.info(
+                            f"Updating metadata for session {session_id} with updates: {json.dumps(metadata_updates)}")
+
                         # After fetching current metadata
                         if current_metadata:
-                            logger.info(f"Current metadata for session {session_id}: {json.dumps(current_metadata if isinstance(current_metadata, dict) else current_metadata)}")
+                            logger.info(
+                                f"Current metadata for session {session_id}: {json.dumps(current_metadata if isinstance(current_metadata, dict) else current_metadata)}")
                         else:
                             logger.warning(f"No existing metadata found for session {session_id} before update")
-                        
+
                         # Before update
                         logger.info(f"Merged metadata for session {session_id}: {json.dumps(merged_metadata)}")
-                        
+
                         # After update
                         logger.info(f"Successfully updated metadata for session {session_id}")
-    
+
                         return True
-                        
+
             except Exception as e:
                 logger.error(f"Error updating session metadata in PostgreSQL: {e}")
                 span.record_exception(e)
@@ -344,16 +348,16 @@ class PostgresStore:
         """
         with optional_trace_span(self.tracer, "db_update_session_activity") as span:
             span.set_attribute("session_id", session_id)
-            
+
             if not self.pool:
                 await self.connect()
-            
+
             try:
                 with TimedOperation(track_db_operation, "update_session_activity"):
                     current_time = time.time()
                     # Calculate new expiry time
                     expires_at = current_time + config.session.timeout_seconds
-                    
+
                     async with self.pool.acquire() as conn:
                         # Update session activity and expiry
                         result = await conn.execute('''
@@ -361,7 +365,7 @@ class PostgresStore:
                             SET last_active = to_timestamp($1), expires_at = to_timestamp($2)
                             WHERE session_id = $3
                         ''', current_time, expires_at, session_id)
-                        
+
                         return 'UPDATE 1' in result
             except Exception as e:
                 logger.error(f"Error updating session activity in PostgreSQL: {e}")
@@ -383,10 +387,10 @@ class PostgresStore:
         with optional_trace_span(self.tracer, "db_update_session_status") as span:
             span.set_attribute("session_id", session_id)
             span.set_attribute("status", status)
-            
+
             if not self.pool:
                 await self.connect()
-            
+
             try:
                 with TimedOperation(track_db_operation, "update_session_status"):
                     async with self.pool.acquire() as conn:
@@ -395,7 +399,7 @@ class PostgresStore:
                             SET status = $1
                             WHERE session_id = $2
                         ''', status, session_id)
-                        
+
                         return 'UPDATE 1' in result
             except Exception as e:
                 logger.error(f"Error updating session status in PostgreSQL: {e}")
@@ -416,41 +420,41 @@ class PostgresStore:
         with optional_trace_span(self.tracer, "db_get_sessions_with_criteria") as span:
             if not self.pool:
                 await self.connect()
-            
+
             try:
                 query_parts = ["SELECT s.*, m.metadata FROM session.active_sessions s"]
                 query_parts.append("LEFT JOIN session.session_metadata m ON s.session_id = m.session_id")
-                
+
                 conditions = []
                 params = []
                 param_idx = 1
-                
+
                 # Add conditions based on criteria
                 if 'pod_name' in criteria:
                     conditions.append(f"m.metadata->>'pod_name' = ${param_idx}")
                     params.append(criteria['pod_name'])
                     param_idx += 1
-                
+
                 if 'last_active_before' in criteria:
                     conditions.append(f"s.last_active < to_timestamp(${param_idx})")
                     params.append(criteria['last_active_before'])
                     param_idx += 1
-                    
+
                 if 'status' in criteria:
                     conditions.append(f"s.status = ${param_idx}")
                     params.append(criteria['status'])
                     param_idx += 1
-                
+
                 if conditions:
                     query_parts.append("WHERE " + " AND ".join(conditions))
-                
+
                 query = " ".join(query_parts)
                 span.set_attribute("query", query)
-                
+
                 with TimedOperation(track_db_operation, "get_sessions_with_criteria"):
                     async with self.pool.acquire() as conn:
                         rows = await conn.fetch(query, *params)
-                        
+
                         sessions = []
                         for row in rows:
                             # Create session from row data
@@ -462,7 +466,7 @@ class PostgresStore:
                                 last_active=row['last_active'].timestamp(),
                                 expires_at=row['expires_at'].timestamp()
                             )
-                            
+
                             # Add metadata if exists
                             if row['metadata']:
                                 metadata_dict = row['metadata']
@@ -470,11 +474,11 @@ class PostgresStore:
                                     session.metadata = SessionMetadata(**metadata_dict)
                                 else:
                                     session.metadata = SessionMetadata.parse_raw(metadata_dict)
-                            
+
                             sessions.append(session)
-                        
+
                         return sessions
-            
+
             except Exception as e:
                 logger.error(f"Error getting sessions with criteria from PostgreSQL: {e}")
                 span.record_exception(e)
@@ -607,17 +611,17 @@ class PostgresStore:
                         endpoint, created_at, last_active, initial_symbols, initial_cash
                     ) VALUES ($1, $2, $3, $4, $5, to_timestamp($6), to_timestamp($7), $8, $9)
                 ''',
-                    simulator.simulator_id, 
-                    simulator.session_id,
-                    simulator.user_id,
-                    simulator.status.value,
-                    simulator.endpoint,
-                    simulator.created_at,
-                    simulator.last_active,
-                    json.dumps(simulator.initial_symbols),
-                    simulator.initial_cash
-                )
-                
+                                   simulator.simulator_id,
+                                   simulator.session_id,
+                                   simulator.user_id,
+                                   simulator.status.value,
+                                   simulator.endpoint,
+                                   simulator.created_at,
+                                   simulator.last_active,
+                                   json.dumps(simulator.initial_symbols),
+                                   simulator.initial_cash
+                                   )
+
                 return True
         except Exception as e:
             logger.error(f"Error creating simulator in PostgreSQL: {e}")
@@ -644,7 +648,7 @@ class PostgresStore:
                     SET endpoint = $1, last_active = NOW()
                     WHERE simulator_id = $2
                 ''', endpoint, simulator_id)
-                
+
                 return 'UPDATE 1' in result
         except Exception as e:
             logger.error(f"Error updating simulator endpoint in PostgreSQL: {e}")
@@ -671,7 +675,7 @@ class PostgresStore:
                     SET status = $1, last_active = NOW()
                     WHERE simulator_id = $2
                 ''', status.value, simulator_id)
-                
+
                 return 'UPDATE 1' in result
         except Exception as e:
             logger.error(f"Error updating simulator status in PostgreSQL: {e}")
@@ -696,10 +700,10 @@ class PostgresStore:
                     SELECT * FROM simulator.instances
                     WHERE simulator_id = $1
                 ''', simulator_id)
-                
+
                 if not row:
                     return None
-                
+
                 return Simulator(
                     simulator_id=row['simulator_id'],
                     session_id=row['session_id'],
@@ -734,10 +738,10 @@ class PostgresStore:
                     SELECT * FROM simulator.instances
                     WHERE session_id = $1
                 ''', session_id)
-                
+
                 if not row:
                     return None
-                
+
                 return Simulator(
                     simulator_id=row['simulator_id'],
                     session_id=row['session_id'],
@@ -773,7 +777,7 @@ class PostgresStore:
                     WHERE user_id = $1
                     AND status != $2
                 ''', user_id, SimulatorStatus.STOPPED.value)
-                
+
                 simulators = []
                 for row in rows:
                     simulator = Simulator(
@@ -788,7 +792,7 @@ class PostgresStore:
                         initial_cash=row['initial_cash']
                     )
                     simulators.append(simulator)
-                
+
                 return simulators
         except Exception as e:
             logger.error(f"Error getting active user simulators from PostgreSQL: {e}")
@@ -809,7 +813,7 @@ class PostgresStore:
                 rows = await conn.fetch('''
                     SELECT * FROM simulator.instances
                 ''')
-                
+
                 simulators = []
                 for row in rows:
                     simulator = Simulator(
@@ -824,7 +828,7 @@ class PostgresStore:
                         initial_cash=row['initial_cash']
                     )
                     simulators.append(simulator)
-                
+
                 return simulators
         except Exception as e:
             logger.error(f"Error getting all simulators from PostgreSQL: {e}")
@@ -865,7 +869,7 @@ class PostgresStore:
         """
         if not self.pool:
             await self.connect()
-            
+
         try:
             async with self.pool.acquire() as conn:
                 result = await conn.execute('''
@@ -873,7 +877,7 @@ class PostgresStore:
                     SET last_active = to_timestamp($1)
                     WHERE simulator_id = $2
                 ''', timestamp, simulator_id)
-                
+
                 return 'UPDATE 1' in result
         except Exception as e:
             logger.error(f"Error updating simulator last_active in PostgreSQL: {e}")

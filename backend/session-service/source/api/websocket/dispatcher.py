@@ -6,20 +6,19 @@ and uses the error emitter to relay standardized errors to the client.
 """
 import json
 import logging
-from typing import TYPE_CHECKING, Callable, Dict, Any, Awaitable, Optional
+from typing import TYPE_CHECKING, Callable, Dict, Any, Awaitable
 
-from opentelemetry import trace, context
+from opentelemetry import trace
 from aiohttp import web
 
 # Import handlers
-from .handlers import heartbeat_handler, reconnect_handler
+from source.api.websocket.handlers import heartbeat_handler, reconnect_handler
 
 # Import custom exceptions
-from .exceptions import (
+from source.api.websocket.exceptions import (
     WebSocketError,
     WebSocketClientError,
-    WebSocketServerError,
-    InvalidMessageFormatError # Specific client error type
+    InvalidMessageFormatError
 )
 
 # Import Emitter for sending errors
@@ -32,7 +31,7 @@ from source.utils.tracing import optional_trace_span
 
 # Type hint for WebSocketManager and SessionManager without circular import
 if TYPE_CHECKING:
-    from .manager import WebSocketManager
+    from source.api.websocket.manager import WebSocketManager
     from source.core.session.session_manager import SessionManager
 
 logger = logging.getLogger('websocket_dispatcher')

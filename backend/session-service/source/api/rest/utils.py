@@ -3,7 +3,7 @@
 REST API utility functions.
 """
 import json
-from aiohttp import web
+
 
 async def get_token_from_request(request):
     """
@@ -44,6 +44,6 @@ async def get_token_from_request(request):
             pass
         except Exception:
             # Log other potential errors if needed, but generally ignore for token extraction
-            pass # E.g. reading body fails for some reason
+            pass  # E.g. reading body fails for some reason
 
     return None
