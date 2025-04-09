@@ -494,7 +494,7 @@ class DatabaseManager:
                 track_db_error("update_session_metadata")
                 return False
             
-    async def get_session(self, session_id: str) -> Session:
+    async def get_session_from_db(self, session_id: str) -> Session:
         """
         Get a session by ID
         

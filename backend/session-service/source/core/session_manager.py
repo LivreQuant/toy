@@ -356,7 +356,7 @@ class SessionManager:
             span.set_attribute("session_id", session_id)
             span.set_attribute("new_pod_name", new_pod_name)
 
-            session = await self.db_manager.get_session(session_id)
+            session = await self.db_manager.get_session_from_db(session_id)
             if not session:
                 span.set_attribute("error", "Session not found")
                 logger.warning(f"Attempted to transfer non-existent session {session_id}")
@@ -483,7 +483,7 @@ class SessionManager:
                 span.set_attribute("error", str(e))
                 return None, False
 
-    async def get_session(self, session_id: str) -> Optional[Dict[str, Any]]:
+    async def get_session(self, session_id: str) -> Session:
         """
         Get session details as a dictionary.
 
@@ -496,7 +496,7 @@ class SessionManager:
         with optional_trace_span(self.tracer, "get_session") as span:
             span.set_attribute("session_id", session_id)
             try:
-                session = await self.db_manager.get_session(session_id) # Fetches Session object
+                session = await self.db_manager.get_session_from_db(session_id) # Fetches Session object
 
                 if not session:
                     span.set_attribute("session_found", False)
@@ -514,7 +514,7 @@ class SessionManager:
                 span.set_attribute("session_found", True)
                 span.set_attribute("user_id", session.user_id)
                 # Convert Session object to dictionary for return
-                return session.to_dict()
+                return session
 
             except Exception as e:
                 logger.error(f"Error getting session {session_id}: {e}", exc_info=True)
@@ -556,7 +556,7 @@ class SessionManager:
 
 
              # 2. Get session from database
-             session = await self.db_manager.get_session(session_id) # Fetches Session object
+             session = await self.db_manager.get_session_from_db(session_id) # Fetches Session object
              span.set_attribute("session_found_in_db", session is not None)
 
              if not session:
@@ -646,7 +646,7 @@ class SessionManager:
 
             try:
                 # 2. Get current session details (needed for simulator info and lifetime metric)
-                session = await self.db_manager.get_session(session_id)
+                session = await self.db_manager.get_session_from_db(session_id)
                 if not session:
                      # Should not happen if validation passed, but handle defensively
                      logger.error(f"Session {session_id} passed validation but not found for ending.")
@@ -828,7 +828,7 @@ class SessionManager:
 
             try:
                 # 2. Get current session details
-                session = await self.db_manager.get_session(session_id)
+                session = await self.db_manager.get_session_from_db(session_id)
                 if not session: # Should not happen
                     logger.error(f"Session {session_id} passed validation but not found for starting simulator.")
                     span.set_attribute("error", "Session vanished after validation")
@@ -978,7 +978,7 @@ class SessionManager:
 
             try:
                 # 1. Get session details to find the simulator ID
-                session = await self.db_manager.get_session(session_id)
+                session = await self.db_manager.get_session_from_db(session_id)
                 if not session:
                     # If forcing, session might already be gone, log and return success
                     if force:
@@ -1093,7 +1093,7 @@ class SessionManager:
 
             try:
                 # 2. Get session details again (validation already updated activity)
-                session = await self.db_manager.get_session(session_id)
+                session = await self.db_manager.get_session_from_db(session_id)
                 if not session: # Should not happen
                     logger.error(f"Session {session_id} passed validation but not found for reconnect.")
                     span.set_attribute("error", "Session vanished after validation")
