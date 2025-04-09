@@ -81,13 +81,13 @@ async def handle_start_simulator(request):
                     status = 404
                 elif "already running" in error or "limit reached" in error:
                     status = 409 # Conflict
-                track_simulator_operation("start", success=False)
+                track_simulator_operation("start")
                 return web.json_response({
                     'success': False,
                     'error': error
                 }, status=status)
 
-            track_simulator_operation("start", success=True)
+            track_simulator_operation("start")
             return web.json_response({
                 'success': True,
                 'status': 'STARTING', # Indicate async start
@@ -96,7 +96,7 @@ async def handle_start_simulator(request):
         except Exception as e:
             logger.exception(f"Error starting simulator: {e}")
             span.record_exception(e)
-            track_simulator_operation("start", success=False)
+            track_simulator_operation("start")
             return web.json_response({
                 'success': False,
                 'error': 'Server error during simulator start'
@@ -171,13 +171,13 @@ async def handle_stop_simulator(request):
                     # Consider if "no simulator" is an error or success (idempotency)
                     # If idempotent, maybe return success=True? For now, treat as error.
                     status = 404
-                track_simulator_operation("stop", success=False)
+                track_simulator_operation("stop")
                 return web.json_response({
                     'success': False,
                     'error': error
                 }, status=status)
 
-            track_simulator_operation("stop", success=True)
+            track_simulator_operation("stop")
             return web.json_response({'success': True})
 
         except json.JSONDecodeError:
@@ -190,7 +190,7 @@ async def handle_stop_simulator(request):
         except Exception as e:
             logger.exception(f"Error stopping simulator: {e}")
             span.record_exception(e)
-            track_simulator_operation("stop", success=False)
+            track_simulator_operation("stop")
             return web.json_response({
                 'success': False,
                 'error': 'Server error during simulator stop'

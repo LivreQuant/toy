@@ -98,7 +98,7 @@ async def handle_create_session(request):
 
             if not session_id:
                 span.set_attribute("error", "Session creation failed")
-                track_session_operation("create", success=False)
+                track_session_operation("create")
                 return web.json_response({
                     'success': False,
                     'error': 'Failed to create session'
@@ -106,7 +106,7 @@ async def handle_create_session(request):
 
             span.set_attribute("session_id", session_id)
             span.set_attribute("is_new", is_new)
-            track_session_operation("create", success=True)
+            track_session_operation("create")
             return web.json_response({
                 'success': True,
                 'sessionId': session_id, # Return sessionId for client use
@@ -123,7 +123,7 @@ async def handle_create_session(request):
         except Exception as e:
             logger.exception(f"Error creating session: {e}") # Use exception logging
             span.record_exception(e)
-            track_session_operation("create", success=False)
+            track_session_operation("create")
             return web.json_response({
                 'success': False,
                 'error': 'Server error during session creation'
@@ -179,7 +179,7 @@ async def handle_get_session(request):
                  span.set_attribute("error", "Session not found")
                  status = 404
                  error_msg = 'Session not found'
-            track_session_operation("get", success=False)
+            track_session_operation("get")
             return web.json_response({'success': False,'error': error_msg}, status=status)
 
 
@@ -189,14 +189,14 @@ async def handle_get_session(request):
 
         if not session: # Should technically not happen if validation passed, but good practice
             span.set_attribute("error", "Session not found after validation")
-            track_session_operation("get", success=False)
+            track_session_operation("get")
             return web.json_response({
                 'success': False,
                 'error': 'Session disappeared unexpectedly'
             }, status=404)
 
         # Return session details
-        track_session_operation("get", success=True)
+        track_session_operation("get")
         return web.json_response({
             'success': True,
             'session': session # Consider filtering sensitive data before returning
@@ -246,7 +246,7 @@ async def handle_get_session_state(request):
                  span.set_attribute("error", "Session not found for state check")
                  status = 404
                  error_msg = 'Session not found'
-            track_session_operation("get_state", success=False)
+            track_session_operation("get_state")
             return web.json_response({'success': False, 'error': error_msg}, status=status)
 
         # Get session details needed for the state response
@@ -255,7 +255,7 @@ async def handle_get_session_state(request):
 
         if not session:
             span.set_attribute("error", "Session not found after validation (state check)")
-            track_session_operation("get_state", success=False)
+            track_session_operation("get_state")
             return web.json_response({
                 'success': False,
                 'error': 'Session disappeared unexpectedly'
@@ -275,7 +275,7 @@ async def handle_get_session_state(request):
             'simulatorStatus': simulator_status,
         }
 
-        track_session_operation("get_state", success=True)
+        track_session_operation("get_state")
         return web.json_response(response_data)
 
 
@@ -325,13 +325,13 @@ async def handle_end_session(request):
                 elif "not found" in error:
                     status = 404
 
-                track_session_operation("end", success=False)
+                track_session_operation("end")
                 return web.json_response({
                     'success': False,
                     'error': error
                 }, status=status)
 
-            track_session_operation("end", success=True)
+            track_session_operation("end")
             return web.json_response({'success': True})
 
         except json.JSONDecodeError:
@@ -344,7 +344,7 @@ async def handle_end_session(request):
         except Exception as e:
             logger.exception(f"Error ending session: {e}")
             span.record_exception(e)
-            track_session_operation("end", success=False)
+            track_session_operation("end")
             return web.json_response({
                 'success': False,
                 'error': 'Server error during session termination'
@@ -400,7 +400,7 @@ async def handle_session_ready(request):
                  status_code = 404
                  status_msg = 'not_found'
                  message = 'Session not found'
-            track_session_operation("ready_check", success=False)
+            track_session_operation("ready_check")
             return web.json_response({
                 'success': False,
                 'status': status_msg,
@@ -409,7 +409,7 @@ async def handle_session_ready(request):
 
         # If validation passes, the session is considered ready/valid
         # Optionally, could add more checks here (e.g., check session state flags)
-        track_session_operation("ready_check", success=True)
+        track_session_operation("ready_check")
         return web.json_response({
             'success': True,
             'status': 'ready',
@@ -479,13 +479,13 @@ async def handle_reconnect_session(request):
                     status = 404
                 elif "mismatch" in error:
                      status = 409 # Conflict? Or 400 Bad Request
-                track_session_operation("reconnect", success=False)
+                track_session_operation("reconnect")
                 return web.json_response({
                     'success': False,
                     'error': error
                 }, status=status)
 
-            track_session_operation("reconnect", success=True)
+            track_session_operation("reconnect")
             # Return sensitive data carefully
             return web.json_response({
                 'success': True,
@@ -502,7 +502,7 @@ async def handle_reconnect_session(request):
         except Exception as e:
             logger.exception(f"Error reconnecting session: {e}")
             span.record_exception(e)
-            track_session_operation("reconnect", success=False)
+            track_session_operation("reconnect")
             return web.json_response({
                 'success': False,
                 'error': 'Server error during session reconnection'

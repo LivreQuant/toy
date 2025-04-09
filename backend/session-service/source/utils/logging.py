@@ -3,18 +3,19 @@ Logging configuration for the Session Service.
 Provides structured JSON logging for production and human-readable logs for development.
 """
 import logging
-import os
 import sys
 import json
 from datetime import datetime
 
+from source.config import config
+
 def setup_logging():
     """Set up logging with appropriate format based on environment"""
-    log_level_name = os.getenv('LOG_LEVEL', 'INFO')
+    log_level_name = config.log_level
     log_level = getattr(logging, log_level_name.upper(), logging.INFO)
     
     # Determine if we're in a production environment
-    is_production = os.getenv('ENVIRONMENT', 'development').lower() == 'production'
+    is_production = config.environment == 'production'
     
     if is_production:
         # In production, use JSON format for structured logging
@@ -27,6 +28,20 @@ def setup_logging():
     logging.getLogger('grpc').setLevel(logging.WARNING)
     logging.getLogger('asyncio').setLevel(logging.WARNING)
     logging.getLogger('aiohttp').setLevel(logging.WARNING)
+
+def setup_json_logging(log_level):
+    """Set up JSON structured logging for production"""
+    root_logger = logging.getLogger()
+    root_logger.setLevel(log_level)
+    
+    # Remove any existing handlers
+    for handler in root_logger.handlers:
+        root_logger.removeHandler(handler)
+    
+    # Add stdout JSON handler
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(JsonFormatter())
+    root_logger.addHandler(handler)
 
 def setup_dev_logging(log_level):
     """Set up developer-friendly logging"""
@@ -61,17 +76,3 @@ class JsonFormatter(logging.Formatter):
                 log_data[key] = value
         
         return json.dumps(log_data)
-
-def setup_json_logging(log_level):
-    """Set up JSON structured logging for production"""
-    root_logger = logging.getLogger()
-    root_logger.setLevel(log_level)
-    
-    # Remove any existing handlers
-    for handler in root_logger.handlers:
-        root_logger.removeHandler(handler)
-    
-    # Add stdout JSON handler
-    handler = logging.StreamHandler(sys.stdout)
-    handler.setFormatter(JsonFormatter())
-    root_logger.addHandler(handler)

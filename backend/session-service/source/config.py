@@ -4,7 +4,7 @@ Loads configuration from environment variables with sensible defaults.
 """
 import os
 import logging
-from typing import Dict, Any, Optional
+from typing import Optional, List
 from pydantic import BaseModel, Field
 
 # Log level mapping
@@ -52,6 +52,8 @@ class ServerConfig(BaseModel):
     host: str = Field(default="0.0.0.0")
     port: int = Field(default=8080)
     workers: int = Field(default=4)
+    cors_allowed_origins: List[str] = Field(default=["*"])
+    shutdown_timeout: int = Field(default=30) 
 
 
 class SessionConfig(BaseModel):
@@ -141,7 +143,8 @@ class Config(BaseModel):
             server=ServerConfig(
                 host=os.getenv('HOST', '0.0.0.0'),
                 port=int(os.getenv('PORT', '8080')),
-                workers=int(os.getenv('WORKERS', '4'))
+                workers=int(os.getenv('WORKERS', '4')),
+                cors_allowed_origins=os.getenv('CORS_ALLOWED_ORIGINS', '*').split(',')
             ),
             session=SessionConfig(
                 timeout_seconds=int(os.getenv('SESSION_TIMEOUT_SECONDS', '3600')),

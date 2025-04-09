@@ -7,13 +7,13 @@ import asyncio
 import logging
 import signal
 import sys
-import os
 
 from source.config import config
-from source.api.server import SessionServer
 from source.utils.logging import setup_logging
 from source.utils.tracing import setup_tracing
 from source.utils.metrics import setup_metrics
+
+from source.api.server import SessionServer
 
 logger = logging.getLogger('session_service')
 

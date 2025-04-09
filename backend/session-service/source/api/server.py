@@ -1,14 +1,13 @@
 # source/api/server.py
 """
 Session service main server.
-Coordinates all components and handles HTTP/WebSocket/SSE endpoints.
+Coordinates all components and handles HTTP/WebSocket/GRPC endpoints.
 """
 import logging
 import asyncio
 import json
 import time
 import signal
-import os
 from typing import Dict, Any, Optional, List
 import aiohttp_cors
 from aiohttp import web
@@ -17,19 +16,22 @@ from aiohttp import web
 from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 
 from source.config import config
+
 from source.db.session_store import DatabaseManager
+
+from source.utils.middleware import tracing_middleware
+
 from source.api.clients.auth_client import AuthClient
 from source.api.clients.exchange_client import ExchangeClient
-from source.core.session.session_manager import SessionManager
 from source.api.rest.routes import setup_rest_routes
-# --- Refactored Middleware Import Location ---
-# Assuming metrics_middleware is now defined in middleware.py
 from source.api.rest.middleware import metrics_middleware
-# Assuming tracing_middleware exists here or adjust path as needed
-from source.utils.middleware import tracing_middleware
-# -------------------------------------------
 from source.api.websocket.manager import WebSocketManager
+
 from source.models.simulator import SimulatorStatus
+
+from source.core.session.session_manager import SessionManager
+
+
 
 # Import Redis for pub/sub if available
 try:
@@ -64,7 +66,6 @@ class SessionServer:
         self.session_manager: Optional[SessionManager] = None
         self.websocket_manager: Optional[WebSocketManager] = None
         self.pubsub_task: Optional[asyncio.Task] = None
-
 
     async def initialize(self):
         """Initialize all server components"""
@@ -165,7 +166,6 @@ class SessionServer:
         else:
              logger.info("Shutdown already in progress or server not running.")
 
-
     async def metrics_endpoint(self, request):
         """Prometheus metrics endpoint"""
         # generate_latest needs to be called within the handler
@@ -178,7 +178,6 @@ class SessionServer:
         except Exception as e:
             logger.error(f"Error generating Prometheus metrics: {e}", exc_info=True)
             return web.Response(status=500, text="Error generating metrics")
-
 
     async def _init_redis(self) -> Optional[aioredis.Redis]:
         """Initialize Redis connection, pub/sub, and registration"""
@@ -247,7 +246,6 @@ class SessionServer:
                     logger.info(f"Unsubscribed from Redis channel: {channel}")
                 except Exception as e:
                      logger.error(f"Error closing pubsub: {e}")
-
 
     async def _handle_pubsub_message(self, message: Dict[str, Any]):
         """Handle specific Redis pub/sub message"""
@@ -414,7 +412,6 @@ class SessionServer:
              await self._runner.cleanup()
              raise RuntimeError(f"Failed to bind to {host}:{port}") from e
 
-
     async def shutdown(self):
         """Gracefully shut down the server and clean up resources"""
         if self.shutdown_event.is_set():
@@ -485,7 +482,6 @@ class SessionServer:
 
         logger.info("Server shutdown sequence finished.")
         self.shutdown_event.set() # Signal that shutdown is complete
-
 
     async def _cleanup_pod_sessions(self):
         """Clean up sessions and simulators associated with this pod before shutdown"""
@@ -602,7 +598,6 @@ class SessionServer:
         except Exception as e:
             logger.error(f"Error during _cleanup_pod_sessions: {e}", exc_info=True)
 
-
     async def _stop_simulator_with_fallbacks(self, session_id: str, simulator_id: str, simulator_endpoint: Optional[str]):
         """Attempt to stop simulator via gRPC, fallback to K8s delete."""
         logger.debug(f"Attempting graceful stop for simulator {simulator_id} (Session: {session_id})")
@@ -634,7 +629,6 @@ class SessionServer:
         except Exception as e:
             logger.error(f"Failed to delete K8s resources for simulator {simulator_id}: {e}", exc_info=True)
             return False
-
 
     async def wait_for_shutdown(self):
         """Wait until the shutdown process is complete."""

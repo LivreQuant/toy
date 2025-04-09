@@ -1,9 +1,10 @@
 # source/utils/metrics.py
 import logging
-import os
 import threading
 import time
 from prometheus_client import Counter, Histogram, Gauge, Summary, start_http_server
+
+from source.config import config
 
 logger = logging.getLogger('metrics')
 
@@ -153,7 +154,7 @@ CLEANUP_OPERATIONS = Counter(
 def setup_metrics(metrics_port=None):
     """Start Prometheus metrics server"""
     if metrics_port is None:
-        metrics_port = int(os.getenv('METRICS_PORT', '9090'))
+        metrics_port = config.metrics.port
 
     try:
         def _start_metrics_server():
@@ -180,7 +181,7 @@ def track_rest_request(method, endpoint, status_code, duration):
 def track_session_count(count, pod_name=None):
     """Track active session count"""
     if pod_name is None:
-        pod_name = os.getenv('POD_NAME', 'unknown')
+        pod_name = config.kubernetes.pod_name
     ACTIVE_SESSIONS.labels(pod_name=pod_name).set(count)
 
 
@@ -197,7 +198,7 @@ def track_session_ended(duration_seconds, status='completed'):
 def track_websocket_connection_count(count, pod_name=None):
     """Track WebSocket connection count"""
     if pod_name is None:
-        pod_name = os.getenv('POD_NAME', 'unknown')
+        pod_name = config.kubernetes.pod_name
     WEBSOCKET_CONNECTIONS.labels(pod_name=pod_name).set(count)
 
 
@@ -214,7 +215,7 @@ def track_websocket_error(error_type):
 def track_sse_connection_count(count, pod_name=None):
     """Track SSE connection count"""
     if pod_name is None:
-        pod_name = os.getenv('POD_NAME', 'unknown')
+        pod_name = config.kubernetes.pod_name
     SSE_CONNECTIONS.labels(pod_name=pod_name).set(count)
 
 
@@ -226,7 +227,7 @@ def track_sse_message(event_type):
 def track_simulator_count(count, pod_name=None):
     """Track active simulator count"""
     if pod_name is None:
-        pod_name = os.getenv('POD_NAME', 'unknown')
+        pod_name = config.kubernetes.pod_name
     ACTIVE_SIMULATORS.labels(pod_name=pod_name).set(count)
 
 
@@ -280,7 +281,7 @@ def track_client_reconnection(reconnect_count):
 def track_connection_quality(quality, pod_name=None):
     """Track connection quality"""
     if pod_name is None:
-        pod_name = os.getenv('POD_NAME', 'unknown')
+        pod_name = config.kubernetes.pod_name
 
     # Convert quality to number: poor=0, degraded=1, good=2
     quality_map = {"poor": 0, "degraded": 1, "good": 2}

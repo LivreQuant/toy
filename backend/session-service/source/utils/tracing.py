@@ -1,7 +1,8 @@
 # source/utils/tracing.py
 import logging
-import os
 from contextlib import contextmanager
+
+from source.config import config
 
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
@@ -26,8 +27,8 @@ def setup_tracing():
         trace.set_tracer_provider(provider)
         return True
 
-    service_name = os.getenv('OTEL_SERVICE_NAME', 'session-service')
-    jaeger_endpoint = os.getenv('OTEL_EXPORTER_JAEGER_ENDPOINT', 'http://jaeger-collector:14268/api/traces')
+    service_name = config.tracing.service_name
+    jaeger_endpoint = config.tracing.exporter_endpoint
 
     try:
         # Set up tracer provider with service name resource
