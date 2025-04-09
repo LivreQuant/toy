@@ -1,20 +1,19 @@
 import random
-import time
 from typing import List, Dict, Any
-from source.config import config
+
 
 class MarketDataGenerator:
-    def __init__(self, symbols: List[str] = None):
-        self.symbols = symbols or config.simulator.default_symbols
+    def __init__(self, symbols: List[str]):
+        self.symbols = symbols
         self.prices = {
-            symbol: random.uniform(config.simulator.min_price, config.simulator.max_price)
+            symbol: random.uniform(10, 100)
             for symbol in self.symbols
         }
 
     def update_prices(self):
         for symbol in self.symbols:
             current_price = self.prices[symbol]
-            volatility = config.simulator.volatility
+            volatility = 10
             price_change = current_price * random.uniform(-volatility, volatility)
             self.prices[symbol] = max(0.01, current_price + price_change)
 

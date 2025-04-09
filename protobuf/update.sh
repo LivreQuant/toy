@@ -134,14 +134,14 @@ copy_proto_files() {
 }
 
 # Copy Typescript files
-TS_PATH_REPLACEMENTS="../../main/services/:../../protobufs/"
+#TS_PATH_REPLACEMENTS="../../main/services/:../../protobufs/"
 
-copy_proto_files "gen/ts/main/services" \
-                 "$TS_DEST" \
-                 "*.ts" \
-                 "TypeScript service files copied successfully" \
-                 "No TypeScript service files found" \
-                 "$TS_PATH_REPLACEMENTS"
+#copy_proto_files "gen/ts/main/services" \
+#                 "$TS_DEST" \
+#                 "*.ts" \
+#                 "TypeScript service files copied successfully" \
+#                 "No TypeScript service files found" \
+#                 "$TS_PATH_REPLACEMENTS"
                 
 # Copy Python files
 PY_PATH_REPLACEMENTS="from main.services import:from source.api.grpc import"
@@ -164,7 +164,7 @@ copy_proto_files "gen/python/main/services" \
                 
 # Exchange Manager
 copy_proto_files "gen/python/main/services" \
-                 "../backend/exchange-manager-service/source/api/grpc" \
+                 "../backend/exchange-service/source/api/grpc" \
                  "exchange*.py" \
                  "Python market data service files copied to Exchange Manager Service" \
                  "No Python market data service files found for Exchange Manager Service" \

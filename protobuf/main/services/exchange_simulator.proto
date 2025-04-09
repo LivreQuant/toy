@@ -3,12 +3,6 @@ syntax = "proto3";
 package exchange;
 
 service ExchangeSimulator {
-  // Start a simulator for a specific session
-  rpc StartSimulator(StartSimulatorRequest) returns (StartSimulatorResponse);
-  
-  // Stop a simulator
-  rpc StopSimulator(StopSimulatorRequest) returns (StopSimulatorResponse);
-  
   // Single unified stream for all exchange data
   rpc StreamExchangeData(StreamRequest) returns (stream ExchangeDataUpdate);
   
@@ -21,33 +15,6 @@ service ExchangeSimulator {
   // Cancel an order
   rpc CancelOrder(CancelOrderRequest) returns (CancelOrderResponse);
   
-  // Get order status
-  rpc GetOrderStatus(GetOrderStatusRequest) returns (GetOrderStatusResponse);
-
-  // Add this to your service definition
-  rpc GetSimulatorStatus(GetSimulatorStatusRequest) returns (GetSimulatorStatusResponse);
-}
-
-message StartSimulatorRequest {
-  string session_id = 1;
-  string user_id = 2;
-  repeated string initial_symbols = 3;
-  double initial_cash = 4;
-}
-
-message StartSimulatorResponse {
-  bool success = 1;
-  string error_message = 2;
-  string simulator_id = 3;
-}
-
-message StopSimulatorRequest {
-  string session_id = 1;
-}
-
-message StopSimulatorResponse {
-  bool success = 1;
-  string error_message = 2;
 }
 
 message StreamRequest {
@@ -59,7 +26,7 @@ message StreamRequest {
 message ExchangeDataUpdate {
   int64 timestamp = 1;
   repeated MarketData market_data = 2;
-  repeated OrderUpdate order_updates = 3;
+  repeated OrderData orders_data = 3;
   PortfolioStatus portfolio = 4;
 }
 
@@ -73,7 +40,7 @@ message MarketData {
   int32 last_size = 7;
 }
 
-message OrderUpdate {
+message OrderData {
   string order_id = 1;
   string symbol = 2;
   string status = 3;
@@ -95,8 +62,6 @@ message Position {
 }
 
 message HeartbeatRequest {
-  string session_id = 1;
-  string client_id = 2;
   int64 client_timestamp = 3;
 }
 
@@ -120,7 +85,7 @@ message SubmitOrderRequest {
     LIMIT = 1;
   }
   Type type = 6;
-  string request_id = 7;  // For idempotency
+  string request_id = 7; 
 }
 
 message SubmitOrderResponse {
@@ -137,35 +102,4 @@ message CancelOrderRequest {
 message CancelOrderResponse {
   bool success = 1;
   string error_message = 2;
-}
-
-message GetOrderStatusRequest {
-  string session_id = 1;
-  string order_id = 2;
-}
-
-message GetOrderStatusResponse {
-  enum Status {
-    UNKNOWN = 0;
-    NEW = 1;
-    PARTIALLY_FILLED = 2;
-    FILLED = 3;
-    CANCELED = 4;
-    REJECTED = 5;
-  }
-  Status status = 1;
-  double filled_quantity = 2;
-  double avg_price = 3;
-  string error_message = 4;
-}
-
-message GetSimulatorStatusRequest {
-  string session_id = 1;
-}
-
-message GetSimulatorStatusResponse {
-  string status = 1;
-  string simulator_id = 2;
-  int64 uptime_seconds = 3;
-  string error_message = 4;
 }
