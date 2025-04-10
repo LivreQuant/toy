@@ -10,6 +10,7 @@ import uvloop
 import sys
 
 from source.config import config
+
 from source.utils.logging import setup_logging
 from source.utils.tracing import setup_tracing
 from source.utils.metrics import setup_metrics

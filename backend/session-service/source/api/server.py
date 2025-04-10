@@ -8,11 +8,10 @@ import asyncio
 import json
 import time
 import signal
-from typing import Dict, Any, Optional, List
+from typing import Any, Optional, List
 import aiohttp_cors
 from aiohttp import web
 
-# Prometheus client integration
 from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 
 from source.config import config
@@ -41,10 +40,10 @@ class SessionServer:
         """Initialize server components"""
         # Apply middleware directly during Application creation for cleaner setup
         self.app = web.Application(middlewares=[
-            metrics_middleware,  # Apply metrics middleware
-            tracing_middleware  # Apply tracing middleware
+            metrics_middleware,
+            tracing_middleware
         ])
-        self._runner = None  # Initialize runner attribute
+        self._runner = None
         self.running = False
         self.initialized = False
         self.shutdown_event = asyncio.Event()
