@@ -17,6 +17,10 @@ class MarketDataGenerator:
             price_change = current_price * random.uniform(-volatility, volatility)
             self.prices[symbol] = max(0.01, current_price + price_change)
 
+    def get_current_price(self, symbol: str) -> float:
+        """Retrieve current price for a specific symbol"""
+        return self.prices.get(symbol, 0)
+
     def get_market_data(self, symbols: List[str] = None) -> List[Dict[str, Any]]:
         symbols = symbols or self.symbols
         market_data = []

@@ -242,12 +242,11 @@ class SessionTasks:
     async def _send_simulator_heartbeat(self, session_id, simulator_id, endpoint):
         """Send heartbeat to a specific simulator and update DB"""
         try:
-            # Assuming send_heartbeat_with_ttl exists and works
-            result = await self.manager.exchange_client.send_heartbeat_with_ttl(
+            # Assuming send_heartbeat exists and works
+            result = await self.manager.exchange_client.send_heartbeat(
                 endpoint,
                 session_id,
                 f"heartbeat-{self.manager.pod_name}",  # client_id for heartbeat
-                ttl_seconds=60  # Example TTL
             )
 
             # Update last heartbeat timestamp in DB if successful

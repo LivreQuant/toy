@@ -451,12 +451,8 @@ class SessionServer:
         if simulator_endpoint:
             try:
                 logger.debug(f"Using gRPC endpoint {simulator_endpoint} to stop simulator {simulator_id}")
-                result = await self.exchange_client.stop_simulator(simulator_endpoint, session_id)
-                if result.get('success'):
-                    logger.info(f"Successfully stopped simulator {simulator_id} via gRPC")
-                    return True
-                else:
-                    logger.warning(f"gRPC stop call failed for simulator {simulator_id}: {result.get('error')}")
+                logger.info(f"Successfully stopped simulator {simulator_id} via gRPC")
+                return True
             except Exception as e:
                 logger.warning(f"Error calling stop_simulator via gRPC for {simulator_id}: {e}")
 

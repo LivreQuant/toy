@@ -102,6 +102,9 @@ class ExchangeSimulator:
             # Create gRPC server
             server, listen_addr = await self.create_grpc_server()
 
+            # Start HTTP health server (add this line)
+            await self.simulator_service.start_health_service()
+            
             # Start server
             await server.start()
             logger.info(f"gRPC Exchange Simulator started on {listen_addr}")
@@ -116,6 +119,9 @@ class ExchangeSimulator:
     async def stop(self):
         """Gracefully stop the exchange and server"""
         try:
+            if hasattr(self, 'simulator_service') and self.simulator_service:
+                await self.simulator_service.stop_health_service()
+                
             if self.grpc_server:
                 await self.grpc_server.stop(0)
 

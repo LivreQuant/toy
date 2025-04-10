@@ -55,15 +55,9 @@ class SimulatorLifecycle:
                 await self.manager.db_manager.update_simulator_status(simulator.simulator_id, SimulatorStatus.STOPPING)
 
                 # Stop the simulator
-                result = await self.manager.exchange_client.stop_simulator(
-                    simulator.endpoint,
-                    simulator.session_id
-                )
-
-                if not result.get('success'):
-                    logger.warning(f"Failed to stop simulator via gRPC: {result.get('error')}")
-                    span.set_attribute("warning", f"gRPC stop failed: {result.get('error')}")
-                    # Continue with cleanup anyway
+                logger.warning(f"Failed to stop simulator via gRPC: {result.get('error')}")
+                span.set_attribute("warning", f"gRPC stop failed: {result.get('error')}")
+                # Continue with cleanup anyway
 
                 # Delete Kubernetes resources
                 await self.manager.k8s_client.delete_simulator_deployment(simulator.simulator_id)
@@ -171,11 +165,10 @@ class SimulatorLifecycle:
 
             # Try to send a heartbeat to check if it's ready
             try:
-                result = await self.manager.exchange_client.send_heartbeat_with_ttl(
+                result = await self.manager.exchange_client.send_heartbeat(
                     simulator.endpoint,
                     simulator.session_id,
                     f"ready-check-{self.manager.k8s_client.pod_name}",
-                    ttl_seconds=60
                 )
 
                 span.set_attribute("heartbeat_result", result.get('success', False))

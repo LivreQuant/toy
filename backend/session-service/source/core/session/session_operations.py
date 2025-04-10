@@ -91,14 +91,11 @@ class SessionOperations:
                 # Publish session creation event if Redis is available
                 if self.manager.db_manager.redis:
                     try:
-                        await self.manager.db_manager.redis.publish('session_events', json.dumps({
-                            'type': 'session_created',
+                        await self.manager.db_manager.redis.publish_session_event('session_created', {
                             'session_id': session_id,
                             'user_id': user_id,
                             'device_id': device_id,
-                            'pod_name': self.manager.pod_name,
-                            'timestamp': time.time()
-                        }))
+                        })
                     except Exception as e:
                         logger.error(f"Failed to publish session creation event to Redis for {session_id}: {e}")
 
@@ -326,13 +323,10 @@ class SessionOperations:
                 # 7. Publish session end event if Redis is available
                 if self.manager.db_manager.redis:
                     try:
-                        await self.manager.db_manager.redis.publish('session_events', json.dumps({
-                            'type': 'session_ended',
+                        await self.manager.db_manager.redis.publish_session_event('session_ended', {
                             'session_id': session_id,
                             'user_id': user_id,
-                            'pod_name': self.manager.pod_name,
-                            'timestamp': time.time()
-                        }))
+                        })
                     except Exception as e:
                         logger.error(f"Failed to publish session end event to Redis for {session_id}: {e}")
 

@@ -24,6 +24,7 @@ from source.api.grpc.exchange_simulator_pb2 import (
     CancelOrderResponse
 )
 from source.api.grpc.exchange_simulator_pb2_grpc import ExchangeSimulatorServicer
+from source.api.rest.health import HealthService
 
 logger = logging.getLogger('exchange_simulator')
 
@@ -32,6 +33,17 @@ class ExchangeSimulatorService(ExchangeSimulatorServicer):
         self.exchange_manager = exchange_manager
         self.last_heartbeat = time.time()
         self.heartbeat_counter = 0
+        self.health_service = HealthService(exchange_manager, http_port=50056)
+
+    # Add this method to the class
+    async def start_health_service(self):
+        """Start the health check HTTP server"""
+        await self.health_service.setup()
+        
+    # Add this method as well
+    async def stop_health_service(self):
+        """Stop the health check HTTP server"""
+        await self.health_service.shutdown()
 
     async def Heartbeat(self, request: HeartbeatRequest, context) -> HeartbeatResponse:
         """Handle heartbeat to maintain connection"""

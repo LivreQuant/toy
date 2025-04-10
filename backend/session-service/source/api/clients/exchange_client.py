@@ -47,15 +47,9 @@ class ExchangeClient:
         # Create tracer
         self.tracer = trace.get_tracer("exchange_client")
 
-    async def send_heartbeat_with_ttl(self, endpoint, session_id, client_id):
+    async def send_heartbeat(self, endpoint, session_id, client_id):
         """Send heartbeat with TTL that will automatically expire simulators if not renewed"""
         try:
-            request = HeartbeatRequest(
-                session_id=session_id,
-                client_id=client_id,
-                client_timestamp=int(time.time() * 1000),
-                # ttl_seconds=ttl_seconds # Assuming this field exists in proto
-            )
             # Use the internal request method with circuit breaker
             response = await self.circuit_breaker.execute(
                 self._heartbeat_request, endpoint, session_id, client_id  # Pass args for _heartbeat_request
@@ -178,7 +172,6 @@ class ExchangeClient:
             session_id=session_id,
             client_id=client_id,
             client_timestamp=int(time.time() * 1000)
-            # Add ttl_seconds if needed based on proto definition
         )
 
         start_time = time.time()

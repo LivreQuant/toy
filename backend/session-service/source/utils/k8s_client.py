@@ -138,17 +138,20 @@ class KubernetesClient:
                             client.V1Container(
                                 name="exchange-simulator",
                                 image="opentp/exchange-simulator:latest",
-                                image_pull_policy="Never",  # Add this line to prevent pulling from registry
+                                image_pull_policy="Never",
+                                ports=[
+                                    client.V1ContainerPort(container_port=50055, name="grpc"),  # gRPC port
+                                    client.V1ContainerPort(container_port=50056, name="http")   # HTTP port
+                                ],
                                 env=env_vars,
-                                ports=[client.V1ContainerPort(container_port=50055)],
                                 resources=client.V1ResourceRequirements(
                                     requests={"cpu": "100m", "memory": "128Mi"},
                                     limits={"cpu": "500m", "memory": "512Mi"}
                                 ),
                                 readiness_probe=client.V1Probe(
                                     http_get=client.V1HTTPGetAction(
-                                        path="/health",
-                                        port=50055
+                                        path="/readiness",  # Changed from /health to /readiness
+                                        port=50056         # Use HTTP port instead of gRPC port
                                     ),
                                     initial_delay_seconds=5,
                                     period_seconds=10
@@ -156,7 +159,7 @@ class KubernetesClient:
                                 liveness_probe=client.V1Probe(
                                     http_get=client.V1HTTPGetAction(
                                         path="/health",
-                                        port=50055
+                                        port=50056         # Use HTTP port instead of gRPC port
                                     ),
                                     initial_delay_seconds=15,
                                     period_seconds=20

@@ -27,7 +27,6 @@ class ExchangeManager:
         self.positions: Dict[str, Dict] = {}
         self.orders: Dict[str, Dict] = {}
 
-
     async def initialize(self):
         """
         Initialize the exchange state
@@ -35,8 +34,19 @@ class ExchangeManager:
         - Restore previous state if applicable
         """
         try:
-            # Connect to database
-            await self.database_manager.connect()
+            try:
+                # Attempt to connect to the database
+                await self.database_manager.connect()
+
+                # Verify connection
+                connection_healthy = await self.database_manager.check_connection()
+                if not connection_healthy:
+                    logger.warning("Database connection established but not responding to queries")
+
+            except Exception as e:
+                logger.error(f"Failed to initialize database connection: {e}")
+                # Decide how to handle: retry, exit, or continue with limited functionality
+                raise
 
             # Load historical data for user
             historical_data = await self.database_manager.load_user_exchange_state(

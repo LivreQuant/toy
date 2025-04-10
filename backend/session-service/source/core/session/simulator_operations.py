@@ -122,13 +122,10 @@ class SimulatorOperations:
                 # 6. Publish simulator started event if Redis is available
                 if self.manager.db_manager.redis:
                     try:
-                        await self.manager.db_manager.redis.publish('session_events', json.dumps({
-                            'type': 'simulator_started',
+                        await self.manager.db_manager.redis.publish_session_event('simulator_started', {
                             'session_id': session_id,
                             'simulator_id': new_sim_id,
-                            'pod_name': self.manager.pod_name,
-                            'timestamp': time.time()
-                        }))
+                        })
                     except Exception as e:
                         logger.error(f"Failed to publish simulator start event to Redis for {session_id}: {e}")
 
@@ -239,15 +236,12 @@ class SimulatorOperations:
                         user_id = session.user_id
 
                     try:
-                        await self.manager.db_manager.redis.publish('session_events', json.dumps({
-                            'type': 'simulator_stopped',
+                        await self.manager.db_manager.redis.publish_session_event('simulator_stopped', {
                             'session_id': session_id,
                             'simulator_id': simulator_id,  # Include ID in event
                             'user_id': user_id,  # Include user if available
-                            'pod_name': self.manager.pod_name,
-                            'timestamp': time.time(),
                             'forced': force
-                        }))
+                        })
                     except Exception as e:
                         logger.error(f"Failed to publish simulator stop event to Redis for {session_id}: {e}")
 
