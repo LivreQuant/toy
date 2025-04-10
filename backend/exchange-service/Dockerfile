@@ -1,37 +1,34 @@
-# In backend/exchange-service/Dockerfile
 FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies - add libpq-dev for PostgreSQL
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends gcc curl libpq-dev && \
-    rm -rf /var/lib/apt/lists/*
+# Install system dependencies
+# Added options to ignore validation date issues sometimes seen in build environments
+RUN apt-get -o Acquire::Check-Valid-Until=false \
+    -o Acquire::Check-Date=false update \
+    && apt-get -y --no-install-recommends install \
+    gcc \
+    postgresql-client \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# --- Added Step ---
+# Upgrade pip and install wheel/setuptools BEFORE installing requirements
+# This fixes build issues for packages like 'thrift' that need build tools
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel
+# --- End Added Step ---
 
 # Copy requirements and install dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy project files
+# Copy source code
 COPY . .
-
-# Generate gRPC stubs
-RUN python -m grpc_tools.protoc \
-    -I./proto \
-    --python_out=. \
-    --grpc_python_out=. \
-    ./proto/exchange_simulator.proto
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
-    ENVIRONMENT=production \
     LOG_LEVEL=INFO \
-    DB_HOST=postgres \
-    DB_PORT=5432 \
-    DB_NAME=opentp \
-    DB_USER=opentp
-
-# Note: DB_PASSWORD will be passed at runtime
+    PYTHONPATH=/app
 
 # Expose ports
 EXPOSE 50055 9090
@@ -41,4 +38,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD python -c "import grpc; grpc.insecure_channel('localhost:50055')" || exit 1
 
 # Run the application
-CMD ["python", "-m", "source.main"]
+CMD ["python", "source/main.py"]

@@ -60,6 +60,10 @@ class SimulatorManager:
         """Delegate to simulator lifecycle component"""
         return await self.lifecycle.stop_simulator(simulator_id)
 
+    async def check_simulator_ready(self, simulator_id: str) -> bool:
+        """Delegate to simulator lifecycle component"""
+        return await self.lifecycle.check_simulator_ready(simulator_id)
+
     async def get_simulator_status(self, simulator_id: str) -> Dict[str, Any]:
         """Delegate to simulator lifecycle component"""
         return await self.lifecycle.get_simulator_status(simulator_id)

@@ -139,3 +139,57 @@ class SimulatorLifecycle:
     async def get_all_simulators(self):
         """Get all simulators from the database"""
         return await self.manager.db_manager.get_all_simulators()
+
+    async def check_simulator_ready(self, simulator_id: str) -> bool:
+        """
+        Check if a simulator is ready by sending a heartbeat
+
+        Args:
+            simulator_id: The simulator ID
+
+        Returns:
+            True if simulator is ready, False otherwise
+        """
+        with optional_trace_span(self.tracer, "check_simulator_ready") as span:
+            span.set_attribute("simulator_id", simulator_id)
+
+            simulator = await self.manager.db_manager.get_simulator(simulator_id)
+
+            if not simulator:
+                span.set_attribute("error", "Simulator not found")
+                return False
+
+            if simulator.status != SimulatorStatus.STARTING:
+                span.set_attribute("status", simulator.status.value)
+                # Only STARTING simulators can transition to RUNNING
+                if simulator.status == SimulatorStatus.RUNNING:
+                    return True
+                return False
+
+            span.set_attribute("endpoint", simulator.endpoint)
+            span.set_attribute("session_id", simulator.session_id)
+
+            # Try to send a heartbeat to check if it's ready
+            try:
+                result = await self.manager.exchange_client.send_heartbeat_with_ttl(
+                    simulator.endpoint,
+                    simulator.session_id,
+                    f"ready-check-{self.manager.k8s_client.pod_name}",
+                    ttl_seconds=60
+                )
+
+                span.set_attribute("heartbeat_result", result.get('success', False))
+
+                if result.get('success'):
+                    # Update simulator status to RUNNING
+                    await self.manager.db_manager.update_simulator_status(
+                        simulator_id, SimulatorStatus.RUNNING
+                    )
+                    logger.info(f"Simulator {simulator_id} is now ready and RUNNING")
+                    return True
+                else:
+                    return False
+            except Exception as e:
+                logger.warning(f"Failed to check if simulator {simulator_id} is ready: {e}")
+                span.record_exception(e)
+                return False

@@ -26,6 +26,40 @@ class SessionTasks:
         self.manager = session_manager
         self.tracer = trace.get_tracer("cleanup_tasks")
 
+    async def _check_starting_simulators(self):
+        """Check simulators in STARTING state and verify if they're ready"""
+        try:
+            # Get simulators in STARTING state
+            starting_simulators = await self.manager.db_manager.get_simulators_with_status(SimulatorStatus.STARTING)
+
+            if not starting_simulators:
+                return
+
+            logger.debug(f"Checking {len(starting_simulators)} simulators in STARTING state")
+
+            for simulator in starting_simulators:
+                # Skip simulators that have been in STARTING state for too short a time
+                # Give them at least 10 seconds to initialize
+                if time.time() - simulator.last_active < 10:
+                    continue
+
+                # Check if simulator is ready
+                is_ready = await self.manager.simulator_manager.check_simulator_ready(simulator.simulator_id)
+
+                if is_ready:
+                    logger.info(f"Simulator {simulator.simulator_id} is now RUNNING")
+
+                    # Also update session metadata
+                    try:
+                        await self.manager.db_manager.update_session_metadata(simulator.session_id, {
+                            'simulator_status': SimulatorStatus.RUNNING.value
+                        })
+                    except Exception as e:
+                        logger.error(f"Failed to update session metadata for simulator {simulator.simulator_id}: {e}")
+
+        except Exception as e:
+            logger.error(f"Error checking starting simulators: {e}", exc_info=True)
+
     async def run_cleanup_loop(self):
         """Background loop for periodic cleanup tasks"""
         logger.info("Session cleanup loop starting.")
@@ -153,6 +187,9 @@ class SessionTasks:
         logger.info("Simulator heartbeat loop starting.")
         while True:
             try:
+                # Check simulators in STARTING state
+                await self._check_starting_simulators()
+
                 # Get active sessions potentially managed by this pod
                 pod_sessions = await self.manager.db_manager.get_sessions_with_criteria({
                     'pod_name': self.manager.pod_name,
@@ -185,7 +222,7 @@ class SessionTasks:
                     results = await asyncio.gather(*heartbeat_tasks, return_exceptions=True)
                     # Log any exceptions during heartbeat sending
                     for i, result in enumerate(results):
-                        if isinstance(result, Exception):
+                        if isinstance(result, Exception) and not isinstance(result, asyncio.CancelledError):
                             # Find corresponding session/simulator ID for logging context
                             sim_id_for_log = "unknown"
                             if i < len(pod_sessions):

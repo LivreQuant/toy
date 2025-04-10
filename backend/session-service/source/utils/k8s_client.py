@@ -138,6 +138,7 @@ class KubernetesClient:
                             client.V1Container(
                                 name="exchange-simulator",
                                 image="opentp/exchange-simulator:latest",
+                                image_pull_policy="Never",  # Add this line to prevent pulling from registry
                                 env=env_vars,
                                 ports=[client.V1ContainerPort(container_port=50055)],
                                 resources=client.V1ResourceRequirements(

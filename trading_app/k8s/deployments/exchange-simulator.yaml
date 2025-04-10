@@ -1,0 +1,6 @@
+# k8s/deployments/exchange-simulator.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: exchange-simulator-account
+  namespace: default

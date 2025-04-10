@@ -143,8 +143,6 @@ class SimulatorOperations:
                 # Attempt to mark simulator as ERROR in DB if we know its ID? Difficult state.
                 return None, None, f"Server error starting simulator: {str(e)}"
 
-    # Continuing with simulator_operations.py
-
     async def stop_simulator(self, session_id: str, token: Optional[str] = None, force: bool = False) -> Tuple[
         bool, str]:
         """

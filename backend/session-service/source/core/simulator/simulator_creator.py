@@ -89,7 +89,7 @@ class SimulatorCreator:
                     user_id,
                 )
 
-                # Update simulator with endpoint
+                # Update simulator with endpoint and set to STARTING status
                 simulator.endpoint = endpoint
                 simulator.status = SimulatorStatus.STARTING
                 await self.manager.db_manager.update_simulator_endpoint(simulator.simulator_id, endpoint)
@@ -98,31 +98,8 @@ class SimulatorCreator:
                 span.set_attribute("simulator_endpoint", endpoint)
                 span.set_attribute("simulator_status", SimulatorStatus.STARTING.value)
 
-                # Start the simulator via the exchange manager
-                exchange_manager_endpoint = config.services.exchange_manager_service
-                result = await self.manager.exchange_client.start_simulator(
-                    exchange_manager_endpoint,
-                    session_id,
-                    user_id,
-                )
-
-                if not result.get('success'):
-                    error_msg = result.get('error') or "Failed to start simulator"
-                    logger.error(f"Failed to start simulator: {error_msg}")
-                    span.set_attribute("error", error_msg)
-                    simulator.status = SimulatorStatus.ERROR
-                    await self.manager.db_manager.update_simulator_status(simulator.simulator_id, SimulatorStatus.ERROR)
-
-                    # Clean up Kubernetes resources
-                    await self.manager.k8s_client.delete_simulator_deployment(simulator.simulator_id)
-
-                    return None, error_msg
-
-                # Update simulator status
-                simulator.status = SimulatorStatus.RUNNING
-                await self.manager.db_manager.update_simulator_status(simulator.simulator_id, SimulatorStatus.RUNNING)
-
-                span.set_attribute("simulator_status", SimulatorStatus.RUNNING.value)
+                # The simulator will start automatically when the pod starts
+                # We'll update to RUNNING status once we receive a successful heartbeat
 
                 # Calculate creation time and track metrics
                 creation_time = time.time() - start_time

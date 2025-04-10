@@ -887,6 +887,44 @@ class PostgresStore:
             logger.error(f"Error getting all simulators from PostgreSQL: {e}")
             return []
 
+    async def get_simulators_with_status(self, status: SimulatorStatus) -> List[Simulator]:
+        """
+        Get simulators with specific status from PostgreSQL
+
+        Args:
+            status: Simulator status to filter by
+
+        Returns:
+            List of simulators with the specified status
+        """
+        if not self.pool:
+            await self.connect()
+
+        try:
+            async with self.pool.acquire() as conn:
+                rows = await conn.fetch('''
+                    SELECT * FROM simulator.instances
+                    WHERE status = $1
+                ''', status.value)
+
+                simulators = []
+                for row in rows:
+                    simulator = Simulator(
+                        simulator_id=row['simulator_id'],
+                        session_id=row['session_id'],
+                        user_id=row['user_id'],
+                        status=SimulatorStatus(row['status']),
+                        endpoint=row['endpoint'],
+                        created_at=row['created_at'].timestamp(),
+                        last_active=row['last_active'].timestamp(),
+                    )
+                    simulators.append(simulator)
+
+                return simulators
+        except Exception as e:
+            logger.error(f"Error getting simulators with status {status} from PostgreSQL: {e}")
+            return []
+
     async def get_active_simulator_count(self) -> int:
         """
         Get count of active simulators from PostgreSQL

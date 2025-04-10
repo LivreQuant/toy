@@ -319,6 +319,19 @@ class DatabaseManager:
         """
         return await self.redis.acquire_lock(lock_name, ttl_seconds)
 
+
+    async def get_simulators_with_status(self, status: SimulatorStatus) -> List[Simulator]:
+        """
+        Get simulators with specific status
+
+        Args:
+            status: Simulator status to filter by
+
+        Returns:
+            List of simulators with the specified status
+        """
+        return await self.postgres.get_simulators_with_status(status)
+
     async def release_distributed_lock(self, lock_name: str) -> bool:
         """
         Release a distributed lock via Redis

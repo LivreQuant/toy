@@ -3,7 +3,7 @@ SECTION=$1
 
 if [ -z "$SECTION" ]; then
     echo "Usage: $0 <section>"
-    echo "Sections: storage databases pgbouncer db-init auth session order jaeger ingress monitor all"
+    echo "Sections: storage databases pgbouncer db-init auth session order simulator jaeger ingress monitor all"
     exit 1
 fi
 
@@ -52,6 +52,14 @@ case $SECTION in
         kubectl delete service order-service
         kubectl delete deployment order-service
         ;;
+    simulator)
+        echo "Resetting exchange simulator resources..."
+        kubectl delete configmap exchange-simulator-config --ignore-not-found=true
+        kubectl delete serviceaccount exchange-simulator-account --ignore-not-found=true
+        # Clean up any running simulator pods (they all have simulator-* in their name)
+        kubectl delete deployment -l app=exchange-simulator --ignore-not-found=true
+        kubectl delete service -l app=exchange-simulator --ignore-not-found=true
+        ;;
     ingress)
         echo "Resetting ingress..."
         kubectl delete ingress trading-platform-ingress
@@ -66,7 +74,9 @@ case $SECTION in
         echo "Resetting everything..."
         kubectl delete ingress --all
         kubectl delete deployment --all
-        kubectl delete service --all --ignore-not-found=true
+        kubectl delete service --all --ignore-not-found=true        
+        kubectl delete serviceaccount exchange-simulator-account --ignore-not-found=true
+        kubectl delete configmap exchange-simulator-config --ignore-not-found=true
         kubectl delete configmap db-schemas db-data opentelemetry-config prometheus-config grafana-datasources auth-service-dashboard --ignore-not-found=true
         kubectl delete job --all
         kubectl delete pvc --all
