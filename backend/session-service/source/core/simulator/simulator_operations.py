@@ -54,11 +54,6 @@ class SimulatorLifecycle:
                 simulator.status = SimulatorStatus.STOPPING
                 await self.manager.db_manager.update_simulator_status(simulator.simulator_id, SimulatorStatus.STOPPING)
 
-                # Stop the simulator
-                logger.warning(f"Failed to stop simulator via gRPC: {result.get('error')}")
-                span.set_attribute("warning", f"gRPC stop failed: {result.get('error')}")
-                # Continue with cleanup anyway
-
                 # Delete Kubernetes resources
                 await self.manager.k8s_client.delete_simulator_deployment(simulator.simulator_id)
 

@@ -3,9 +3,9 @@ Simulator management operations for the session service.
 Handles creating, stopping, and monitoring exchange simulators.
 """
 import logging
-import time
-import json
-from typing import List, Optional, Tuple
+import asyncio
+import random
+from typing import Optional, Tuple
 from opentelemetry import trace
 
 from source.models.simulator import SimulatorStatus
@@ -130,6 +130,24 @@ class SimulatorOperations:
                         logger.error(f"Failed to publish simulator start event to Redis for {session_id}: {e}")
 
                 logger.info(f"Successfully started simulator {new_sim_id} for session {session_id}")
+
+                # After successful simulator creation
+                if new_sim_id and new_endpoint:
+                    try:
+                        # Start the exchange stream
+                        stream_task = await self.manager.start_exchange_stream(session_id, token)
+                        
+                        if stream_task:
+                            # Register the stream task with stream manager if applicable
+                            self.manager.stream_manager.register_stream(session_id, stream_task)
+                            logger.info(f"Registered exchange stream task for session {session_id}")
+                        else:
+                            logger.warning(f"Failed to start exchange stream for session {session_id}")
+                    except Exception as stream_error:
+                        logger.error(f"Error starting exchange stream: {stream_error}")
+                        span.record_exception(stream_error)
+
+                        
                 # Return new details (for internal use)
                 return new_sim_id, new_endpoint, ""
 
@@ -255,3 +273,114 @@ class SimulatorOperations:
                 span.record_exception(e)
                 span.set_attribute("error", str(e))
                 return False, f"Server error stopping simulator: {str(e)}"
+
+    async def start_exchange_stream(self, session_id: str, token: str) -> Optional[asyncio.Task]:
+        """
+        Start an exchange data stream for a given session
+        """
+        with optional_trace_span(self.tracer, "start_exchange_stream") as span:
+            logger.info(f"Attempting to start exchange stream for session {session_id}")
+            
+            max_attempts = 5
+            base_delay = 1  # Initial delay in seconds
+            max_delay = 30  # Maximum delay between attempts
+
+            for attempt in range(max_attempts):
+                try:
+                    # Get session details
+                    session = await self.db_manager.get_session_from_db(session_id)
+                    
+                    if not session:
+                        logger.error(f"No session found for {session_id}")
+                        return None
+
+                    # Extract simulator endpoint
+                    simulator_endpoint = getattr(session.metadata, 'simulator_endpoint', None)
+                    
+                    if not simulator_endpoint:
+                        logger.error("No simulator endpoint found")
+                        return None
+
+                    # Exponential backoff calculation
+                    delay = min(base_delay * (2 ** attempt) + random.uniform(0, 1), max_delay)
+                    
+                    # First, send a heartbeat to verify the simulator is ready
+                    logger.info(f"Attempting heartbeat (Attempt {attempt + 1}): Delay {delay:.2f}s")
+                    await asyncio.sleep(delay)  # Backoff before retry
+
+                    heartbeat_result = await self.exchange_client.send_heartbeat(
+                        simulator_endpoint, 
+                        session_id, 
+                        f"stream-init-{session_id}"
+                    )
+
+                    # Check heartbeat success
+                    if heartbeat_result.get('success', False):
+                        logger.info(f"Heartbeat successful for session {session_id}")
+                        
+                        # Create streaming task
+                        async def stream_and_broadcast():
+                            stream_attempts = 0
+                            max_stream_attempts = 5
+
+                            while stream_attempts < max_stream_attempts:
+                                try:
+                                    async for data in self.exchange_client.stream_exchange_data(
+                                        simulator_endpoint, 
+                                        session_id, 
+                                        f"stream-{session_id}"
+                                    ):
+                                        # Reset stream attempts on successful connection
+                                        stream_attempts = 0
+                                        
+                                        # Broadcast to all WebSocket clients for this session
+                                        await self.websocket_manager.broadcast_to_session(session_id, {
+                                            'type': 'exchange_data',
+                                            'data': data
+                                        })
+                                
+                                except Exception as stream_error:
+                                    stream_attempts += 1
+                                    stream_delay = min(base_delay * (2 ** stream_attempts) + random.uniform(0, 1), max_delay)
+                                    
+                                    logger.warning(
+                                        f"Stream connection attempt {stream_attempts} failed. "
+                                        f"Error: {stream_error}. "
+                                        f"Waiting {stream_delay:.2f}s before retry"
+                                    )
+                                    
+                                    # Update simulator status for persistent errors
+                                    if stream_attempts >= max_stream_attempts:
+                                        logger.error(f"Exceeded max stream connection attempts for session {session_id}")
+                                        await self.db_manager.update_session_metadata(session_id, {
+                                            'simulator_status': 'ERROR'
+                                        })
+                                        break
+                                    
+                                    await asyncio.sleep(stream_delay)
+
+                        # Start the streaming task
+                        return asyncio.create_task(stream_and_broadcast())
+
+                    # If heartbeat fails, log and continue to next attempt
+                    logger.warning(f"Heartbeat failed for session {session_id} (Attempt {attempt + 1})")
+                    
+                    # On final attempt, mark as error
+                    if attempt == max_attempts - 1:
+                        await self.db_manager.update_session_metadata(session_id, {
+                            'simulator_status': 'ERROR'
+                        })
+                        return None
+
+                except Exception as e:
+                    logger.error(f"Error in exchange stream initialization (Attempt {attempt + 1}): {e}")
+                    
+                    # On final attempt, mark as error
+                    if attempt == max_attempts - 1:
+                        await self.db_manager.update_session_metadata(session_id, {
+                            'simulator_status': 'ERROR'
+                        })
+                        return None
+
+            # If all attempts fail
+            return None

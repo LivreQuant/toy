@@ -157,7 +157,7 @@ class Config(BaseModel):
                 keepalive_interval=int(os.getenv('SSE_KEEPALIVE_INTERVAL', '15'))
             ),
             simulator=SimulatorConfig(
-                max_per_user=int(os.getenv('MAX_SIMULATORS_PER_USER', '2')),
+                max_per_user=int(os.getenv('MAX_SIMULATORS_PER_USER', '1')),
                 inactivity_timeout=int(os.getenv('SIMULATOR_INACTIVITY_TIMEOUT', '3600')),
                 namespace=os.getenv('SIMULATOR_NAMESPACE', 'default')
             ),

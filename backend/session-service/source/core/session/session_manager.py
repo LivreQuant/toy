@@ -13,7 +13,7 @@ from source.core.simulator.simulator_manager import SimulatorManager
 from source.config import config
 
 from source.core.session.session_operations import SessionOperations
-from source.core.session.simulator_operations import SimulatorOperations
+from source.core.session.session_simulator_operations import SimulatorOperations
 from source.core.session.reconnection_handler import ReconnectionHandler
 from source.core.session.connection_quality import ConnectionQualityManager
 from source.core.session.session_tasks import SessionTasks
@@ -131,6 +131,10 @@ class SessionManager:
     async def stop_simulator(self, session_id, token=None, force=False):
         """Delegate to simulator operations"""
         return await self.simulator_ops.stop_simulator(session_id, token, force)
+
+    async def start_exchange_stream(self, session_id, token=None):
+        """Delegate to simulator operations"""
+        return await self.simulator_ops.start_exchange_stream(session_id, token)
 
     async def update_connection_quality(self, session_id, token, metrics):
         """Delegate to connection quality manager"""

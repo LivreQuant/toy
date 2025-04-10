@@ -139,7 +139,7 @@ class ExchangeClient:
         # Heartbeats are frequent and less critical, might bypass circuit breaker
         # or use a separate one with different settings if needed.
         # For now, keep using the main one.
-        with optional_trace_span(self.tracer, "heartbeat_rpc", kind=trace.SpanKind.CLIENT) as span:
+        with optional_trace_span(self.tracer, "heartbeat_rpc") as span:
             span.set_attribute("rpc.service", "ExchangeSimulator")
             span.set_attribute("rpc.method", "Heartbeat")
             span.set_attribute("net.peer.name", endpoint)
@@ -214,59 +214,58 @@ class ExchangeClient:
         Yields:
             Dict with comprehensive exchange data updates
         """
-        with optional_trace_span(self.tracer, "stream_exchange_data_rpc", kind=trace.SpanKind.CLIENT) as span:
-            span.set_attribute("rpc.service", "ExchangeSimulator")
-            span.set_attribute("rpc.method", "StreamExchangeData")
-            span.set_attribute("net.peer.name", endpoint)
-            span.set_attribute("app.session_id", session_id)
-            span.set_attribute("app.client_id", client_id)
+        with optional_trace_span(self.tracer, "stream_exchange_data_rpc") as span:
+            span.set_attribute("session_id", session_id)
+            span.set_attribute("client_id", client_id)
+            span.set_attribute("endpoint", endpoint)
 
-            _, stub = await self.get_channel(endpoint)
-
-            request = StreamRequest(
-                session_id=session_id,
-                client_id=client_id,
-            )
-
-            # This streaming endpoint doesn't use circuit breaker to allow long-running streams
-            stream = None
+            logger.info(f"Attempting to create exchange data stream")
+            logger.info(f"Endpoint: {endpoint}")
+            logger.info(f"Session ID: {session_id}")
+            logger.info(f"Client ID: {client_id}")
+            
             try:
-                # Updated RPC method name
-                stream = stub.StreamExchangeData(request)
-                logger.info(f"Started gRPC exchange data stream to {endpoint} for session {session_id}")
-                span.add_event("Stream started")
+                # Get channel and stub
+                channel, stub = await self.get_channel(endpoint)
+                logger.info("Successfully obtained gRPC channel and stub")
 
-                async for data in stream:
-                    # Convert protobuf message to dictionary using updated method
-                    yield self._convert_stream_data(data)
+                # Create stream request
+                request = StreamRequest(
+                    session_id=session_id,
+                    client_id=client_id,
+                )
+                logger.info("Created StreamRequest")
 
-            except grpc.aio.AioRpcError as e:
-                span.record_exception(e)
-                span.set_attribute("rpc.grpc.status_code", e.code())
-                if e.code() == grpc.StatusCode.CANCELLED:
-                    logger.info(f"Exchange data stream cancelled for session {session_id}")
-                    span.add_event("Stream cancelled by client or server")
-                elif e.code() == grpc.StatusCode.UNAVAILABLE:
-                    logger.error(f"Exchange service unavailable for stream: {endpoint}. Details: {e.details()}")
-                    span.set_attribute("error.message", "Service unavailable")
-                    # Optionally trigger circuit breaker manually here if needed for streams
-                    # self.circuit_breaker.record_failure() ? - needs careful thought
-                else:
-                    logger.error(f"gRPC error in exchange data stream ({e.code()}): {e.details()}")
-                    span.set_attribute("error.message", e.details())
-                raise  # Re-raise error to signal stream termination
+                # Initiate streaming RPC
+                try:
+                    stream = stub.StreamExchangeData(request)
+                    logger.info("Initiated StreamExchangeData RPC")
+                except Exception as rpc_init_error:
+                    logger.error(f"Failed to initiate streaming RPC: {rpc_init_error}")
+                    span.record_exception(rpc_init_error)
+                    raise
+
+                # Stream processing
+                try:
+                    async for data in stream:
+                        logger.debug(f"Received raw exchange data: {data}")
+                        
+                        # Convert and yield data
+                        converted_data = self._convert_stream_data(data)
+                        logger.debug(f"Converted exchange data: {converted_data}")
+                        
+                        yield converted_data
+                except Exception as stream_error:
+                    logger.error(f"Error in stream processing: {stream_error}")
+                    span.record_exception(stream_error)
+                    raise
+
             except Exception as e:
-                logger.error(f"Unexpected error in exchange data stream for session {session_id}: {e}", exc_info=True)
+                logger.error(f"Comprehensive exchange data stream error: {e}")
+                logger.error(f"Error details:", exc_info=True)
                 span.record_exception(e)
-                span.set_attribute("error.message", str(e))
-                raise  # Re-raise error
-            finally:
-                # Attempt to cancel the stream if it exists and wasn't cancelled normally
-                # This might be redundant if the loop exit implies cancellation/error
-                # if stream and hasattr(stream, 'cancel') and not stream.cancelled():
-                #    stream.cancel()
-                logger.info(f"Exchange data stream finished or errored for session {session_id}")
-                span.add_event("Stream finished or errored")
+                span.set_attribute("error", str(e))
+                raise
 
     # Updated conversion function
     def _convert_stream_data(self, data: ExchangeDataUpdate) -> Dict[str, Any]:
