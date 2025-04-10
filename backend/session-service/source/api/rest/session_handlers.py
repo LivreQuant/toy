@@ -163,6 +163,8 @@ async def handle_get_session(request):
             }, status=401)
 
         # Validate session ownership using the token
+        logger.info(f"session_handler - handle_get_session - session validation: {session_id}")
+
         user_id = await session_manager.validate_session(session_id, token)
         span.set_attribute("user_id", user_id)
         span.set_attribute("session_valid", user_id is not None)
@@ -230,6 +232,8 @@ async def handle_get_session_state(request):
             }, status=400)
 
         # Validate session ownership using the token
+        logger.info(f"session_handler - handle_get_session_state - session validation: {session_id}")
+
         user_id = await session_manager.validate_session(session_id, token)
         span.set_attribute("user_id", user_id)
         span.set_attribute("session_valid", user_id is not None)
@@ -379,6 +383,8 @@ async def handle_session_ready(request):
             }, status=401)
 
         # Validate session ownership
+        logger.info(f"session_handler - handler_session_ready - session validation: {session_id}")
+
         user_id = await session_manager.validate_session(session_id, token)
         span.set_attribute("user_id", user_id)
         span.set_attribute("session_valid", user_id is not None)

@@ -161,6 +161,9 @@ class SessionOperations:
             User ID if valid, None otherwise
         """
         with optional_trace_span(self.tracer, "validate_session") as span:
+
+            logger.info(f"session_operations - validate_session - session validation: {session_id}")
+
             span.set_attribute("session_id", session_id)
             span.set_attribute("has_token", token is not None)
             span.set_attribute("device_id_provided", device_id is not None)
@@ -184,6 +187,8 @@ class SessionOperations:
             # 2. Get session from database
             session = await self.manager.db_manager.get_session_from_db(session_id)  # Fetches Session object
             span.set_attribute("session_found_in_db", session is not None)
+
+            logger.info(f"session_operations - validate_session - session: {session}")
 
             if not session:
                 logger.warning(f"Session {session_id} not found in DB during validation.")
@@ -258,6 +263,8 @@ class SessionOperations:
         with optional_trace_span(self.tracer, "end_session") as span:
             span.set_attribute("session_id", session_id)
 
+            logger.info(f"session_operations - end_session - session validation: {session_id}")
+            
             # 1. Validate session and token first
             user_id = await self.validate_session(session_id, token)  # Validation updates activity if successful
             span.set_attribute("user_id", user_id)

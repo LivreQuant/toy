@@ -50,6 +50,8 @@ class ReconnectionHandler:
             span.set_attribute("metrics.missed_heartbeats", metrics.get('missed_heartbeats', -1))
             span.set_attribute("metrics.connection_type", metrics.get('connection_type', 'unknown'))
 
+            logger.info(f"reconnection_handler - update_connection_quality - session validation: {session_id}")
+
             # 1. Validate session
             user_id = await self.manager.session_ops.validate_session(session_id, token)  # Validation updates activity
             span.set_attribute("user_id", user_id)

@@ -65,6 +65,9 @@ async def authenticate_websocket_request(
         if session_id:
             # Attempt to validate existing session
             logger.debug(f"Validating existing session {session_id} for device {device_id}")
+
+            logger.info(f"authenticator - authenticate_websocket_request - session validation: {session_id}")
+
             user_id = await session_manager.validate_session(session_id, token, device_id)
             if not user_id:
                 # Session is invalid/expired, or device doesn't match.

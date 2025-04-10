@@ -73,6 +73,9 @@ async def handle_reconnect(
             # Note: session_id here should ideally be the one passed in the message,
             # or confirmed to be the same as the initial connection's session_id.
             # The original code uses the session_id established at connection time.
+
+            logger.info(f"reconnect_handler - handle_reconnect - session validation: {session_id}")
+
             validated_user_id = await session_manager.validate_session(session_id, session_token, device_id)
 
             if validated_user_id:
