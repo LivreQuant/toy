@@ -73,11 +73,20 @@ class ExchangeSimulatorService(ExchangeSimulatorServicer):
         """Stream market data, orders, and portfolio updates"""
         try:
             symbols = request.symbols
+            client_id = request.client_id  # For logging which client connected
 
+            logger.info(f"Client {client_id} subscribed to exchange data stream for symbols: {symbols}")
+            
+            update_count = 0
             while True:
                 # Generate market data
                 market_data, portfolio_data, orders_data = self.exchange_manager.generate_periodic_data(symbols)
-
+                
+                # Log periodically to avoid flooding logs
+                update_count += 1
+                if update_count % 10 == 0:  # Log every 10th update
+                    logger.info(f"Sending update #{update_count} to client {client_id} for {len(market_data)} symbols")
+                
                 # Create ExchangeDataUpdate
                 update = ExchangeDataUpdate(
                     timestamp=int(time.time() * 1000)

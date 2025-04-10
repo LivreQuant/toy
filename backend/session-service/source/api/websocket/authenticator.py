@@ -3,6 +3,7 @@
 Handles authentication and session validation/creation for incoming WebSocket requests.
 """
 import logging
+import time
 from typing import Tuple, Any, TYPE_CHECKING
 
 from aiohttp import web
@@ -87,8 +88,26 @@ async def authenticate_websocket_request(
                 error_code="INVALID_TOKEN"
             )
 
-        # 3. Create Session if Needed
+        # 3. Check for recent sessions before creating a new one
         if not session_id:
+            # Before creating a new session, check for very recent sessions
+            recent_sessions = await session_manager.db_manager.get_active_user_sessions(user_id)
+            # Sort by creation time, newest first
+            recent_sessions.sort(key=lambda s: s.created_at, reverse=True)
+
+            # If there's a very recent session (within last 5 seconds), use it instead of creating a new one
+            current_time = time.time()
+            for session in recent_sessions:
+                # Check if session was created in the last 5 seconds
+                if current_time - session.created_at < 5:
+                    logger.info(f"Using recently created session {session.session_id} instead of creating a new one")
+                    session_id = session.session_id
+                    # Make sure device ID is consistent
+                    if hasattr(session.metadata, 'device_id') and session.metadata.device_id != device_id:
+                        await session_manager.db_manager.update_session_metadata(session_id, {'device_id': device_id})
+                    return user_id, session_id, device_id
+
+            # If no recent session found, create a new one
             client_ip = request.remote
             logger.info(f"No valid session found for user {user_id}, device {device_id}. Creating new session from IP {client_ip}.")
             session_id, is_new = await session_manager.create_session(user_id, device_id, token, client_ip)
@@ -113,7 +132,3 @@ async def authenticate_websocket_request(
         # Catch any other unexpected errors during the process
         logger.error(f"Unexpected error during WebSocket authentication for device {device_id}: {e}", exc_info=True)
         # Wrap in a generic server error - avoid raising raw Exception
-        raise WebSocketServerError(
-            message=f"An unexpected error occurred during authentication: {e}",
-            error_code="AUTH_UNEXPECTED_ERROR"
-        ) from e

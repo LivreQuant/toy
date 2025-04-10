@@ -252,6 +252,12 @@ class DatabaseManager:
 
         return success
 
+    async def update_simulator_activity(self, simulator_id: str) -> bool:
+        """
+        Update simulator status
+        """
+        await self.postgres.update_simulator_activity(simulator_id)
+
     async def get_simulator(self, simulator_id: str) -> Optional[Simulator]:
         """
         Get simulator by ID

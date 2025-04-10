@@ -68,8 +68,8 @@ class ExchangeSimulator:
         )
 
         # Create and add service
-        simulator_service = ExchangeSimulatorService(self.exchange_manager)
-        add_ExchangeSimulatorServicer_to_server(simulator_service, self.grpc_server)
+        self.simulator_service = ExchangeSimulatorService(self.exchange_manager)
+        add_ExchangeSimulatorServicer_to_server(self.simulator_service, self.grpc_server)
 
         # Bind server to port
         listen_addr = f'{config.server.host}:{config.server.grpc_port}'

@@ -30,6 +30,19 @@ MARKET_DATA_UPDATES = Counter(
     'Total market data updates'
 )
 
+# Add these metrics
+STREAM_CONNECTIONS = Counter(
+    'exchange_stream_connections_total', 
+    'Total stream connections established', 
+    ['client_id']
+)
+
+STREAM_UPDATES_SENT = Counter(
+    'exchange_stream_updates_sent_total', 
+    'Total market data updates sent', 
+    ['client_id']
+)
+
 def setup_metrics():
     """Start Prometheus metrics server"""
     try:

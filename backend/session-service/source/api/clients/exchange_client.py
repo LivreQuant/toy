@@ -61,8 +61,8 @@ class ExchangeClient:
         except Exception as e:
             logger.error(f"Error sending heartbeat with TTL: {e}")
             return {'success': False, 'error': str(e)}
-
-    def _on_circuit_state_change(self, name, old_state, new_state):
+        
+    def _on_circuit_state_change(self, name, old_state, new_state, info=None):
         """Handle circuit breaker state changes"""
         logger.info(f"Circuit breaker '{name}' state change: {old_state.value} -> {new_state.value}")
         track_circuit_breaker_state("exchange_service", new_state.value)
@@ -169,15 +169,12 @@ class ExchangeClient:
         _, stub = await self.get_channel(endpoint)
 
         request = HeartbeatRequest(
-            session_id=session_id,
-            client_id=client_id,
             client_timestamp=int(time.time() * 1000)
         )
 
         start_time = time.time()
         try:
             response = await stub.Heartbeat(request, timeout=5)
-            duration = time.time() - start_time
             # Metrics for heartbeat might be too noisy, consider sampling or removing
             # track_external_request("exchange_service", "Heartbeat", 200, duration)
 

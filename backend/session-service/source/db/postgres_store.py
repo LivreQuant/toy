@@ -375,6 +375,9 @@ class PostgresStore:
                 params = []
                 param_idx = 1
 
+                # Log the criteria being used for debugging
+                logger.info(f"Getting sessions with criteria: {criteria}")
+
                 # Add conditions based on criteria
                 if 'pod_name' in criteria:
                     conditions.append(f"m.metadata->>'pod_name' = ${param_idx}")
@@ -397,9 +400,16 @@ class PostgresStore:
                 query = " ".join(query_parts)
                 span.set_attribute("query", query)
 
+                # Log the complete query with parameters for debugging
+                logger.info(f"Generated SQL query: {query}")
+                logger.info(f"Query parameters: {params}")
+
                 with TimedOperation(track_db_operation, "get_sessions_with_criteria"):
                     async with self.pool.acquire() as conn:
                         rows = await conn.fetch(query, *params)
+                        
+                        # Log the number of rows returned
+                        logger.info(f"Query returned {len(rows)} sessions")
 
                         sessions = []
                         for row in rows:
@@ -422,6 +432,9 @@ class PostgresStore:
                                     session.metadata = SessionMetadata.parse_raw(metadata_dict)
 
                             sessions.append(session)
+                            
+                            # Log each session found
+                            logger.debug(f"Found session: ID={session.session_id}, status={session.status.value}")
 
                         return sessions
 
@@ -430,7 +443,7 @@ class PostgresStore:
                 span.record_exception(e)
                 track_db_error("get_sessions_with_criteria")
                 return []
-
+        
     async def get_active_user_sessions(self, user_id: str) -> List[Session]:
         """
         Get truly active sessions for a user from PostgreSQL
