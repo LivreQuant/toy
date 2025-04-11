@@ -3,8 +3,7 @@ Session creation, validation, and management operations.
 """
 import logging
 import time
-import json
-from typing import Optional, Tuple, Dict, Any
+from typing import Optional, Tuple
 from opentelemetry import trace
 
 from source.models.session import Session, SessionStatus
@@ -64,7 +63,7 @@ class SessionOperations:
                     await self.manager.simulator_ops.stop_simulator(old_session.session_id, token=token, force=True)
                     # Mark the old session as expired in DB
                     await self.manager.postgres_store.update_session_status(old_session.session_id,
-                                                                        SessionStatus.EXPIRED.value)
+                                                                            SessionStatus.EXPIRED.value)
 
                 # Create new session in DB
                 session_id, is_new = await self.manager.postgres_store.create_session(user_id, ip_address)
@@ -290,7 +289,9 @@ class SessionOperations:
                 if sim_id and sim_status != SimulatorStatus.STOPPED:
                     logger.info(f"Stopping simulator {sim_id} as part of ending session {session_id}.")
                     # Use force=True because the session is ending regardless
-                    sim_stopped, sim_stop_error = await self.manager.simulator_ops.stop_simulator(session_id, token=token, force=True)
+                    sim_stopped, sim_stop_error = await self.manager.simulator_ops.stop_simulator(session_id,
+                                                                                                  token=token,
+                                                                                                  force=True)
                     if not sim_stopped:
                         # Log error but continue ending the session
                         logger.error(f"Failed to stop simulator {sim_id} during session end: {sim_stop_error}")
@@ -302,7 +303,8 @@ class SessionOperations:
                 # 4. End session in database (mark as EXPIRED or delete)
                 # Assuming db_manager.end_session marks as EXPIRED or deletes
                 # Let's assume it marks as EXPIRED for potential auditing
-                success = await self.manager.postgres_store.update_session_status(session_id, SessionStatus.EXPIRED.value)
+                success = await self.manager.postgres_store.update_session_status(session_id,
+                                                                                  SessionStatus.EXPIRED.value)
 
                 if not success:
                     logger.error(f"Failed to mark session {session_id} as EXPIRED in DB.")

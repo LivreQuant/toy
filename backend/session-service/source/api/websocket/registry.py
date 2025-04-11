@@ -9,7 +9,7 @@ from typing import Dict, Set, Any, Optional, Tuple, ItemsView, List
 
 from aiohttp import web
 
-from source.core.session.session_manager import SessionManager
+from source.core.session.manager import SessionManager
 
 from source.utils.metrics import track_websocket_connection_count
 

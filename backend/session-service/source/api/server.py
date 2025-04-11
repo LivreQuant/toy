@@ -15,17 +15,13 @@ from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 from source.config import config
 
 # Import new store and manager classes
-from source.db.store_manager import StoreManager
-from source.core.coordination.manager import CoordinationManager
+from source.db.manager import StoreManager
 from source.core.session.manager import SessionManager
 from source.core.simulator.manager import SimulatorManager
 
 # Import new store classes
-from source.db.stores.postgres.postgres_session_store import PostgresSessionStore
-from source.db.stores.postgres.postgres_simulator_store import PostgresSimulatorStore
-from source.db.stores.redis.redis_session_cache import RedisSessionCache
-from source.db.stores.redis.redis_pubsub import RedisPubSub
-from source.db.stores.redis.redis_coordination import RedisCoordinationStore
+from source.db.stores.postgres_session_store import PostgresSessionStore
+from source.db.stores.postgres_simulator_store import PostgresSimulatorStore
 
 from source.api.clients.auth_client import AuthClient
 from source.api.clients.exchange_client import ExchangeClient
@@ -81,24 +77,11 @@ class SessionServer:
         self.websocket_manager: Optional[WebSocketManager] = None
         self.pubsub_task: Optional[asyncio.Task] = None
 
-        self.coordination_manager: Optional[CoordinationManager] = None
         self.session_manager: Optional[SessionManager] = None
         self.simulator_manager: Optional[SimulatorManager] = None
         
         # Initialize stores
-        self.postgres_session_store = PostgresSessionStore()
-        self.postgres_simulator_store = PostgresSimulatorStore()
-        self.redis_session_cache = RedisSessionCache()
-        self.redis_pubsub = RedisPubSub()
-        self.redis_coordination_store = RedisCoordinationStore()
-
-        self.store_manager: Optional[StoreManager] = StoreManager(
-            postgres_session_store=self.postgres_session_store,
-            postgres_simulator_store=self.postgres_simulator_store,
-            redis_session_cache=self.redis_session_cache,
-            redis_pubsub=self.redis_pubsub,
-            redis_coordination=self.redis_coordination_store
-        )
+        self.store_manager: Optional[StoreManager] = StoreManager()
     
     async def initialize(self):
         """Initialize all server components"""
@@ -116,31 +99,16 @@ class SessionServer:
             logger.critical(f"Failed to connect to databases: {e}. Cannot start server.", exc_info=True)
             raise RuntimeError(f"Database connection failed: {e}") from e
 
-        # Initialize coordination manager
-        self.coordination_manager = CoordinationManager(
-            self.redis_coordination_store,
-            self.redis_pubsub
-        )
-        await self.coordination_manager.register_self_pod()
-        logger.info("Coordination manager initialized.")
-
         # Initialize Internal API clients
         self.auth_client = AuthClient()
         self.exchange_client = ExchangeClient()
         logger.info("Internal API clients initialized.")
 
         # Initialize managers with specific stores
-        self.session_manager = SessionManager(
-            postgres_session_store,
-            redis_session_cache,
-            redis_pubsub
-        )
+        self.session_manager = SessionManager(self.store_manager)
         logger.info("Session manager initialized.")
 
-        self.simulator_manager = SimulatorManager(
-            postgres_simulator_store,
-            redis_pubsub
-        )
+        self.simulator_manager = SimulatorManager(self.store_manager)
         logger.info("Simulator manager initialized.")
 
         # Start background tasks (ensure session_manager is initialized first)
@@ -156,7 +124,6 @@ class SessionServer:
 
         # Make components available in application context
         self.app['connection_manager'] = self.connection_manager
-        self.app['coordination_manager'] = self.coordination_manager
         self.app['auth_client'] = self.auth_client
         self.app['exchange_client'] = self.exchange_client
         self.app['session_manager'] = self.session_manager

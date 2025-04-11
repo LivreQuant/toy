@@ -5,18 +5,11 @@ Handles sending connection lifecycle related messages to clients.
 """
 import logging
 import time
-from typing import TYPE_CHECKING
 
 from aiohttp import web
 
-# Assuming metrics/tracing utilities are accessible
 from source.utils.metrics import track_websocket_message
-from source.config import config  # For pod_name
-
-# Type hint for WebSocketResponse without full import if needed
-if TYPE_CHECKING:
-    # from aiohttp.web import WebSocketResponse - already imported
-    pass
+from source.config import config
 
 logger = logging.getLogger('websocket_emitter_connection')
 

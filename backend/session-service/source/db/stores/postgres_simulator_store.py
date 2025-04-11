@@ -12,7 +12,7 @@ from source.models.simulator import Simulator, SimulatorStatus
 from source.utils.metrics import track_db_operation, track_db_error, TimedOperation, track_cleanup_operation
 from source.utils.tracing import optional_trace_span
 
-from source.db.stores.postgres.postgres_base import PostgresBase
+from source.db.stores.postgres_base import PostgresBase
 
 logger = logging.getLogger('pg_simulator_store')
 

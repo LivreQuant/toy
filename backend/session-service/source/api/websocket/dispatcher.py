@@ -11,32 +11,25 @@ from typing import TYPE_CHECKING, Callable, Dict, Any, Awaitable
 from opentelemetry import trace
 from aiohttp import web
 
-# Import handlers
 from source.api.websocket.handlers import heartbeat_handler, reconnect_handler
 
-# Import custom exceptions
 from source.api.websocket.exceptions import (
     WebSocketError,
     WebSocketClientError,
     InvalidMessageFormatError
 )
 
-# Import Emitter for sending errors
 from .emitters import error_emitter
 
-# Assuming these utilities exist and are correctly path-imported
 from source.utils.metrics import track_websocket_message
-# track_websocket_error is now called inside error_emitter
 from source.utils.tracing import optional_trace_span
 
-# Type hint for WebSocketManager and SessionManager without circular import
 if TYPE_CHECKING:
     from source.api.websocket.manager import WebSocketManager
-    from source.core.session.session_manager import SessionManager
+    from source.core.session.manager import SessionManager
 
 logger = logging.getLogger('websocket_dispatcher')
 
-# Define a type alias for the expected handler function signature
 HandlerFunc = Callable[..., Awaitable[None]]
 
 

@@ -9,27 +9,23 @@ from typing import Dict, Any, TYPE_CHECKING
 from opentelemetry import trace
 from aiohttp import web
 
-# Assuming these utilities exist and are correctly path-imported
 from source.utils.metrics import track_websocket_message
 from source.utils.tracing import optional_trace_span
 
-# Type hints for managers without circular import
 if TYPE_CHECKING:
-    from ..manager import WebSocketManager
-    from source.core.session.session_manager import SessionManager
+    from source.api.websocket.manager import WebSocketManager
+    from source.core.session.manager import SessionManager
 
 logger = logging.getLogger('websocket_handler_heartbeat')
 
 
 async def handle_heartbeat(
-    *, # Make arguments keyword-only for clarity
+    *,
     ws: web.WebSocketResponse,
     session_id: str,
-    user_id: Any, # Keep original type flexible if needed
     client_id: str,
     message: Dict[str, Any],
     session_manager: 'SessionManager',
-    ws_manager: 'WebSocketManager',
     tracer: trace.Tracer
 ):
     """
@@ -139,4 +135,3 @@ async def handle_heartbeat(
                 logger.debug(f"Sent heartbeat_ack to client {client_id} with deviceIdValid={device_id_valid}, sessionStatus={response['sessionStatus']}")
         except Exception as e:
             logger.error(f"Failed to send heartbeat_ack for session {session_id}, client {client_id}: {e}")
-            # Don't re-raise, let the connection manage itself

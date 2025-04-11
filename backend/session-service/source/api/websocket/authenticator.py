@@ -8,12 +8,10 @@ from typing import Tuple, Any, TYPE_CHECKING
 
 from aiohttp import web
 
-# Assuming SessionManager type hint is available
 if TYPE_CHECKING:
-    from source.core.session.session_manager import SessionManager
+    from source.core.session.manager import SessionManager
 
-# Import custom exceptions
-from .exceptions import (
+from source.api.websocket.exceptions import (
     WebSocketClientError,
     AuthenticationError,
     WebSocketServerError
@@ -21,9 +19,10 @@ from .exceptions import (
 
 logger = logging.getLogger('websocket_authenticator')
 
+
 async def authenticate_websocket_request(
-    request: web.Request,
-    session_manager: 'SessionManager'
+        request: web.Request,
+        session_manager: 'SessionManager'
 ) -> Tuple[Any, str, str]:
     """
     Authenticates a WebSocket connection request and establishes session details.
@@ -72,11 +71,12 @@ async def authenticate_websocket_request(
             if not user_id:
                 # Session is invalid/expired, or device doesn't match.
                 # Fallback: Check if token itself is valid for potential new session.
-                logger.warning(f"Session {session_id} validation failed. Checking token validity for potential new session.")
+                logger.warning(
+                    f"Session {session_id} validation failed. Checking token validity for potential new session.")
                 user_id = await session_manager.get_user_from_token(token)
-                session_id = None # Mark session as invalid/non-existent for creation step
+                session_id = None  # Mark session as invalid/non-existent for creation step
             else:
-                 logger.debug(f"Session {session_id} validated successfully for user {user_id}")
+                logger.debug(f"Session {session_id} validated successfully for user {user_id}")
 
         else:
             # No session ID provided, validate token directly to get user
@@ -112,7 +112,8 @@ async def authenticate_websocket_request(
 
             # If no recent session found, create a new one
             client_ip = request.remote
-            logger.info(f"No valid session found for user {user_id}, device {device_id}. Creating new session from IP {client_ip}.")
+            logger.info(
+                f"No valid session found for user {user_id}, device {device_id}. Creating new session from IP {client_ip}.")
             session_id, is_new = await session_manager.create_session(user_id, device_id, token, client_ip)
 
             if not session_id:
@@ -129,8 +130,8 @@ async def authenticate_websocket_request(
         return user_id, session_id, device_id
 
     except (WebSocketClientError, AuthenticationError, WebSocketServerError):
-         # Re-raise known errors to be handled by the caller
-         raise
+        # Re-raise known errors to be handled by the caller
+        raise
     except Exception as e:
         # Catch any other unexpected errors during the process
         logger.error(f"Unexpected error during WebSocket authentication for device {device_id}: {e}", exc_info=True)

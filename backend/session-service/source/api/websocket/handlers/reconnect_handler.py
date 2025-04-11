@@ -9,23 +9,20 @@ from typing import Dict, Any, TYPE_CHECKING
 from opentelemetry import trace
 from aiohttp import web
 
-# Assuming these utilities exist and are correctly path-imported
 from source.utils.metrics import track_websocket_message
 from source.utils.tracing import optional_trace_span
 
-# Type hints for managers without circular import
 if TYPE_CHECKING:
-    from ..manager import WebSocketManager
-    from source.core.session.session_manager import SessionManager # Adjust import path
+    from source.api.websocket.manager import WebSocketManager
+    from source.core.session.manager import SessionManager
 
 logger = logging.getLogger('websocket_handler_reconnect')
 
 
 async def handle_reconnect(
-    *, # Make arguments keyword-only
+    *,
     ws: web.WebSocketResponse,
     session_id: str,
-    user_id: Any, # This user_id is from the *initial* connection auth, might not be needed here?
     client_id: str,
     message: Dict[str, Any],
     session_manager: 'SessionManager',
@@ -116,8 +113,6 @@ async def handle_reconnect(
                           device_id_valid_server = False # Device ID was the issue
                           session_status_server = 'valid' # Session exists, device is wrong
 
-
-        # Prepare response
         response = {
             'type': 'reconnect_result',
             'requestId': request_id,

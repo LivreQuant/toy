@@ -5,7 +5,6 @@ Handles cleanup of expired sessions, inactive simulators, and heartbeat function
 import logging
 import time
 import asyncio
-from typing import List, Any
 from opentelemetry import trace
 
 from source.config import config

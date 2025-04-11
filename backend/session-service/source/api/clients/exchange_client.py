@@ -25,6 +25,69 @@ from source.api.grpc.exchange_simulator_pb2_grpc import ExchangeSimulatorStub
 logger = logging.getLogger('exchange_client')
 
 
+def _convert_stream_data(data: ExchangeDataUpdate) -> Dict[str, Any]:
+    """Convert ExchangeDataUpdate protobuf message to dictionary"""
+    result = {
+        'timestamp': data.timestamp,
+        'marketData': [],
+        'orderUpdates': [],  # Added field
+        'portfolio': None
+    }
+
+    # Convert market data
+    for item in data.market_data:
+        # Assuming MarketData fields from proto: symbol, bid, ask, bid_size, ask_size, last_price, last_size
+        result['marketData'].append({
+            'symbol': item.symbol,
+            'bid': item.bid,
+            'ask': item.ask,
+            'bidSize': item.bid_size,
+            'askSize': item.ask_size,
+            'lastPrice': item.last_price,
+            'lastSize': item.last_size
+            # Add timestamp if it exists in MarketData proto
+        })
+
+    # Convert order updates (Added)
+    for item in data.order_updates:
+        # Assuming OrderUpdate fields from proto: order_id, symbol, status, filled_quantity, average_price
+        result['orderUpdates'].append({
+            'orderId': item.order_id,
+            'symbol': item.symbol,
+            'status': item.status,  # Keep as string from proto
+            'filledQuantity': item.filled_quantity,
+            'averagePrice': item.average_price
+        })
+
+    # Convert portfolio if present
+    if data.HasField('portfolio'):
+        portfolio = data.portfolio
+        # Assuming PortfolioStatus fields: positions, cash_balance, total_value
+        positions_list = []
+        for pos in portfolio.positions:
+            # Assuming Position fields: symbol, quantity, average_cost, market_value
+            positions_list.append({
+                'symbol': pos.symbol,
+                'quantity': pos.quantity,
+                'averageCost': pos.average_cost,
+                'marketValue': pos.market_value
+            })
+
+        result['portfolio'] = {
+            'positions': positions_list,
+            'cashBalance': portfolio.cash_balance,
+            'totalValue': portfolio.total_value
+        }
+
+    return result
+
+
+def _on_circuit_state_change(name, old_state, new_state, info=None):
+    """Handle circuit breaker state changes"""
+    logger.info(f"Circuit breaker '{name}' state change: {old_state.value} -> {new_state.value}")
+    track_circuit_breaker_state("exchange_service", new_state.value)
+
+
 class ExchangeClient:
     """Client for the exchange simulator gRPC service"""
 
@@ -42,7 +105,7 @@ class ExchangeClient:
         )
 
         # Register callback for circuit breaker state changes
-        self.circuit_breaker.on_state_change(self._on_circuit_state_change)
+        self.circuit_breaker.on_state_change(_on_circuit_state_change)
 
         # Create tracer
         self.tracer = trace.get_tracer("exchange_client")
@@ -61,11 +124,6 @@ class ExchangeClient:
         except Exception as e:
             logger.error(f"Error sending heartbeat with TTL: {e}")
             return {'success': False, 'error': str(e)}
-        
-    def _on_circuit_state_change(self, name, old_state, new_state, info=None):
-        """Handle circuit breaker state changes"""
-        logger.info(f"Circuit breaker '{name}' state change: {old_state.value} -> {new_state.value}")
-        track_circuit_breaker_state("exchange_service", new_state.value)
 
     async def get_channel(self, endpoint: str):
         """Get or create a gRPC channel to the endpoint"""
@@ -251,7 +309,7 @@ class ExchangeClient:
                         logger.debug(f"Received raw exchange data: {data}")
                         
                         # Convert and yield data
-                        converted_data = self._convert_stream_data(data)
+                        converted_data = _convert_stream_data(data)
                         logger.debug(f"Converted exchange data: {converted_data}")
                         
                         yield converted_data
@@ -266,60 +324,3 @@ class ExchangeClient:
                 span.record_exception(e)
                 span.set_attribute("error", str(e))
                 raise
-
-    # Updated conversion function
-    def _convert_stream_data(self, data: ExchangeDataUpdate) -> Dict[str, Any]:
-        """Convert ExchangeDataUpdate protobuf message to dictionary"""
-        result = {
-            'timestamp': data.timestamp,
-            'marketData': [],
-            'orderUpdates': [],  # Added field
-            'portfolio': None
-        }
-
-        # Convert market data
-        for item in data.market_data:
-            # Assuming MarketData fields from proto: symbol, bid, ask, bid_size, ask_size, last_price, last_size
-            result['marketData'].append({
-                'symbol': item.symbol,
-                'bid': item.bid,
-                'ask': item.ask,
-                'bidSize': item.bid_size,
-                'askSize': item.ask_size,
-                'lastPrice': item.last_price,
-                'lastSize': item.last_size
-                # Add timestamp if it exists in MarketData proto
-            })
-
-        # Convert order updates (Added)
-        for item in data.order_updates:
-            # Assuming OrderUpdate fields from proto: order_id, symbol, status, filled_quantity, average_price
-            result['orderUpdates'].append({
-                'orderId': item.order_id,
-                'symbol': item.symbol,
-                'status': item.status,  # Keep as string from proto
-                'filledQuantity': item.filled_quantity,
-                'averagePrice': item.average_price
-            })
-
-        # Convert portfolio if present
-        if data.HasField('portfolio'):
-            portfolio = data.portfolio
-            # Assuming PortfolioStatus fields: positions, cash_balance, total_value
-            positions_list = []
-            for pos in portfolio.positions:
-                # Assuming Position fields: symbol, quantity, average_cost, market_value
-                positions_list.append({
-                    'symbol': pos.symbol,
-                    'quantity': pos.quantity,
-                    'averageCost': pos.average_cost,
-                    'marketValue': pos.market_value
-                })
-
-            result['portfolio'] = {
-                'positions': positions_list,
-                'cashBalance': portfolio.cash_balance,
-                'totalValue': portfolio.total_value
-            }
-
-        return result

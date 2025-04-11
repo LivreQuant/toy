@@ -5,7 +5,7 @@ Coordinates the creation, monitoring, and termination of simulator instances.
 import logging
 import asyncio
 import time
-from typing import Optional, Tuple, List, Dict, Any
+from typing import Optional, Tuple
 
 from opentelemetry import trace
 
@@ -23,7 +23,6 @@ class SimulatorManager:
     def __init__(
         self,
         postgres_store,
-        redis_pubsub=None,
         exchange_client=None,
         k8s_client=None
     ):
@@ -37,7 +36,6 @@ class SimulatorManager:
             k8s_client: Kubernetes client for simulator management
         """
         self.postgres_store = postgres_store
-        self.redis_pubsub = redis_pubsub
         self.exchange_client = exchange_client
         self.k8s_client = k8s_client
         

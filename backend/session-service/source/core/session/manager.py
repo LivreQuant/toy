@@ -9,11 +9,8 @@ import random
 from opentelemetry import trace
 
 from source.config import config
-from source.utils.tracing import optional_trace_span
 
-from source.db.stores.postgres.postgres_session_store import PostgresSessionStore
-from source.db.stores.redis.redis_session_cache import RedisSessionCache
-from source.db.stores.redis.redis_pubsub import RedisPubSub
+from source.db.manager import StoreManager
 
 from source.api.clients.auth_client import AuthClient
 from source.api.clients.exchange_client import ExchangeClient
@@ -29,39 +26,33 @@ class SessionManager:
     """Manager for user sessions - coordinates all session-related operations"""
 
     def __init__(
-        self,
-        postgres_store: PostgresSessionStore,
-        redis_cache: RedisSessionCache,
-        redis_pubsub: RedisPubSub,
-        auth_client: AuthClient = None,
-        exchange_client: ExchangeClient = None,
-        simulator_manager = None,
-        websocket_manager = None,
-        stream_manager = None
+            self,
+            store: StoreManager,
+            auth_client: AuthClient = None,
+            exchange_client: ExchangeClient = None,
+            simulator_manager=None,
+            websocket_manager=None,
+            stream_manager=None
     ):
         """
         Initialize session manager and its component modules
 
         Args:
             postgres_store: PostgreSQL store for session persistence
-            redis_cache: Redis cache for fast session lookups
-            redis_pubsub: Redis pub/sub for events
             auth_client: Authentication client for token validation
             exchange_client: Exchange client for simulator communication
             simulator_manager: Manager for simulator operations
             websocket_manager: WebSocket manager for client notifications
             stream_manager: Stream manager for managing background streams
         """
-        self.postgres_store = postgres_store
-        self.redis_cache = redis_cache
-        self.redis_pubsub = redis_pubsub
-        
+        self.store = store
+
         self.auth_client = auth_client
         self.exchange_client = exchange_client
         self.simulator_manager = simulator_manager
         self.websocket_manager = websocket_manager
         self.stream_manager = stream_manager
-        
+
         self.pod_name = config.kubernetes.pod_name
 
         # Initialize component modules
@@ -75,11 +66,11 @@ class SessionManager:
 
         # Create tracer
         self.tracer = trace.get_tracer("session_manager")
-        
+
         logger.info("Session manager initialized")
 
     # ----- Public API methods -----
-    
+
     async def create_session(self, user_id, device_id, token, ip_address=None):
         """Create a new session or return existing one"""
         return await self.session_ops.create_session(user_id, device_id, token, ip_address)
@@ -95,7 +86,7 @@ class SessionManager:
     async def update_session_activity(self, session_id):
         """Update session last activity time"""
         return await self.session_ops.update_session_activity(session_id)
-        
+
     async def update_session_metadata(self, session_id, metadata_updates):
         """Update session metadata"""
         return await self.postgres_store.update_session_metadata(session_id, metadata_updates)
@@ -103,7 +94,7 @@ class SessionManager:
     async def end_session(self, session_id, token):
         """End a session and clean up resources"""
         return await self.session_ops.end_session(session_id, token)
-    
+
     async def update_connection_quality(self, session_id, token, metrics):
         """Update connection quality metrics"""
         return await self.connection_utils.update_connection_quality(session_id, token, metrics)
@@ -115,27 +106,27 @@ class SessionManager:
     async def get_user_from_token(self, token):
         """Extract user ID from token"""
         return await self.session_ops.get_user_from_token(token)
-        
+
     async def session_exists(self, session_id):
         """Check if a session exists"""
         session = await self.postgres_store.get_session_from_db(session_id, skip_activity_check=True)
         return session is not None
 
     # ----- Simulator operations - delegated to SimulatorManager -----
-    
+
     async def start_simulator(self, session_id, token):
         """Start a simulator for a session"""
         if not self.simulator_manager:
             return None, None, "Simulator manager not available"
-            
+
         # First validate the session
         user_id = await self.validate_session(session_id, token)
         if not user_id:
             return None, None, "Invalid session or token"
-            
+
         # Delegate to simulator manager
         simulator, error = await self.simulator_manager.create_simulator(session_id, user_id)
-        
+
         if simulator and not error:
             # Start exchange stream if simulator created successfully
             try:
@@ -144,38 +135,38 @@ class SessionManager:
                     self.stream_manager.register_stream(session_id, stream_task)
             except Exception as e:
                 logger.error(f"Failed to start exchange stream: {e}", exc_info=True)
-                
+
             return simulator.simulator_id, simulator.endpoint, ""
-        
+
         return None, None, error
 
     async def stop_simulator(self, session_id, token, force=False):
         """Stop a simulator for a session"""
         if not self.simulator_manager:
             return False, "Simulator manager not available"
-            
+
         # Validate session (unless forcing)
         if not force:
             user_id = await self.validate_session(session_id, token)
             if not user_id:
                 return False, "Invalid session or token"
-        
+
         # Get session to find simulator
         session = await self.postgres_store.get_session_from_db(session_id, skip_activity_check=force)
         if not session:
             return False, "Session not found"
-            
+
         # Extract simulator ID from metadata
         metadata = session.metadata
         simulator_id = getattr(metadata, 'simulator_id', None)
-        
+
         if not simulator_id:
             # No simulator to stop
             return True, ""
-            
+
         # Delegate to simulator manager
         success, error = await self.simulator_manager.stop_simulator(simulator_id)
-        
+
         # Update session metadata regardless of success
         # This ensures clients won't try to reconnect to a problematic simulator
         await self.update_session_metadata(session_id, {
@@ -183,17 +174,17 @@ class SessionManager:
             'simulator_id': None,
             'simulator_endpoint': None
         })
-        
+
         return success, error
-        
+
     async def _start_exchange_stream(self, session_id, endpoint):
         """Start an exchange data stream for a session"""
         if not self.exchange_client:
             logger.error("Exchange client not available")
             return None
-            
+
         logger.info(f"Starting exchange stream for session {session_id} to endpoint {endpoint}")
-        
+
         max_attempts = 5
         base_delay = 1  # Initial delay in seconds
         max_delay = 30  # Maximum delay between attempts
@@ -202,28 +193,28 @@ class SessionManager:
             try:
                 # Get session details
                 session = await self.postgres_store.get_session_from_db(session_id)
-                
+
                 if not session:
                     logger.error(f"No session found for {session_id}")
                     return None
 
                 # Exponential backoff calculation
                 delay = min(base_delay * (2 ** attempt) + random.uniform(0, 1), max_delay)
-                
+
                 # First, send a heartbeat to verify the simulator is ready
                 logger.info(f"Attempting heartbeat (Attempt {attempt + 1}): Delay {delay:.2f}s")
                 await asyncio.sleep(delay)  # Backoff before retry
 
                 heartbeat_result = await self.exchange_client.send_heartbeat(
-                    endpoint, 
-                    session_id, 
+                    endpoint,
+                    session_id,
                     f"stream-init-{session_id}"
                 )
 
                 # Check heartbeat success
                 if heartbeat_result.get('success', False):
                     logger.info(f"Heartbeat successful for session {session_id}")
-                    
+
                     # Create streaming task
                     async def stream_and_broadcast():
                         stream_attempts = 0
@@ -232,30 +223,31 @@ class SessionManager:
                         while stream_attempts < max_stream_attempts:
                             try:
                                 async for data in self.exchange_client.stream_exchange_data(
-                                    endpoint, 
-                                    session_id, 
-                                    f"stream-{session_id}"
+                                        endpoint,
+                                        session_id,
+                                        f"stream-{session_id}"
                                 ):
                                     # Reset stream attempts on successful connection
                                     stream_attempts = 0
-                                    
+
                                     # Broadcast to all WebSocket clients for this session
                                     if self.websocket_manager:
                                         await self.websocket_manager.broadcast_to_session(session_id, {
                                             'type': 'exchange_data',
                                             'data': data
                                         })
-                            
+
                             except Exception as stream_error:
                                 stream_attempts += 1
-                                stream_delay = min(base_delay * (2 ** stream_attempts) + random.uniform(0, 1), max_delay)
-                                
+                                stream_delay = min(base_delay * (2 ** stream_attempts) + random.uniform(0, 1),
+                                                   max_delay)
+
                                 logger.warning(
                                     f"Stream connection attempt {stream_attempts} failed. "
                                     f"Error: {stream_error}. "
                                     f"Waiting {stream_delay:.2f}s before retry"
                                 )
-                                
+
                                 # Update simulator status for persistent errors
                                 if stream_attempts >= max_stream_attempts:
                                     logger.error(f"Exceeded max stream connection attempts for session {session_id}")
@@ -263,7 +255,7 @@ class SessionManager:
                                         'simulator_status': 'ERROR'
                                     })
                                     break
-                                
+
                                 await asyncio.sleep(stream_delay)
 
                     # Start the streaming task
@@ -271,7 +263,7 @@ class SessionManager:
 
                 # If heartbeat fails, log and continue to next attempt
                 logger.warning(f"Heartbeat failed for session {session_id} (Attempt {attempt + 1})")
-                
+
                 # On final attempt, mark as error
                 if attempt == max_attempts - 1:
                     await self.postgres_store.update_session_metadata(session_id, {
@@ -281,7 +273,7 @@ class SessionManager:
 
             except Exception as e:
                 logger.error(f"Error in exchange stream initialization (Attempt {attempt + 1}): {e}")
-                
+
                 # On final attempt, mark as error
                 if attempt == max_attempts - 1:
                     await self.postgres_store.update_session_metadata(session_id, {
@@ -291,9 +283,9 @@ class SessionManager:
 
         # If all attempts fail
         return None
-        
+
     # ----- Background tasks -----
-    
+
     async def start_session_tasks(self):
         """Start background cleanup task and simulator heartbeat task"""
         if self.cleanup_task is None or self.cleanup_task.done():
@@ -307,7 +299,7 @@ class SessionManager:
     async def stop_cleanup_task(self):
         """Stop background cleanup task and heartbeat task"""
         logger.info("Stopping background tasks (cleanup, heartbeat)...")
-        
+
         if self.cleanup_task and not self.cleanup_task.done():
             self.cleanup_task.cancel()
             try:
@@ -327,9 +319,9 @@ class SessionManager:
             except Exception as e:
                 logger.error(f"Error awaiting cancelled heartbeat task: {e}")
             self.heartbeat_task = None
-            
+
         logger.info("Background tasks stopped")
-        
+
     async def cleanup_pod_sessions(self, pod_name=None):
         """Clean up sessions associated with a pod before shutdown"""
         pod_name = pod_name or self.pod_name

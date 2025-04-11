@@ -3,11 +3,11 @@
 Handles PostgreSQL interactions for Session data.
 """
 import logging
-import asyncio
 import json
 import time
 import uuid
 import asyncpg
+import asyncio
 from typing import Dict, List, Any, Optional, Tuple
 
 from opentelemetry import trace
@@ -16,18 +16,17 @@ from source.config import config
 from source.models.session import Session, SessionStatus, SessionMetadata
 from source.utils.metrics import track_db_operation, track_db_error, TimedOperation
 from source.utils.tracing import optional_trace_span
+from source.db.stores.postgres_base import PostgresBase
 
 logger = logging.getLogger('pg_session_store')
 
 
-class PostgresSessionStore:
+class PostgresSessionStore(PostgresBase):
     """PostgreSQL store for session data."""
 
-    def __init__(self):
+    def __init__(self, db_config=None):
         """Initialize PostgreSQL session store."""
-        self.pool: Optional[asyncpg.Pool] = None
-        self.db_config = config.db
-        self._conn_lock = asyncio.Lock()
+        super().__init__(db_config)
         self.tracer = trace.get_tracer("postgres_session_store")
         logger.info("PostgresSessionStore initialized.")
 

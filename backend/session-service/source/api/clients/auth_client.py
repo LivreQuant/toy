@@ -17,6 +17,12 @@ from source.utils.tracing import optional_trace_span
 logger = logging.getLogger('auth_client')
 
 
+def _on_circuit_state_change(name, old_state, new_state, info):
+    """Handle circuit breaker state changes"""
+    logger.info(f"Circuit breaker '{name}' state change: {old_state.value} -> {new_state.value}")
+    track_circuit_breaker_state("auth_service", new_state.value)
+
+
 class AuthClient:
     """Client for the authentication service"""
 
@@ -34,15 +40,10 @@ class AuthClient:
         )
 
         # Register callback for circuit breaker state changes
-        self.circuit_breaker.on_state_change(self._on_circuit_state_change)
+        self.circuit_breaker.on_state_change(_on_circuit_state_change)
 
         # Create tracer
         self.tracer = trace.get_tracer("auth_client")
-
-    def _on_circuit_state_change(self, name, old_state, new_state, info):
-        """Handle circuit breaker state changes"""
-        logger.info(f"Circuit breaker '{name}' state change: {old_state.value} -> {new_state.value}")
-        track_circuit_breaker_state("auth_service", new_state.value)
 
     async def _get_session(self) -> aiohttp.ClientSession:
         """Get or create aiohttp session with thread safety"""

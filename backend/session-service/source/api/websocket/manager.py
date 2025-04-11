@@ -17,13 +17,11 @@ from typing import Dict, Any, Optional
 from aiohttp import web, WSMsgType
 from opentelemetry import trace, context
 
-# Utilities and Config
 from source.config import config
 from source.utils.metrics import track_websocket_connection_count, track_websocket_error
 from source.utils.tracing import optional_trace_span
 
-from source.core.session.session_manager import SessionManager
-from source.db.session_store import DatabaseManager
+from source.core.session.manager import SessionManager
 
 # WebSocket Components
 from source.api.websocket.authenticator import authenticate_websocket_request
@@ -40,10 +38,9 @@ logger = logging.getLogger('websocket_manager')
 class WebSocketManager:
     """Manages WebSocket connections lifecycle using registry, authenticator, and stream manager."""
 
-    def __init__(self, session_manager: SessionManager, db_manager: DatabaseManager):
+    def __init__(self, session_manager: SessionManager):
         """Initialize WebSocket manager."""
         self.session_manager = session_manager
-        self.redis_client = db_manager.redis
         self.registry = WebSocketRegistry(session_manager=self.session_manager)
         self.stream_manager = StreamManager()
 

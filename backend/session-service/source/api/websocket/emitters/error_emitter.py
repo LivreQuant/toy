@@ -3,19 +3,14 @@
 Handles formatting and sending standardized error messages to clients.
 """
 import logging
-from typing import Optional, Dict, Any, TYPE_CHECKING
+from typing import Optional, Dict, Any
 
 from aiohttp import web
 from opentelemetry import trace, context
 
-# Assuming metrics/tracing utilities are accessible
 from source.utils.metrics import track_websocket_error
-from ..exceptions import WebSocketError  # Import your custom base error
+from source.api.websocket.exceptions import WebSocketError
 
-# Type hint for Span if needed, already imported in dispatcher
-if TYPE_CHECKING:
-    # from opentelemetry.trace import Span - already imported
-    pass
 
 logger = logging.getLogger('websocket_emitter_error')
 
