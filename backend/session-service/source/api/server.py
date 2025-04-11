@@ -16,14 +16,17 @@ from source.config import config
 
 from source.db.manager import StoreManager
 from source.core.session.manager import SessionManager
+from source.core.simulator.manager import SimulatorManager
 
 from source.api.clients.auth_client import AuthClient
 from source.api.clients.exchange_client import ExchangeClient
 from source.api.rest.routes import setup_rest_routes
 from source.api.rest.middleware import metrics_middleware
 from source.api.websocket.manager import WebSocketManager
+from source.core.stream.manager import StreamManager
 
 from source.utils.middleware import tracing_middleware
+from source.utils.k8s_client import KubernetesClient
 
 logger = logging.getLogger('server')
 
@@ -68,12 +71,14 @@ class SessionServer:
         # Initialize component placeholders
         self.auth_client: Optional[AuthClient] = None
         self.exchange_client: Optional[ExchangeClient] = None
+        self.k8s_client: Optional[KubernetesClient] = None
         self.websocket_manager: Optional[WebSocketManager] = None
-        self.pubsub_task: Optional[asyncio.Task] = None
+        self.stream_manager: Optional[StreamManager] = None
 
         # Initialize managers
         self.store_manager: Optional[StoreManager] = StoreManager()
         self.session_manager: Optional[SessionManager] = None
+        self.simulator_manager: Optional[SimulatorManager] = None
 
     async def initialize(self):
         """Initialize all server components"""
@@ -91,30 +96,52 @@ class SessionServer:
             logger.critical(f"Failed to connect to databases: {e}. Cannot start server.", exc_info=True)
             raise RuntimeError(f"Database connection failed: {e}") from e
 
-        # Initialize managers with specific stores
-        self.session_manager = SessionManager(self.store_manager)
-        logger.info("Session manager initialized.")
-
-        # Start background tasks (ensure session_manager is initialized first)
-        await self.session_manager.start_session_tasks()
-        logger.info("Session cleanup task started.")
-
         # Initialize Internal API clients
         self.auth_client = AuthClient()
         self.exchange_client = ExchangeClient()
         logger.info("Internal API clients initialized.")
 
-        # Initialize WebSocket manager (ensure session_manager is initialized first)
-        self.websocket_manager = WebSocketManager(self.session_manager)
+        # Initialize Kubernetes client
+        self.k8s_client = KubernetesClient()
+
+        # Initialize stream manager (now independent)
+        self.stream_manager = StreamManager()
+        logger.info("Stream manager initialized.")
+
+        # Initialize simulator manager with its dependencies
+        self.simulator_manager = SimulatorManager(
+            self.store_manager,
+            k8s_client=self.k8s_client
+        )
+
+        # Initialize session manager with stream manager
+        self.session_manager = SessionManager(
+            self.store_manager, 
+            auth_client=self.auth_client,
+            exchange_client=self.exchange_client,
+            stream_manager=self.stream_manager,
+            simulator_manager=self.simulator_manager
+        )
+        logger.info("Session manager initialized.")
+
+        # Initialize WebSocket manager with session and stream managers
+        self.websocket_manager = WebSocketManager(
+            self.session_manager,
+            self.stream_manager
+        )
         logger.info("WebSocket manager initialized.")
+
+        # Start background tasks
+        await self.session_manager.start_session_tasks()
+        logger.info("Session cleanup tasks started.")
 
         # Make components available in application context
         self.app['store_manager'] = self.store_manager
         self.app['session_manager'] = self.session_manager
         self.app['websocket_manager'] = self.websocket_manager
-
         self.app['auth_client'] = self.auth_client
         self.app['exchange_client'] = self.exchange_client
+        self.app['stream_manager'] = self.stream_manager
 
         # Set up routes
         setup_rest_routes(self.app)

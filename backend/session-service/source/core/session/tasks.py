@@ -8,6 +8,7 @@ import asyncio
 from opentelemetry import trace
 
 from source.config import config
+from source.utils.event_bus import event_bus
 from source.models.simulator import SimulatorStatus
 from source.utils.metrics import track_cleanup_operation, track_session_count, track_simulator_count
 from source.utils.tracing import optional_trace_span
@@ -21,7 +22,7 @@ class SessionTasks:
     def __init__(self, session_manager):
         """
         Initialize with reference to session manager
-        
+
         Args:
             session_manager: Parent SessionManager instance
         """
@@ -54,9 +55,16 @@ class SessionTasks:
 
                         # Also update session metadata
                         try:
-                            await self.manager.postgres_store.update_session_metadata(simulator.session_id, {
+                            await self.manager.store.session_store.update_session_metadata(simulator.session_id, {
                                 'simulator_status': SimulatorStatus.RUNNING.value
                             })
+
+                            # Publish simulator ready event
+                            await event_bus.publish('simulator_ready',
+                                                  session_id=simulator.session_id,
+                                                  simulator_id=simulator.simulator_id,
+                                                  endpoint=simulator.endpoint)
+
                         except Exception as e:
                             logger.error(f"Failed to update session metadata for simulator {simulator.simulator_id}: {e}")
 
@@ -70,10 +78,15 @@ class SessionTasks:
             try:
                 logger.info("Running periodic cleanup...")
                 # Cleanup expired sessions (DB function handles this)
-                expired_count = await self.manager.postgres_store.cleanup_expired_sessions()
+                expired_count = await self.manager.store.session_store.cleanup_expired_sessions()
                 if expired_count > 0:
                     logger.info(f"Cleaned up {expired_count} expired sessions from DB.")
                     track_cleanup_operation("expired_sessions", expired_count)
+
+                    # Publish cleanup event
+                    await event_bus.publish('sessions_cleaned_up',
+                                          count=expired_count,
+                                          reason="expired")
 
                 # Cleanup inactive simulators (managed by SimulatorManager)
                 if hasattr(self.manager, 'simulator_manager') and self.manager.simulator_manager:
@@ -92,10 +105,15 @@ class SessionTasks:
                     logger.info(f"Cleaned up {zombie_count} zombie sessions")
                     track_cleanup_operation("zombie_sessions", zombie_count)
 
+                    # Publish zombie cleanup event
+                    await event_bus.publish('sessions_cleaned_up',
+                                          count=zombie_count,
+                                          reason="zombie")
+
                 # Update active session/simulator count metrics periodically
-                active_sessions = await self.manager.postgres_store.get_active_session_count()
+                active_sessions = await self.manager.store.session_store.get_active_session_count()
                 track_session_count(active_sessions, self.manager.pod_name)
-                
+
                 if hasattr(self.manager, 'simulator_manager') and self.manager.simulator_manager:
                     active_sims = await self.manager.simulator_manager.get_active_simulator_count()
                     track_simulator_count(active_sims, self.manager.pod_name)
@@ -123,7 +141,7 @@ class SessionTasks:
 
             # Get all potentially active sessions from the database
             # Fetch sessions that are marked ACTIVE but might be zombies
-            potentially_active_sessions = await self.manager.postgres_store.get_sessions_with_criteria({
+            potentially_active_sessions = await self.manager.store.session_store.get_sessions_with_criteria({
                 'status': 'ACTIVE'
             })
 
@@ -160,6 +178,11 @@ class SessionTasks:
                 logger.info(f"Identified zombie session {session.session_id} (User: {session.user_id}). "
                             f"Last DB Active: {session.last_active}, Last WS Conn: {last_ws_connection_ts}")
 
+                # Publish zombie session detected event
+                await event_bus.publish('zombie_session_detected',
+                                      session_id=session.session_id,
+                                      user_id=session.user_id)
+
                 # Stop any running simulators associated with this zombie session
                 sim_id = getattr(metadata, 'simulator_id', None)
                 sim_status = getattr(metadata, 'simulator_status', SimulatorStatus.NONE)
@@ -167,14 +190,20 @@ class SessionTasks:
                     logger.info(f"Stopping simulator {sim_id} for zombie session {session.session_id}")
                     try:
                         # Use force=True as we know the session is defunct
-                        await self.manager.simulator_ops.stop_simulator(session.session_id, token=None, force=True)
+                        await self.manager.stop_simulator(session.session_id, token=None, force=True)
                     except Exception as e:
                         logger.error(f"Error stopping simulator {sim_id} for zombie session {session.session_id}: {e}",
                                      exc_info=True)
 
                 # Mark session as expired in the database
                 logger.info(f"Marking zombie session {session.session_id} as EXPIRED.")
-                await self.manager.postgres_store.update_session_status(session.session_id, 'EXPIRED')
+                await self.manager.store.session_store.update_session_status(session.session_id, 'EXPIRED')
+
+                # Publish session expired event
+                await event_bus.publish('session_expired',
+                                      session_id=session.session_id,
+                                      reason="zombie")
+
                 zombie_count += 1
 
         except Exception as e:
@@ -197,7 +226,7 @@ class SessionTasks:
                 await self._check_starting_simulators()
 
                 # Get active sessions potentially managed by this pod
-                pod_sessions = await self.manager.postgres_store.get_sessions_with_criteria({
+                pod_sessions = await self.manager.store.session_store.get_sessions_with_criteria({
                     'pod_name': self.manager.pod_name,
                     'status': 'ACTIVE'
                 })
@@ -260,31 +289,51 @@ class SessionTasks:
                 # Use the dedicated DB method if it exists, otherwise update metadata
                 # await self.db_manager.update_simulator_last_active(simulator_id, time.time())
                 # OR update via metadata if no dedicated method
-                await self.manager.postgres_store.update_session_metadata(session_id, {
+                await self.manager.store.session_store.update_session_metadata(session_id, {
                     'last_simulator_heartbeat_sent': time.time()
                 })
-                
+
                 if hasattr(self.manager, 'simulator_manager') and self.manager.simulator_manager:
                     await self.manager.simulator_manager.update_simulator_activity(simulator_id)
-                    
+
                 logger.debug(f"Successfully sent heartbeat to simulator {simulator_id}")
+
+                # Publish successful heartbeat event
+                await event_bus.publish('simulator_heartbeat_success',
+                                      session_id=session_id,
+                                      simulator_id=simulator_id)
+
                 return True
             else:
                 logger.warning(
                     f"Failed to send heartbeat to simulator {simulator_id} at {endpoint}: {result.get('error')}")
+
+                # Publish heartbeat failure event
+                await event_bus.publish('simulator_heartbeat_failed',
+                                      session_id=session_id,
+                                      simulator_id=simulator_id,
+                                      error=result.get('error', 'Unknown error'))
+
                 # Consider updating simulator status in DB to ERROR if heartbeats consistently fail
                 return False
         except Exception as e:
             logger.error(f"Error sending heartbeat to simulator {simulator_id} at {endpoint}: {e}", exc_info=True)
+
+            # Publish heartbeat error event
+            await event_bus.publish('simulator_heartbeat_error',
+                                  session_id=session_id,
+                                  simulator_id=simulator_id,
+                                  error=str(e))
+
             # Consider updating simulator status in DB to ERROR here as well
             return False
-            
-    async def _cleanup_pod_sessions(self):
+
+    async def cleanup_pod_sessions(self, pod_name):
         """Clean up sessions and simulators associated with this pod before shutdown"""
         logger.info("Starting cleanup of sessions managed by this pod.")
         try:
-            pod_sessions = await self.manager.postgres_store.get_sessions_with_criteria({
-                'pod_name': self.manager.pod_name
+            pod_sessions = await self.manager.store.session_store.get_sessions_with_criteria({
+                'pod_name': pod_name
                 # Add 'status': 'active' or similar if applicable
             })
 
@@ -300,7 +349,7 @@ class SessionTasks:
             for session_data in pod_sessions:
                 # Access metadata safely, assuming it might be None or not a dict
                 metadata = session_data.metadata
-                
+
                 session_id = session_data.session_id
                 if not session_id:
                     continue
@@ -364,17 +413,13 @@ class SessionTasks:
             # Batch update sessions if DB manager supports it, otherwise loop
             for s_id in sessions_to_update:
                 try:
-                    await self.manager.postgres_store.update_session_metadata(s_id, update_metadata)
+                    await self.manager.store.session_store.update_session_metadata(s_id, update_metadata)
 
-                    # Notify clients via WebSocket that they should reconnect
-                    if self.manager.websocket_manager:
-                        await self.manager.websocket_manager.broadcast_to_session(
-                            s_id,
-                            {
-                                'type': 'pod_terminating',
-                                'message': 'Service instance is shutting down, please reconnect'
-                            }
-                        )
+                    # Publish pod terminating event
+                    await event_bus.publish('pod_terminating',
+                                          session_id=s_id,
+                                          pod_name=pod_name)
+
                 except Exception as e:
                     logger.error(f"Error updating session {s_id} metadata during shutdown: {e}", exc_info=True)
 
@@ -387,40 +432,57 @@ class SessionTasks:
         """Try multiple approaches to ensure simulator is stopped"""
         try:
             # First attempt: Use simulator_ops
-            success, error = await self.manager.simulator_ops.stop_simulator(session_id, token=None, force=True)
-            
+            success, error = await self.manager.stop_simulator(session_id, token=None, force=True)
+
             if success:
                 logger.info(f"Successfully stopped simulator {simulator_id} via simulator_ops")
                 return
-                
+
             logger.warning(f"Initial simulator stop failed for {simulator_id}, trying fallbacks. Error: {error}")
-            
+
             # Second attempt: Try direct K8s deletion if available
-            if self.manager.k8s_client:
+            if hasattr(self.manager, 'k8s_client') and self.manager.k8s_client:
                 try:
                     k8s_success = await self.manager.k8s_client.delete_simulator_deployment(simulator_id)
                     if k8s_success:
                         logger.info(f"Successfully stopped simulator {simulator_id} via direct K8s deletion")
-                        
+
                         # Update session metadata
-                        await self.manager.postgres_store.update_session_metadata(session_id, {
+                        await self.manager.store.session_store.update_session_metadata(session_id, {
                             'simulator_status': SimulatorStatus.STOPPED.value,
                             'simulator_id': None,
                             'simulator_endpoint': None
                         })
+
+                        # Publish simulator stopped event
+                        await event_bus.publish('simulator_stopped',
+                                              session_id=session_id,
+                                              simulator_id=simulator_id)
                         return
                 except Exception as k8s_error:
                     logger.error(f"K8s fallback deletion failed for {simulator_id}: {k8s_error}")
-            
+
             # Final fallback: Update metadata anyway to avoid future reconnection attempts
-            await self.manager.postgres_store.update_session_metadata(session_id, {
+            await self.manager.store.session_store.update_session_metadata(session_id, {
                 'simulator_status': SimulatorStatus.ERROR.value,
                 'simulator_id': None,
                 'simulator_endpoint': None,
                 'simulator_error': "Failed to stop properly during pod shutdown"
             })
-            
+
+            # Publish simulator error event
+            await event_bus.publish('simulator_error',
+                                  session_id=session_id,
+                                  simulator_id=simulator_id,
+                                  error="Failed to stop properly during pod shutdown")
+
             logger.warning(f"All shutdown attempts failed for simulator {simulator_id}, marked as ERROR in metadata")
-            
+
         except Exception as e:
             logger.error(f"Unexpected error stopping simulator {simulator_id} during shutdown: {e}", exc_info=True)
+
+            # Publish error event
+            await event_bus.publish('simulator_error',
+                                  session_id=session_id,
+                                  simulator_id=simulator_id,
+                                  error=str(e))

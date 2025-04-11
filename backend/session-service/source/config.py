@@ -95,7 +95,6 @@ class Config(BaseModel):
     server: ServerConfig = Field(default_factory=ServerConfig)
     session: SessionConfig = Field(default_factory=SessionConfig)
     websocket: WebSocketConfig = Field(default_factory=WebSocketConfig)
-    sse: SSEConfig = Field(default_factory=SSEConfig)
     simulator: SimulatorConfig = Field(default_factory=SimulatorConfig)
     kubernetes: KubernetesConfig = Field(default_factory=KubernetesConfig)
     tracing: TracingConfig = Field(default_factory=TracingConfig)
@@ -135,7 +134,6 @@ class Config(BaseModel):
             ),
             simulator=SimulatorConfig(
                 max_per_user=int(os.getenv('MAX_SIMULATORS_PER_USER', '1')),
-                inactivity_timeout=int(os.getenv('SIMULATOR_INACTIVITY_TIMEOUT', '3600')),
                 namespace=os.getenv('SIMULATOR_NAMESPACE', 'default')
             ),
             kubernetes=KubernetesConfig(

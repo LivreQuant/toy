@@ -1,13 +1,14 @@
-# websocket/stream_manager.py
+# stream_manager.py
 """
 Manages background asynchronous tasks (streams) associated with WebSocket sessions.
 """
-
 import asyncio
 import logging
 from typing import Dict
 
-logger = logging.getLogger('websocket_stream_manager')
+from source.utils.event_bus import event_bus
+
+logger = logging.getLogger('stream_manager')
 
 
 class StreamManager:
@@ -17,7 +18,12 @@ class StreamManager:
         """Initialize the StreamManager."""
         # session_id -> asyncio Task mapping
         self._streams: Dict[str, asyncio.Task] = {}
-        logger.info("StreamManager initialized.")
+
+        # Subscribe to events
+        event_bus.subscribe('ws_connection_closed', self.handle_connection_closed)
+        event_bus.subscribe('session_expired', self.handle_session_expired)
+
+        logger.info("StreamManager initialized")
 
     def register_stream(self, session_id: str, task: asyncio.Task):
         """
@@ -41,13 +47,14 @@ class StreamManager:
         if existing_task and not existing_task.done():
             logger.warning(f"Replacing existing stream task for session {session_id}. Cancelling old task.")
             existing_task.cancel()
-            # Note: We don't await the old task here, just cancel and replace.
-            # Consider if awaiting is needed depending on task cleanup requirements.
 
         self._streams[session_id] = task
 
         # Optional: Add a done callback to automatically remove finished/cancelled tasks
         task.add_done_callback(lambda t: self._handle_task_completion(session_id, t))
+
+        # Publish event that stream was started
+        asyncio.create_task(event_bus.publish('stream_started', session_id=session_id))
 
     async def stop_stream(self, session_id: str):
         """
@@ -64,8 +71,11 @@ class StreamManager:
                 # Wait briefly for cancellation to occur, but don't block indefinitely
                 await asyncio.wait_for(task, timeout=1.0)
                 logger.debug(f"Stream task for session {session_id} awaited after cancellation.")
+                # Publish event that stream was stopped
+                await event_bus.publish('stream_stopped', session_id=session_id)
             except asyncio.CancelledError:
                 logger.info(f"Stream task for session {session_id} successfully cancelled.")
+                await event_bus.publish('stream_stopped', session_id=session_id)
             except asyncio.TimeoutError:
                 logger.warning(f"Timeout waiting for stream task cancellation for session {session_id}.")
             except Exception as e:
@@ -74,7 +84,7 @@ class StreamManager:
                              exc_info=False)  # Keep log concise
         elif task and task.done():
             logger.debug(f"Stream task for session {session_id} was already done when stop was called.")
-        # else: No task found for session_id
+            await event_bus.publish('stream_stopped', session_id=session_id)
 
     async def stop_all_streams(self):
         """Stop all managed stream tasks. Typically used during shutdown."""
@@ -98,11 +108,25 @@ class StreamManager:
                 if isinstance(result, Exception) and not isinstance(result, asyncio.CancelledError):
                     original_task_name = tasks_to_await[i].get_name()
                     logger.error(f"Error stopping stream task {original_task_name} during stop_all: {result}")
+
+        # Publish event that all streams were stopped
+        await event_bus.publish('all_streams_stopped')
         logger.info("Finished stopping all streams.")
 
     def is_managing_stream(self, session_id: str) -> bool:
         """Check if a stream task is currently managed for the session."""
         return session_id in self._streams
+
+    async def handle_connection_closed(self, session_id: str, client_id: str, session_empty: bool):
+        """Event handler for when a WebSocket connection is closed."""
+        if session_empty:
+            logger.info(f"Last client disconnected from session {session_id}, stopping stream.")
+            await self.stop_stream(session_id)
+
+    async def handle_session_expired(self, session_id: str):
+        """Event handler for when a session expires."""
+        logger.info(f"Session {session_id} expired, stopping associated stream.")
+        await self.stop_stream(session_id)
 
     def _handle_task_completion(self, session_id: str, task: asyncio.Task):
         """Internal callback for when a managed task finishes (completes, cancels, or errors)."""
@@ -113,7 +137,8 @@ class StreamManager:
             logger.debug(
                 f"Stream task completed or cancelled for session {session_id}. Removing from active streams. Task: {task.get_name()}")
             del self._streams[session_id]
-        # else: A new task was registered for this session before the old one's callback fired.
+            # Publish event that stream ended
+            asyncio.create_task(event_bus.publish('stream_ended', session_id=session_id))
 
         # Log errors if the task completed with an exception
         try:
@@ -121,6 +146,10 @@ class StreamManager:
             if exception:
                 logger.error(f"Managed stream task for session {session_id} finished with error: {exception}",
                              exc_info=exception)
+                # Publish stream error event
+                asyncio.create_task(event_bus.publish('stream_error',
+                                                      session_id=session_id,
+                                                      error=str(exception)))
         except asyncio.CancelledError:
             logger.debug(f"Managed stream task for session {session_id} was cancelled.")
         except asyncio.InvalidStateError:

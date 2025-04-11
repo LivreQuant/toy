@@ -5,8 +5,10 @@ Defines the structure and state management for user sessions.
 import time
 import uuid
 from enum import Enum
-from typing import Dict, List, Any, Optional
+from typing import Dict, Any, Optional
 from pydantic import BaseModel, Field
+
+from source.models.simulator import SimulatorStatus
 
 
 class SessionStatus(str, Enum):

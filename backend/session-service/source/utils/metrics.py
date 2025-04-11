@@ -2,7 +2,7 @@
 import logging
 import threading
 import time
-from prometheus_client import Counter, Histogram, Gauge, Summary, start_http_server
+from prometheus_client import Counter, Histogram, Gauge, start_http_server
 
 from source.config import config
 
@@ -61,7 +61,7 @@ WEBSOCKET_ERRORS = Counter(
 
 
 # Simulator Metrics
-ACTIVE_SIMULATORS = Gauge(
+SIMULATOR_COUNT = Gauge(
     'session_active_simulators',
     'Number of active simulators',
     ['pod_name']
@@ -204,7 +204,7 @@ def track_simulator_count(count, pod_name=None):
     """Track active simulator count"""
     if pod_name is None:
         pod_name = config.kubernetes.pod_name
-    ACTIVE_SIMULATORS.labels(pod_name=pod_name).set(count)
+    SIMULATOR_COUNT.labels(pod_name=pod_name).set(count)
 
 
 def track_simulator_operation(operation, status='success'):

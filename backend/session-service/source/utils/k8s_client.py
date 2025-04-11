@@ -215,7 +215,7 @@ class KubernetesClient:
             logger.error(f"Error creating simulator deployment: {e}")
             # Try to clean up any resources that were created
             try:
-                self.delete_simulator_deployment(simulator_id)
+                await self.delete_simulator_deployment(simulator_id)
             except:
                 pass
             raise
