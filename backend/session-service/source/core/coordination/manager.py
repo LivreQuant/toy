@@ -31,10 +31,10 @@ class CoordinationManager:
             redis_coordination_store: Instance for Redis coordination operations
             redis_pubsub: Instance for publishing pod events
         """
+        # Stores
         self.redis_store = redis_coordination_store
         self.redis_pubsub = redis_pubsub
-        self.pod_name = config.kubernetes.pod_name
-        
+
         # Background tasks
         self.pubsub_task = None
         self.health_check_task = None
@@ -48,13 +48,14 @@ class CoordinationManager:
     async def register_self_pod(self) -> bool:
         """Register the current pod in Redis"""
         with optional_trace_span(self.tracer, "register_self_pod") as span:
-            span.set_attribute("pod_name", self.pod_name)
+            pod_name = config.kubernetes.pod_name
             host = config.server.host
             port = config.server.port
-            success = await self.redis_store.register_pod(self.pod_name, host, port)
+            span.set_attribute("pod_name", pod_name)
+            success = await self.redis_store.register_pod(pod_name, host, port)
             if success:
                 await self.redis_pubsub.publish_event('pod_online', {
-                    'pod_name': self.pod_name,
+                    'pod_name': pod_name,
                     'host': host,
                     'port': port,
                     'timestamp': time.time()
@@ -64,18 +65,13 @@ class CoordinationManager:
     async def unregister_self_pod(self) -> bool:
         """Unregister the current pod from Redis"""
         with optional_trace_span(self.tracer, "unregister_self_pod") as span:
-            span.set_attribute("pod_name", self.pod_name)
-            
+            pod_name = config.kubernetes.pod_name
+            span.set_attribute("pod_name", pod_name)
             await self.redis_pubsub.publish_event('pod_offline', {
-                'pod_name': self.pod_name,
+                'pod_name': pod_name,
                 'timestamp': time.time()
             })
-            
-            return await self.redis_store.unregister_pod(self.pod_name)
-
-    async def get_active_pods(self) -> List[str]:
-        """Get a list of names of currently active pods"""
-        return await self.redis_store.get_active_pods()
+            return await self.redis_store.unregister_pod(pod_name)
 
     # ----- Distributed Locking -----
 

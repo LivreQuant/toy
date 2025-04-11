@@ -15,10 +15,10 @@ from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 from source.config import config
 
 # Import new store and manager classes
-from source.db.connection_manager import ConnectionManager
-from source.core.coordination.coordination_manager import CoordinationManager
-from source.core.session.session_manager import SessionManager
-from source.core.simulator.simulator_manager import SimulatorManager
+from source.db.store_manager import StoreManager
+from source.core.coordination.manager import CoordinationManager
+from source.core.session.manager import SessionManager
+from source.core.simulator.manager import SimulatorManager
 
 # Import new store classes
 from source.db.stores.postgres.postgres_session_store import PostgresSessionStore
@@ -76,8 +76,6 @@ class SessionServer:
         self.shutdown_event = asyncio.Event()
 
         # Initialize component placeholders
-        self.connection_manager: Optional[ConnectionManager] = None
-
         self.auth_client: Optional[AuthClient] = None
         self.exchange_client: Optional[ExchangeClient] = None
         self.websocket_manager: Optional[WebSocketManager] = None
@@ -87,7 +85,21 @@ class SessionServer:
         self.session_manager: Optional[SessionManager] = None
         self.simulator_manager: Optional[SimulatorManager] = None
         
+        # Initialize stores
+        self.postgres_session_store = PostgresSessionStore()
+        self.postgres_simulator_store = PostgresSimulatorStore()
+        self.redis_session_cache = RedisSessionCache()
+        self.redis_pubsub = RedisPubSub()
+        self.redis_coordination_store = RedisCoordinationStore()
 
+        self.store_manager: Optional[StoreManager] = StoreManager(
+            postgres_session_store=self.postgres_session_store,
+            postgres_simulator_store=self.postgres_simulator_store,
+            redis_session_cache=self.redis_session_cache,
+            redis_pubsub=self.redis_pubsub,
+            redis_coordination=self.redis_coordination_store
+        )
+    
     async def initialize(self):
         """Initialize all server components"""
         if self.initialized:
@@ -96,17 +108,9 @@ class SessionServer:
 
         logger.info("Initializing server components")
 
-        # Initialize stores
-        postgres_session_store = PostgresSessionStore()
-        postgres_simulator_store = PostgresSimulatorStore()
-        redis_session_cache = RedisSessionCache()
-        redis_pubsub = RedisPubSub()
-        redis_coordination_store = RedisCoordinationStore()
-
         # Initialize connection manager
         try:
-            self.connection_manager = ConnectionManager()
-            await self.connection_manager.connect()
+            await self.store_manager.connect()
             logger.info("Database connections established.")
         except Exception as e:
             logger.critical(f"Failed to connect to databases: {e}. Cannot start server.", exc_info=True)
@@ -114,8 +118,8 @@ class SessionServer:
 
         # Initialize coordination manager
         self.coordination_manager = CoordinationManager(
-            redis_coordination_store,
-            redis_pubsub
+            self.redis_coordination_store,
+            self.redis_pubsub
         )
         await self.coordination_manager.register_self_pod()
         logger.info("Coordination manager initialized.")

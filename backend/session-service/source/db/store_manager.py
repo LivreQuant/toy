@@ -14,26 +14,31 @@ from source.db.stores.redis.redis_coordination import RedisCoordinationStore
 logger = logging.getLogger(__name__)
 
 
-class ConnectionManager:
+class StoreManager:
     """
     Manages connections for all database stores.
     Provides centralized connect/close/check methods.
     """
 
-    def __init__(self):
+    def __init__(self, 
+                 postgres_session_store=PostgresSessionStore, 
+                 postgres_simulator_store=PostgresSimulatorStore, 
+                 redis_session_cache=RedisSessionCache, 
+                 redis_pubsub=RedisPubSub, 
+                 redis_coordination=RedisCoordinationStore):
         """
         Initialize connection manager with store instances.
 
         Stores are initialized but not connected until connect() is called.
         """
         # PostgreSQL Stores
-        self.postgres_session_store = PostgresSessionStore()
-        self.postgres_simulator_store = PostgresSimulatorStore()
+        self.postgres_session_store = postgres_session_store
+        self.postgres_simulator_store = postgres_simulator_store
 
         # Redis Stores
-        self.redis_session_cache = RedisSessionCache()
-        self.redis_pubsub = RedisPubSub()
-        self.redis_coordination = RedisCoordinationStore()
+        self.redis_session_cache = redis_session_cache
+        self.redis_pubsub = redis_pubsub
+        self.redis_coordination = redis_coordination
 
         # Collect all stores for easier management
         self._stores = [
