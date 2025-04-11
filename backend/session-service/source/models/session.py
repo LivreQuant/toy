@@ -26,16 +26,6 @@ class ConnectionQuality(str, Enum):
     POOR = "poor"
 
 
-class SimulatorStatus(str, Enum):
-    """Simulator status enum"""
-    NONE = "NONE"
-    STARTING = "STARTING"
-    RUNNING = "RUNNING"
-    STOPPING = "STOPPING"
-    STOPPED = "STOPPED"
-    ERROR = "ERROR"
-
-
 class Subscription(BaseModel):
     """Data subscription model"""
     timestamp: float = Field(default_factory=time.time)

@@ -104,3 +104,4 @@ class ConnectionManager:
             logger.warning("Some Redis stores are not healthy. Functionality may be limited.")
 
         return True
+    

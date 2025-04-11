@@ -5,12 +5,15 @@ Handles cleanup of expired sessions, inactive simulators, and heartbeat function
 import logging
 import time
 import asyncio
+from typing import List, Any
 from opentelemetry import trace
+
 from source.config import config
 from source.models.simulator import SimulatorStatus
 from source.utils.metrics import track_cleanup_operation, track_session_count, track_simulator_count
+from source.utils.tracing import optional_trace_span
 
-logger = logging.getLogger('cleanup_tasks')
+logger = logging.getLogger('session_tasks')
 
 
 class SessionTasks:
@@ -24,38 +27,39 @@ class SessionTasks:
             session_manager: Parent SessionManager instance
         """
         self.manager = session_manager
-        self.tracer = trace.get_tracer("cleanup_tasks")
+        self.tracer = trace.get_tracer("session_tasks")
 
     async def _check_starting_simulators(self):
         """Check simulators in STARTING state and verify if they're ready"""
         try:
-            # Get simulators in STARTING state
-            starting_simulators = await self.manager.db_manager.get_simulators_with_status(SimulatorStatus.STARTING)
+            if hasattr(self.manager, 'simulator_manager') and self.manager.simulator_manager:
+                # Get simulators in STARTING state
+                starting_simulators = await self.manager.simulator_manager.get_simulators_with_status(SimulatorStatus.STARTING)
 
-            if not starting_simulators:
-                return
+                if not starting_simulators:
+                    return
 
-            logger.debug(f"Checking {len(starting_simulators)} simulators in STARTING state")
+                logger.debug(f"Checking {len(starting_simulators)} simulators in STARTING state")
 
-            for simulator in starting_simulators:
-                # Skip simulators that have been in STARTING state for too short a time
-                # Give them at least 10 seconds to initialize
-                if time.time() - simulator.last_active < 10:
-                    continue
+                for simulator in starting_simulators:
+                    # Skip simulators that have been in STARTING state for too short a time
+                    # Give them at least 10 seconds to initialize
+                    if time.time() - simulator.last_active < 10:
+                        continue
 
-                # Check if simulator is ready
-                is_ready = await self.manager.simulator_manager.check_simulator_ready(simulator.simulator_id)
+                    # Check if simulator is ready
+                    is_ready = await self.manager.simulator_manager.check_simulator_ready(simulator.simulator_id)
 
-                if is_ready:
-                    logger.info(f"Simulator {simulator.simulator_id} is now RUNNING")
+                    if is_ready:
+                        logger.info(f"Simulator {simulator.simulator_id} is now RUNNING")
 
-                    # Also update session metadata
-                    try:
-                        await self.manager.db_manager.update_session_metadata(simulator.session_id, {
-                            'simulator_status': SimulatorStatus.RUNNING.value
-                        })
-                    except Exception as e:
-                        logger.error(f"Failed to update session metadata for simulator {simulator.simulator_id}: {e}")
+                        # Also update session metadata
+                        try:
+                            await self.manager.postgres_store.update_session_metadata(simulator.session_id, {
+                                'simulator_status': SimulatorStatus.RUNNING.value
+                            })
+                        except Exception as e:
+                            logger.error(f"Failed to update session metadata for simulator {simulator.simulator_id}: {e}")
 
         except Exception as e:
             logger.error(f"Error checking starting simulators: {e}", exc_info=True)
@@ -67,20 +71,21 @@ class SessionTasks:
             try:
                 logger.info("Running periodic cleanup...")
                 # Cleanup expired sessions (DB function handles this)
-                expired_count = await self.manager.db_manager.cleanup_expired_sessions()
+                expired_count = await self.manager.postgres_store.cleanup_expired_sessions()
                 if expired_count > 0:
                     logger.info(f"Cleaned up {expired_count} expired sessions from DB.")
                     track_cleanup_operation("expired_sessions", expired_count)
 
                 # Cleanup inactive simulators (managed by SimulatorManager)
-                try:
-                    inactive_sim_count = await self.manager.simulator_manager.cleanup_inactive_simulators()
-                    # Handle None return value
-                    if inactive_sim_count is not None and inactive_sim_count > 0:
-                        logger.info(f"Cleaned up {inactive_sim_count} inactive simulators (DB+K8s).")
-                        track_cleanup_operation("inactive_simulators", inactive_sim_count)
-                except Exception as e:
-                    logger.error(f"Error cleaning up inactive simulators: {e}", exc_info=True)
+                if hasattr(self.manager, 'simulator_manager') and self.manager.simulator_manager:
+                    try:
+                        inactive_sim_count = await self.manager.simulator_manager.cleanup_inactive_simulators()
+                        # Handle None return value
+                        if inactive_sim_count is not None and inactive_sim_count > 0:
+                            logger.info(f"Cleaned up {inactive_sim_count} inactive simulators (DB+K8s).")
+                            track_cleanup_operation("inactive_simulators", inactive_sim_count)
+                    except Exception as e:
+                        logger.error(f"Error cleaning up inactive simulators: {e}", exc_info=True)
 
                 # Cleanup zombie sessions
                 zombie_count = await self._cleanup_zombie_sessions()
@@ -89,10 +94,12 @@ class SessionTasks:
                     track_cleanup_operation("zombie_sessions", zombie_count)
 
                 # Update active session/simulator count metrics periodically
-                active_sessions = await self.manager.db_manager.get_active_session_count()
+                active_sessions = await self.manager.postgres_store.get_active_session_count()
                 track_session_count(active_sessions, self.manager.pod_name)
-                active_sims = await self.manager.db_manager.get_active_simulator_count()
-                track_simulator_count(active_sims, self.manager.pod_name)
+                
+                if hasattr(self.manager, 'simulator_manager') and self.manager.simulator_manager:
+                    active_sims = await self.manager.simulator_manager.get_active_simulator_count()
+                    track_simulator_count(active_sims, self.manager.pod_name)
 
                 logger.info("Periodic cleanup finished.")
                 # Sleep until next cleanup cycle (e.g., every 5 minutes)
@@ -117,7 +124,7 @@ class SessionTasks:
 
             # Get all potentially active sessions from the database
             # Fetch sessions that are marked ACTIVE but might be zombies
-            potentially_active_sessions = await self.manager.db_manager.get_sessions_with_criteria({
+            potentially_active_sessions = await self.manager.postgres_store.get_sessions_with_criteria({
                 'status': 'ACTIVE'
             })
 
@@ -168,7 +175,7 @@ class SessionTasks:
 
                 # Mark session as expired in the database
                 logger.info(f"Marking zombie session {session.session_id} as EXPIRED.")
-                await self.manager.db_manager.update_session_status(session.session_id, 'EXPIRED')
+                await self.manager.postgres_store.update_session_status(session.session_id, 'EXPIRED')
                 zombie_count += 1
 
         except Exception as e:
@@ -191,7 +198,7 @@ class SessionTasks:
                 await self._check_starting_simulators()
 
                 # Get active sessions potentially managed by this pod
-                pod_sessions = await self.manager.db_manager.get_sessions_with_criteria({
+                pod_sessions = await self.manager.postgres_store.get_sessions_with_criteria({
                     'pod_name': self.manager.pod_name,
                     'status': 'ACTIVE'
                 })
@@ -254,10 +261,13 @@ class SessionTasks:
                 # Use the dedicated DB method if it exists, otherwise update metadata
                 # await self.db_manager.update_simulator_last_active(simulator_id, time.time())
                 # OR update via metadata if no dedicated method
-                await self.manager.db_manager.update_session_metadata(session_id, {
+                await self.manager.postgres_store.update_session_metadata(session_id, {
                     'last_simulator_heartbeat_sent': time.time()
                 })
-                await self.manager.db_manager.update_simulator_activity(simulator_id)
+                
+                if hasattr(self.manager, 'simulator_manager') and self.manager.simulator_manager:
+                    await self.manager.simulator_manager.update_simulator_activity(simulator_id)
+                    
                 logger.debug(f"Successfully sent heartbeat to simulator {simulator_id}")
                 return True
             else:
@@ -269,16 +279,13 @@ class SessionTasks:
             logger.error(f"Error sending heartbeat to simulator {simulator_id} at {endpoint}: {e}", exc_info=True)
             # Consider updating simulator status in DB to ERROR here as well
             return False
+            
     async def _cleanup_pod_sessions(self):
         """Clean up sessions and simulators associated with this pod before shutdown"""
         logger.info("Starting cleanup of sessions managed by this pod.")
-        if not self.session_manager or not self.db_manager:
-            logger.error("Session Manager or DB Manager not available for cleanup.")
-            return
-
         try:
-            pod_sessions: List[Any] = await self.db_manager.get_sessions_with_criteria({
-                'pod_name': config.kubernetes.pod_name
+            pod_sessions = await self.manager.postgres_store.get_sessions_with_criteria({
+                'pod_name': self.manager.pod_name
                 # Add 'status': 'active' or similar if applicable
             })
 
@@ -293,17 +300,15 @@ class SessionTasks:
 
             for session_data in pod_sessions:
                 # Access metadata safely, assuming it might be None or not a dict
-                metadata = getattr(session_data, 'metadata', {})
-                if not isinstance(metadata, dict):
-                    metadata = {}
-
-                session_id = getattr(session_data, 'session_id', None)
+                metadata = session_data.metadata
+                
+                session_id = session_data.session_id
                 if not session_id:
                     continue
 
-                simulator_id = metadata.get('simulator_id')
-                simulator_status = metadata.get('simulator_status')
-                simulator_endpoint = metadata.get('simulator_endpoint')
+                simulator_id = getattr(metadata, 'simulator_id', None)
+                simulator_status = getattr(metadata, 'simulator_status', None)
+                simulator_endpoint = getattr(metadata, 'simulator_endpoint', None)
 
                 sessions_to_update.append(session_id)
 
@@ -360,11 +365,11 @@ class SessionTasks:
             # Batch update sessions if DB manager supports it, otherwise loop
             for s_id in sessions_to_update:
                 try:
-                    await self.db_manager.update_session_metadata(s_id, update_metadata)
+                    await self.manager.postgres_store.update_session_metadata(s_id, update_metadata)
 
                     # Notify clients via WebSocket that they should reconnect
-                    if self.websocket_manager:
-                        await self.websocket_manager.broadcast_to_session(
+                    if self.manager.websocket_manager:
+                        await self.manager.websocket_manager.broadcast_to_session(
                             s_id,
                             {
                                 'type': 'pod_terminating',
@@ -378,3 +383,45 @@ class SessionTasks:
 
         except Exception as e:
             logger.error(f"Error during _cleanup_pod_sessions: {e}", exc_info=True)
+
+    async def _stop_simulator_with_fallbacks(self, session_id, simulator_id, endpoint):
+        """Try multiple approaches to ensure simulator is stopped"""
+        try:
+            # First attempt: Use simulator_ops
+            success, error = await self.manager.simulator_ops.stop_simulator(session_id, token=None, force=True)
+            
+            if success:
+                logger.info(f"Successfully stopped simulator {simulator_id} via simulator_ops")
+                return
+                
+            logger.warning(f"Initial simulator stop failed for {simulator_id}, trying fallbacks. Error: {error}")
+            
+            # Second attempt: Try direct K8s deletion if available
+            if self.manager.k8s_client:
+                try:
+                    k8s_success = await self.manager.k8s_client.delete_simulator_deployment(simulator_id)
+                    if k8s_success:
+                        logger.info(f"Successfully stopped simulator {simulator_id} via direct K8s deletion")
+                        
+                        # Update session metadata
+                        await self.manager.postgres_store.update_session_metadata(session_id, {
+                            'simulator_status': SimulatorStatus.STOPPED.value,
+                            'simulator_id': None,
+                            'simulator_endpoint': None
+                        })
+                        return
+                except Exception as k8s_error:
+                    logger.error(f"K8s fallback deletion failed for {simulator_id}: {k8s_error}")
+            
+            # Final fallback: Update metadata anyway to avoid future reconnection attempts
+            await self.manager.postgres_store.update_session_metadata(session_id, {
+                'simulator_status': SimulatorStatus.ERROR.value,
+                'simulator_id': None,
+                'simulator_endpoint': None,
+                'simulator_error': "Failed to stop properly during pod shutdown"
+            })
+            
+            logger.warning(f"All shutdown attempts failed for simulator {simulator_id}, marked as ERROR in metadata")
+            
+        except Exception as e:
+            logger.error(f"Unexpected error stopping simulator {simulator_id} during shutdown: {e}", exc_info=True)

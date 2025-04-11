@@ -77,13 +77,16 @@ class SessionServer:
 
         # Initialize component placeholders
         self.connection_manager: Optional[ConnectionManager] = None
-        self.coordination_manager: Optional[CoordinationManager] = None
+
         self.auth_client: Optional[AuthClient] = None
         self.exchange_client: Optional[ExchangeClient] = None
-        self.session_manager: Optional[SessionManager] = None
-        self.simulator_manager: Optional[SimulatorManager] = None
         self.websocket_manager: Optional[WebSocketManager] = None
         self.pubsub_task: Optional[asyncio.Task] = None
+
+        self.coordination_manager: Optional[CoordinationManager] = None
+        self.session_manager: Optional[SessionManager] = None
+        self.simulator_manager: Optional[SimulatorManager] = None
+        
 
     async def initialize(self):
         """Initialize all server components"""

@@ -4,7 +4,7 @@ Session creation, validation, and management operations.
 import logging
 import time
 import json
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Dict, Any
 from opentelemetry import trace
 
 from source.models.session import Session, SessionStatus
@@ -56,18 +56,18 @@ class SessionOperations:
 
             try:
                 # --- Enforce Single Session per User ---
-                active_sessions = await self.manager.db_manager.get_active_user_sessions(user_id)
+                active_sessions = await self.manager.postgres_store.get_active_user_sessions(user_id)
                 for old_session in active_sessions:
                     logger.warning(f"User {user_id} has existing active session {old_session.session_id}. Ending it.")
                     span.add_event("Ending existing session", {"old_session_id": old_session.session_id})
                     # Force stop the simulator associated with the old session
-                    await self.manager.stop_simulator(old_session.session_id, token=token, force=True)  # Use force=True
+                    await self.manager.simulator_ops.stop_simulator(old_session.session_id, token=token, force=True)
                     # Mark the old session as expired in DB
-                    await self.manager.db_manager.update_session_status(old_session.session_id,
+                    await self.manager.postgres_store.update_session_status(old_session.session_id,
                                                                         SessionStatus.EXPIRED.value)
 
                 # Create new session in DB
-                session_id, is_new = await self.manager.db_manager.create_session(user_id, ip_address)
+                session_id, is_new = await self.manager.postgres_store.create_session(user_id, ip_address)
                 span.set_attribute("session_id", session_id)
                 span.set_attribute("is_new", is_new)  # Should always be true after cleanup
 
@@ -77,7 +77,7 @@ class SessionOperations:
                     return None, False
 
                 # Set essential metadata including the validated device_id and current pod
-                await self.manager.db_manager.update_session_metadata(session_id, {
+                await self.manager.postgres_store.update_session_metadata(session_id, {
                     'pod_name': self.manager.pod_name,
                     'ip_address': ip_address,
                     'device_id': device_id,  # Store the device ID associated with this session
@@ -89,9 +89,9 @@ class SessionOperations:
                 track_session_operation("create")
 
                 # Publish session creation event if Redis is available
-                if self.manager.db_manager.redis:
+                if self.manager.redis_pubsub:
                     try:
-                        await self.manager.db_manager.redis.publish_session_event('session_created', {
+                        await self.manager.redis_pubsub.publish_event('session_created', {
                             'session_id': session_id,
                             'user_id': user_id,
                             'device_id': device_id,
@@ -100,7 +100,7 @@ class SessionOperations:
                         logger.error(f"Failed to publish session creation event to Redis for {session_id}: {e}")
 
                 # Update active session count metric
-                active_session_count = await self.manager.db_manager.get_active_session_count()
+                active_session_count = await self.manager.postgres_store.get_active_session_count()
                 track_session_count(active_session_count, self.manager.pod_name)
 
                 logger.info(f"Successfully created new session {session_id} for user {user_id}, device {device_id}")
@@ -125,7 +125,7 @@ class SessionOperations:
         with optional_trace_span(self.tracer, "get_session") as span:
             span.set_attribute("session_id", session_id)
             try:
-                session = await self.manager.db_manager.get_session_from_db(session_id)  # Fetches Session object
+                session = await self.manager.postgres_store.get_session_from_db(session_id)  # Fetches Session object
 
                 if not session:
                     span.set_attribute("session_found", False)
@@ -161,9 +161,6 @@ class SessionOperations:
             User ID if valid, None otherwise
         """
         with optional_trace_span(self.tracer, "validate_session") as span:
-
-            logger.info(f"session_operations - validate_session - session validation: {session_id}")
-
             span.set_attribute("session_id", session_id)
             span.set_attribute("has_token", token is not None)
             span.set_attribute("device_id_provided", device_id is not None)
@@ -185,10 +182,8 @@ class SessionOperations:
                 return None
 
             # 2. Get session from database
-            session = await self.manager.db_manager.get_session_from_db(session_id)  # Fetches Session object
+            session = await self.manager.postgres_store.get_session_from_db(session_id)  # Fetches Session object
             span.set_attribute("session_found_in_db", session is not None)
-
-            logger.info(f"session_operations - validate_session - session: {session}")
 
             if not session:
                 logger.warning(f"Session {session_id} not found in DB during validation.")
@@ -219,7 +214,7 @@ class SessionOperations:
 
             # 6. Validation successful, update session activity
             # Use the dedicated DB method for this
-            update_success = await self.manager.db_manager.update_session_activity(session_id)
+            update_success = await self.manager.postgres_store.update_session_activity(session_id)
             if not update_success:
                 logger.warning(f"Failed to update session activity for {session_id} after validation.")
                 # Decide if this should be a validation failure - perhaps not, log and continue.
@@ -241,7 +236,7 @@ class SessionOperations:
         """
         try:
             # Use the dedicated DB method
-            success = await self.manager.db_manager.update_session_activity(session_id)
+            success = await self.manager.postgres_store.update_session_activity(session_id)
             if not success:
                 logger.warning(f"DB update_session_activity returned False for session {session_id}")
             return success
@@ -263,8 +258,6 @@ class SessionOperations:
         with optional_trace_span(self.tracer, "end_session") as span:
             span.set_attribute("session_id", session_id)
 
-            logger.info(f"session_operations - end_session - session validation: {session_id}")
-            
             # 1. Validate session and token first
             user_id = await self.validate_session(session_id, token)  # Validation updates activity if successful
             span.set_attribute("user_id", user_id)
@@ -278,7 +271,7 @@ class SessionOperations:
 
             try:
                 # 2. Get current session details (needed for simulator info and lifetime metric)
-                session = await self.manager.db_manager.get_session_from_db(session_id)
+                session = await self.manager.postgres_store.get_session_from_db(session_id)
                 if not session:
                     # Should not happen if validation passed, but handle defensively
                     logger.error(f"Session {session_id} passed validation but not found for ending.")
@@ -297,7 +290,7 @@ class SessionOperations:
                 if sim_id and sim_status != SimulatorStatus.STOPPED:
                     logger.info(f"Stopping simulator {sim_id} as part of ending session {session_id}.")
                     # Use force=True because the session is ending regardless
-                    sim_stopped, sim_stop_error = await self.manager.stop_simulator(session_id, token=token, force=True)
+                    sim_stopped, sim_stop_error = await self.manager.simulator_ops.stop_simulator(session_id, token=token, force=True)
                     if not sim_stopped:
                         # Log error but continue ending the session
                         logger.error(f"Failed to stop simulator {sim_id} during session end: {sim_stop_error}")
@@ -309,7 +302,7 @@ class SessionOperations:
                 # 4. End session in database (mark as EXPIRED or delete)
                 # Assuming db_manager.end_session marks as EXPIRED or deletes
                 # Let's assume it marks as EXPIRED for potential auditing
-                success = await self.manager.db_manager.update_session_status(session_id, SessionStatus.EXPIRED.value)
+                success = await self.manager.postgres_store.update_session_status(session_id, SessionStatus.EXPIRED.value)
 
                 if not success:
                     logger.error(f"Failed to mark session {session_id} as EXPIRED in DB.")
@@ -324,13 +317,13 @@ class SessionOperations:
                 span.set_attribute("session_lifetime_seconds", lifetime)
 
                 # 6. Update active session count metric
-                active_session_count = await self.manager.db_manager.get_active_session_count()
+                active_session_count = await self.manager.postgres_store.get_active_session_count()
                 track_session_count(active_session_count, self.manager.pod_name)
 
                 # 7. Publish session end event if Redis is available
-                if self.manager.db_manager.redis:
+                if self.manager.redis_pubsub:
                     try:
-                        await self.manager.db_manager.redis.publish_session_event('session_ended', {
+                        await self.manager.redis_pubsub.publish_event('session_ended', {
                             'session_id': session_id,
                             'user_id': user_id,
                         })
