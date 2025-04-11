@@ -4,18 +4,18 @@ Handles creating new simulator instances including database and Kubernetes resou
 """
 import logging
 import time
-from typing import List, Optional, Tuple
+from typing import Optional, Tuple
 from opentelemetry import trace
 
-from source.models.simulator import Simulator, SimulatorStatus
 from source.utils.metrics import track_simulator_creation_time, track_simulator_operation, track_simulator_count
 from source.utils.tracing import optional_trace_span
-from source.config import config
+
+from source.models.simulator import Simulator, SimulatorStatus
 
 logger = logging.getLogger('simulator_creator')
 
 
-class SimulatorCreator:
+class SimulatorLifecycle:
     """Handles simulator creation operations"""
 
     def __init__(self, simulator_manager):
@@ -128,3 +128,22 @@ class SimulatorCreator:
 
                 track_simulator_operation("create", "error")
                 return None, str(e)
+
+    async def delete_simulator(self, simulator_id: str):
+        """K8s delete."""
+        logger.debug(f"Attempting graceful stop for simulator {simulator_id}")
+
+        # Ensure clients are available
+        if not self.exchange_client or not self.session_manager or not getattr(self.session_manager, 'k8s_client',
+                                                                               None):
+            logger.error("Required clients (Exchange, K8s) not available for simulator stop.")
+            return False
+
+        logger.warning(f"K8s resource deletion for simulator {simulator_id}")
+        try:
+            await self.session_manager.k8s_client.delete_simulator_deployment(simulator_id)
+            logger.info(f"Successfully deleted K8s resources for simulator {simulator_id}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to delete K8s resources for simulator {simulator_id}: {e}", exc_info=True)
+            return False

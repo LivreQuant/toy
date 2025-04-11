@@ -43,8 +43,7 @@ async def main():
     # Set up signal handlers for graceful shutdown
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
-        loop.add_signal_handler(
-            sig, lambda: asyncio.create_task(server.shutdown()))
+        loop.add_signal_handler(sig, lambda: asyncio.create_task(server.shutdown()))
 
     # Initialize server components
     try:

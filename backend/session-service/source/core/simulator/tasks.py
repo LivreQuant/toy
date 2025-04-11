@@ -1,5 +1,5 @@
 """
-Simulator cleanup operations.
+Simulator tasks.
 Handles cleaning up inactive simulators and orphaned resources.
 """
 import logging
@@ -8,14 +8,15 @@ import time
 import random
 from opentelemetry import trace
 
-from source.models.simulator import SimulatorStatus
 from source.utils.metrics import track_cleanup_operation
+
+from source.models.simulator import SimulatorStatus
 
 logger = logging.getLogger('simulator_cleanup')
 
 
-class CleanupOperations:
-    """Handles simulator cleanup operations"""
+class SimulatorTasks:
+    """Handles simulator tasks"""
 
     def __init__(self, simulator_manager):
         """

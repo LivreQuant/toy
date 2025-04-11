@@ -269,3 +269,112 @@ class SessionTasks:
             logger.error(f"Error sending heartbeat to simulator {simulator_id} at {endpoint}: {e}", exc_info=True)
             # Consider updating simulator status in DB to ERROR here as well
             return False
+    async def _cleanup_pod_sessions(self):
+        """Clean up sessions and simulators associated with this pod before shutdown"""
+        logger.info("Starting cleanup of sessions managed by this pod.")
+        if not self.session_manager or not self.db_manager:
+            logger.error("Session Manager or DB Manager not available for cleanup.")
+            return
+
+        try:
+            pod_sessions: List[Any] = await self.db_manager.get_sessions_with_criteria({
+                'pod_name': config.kubernetes.pod_name
+                # Add 'status': 'active' or similar if applicable
+            })
+
+            if not pod_sessions:
+                logger.info("No active sessions found for this pod to clean up.")
+                return
+
+            logger.info(f"Found {len(pod_sessions)} sessions potentially managed by this pod. Initiating cleanup...")
+
+            simulator_tasks = []
+            sessions_to_update = []
+
+            for session_data in pod_sessions:
+                # Access metadata safely, assuming it might be None or not a dict
+                metadata = getattr(session_data, 'metadata', {})
+                if not isinstance(metadata, dict):
+                    metadata = {}
+
+                session_id = getattr(session_data, 'session_id', None)
+                if not session_id:
+                    continue
+
+                simulator_id = metadata.get('simulator_id')
+                simulator_status = metadata.get('simulator_status')
+                simulator_endpoint = metadata.get('simulator_endpoint')
+
+                sessions_to_update.append(session_id)
+
+                # Check if session has a simulator running or starting
+                if simulator_id and simulator_status not in [SimulatorStatus.STOPPED.value,
+                                                             SimulatorStatus.ERROR.value,
+                                                             None]:
+                    logger.info(f"Scheduling simulator {simulator_id} for session {session_id} for shutdown.")
+                    task = asyncio.create_task(
+                        self._stop_simulator_with_fallbacks(
+                            session_id,
+                            simulator_id,
+                            simulator_endpoint
+                        )
+                    )
+                    simulator_tasks.append(task)
+                else:
+                    logger.debug(f"No active simulator found for session {session_id} to stop.")
+
+            # Wait for simulator shutdowns with timeout
+            if simulator_tasks:
+                logger.info(f"Waiting for {len(simulator_tasks)} simulator shutdown tasks...")
+                # Allow timeout for graceful shutdowns
+                done, pending = await asyncio.wait(
+                    simulator_tasks,
+                    timeout=config.server.shutdown_timeout - 2.0,  # Allow margin
+                    return_when=asyncio.ALL_COMPLETED
+                )
+
+                logger.info(f"Completed {len(done)} simulator shutdown tasks.")
+                if pending:
+                    logger.warning(f"{len(pending)} simulator shutdown tasks timed out or were cancelled.")
+                    # Cancel any pending tasks explicitly
+                    for task in pending:
+                        task.cancel()
+                        try:
+                            await task  # Allow cancellation to propagate
+                        except asyncio.CancelledError:
+                            pass
+                        except Exception as e:
+                            logger.error(f"Error awaiting cancelled simulator task: {e}", exc_info=True)
+                    # Optionally add direct K8s delete here for timed-out ones if needed
+
+            # Update all affected session states in DB
+            logger.info(f"Updating metadata for {len(sessions_to_update)} sessions to mark pod termination.")
+            update_metadata = {
+                'pod_terminating': True,
+                'termination_time': time.time(),
+                # Mark simulator as stopped if we attempted cleanup, even if it failed/timed out
+                # K8s garbage collection should handle orphaned resources eventually
+                'simulator_status': SimulatorStatus.STOPPED.value
+            }
+
+            # Batch update sessions if DB manager supports it, otherwise loop
+            for s_id in sessions_to_update:
+                try:
+                    await self.db_manager.update_session_metadata(s_id, update_metadata)
+
+                    # Notify clients via WebSocket that they should reconnect
+                    if self.websocket_manager:
+                        await self.websocket_manager.broadcast_to_session(
+                            s_id,
+                            {
+                                'type': 'pod_terminating',
+                                'message': 'Service instance is shutting down, please reconnect'
+                            }
+                        )
+                except Exception as e:
+                    logger.error(f"Error updating session {s_id} metadata during shutdown: {e}", exc_info=True)
+
+            logger.info("Session cleanup phase complete.")
+
+        except Exception as e:
+            logger.error(f"Error during _cleanup_pod_sessions: {e}", exc_info=True)

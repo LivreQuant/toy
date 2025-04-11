@@ -1,20 +1,21 @@
 """
-Simulator lifecycle operations.
+Simulator operations.
 Handles stopping, retrieving status, and managing simulator instances.
 """
 import logging
 from typing import List, Dict, Any, Tuple
 from opentelemetry import trace
 
-from source.models.simulator import Simulator, SimulatorStatus
 from source.utils.metrics import track_simulator_operation, track_simulator_count
 from source.utils.tracing import optional_trace_span
 
-logger = logging.getLogger('simulator_lifecycle')
+from source.models.simulator import Simulator, SimulatorStatus
+
+logger = logging.getLogger('simulator_operations')
 
 
-class SimulatorLifecycle:
-    """Handles simulator lifecycle operations"""
+class SimulatorOperations:
+    """Handles simulator operations"""
 
     def __init__(self, simulator_manager):
         """
@@ -24,7 +25,7 @@ class SimulatorLifecycle:
             simulator_manager: Parent SimulatorManager instance
         """
         self.manager = simulator_manager
-        self.tracer = trace.get_tracer("simulator_lifecycle")
+        self.tracer = trace.get_tracer("simulator_operations")
 
     async def stop_simulator(self, simulator_id: str) -> Tuple[bool, str]:
         """
