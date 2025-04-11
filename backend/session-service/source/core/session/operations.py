@@ -87,17 +87,6 @@ class SessionOperations:
                 # Track session creation metric
                 track_session_operation("create")
 
-                # Publish session creation event if Redis is available
-                if self.manager.redis_pubsub:
-                    try:
-                        await self.manager.redis_pubsub.publish_event('session_created', {
-                            'session_id': session_id,
-                            'user_id': user_id,
-                            'device_id': device_id,
-                        })
-                    except Exception as e:
-                        logger.error(f"Failed to publish session creation event to Redis for {session_id}: {e}")
-
                 # Update active session count metric
                 active_session_count = await self.manager.postgres_store.get_active_session_count()
                 track_session_count(active_session_count, self.manager.pod_name)
@@ -309,8 +298,6 @@ class SessionOperations:
                 if not success:
                     logger.error(f"Failed to mark session {session_id} as EXPIRED in DB.")
                     span.set_attribute("error", "Failed to update session status in DB")
-                    # Don't return failure here if simulator stop worked, maybe DB issue is transient
-                    # return False, "Failed to update session status in database"
 
                 # 5. Calculate session lifetime and record metric
                 lifetime = time.time() - session_created_at
@@ -321,16 +308,6 @@ class SessionOperations:
                 # 6. Update active session count metric
                 active_session_count = await self.manager.postgres_store.get_active_session_count()
                 track_session_count(active_session_count, self.manager.pod_name)
-
-                # 7. Publish session end event if Redis is available
-                if self.manager.redis_pubsub:
-                    try:
-                        await self.manager.redis_pubsub.publish_event('session_ended', {
-                            'session_id': session_id,
-                            'user_id': user_id,
-                        })
-                    except Exception as e:
-                        logger.error(f"Failed to publish session end event to Redis for {session_id}: {e}")
 
                 logger.info(f"Session {session_id} ended successfully for user {user_id}.")
                 return True, ""

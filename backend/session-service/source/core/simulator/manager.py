@@ -31,7 +31,6 @@ class SimulatorManager:
         
         Args:
             postgres_store: PostgreSQL store for simulator persistence
-            redis_pubsub: Redis pub/sub for events
             exchange_client: Exchange client for gRPC communication
             k8s_client: Kubernetes client for simulator management
         """
@@ -126,19 +125,6 @@ class SimulatorManager:
                 track_simulator_operation("create", "success")
                 track_simulator_count(await self.postgres_store.get_active_simulator_count())
 
-                # Publish event
-                if self.redis_pubsub:
-                    try:
-                        await self.redis_pubsub.publish_event('simulator_created', {
-                            'session_id': session_id,
-                            'simulator_id': simulator.simulator_id,
-                            'user_id': user_id,
-                            'status': SimulatorStatus.STARTING.value,
-                            'endpoint': endpoint
-                        })
-                    except Exception as e:
-                        logger.error(f"Failed to publish simulator creation event: {e}")
-
                 logger.info(f"Created simulator {simulator.simulator_id} for session {session_id}")
                 return simulator, ""
 
@@ -192,17 +178,6 @@ class SimulatorManager:
                 
                 # Update status to STOPPED
                 await self.postgres_store.update_simulator_status(simulator_id, SimulatorStatus.STOPPED)
-
-                # Publish event
-                if self.redis_pubsub:
-                    try:
-                        await self.redis_pubsub.publish_event('simulator_stopped', {
-                            'simulator_id': simulator_id,
-                            'session_id': simulator.session_id,
-                            'user_id': simulator.user_id
-                        })
-                    except Exception as e:
-                        logger.error(f"Failed to publish simulator stopped event: {e}")
 
                 track_simulator_operation("stop", "success" if k8s_success else "partial")
                 

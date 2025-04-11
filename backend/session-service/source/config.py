@@ -4,7 +4,7 @@ Loads configuration from environment variables with sensible defaults.
 """
 import os
 import logging
-from typing import Optional, List
+from typing import List
 from pydantic import BaseModel, Field
 
 # Log level mapping
@@ -33,14 +33,6 @@ class DatabaseConfig(BaseModel):
         return f"postgres://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}"
 
 
-class RedisConfig(BaseModel):
-    """Redis connection configuration"""
-    host: str = Field(default="redis")
-    port: int = Field(default=6379)
-    db: int = Field(default=0)
-    password: Optional[str] = Field(default=None)
-
-
 class ServiceConfig(BaseModel):
     """External service endpoints"""
     auth_service_url: str = Field(default="http://auth-service:8001")
@@ -65,11 +57,6 @@ class SessionConfig(BaseModel):
 class WebSocketConfig(BaseModel):
     """WebSocket configuration"""
     heartbeat_interval: int = Field(default=10)  # 10 seconds
-
-
-class SSEConfig(BaseModel):
-    """Server-Sent Events configuration"""
-    keepalive_interval: int = Field(default=15)  # 15 seconds
 
 
 class SimulatorConfig(BaseModel):
@@ -104,7 +91,6 @@ class Config(BaseModel):
     environment: str = Field(default="development")
     log_level: str = Field(default="INFO")
     db: DatabaseConfig = Field(default_factory=DatabaseConfig)
-    redis: RedisConfig = Field(default_factory=RedisConfig)
     services: ServiceConfig = Field(default_factory=ServiceConfig)
     server: ServerConfig = Field(default_factory=ServerConfig)
     session: SessionConfig = Field(default_factory=SessionConfig)
@@ -130,12 +116,6 @@ class Config(BaseModel):
                 min_connections=int(os.getenv('DB_MIN_CONNECTIONS', '2')),
                 max_connections=int(os.getenv('DB_MAX_CONNECTIONS', '10'))
             ),
-            redis=RedisConfig(
-                host=os.getenv('REDIS_HOST', 'redis'),
-                port=int(os.getenv('REDIS_PORT', '6379')),
-                db=int(os.getenv('REDIS_DB', '0')),
-                password=os.getenv('REDIS_PASSWORD', None)
-            ),
             services=ServiceConfig(
                 auth_service_url=os.getenv('AUTH_SERVICE_URL', 'http://auth-service:8000'),
                 exchange_manager_service=os.getenv('EXCHANGE_MANAGER_SERVICE', 'exchange-manager-service:50055')
@@ -152,9 +132,6 @@ class Config(BaseModel):
             ),
             websocket=WebSocketConfig(
                 heartbeat_interval=int(os.getenv('WEBSOCKET_HEARTBEAT_INTERVAL', '10'))
-            ),
-            sse=SSEConfig(
-                keepalive_interval=int(os.getenv('SSE_KEEPALIVE_INTERVAL', '15'))
             ),
             simulator=SimulatorConfig(
                 max_per_user=int(os.getenv('MAX_SIMULATORS_PER_USER', '1')),

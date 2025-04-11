@@ -59,18 +59,6 @@ WEBSOCKET_ERRORS = Counter(
     ['error_type']
 )
 
-# SSE Metrics
-SSE_CONNECTIONS = Gauge(
-    'session_sse_connections',
-    'Number of active SSE connections',
-    ['pod_name']
-)
-
-SSE_MESSAGES = Counter(
-    'session_sse_messages_total',
-    'Number of SSE messages sent',
-    ['event_type']
-)
 
 # Simulator Metrics
 ACTIVE_SIMULATORS = Gauge(
@@ -210,18 +198,6 @@ def track_websocket_message(direction, message_type):
 def track_websocket_error(error_type):
     """Track WebSocket error"""
     WEBSOCKET_ERRORS.labels(error_type=error_type).inc()
-
-
-def track_sse_connection_count(count, pod_name=None):
-    """Track SSE connection count"""
-    if pod_name is None:
-        pod_name = config.kubernetes.pod_name
-    SSE_CONNECTIONS.labels(pod_name=pod_name).set(count)
-
-
-def track_sse_message(event_type):
-    """Track SSE message"""
-    SSE_MESSAGES.labels(event_type=event_type).inc()
 
 
 def track_simulator_count(count, pod_name=None):

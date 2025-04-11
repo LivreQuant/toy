@@ -14,14 +14,8 @@ from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 
 from source.config import config
 
-# Import new store and manager classes
 from source.db.manager import StoreManager
 from source.core.session.manager import SessionManager
-from source.core.simulator.manager import SimulatorManager
-
-# Import new store classes
-from source.db.stores.postgres_session_store import PostgresSessionStore
-from source.db.stores.postgres_simulator_store import PostgresSimulatorStore
 
 from source.api.clients.auth_client import AuthClient
 from source.api.clients.exchange_client import ExchangeClient
@@ -77,12 +71,10 @@ class SessionServer:
         self.websocket_manager: Optional[WebSocketManager] = None
         self.pubsub_task: Optional[asyncio.Task] = None
 
-        self.session_manager: Optional[SessionManager] = None
-        self.simulator_manager: Optional[SimulatorManager] = None
-        
-        # Initialize stores
+        # Initialize managers
         self.store_manager: Optional[StoreManager] = StoreManager()
-    
+        self.session_manager: Optional[SessionManager] = None
+
     async def initialize(self):
         """Initialize all server components"""
         if self.initialized:
@@ -99,36 +91,30 @@ class SessionServer:
             logger.critical(f"Failed to connect to databases: {e}. Cannot start server.", exc_info=True)
             raise RuntimeError(f"Database connection failed: {e}") from e
 
-        # Initialize Internal API clients
-        self.auth_client = AuthClient()
-        self.exchange_client = ExchangeClient()
-        logger.info("Internal API clients initialized.")
-
         # Initialize managers with specific stores
         self.session_manager = SessionManager(self.store_manager)
         logger.info("Session manager initialized.")
-
-        self.simulator_manager = SimulatorManager(self.store_manager)
-        logger.info("Simulator manager initialized.")
 
         # Start background tasks (ensure session_manager is initialized first)
         await self.session_manager.start_session_tasks()
         logger.info("Session cleanup task started.")
 
+        # Initialize Internal API clients
+        self.auth_client = AuthClient()
+        self.exchange_client = ExchangeClient()
+        logger.info("Internal API clients initialized.")
+
         # Initialize WebSocket manager (ensure session_manager is initialized first)
-        self.websocket_manager = WebSocketManager(
-            self.session_manager,
-            self.connection_manager
-        )
+        self.websocket_manager = WebSocketManager(self.session_manager)
         logger.info("WebSocket manager initialized.")
 
         # Make components available in application context
-        self.app['connection_manager'] = self.connection_manager
+        self.app['store_manager'] = self.store_manager
+        self.app['session_manager'] = self.session_manager
+        self.app['websocket_manager'] = self.websocket_manager
+
         self.app['auth_client'] = self.auth_client
         self.app['exchange_client'] = self.exchange_client
-        self.app['session_manager'] = self.session_manager
-        self.app['simulator_manager'] = self.simulator_manager
-        self.app['websocket_manager'] = self.websocket_manager
 
         # Set up routes
         setup_rest_routes(self.app)
@@ -191,10 +177,6 @@ class SessionServer:
         logger.info("Initiating graceful shutdown...")
         self.running = False  # Mark as not running early
 
-        # Clean up pod registration
-        if self.coordination_manager:
-            await self.coordination_manager.unregister_self_pod()
-
         # Rest of the shutdown logic remains largely the same
         if self.session_manager:
             logger.info("Stopping session manager cleanup task...")
@@ -211,8 +193,8 @@ class SessionServer:
             await self.auth_client.close()
         if self.exchange_client:
             await self.exchange_client.close()
-        if self.connection_manager:
-            await self.connection_manager.close()
+        if self.store_manager:
+            await self.store_manager.close()
 
         # Stop the AppRunner
         if self._runner:
@@ -228,8 +210,8 @@ class SessionServer:
         all_ready = True
 
         # Check database connections
-        if self.connection_manager:
-            db_ready = await self.connection_manager.check_connection()
+        if self.store_manager:
+            db_ready = await self.store_manager.check_connection()
             checks['database'] = 'UP' if db_ready else 'DOWN'
             if not db_ready:
                 all_ready = False

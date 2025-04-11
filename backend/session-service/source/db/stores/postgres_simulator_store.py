@@ -183,8 +183,6 @@ class PostgresSimulatorStore(PostgresBase):
                 track_db_error("pg_get_simulator")
                 return None
 
-    # (Other methods like get_simulator_by_session, get_active_user_simulators, etc.
-    # would follow a similar pattern to the ones in your previous implementation)
 
     async def cleanup_inactive_simulators(self, inactivity_timeout: int) -> int:
         """
