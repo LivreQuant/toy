@@ -136,12 +136,14 @@ class SessionServer:
         logger.info("Session cleanup tasks started.")
 
         # Make components available in application context
-        self.app['store_manager'] = self.store_manager
-        self.app['session_manager'] = self.session_manager
-        self.app['websocket_manager'] = self.websocket_manager
         self.app['auth_client'] = self.auth_client
         self.app['exchange_client'] = self.exchange_client
+        self.app['k8s_client'] = self.k8s_client
         self.app['stream_manager'] = self.stream_manager
+        self.app['store_manager'] = self.store_manager
+        self.app['simulator_manager'] = self.simulator_manager
+        self.app['session_manager'] = self.session_manager
+        self.app['websocket_manager'] = self.websocket_manager
 
         # Set up routes
         setup_rest_routes(self.app)
