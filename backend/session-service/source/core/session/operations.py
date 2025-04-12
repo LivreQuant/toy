@@ -8,6 +8,7 @@ from opentelemetry import trace
 
 from source.models.session import Session, SessionStatus
 from source.models.simulator import SimulatorStatus
+
 from source.utils.metrics import track_session_operation, track_session_count, track_session_ended
 from source.utils.tracing import optional_trace_span
 
@@ -100,7 +101,7 @@ class SessionOperations:
                 span.set_attribute("error", str(e))
                 return None, False
 
-    async def get_session(self, session_id: str) -> Session:
+    async def get_session(self, session_id: str) -> Optional[Session, None]:
         """
         Get session details as a dictionary.
 

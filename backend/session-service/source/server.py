@@ -1,32 +1,31 @@
 # source/api/server.py
 """
-Session service main server.
-Coordinates all components and handles HTTP/WebSocket/GRPC endpoints.
+Session service main server with dependency injection.
 """
 import logging
 import asyncio
 import time
-from typing import Optional
 import aiohttp_cors
 from aiohttp import web
 
 from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 
 from source.config import config
+from source.utils.di import DependencyContainer
 
 from source.db.manager import StoreManager
+from source.core.stream.manager import StreamManager
 from source.core.session.manager import SessionManager
 from source.core.simulator.manager import SimulatorManager
 
-from source.api.clients.auth_client import AuthClient
-from source.api.clients.exchange_client import ExchangeClient
-from source.api.rest.routes import setup_rest_routes
-from source.api.rest.middleware import metrics_middleware
-from source.api.websocket.manager import WebSocketManager
-from source.core.stream.manager import StreamManager
+from source.clients.auth import AuthClient
+from source.clients.exchange import ExchangeClient
+from source.clients.k8s import KubernetesClient
 
-from source.utils.middleware import tracing_middleware
-from source.utils.k8s_client import KubernetesClient
+from source.api.rest.routes import setup_rest_routes
+from source.api.websocket.manager import WebSocketManager
+
+from source.utils.middleware import tracing_middleware, metrics_middleware, error_handling_middleware
 
 logger = logging.getLogger('server')
 
@@ -54,109 +53,74 @@ async def health_check(request):
 
 
 class SessionServer:
-    """Main session service server"""
+    """Main session service server using dependency injection"""
 
     def __init__(self):
         """Initialize server components"""
         # Apply middleware directly during Application creation for cleaner setup
         self.app = web.Application(middlewares=[
             metrics_middleware,
+            error_handling_middleware,
             tracing_middleware
         ])
         self._runner = None
         self.running = False
         self.initialized = False
         self.shutdown_event = asyncio.Event()
-
-        # Initialize component placeholders
-        self.auth_client: Optional[AuthClient] = None
-        self.exchange_client: Optional[ExchangeClient] = None
-        self.k8s_client: Optional[KubernetesClient] = None
-        self.websocket_manager: Optional[WebSocketManager] = None
-        self.stream_manager: Optional[StreamManager] = None
-
-        # Initialize managers
-        self.store_manager: Optional[StoreManager] = StoreManager()
-        self.session_manager: Optional[SessionManager] = None
-        self.simulator_manager: Optional[SimulatorManager] = None
-
+        
+        # Create dependency container
+        self.di = DependencyContainer()
+        
     async def initialize(self):
-        """Initialize all server components"""
+        """Initialize all server components using dependency injection"""
         if self.initialized:
             logger.debug("Server already initialized.")
             return
 
         logger.info("Initializing server components")
-
-        # Initialize connection manager
+        
+        # Initialize dependency container with factories
+        self._register_dependencies()
+        
+        # Connect to database first
+        store_manager = self.di.get('store_manager')
         try:
-            await self.store_manager.connect()
+            await store_manager.connect()
             logger.info("Database connections established.")
         except Exception as e:
             logger.critical(f"Failed to connect to databases: {e}. Cannot start server.", exc_info=True)
             raise RuntimeError(f"Database connection failed: {e}") from e
-
-        # Initialize Internal API clients
-        self.auth_client = AuthClient()
-        self.exchange_client = ExchangeClient()
-        logger.info("Internal API clients initialized.")
-
-        # Initialize Kubernetes client
-        self.k8s_client = KubernetesClient()
-
-        # Initialize stream manager (now independent)
-        self.stream_manager = StreamManager()
-        logger.info("Stream manager initialized.")
-
-        # Initialize simulator manager with its dependencies
-        self.simulator_manager = SimulatorManager(
-            self.store_manager,
-            k8s_client=self.k8s_client
-        )
-
-        # Initialize session manager with stream manager
-        self.session_manager = SessionManager(
-            self.store_manager, 
-            auth_client=self.auth_client,
-            exchange_client=self.exchange_client,
-            stream_manager=self.stream_manager,
-            simulator_manager=self.simulator_manager
-        )
-        logger.info("Session manager initialized.")
-
-        # Initialize WebSocket manager with session and stream managers
-        self.websocket_manager = WebSocketManager(
-            self.session_manager,
-            self.stream_manager
-        )
-        logger.info("WebSocket manager initialized.")
-
-        # Start background tasks
-        await self.session_manager.start_session_tasks()
+            
+        # Resolve core components - the container will handle dependency resolution
+        session_manager = self.di.get('session_manager')
+        websocket_manager = self.di.get('websocket_manager')
+        
+        # Start background tasks now that everything is initialized
+        await session_manager.start_session_tasks()
         logger.info("Session cleanup tasks started.")
 
         # Make components available in application context
-        self.app['auth_client'] = self.auth_client
-        self.app['exchange_client'] = self.exchange_client
-        self.app['k8s_client'] = self.k8s_client
-        self.app['stream_manager'] = self.stream_manager
-        self.app['store_manager'] = self.store_manager
-        self.app['simulator_manager'] = self.simulator_manager
-        self.app['session_manager'] = self.session_manager
-        self.app['websocket_manager'] = self.websocket_manager
+        self.app['auth_client'] = self.di.get('auth_client')
+        self.app['exchange_client'] = self.di.get('exchange_client')
+        self.app['k8s_client'] = self.di.get('k8s_client')
+        self.app['stream_manager'] = self.di.get('stream_manager')
+        self.app['store_manager'] = store_manager
+        self.app['simulator_manager'] = self.di.get('simulator_manager')
+        self.app['session_manager'] = session_manager
+        self.app['websocket_manager'] = websocket_manager
 
         # Set up routes
         setup_rest_routes(self.app)
         logger.info("REST routes configured.")
 
         # Register WebSocket handler
-        self.app.router.add_get('/ws', self.websocket_manager.handle_connection)
+        self.app.router.add_get('/ws', websocket_manager.handle_connection)
         logger.info("WebSocket route '/ws' configured.")
 
         # Add health check endpoints
         self.app.router.add_get('/health', health_check)
         self.app.router.add_get('/readiness', self.readiness_check)
-        self.app.router.add_get('/metrics', metrics_endpoint)  # Expose Prometheus metrics
+        self.app.router.add_get('/metrics', metrics_endpoint)
         logger.info("Health, readiness, and metrics routes configured.")
 
         # Set up CORS
@@ -165,7 +129,45 @@ class SessionServer:
 
         self.initialized = True
         logger.info("Server initialization complete")
+    
+    def _register_dependencies(self):
+        """Register all component factories and their dependencies"""
+        # Register simple components with no dependencies
+        self.di.register_instance('store_manager', StoreManager())
+        self.di.register('auth_client', lambda: AuthClient(), [])
+        self.di.register('exchange_client', lambda: ExchangeClient(), [])
+        self.di.register('k8s_client', lambda: KubernetesClient(), [])
+        self.di.register('stream_manager', lambda: StreamManager(), [])
+        
+        # Register simulator manager which depends on store_manager and k8s_client
+        self.di.register(
+            'simulator_manager',
+            lambda store_manager, k8s_client: SimulatorManager(store_manager, k8s_client),
+            ['store_manager', 'k8s_client']
+        )
+        
+        # Register session manager with its dependencies
+        self.di.register(
+            'session_manager',
+            lambda store_manager, auth_client, exchange_client, stream_manager, simulator_manager: 
+                SessionManager(
+                    store_manager, 
+                    auth_client=auth_client,
+                    exchange_client=exchange_client,
+                    stream_manager=stream_manager,
+                    simulator_manager=simulator_manager
+                ),
+            ['store_manager', 'auth_client', 'exchange_client', 'stream_manager', 'simulator_manager']
+        )
+        
+        # Register websocket manager which depends on session_manager
+        self.di.register(
+            'websocket_manager',
+            lambda stream_manager, session_manager: WebSocketManager(session_manager, stream_manager),
+            ['session_manager']
+        )
 
+    # The rest of the methods remain largely unchanged
     async def start(self):
         """Start the server after initialization"""
         if not self.initialized:
@@ -206,24 +208,26 @@ class SessionServer:
         logger.info("Initiating graceful shutdown...")
         self.running = False  # Mark as not running early
 
-        # Rest of the shutdown logic remains largely the same
-        if self.session_manager:
-            logger.info("Stopping session manager cleanup task...")
-            await self.session_manager.cleanup_pod_sessions(config.kubernetes.pod_name)
-            await self.session_manager.stop_cleanup_task()
+        # Get components from dependency container
+        session_manager = self.di.get('session_manager')
+        websocket_manager = self.di.get('websocket_manager')
+        auth_client = self.di.get('auth_client')
+        exchange_client = self.di.get('exchange_client')
+        store_manager = self.di.get('store_manager')
+
+        # Clean up sessions
+        logger.info("Stopping session manager cleanup task...")
+        await session_manager.cleanup_pod_sessions(config.kubernetes.pod_name)
+        await session_manager.stop_cleanup_task()
 
         # Close WebSocket connections
-        if self.websocket_manager:
-            logger.info("Closing all WebSocket connections...")
-            await self.websocket_manager.close_all_connections("Server is shutting down")
+        logger.info("Closing all WebSocket connections...")
+        await websocket_manager.close_all_connections("Server is shutting down")
 
         # Close external connections
-        if self.auth_client:
-            await self.auth_client.close()
-        if self.exchange_client:
-            await self.exchange_client.close()
-        if self.store_manager:
-            await self.store_manager.close()
+        await auth_client.close()
+        await exchange_client.close()
+        await store_manager.close()
 
         # Stop the AppRunner
         if self._runner:
@@ -238,25 +242,21 @@ class SessionServer:
         checks = {}
         all_ready = True
 
+        # Get dependencies from container
+        store_manager = self.di.get('store_manager')
+        auth_client = self.di.get('auth_client')
+
         # Check database connections
-        if self.store_manager:
-            db_ready = await self.store_manager.check_connection()
-            checks['database'] = 'UP' if db_ready else 'DOWN'
-            if not db_ready:
-                all_ready = False
-                logger.warning("Database connection check failed!")
-        else:
-            checks['database'] = 'NOT INITIALIZED'
+        db_ready = await store_manager.check_connection()
+        checks['database'] = 'UP' if db_ready else 'DOWN'
+        if not db_ready:
             all_ready = False
+            logger.warning("Database connection check failed!")
 
         # Check Auth service
-        if self.auth_client:
-            auth_ready = await self.auth_client.check_service()
-            checks['auth_service'] = 'UP' if auth_ready else 'DOWN'
-            if not auth_ready:
-                all_ready = False
-        else:
-            checks['auth_service'] = 'NOT INITIALIZED'
+        auth_ready = await auth_client.check_service()
+        checks['auth_service'] = 'UP' if auth_ready else 'DOWN'
+        if not auth_ready:
             all_ready = False
 
         status_code = 200 if all_ready else 503  # Service Unavailable if not ready

@@ -7,9 +7,10 @@ import time
 from typing import Dict, Any, Tuple
 from opentelemetry import trace
 
+from source.models.session import ConnectionQuality
+
 from source.utils.metrics import track_connection_quality, track_client_reconnection
 from source.utils.tracing import optional_trace_span
-from source.models.session import ConnectionQuality
 
 logger = logging.getLogger('connection_utils')
 
@@ -130,7 +131,7 @@ class ConnectionUtils:
             if not user_id:
                 error_msg = "Invalid session, token, or device ID mismatch"
                 span.set_attribute("error", error_msg)
-                return None, error_msg
+                return {}, error_msg
                 
             # 2. Get session data
             session = await self.manager.get_session(session_id)
@@ -138,7 +139,7 @@ class ConnectionUtils:
                 # Should not happen after validation, but handle defensively
                 error_msg = "Session not found"
                 span.set_attribute("error", error_msg)
-                return None, error_msg
+                return {}, error_msg
                 
             # 3. Update reconnection counter in metadata
             metadata = session.metadata

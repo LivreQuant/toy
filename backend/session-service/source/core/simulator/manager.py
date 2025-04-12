@@ -18,6 +18,32 @@ from source.models.simulator import Simulator, SimulatorStatus
 logger = logging.getLogger('simulator_manager')
 
 
+async def _cleanup_inactive_simulators():
+    """Clean up simulators that have been inactive beyond the timeout"""
+    # Implementation would check for inactive simulators and stop them
+    # This would publish events for each cleanup action
+    return 0  # Replace with actual implementation
+
+
+async def _run_cleanup_loop():
+    """Background loop for cleanup tasks"""
+    logger.info("Simulator cleanup loop starting")
+    while True:
+        try:
+            inactive_count = await _cleanup_inactive_simulators()
+            if inactive_count > 0:
+                # Publish event about cleanup
+                await event_bus.publish('simulators_cleaned_up', count=inactive_count)
+
+            await asyncio.sleep(300)  # Run every 5 minutes
+        except asyncio.CancelledError:
+            logger.info("Simulator cleanup loop cancelled")
+            break
+        except Exception as e:
+            logger.error(f"Error in simulator cleanup loop: {e}", exc_info=True)
+            await asyncio.sleep(60)
+
+
 class SimulatorManager:
     """Manager for exchange simulator instances"""
 
@@ -299,7 +325,7 @@ class SimulatorManager:
     async def start_cleanup_task(self):
         """Start background cleanup task"""
         if self.cleanup_task is None or self.cleanup_task.done():
-            self.cleanup_task = asyncio.create_task(self._run_cleanup_loop())
+            self.cleanup_task = asyncio.create_task(_run_cleanup_loop())
             logger.info("Started simulator cleanup task")
 
     async def stop_cleanup_task(self):
@@ -314,27 +340,3 @@ class SimulatorManager:
                 logger.error(f"Error awaiting cancelled cleanup task: {e}")
             self.cleanup_task = None
             logger.info("Simulator cleanup task stopped")
-
-    async def _run_cleanup_loop(self):
-        """Background loop for cleanup tasks"""
-        logger.info("Simulator cleanup loop starting")
-        while True:
-            try:
-                inactive_count = await self._cleanup_inactive_simulators()
-                if inactive_count > 0:
-                    # Publish event about cleanup
-                    await event_bus.publish('simulators_cleaned_up', count=inactive_count)
-
-                await asyncio.sleep(300)  # Run every 5 minutes
-            except asyncio.CancelledError:
-                logger.info("Simulator cleanup loop cancelled")
-                break
-            except Exception as e:
-                logger.error(f"Error in simulator cleanup loop: {e}", exc_info=True)
-                await asyncio.sleep(60)
-
-    async def _cleanup_inactive_simulators(self):
-        """Clean up simulators that have been inactive beyond the timeout"""
-        # Implementation would check for inactive simulators and stop them
-        # This would publish events for each cleanup action
-        return 0  # Replace with actual implementation

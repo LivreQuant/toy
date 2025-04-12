@@ -8,23 +8,20 @@ import random
 
 from opentelemetry import trace
 
-from source.config import config
 from source.utils.event_bus import event_bus
 
 from source.db.manager import StoreManager
 
-from source.api.clients.auth_client import AuthClient
-from source.api.clients.exchange_client import ExchangeClient
+from source.clients.auth import AuthClient
+from source.clients.exchange import ExchangeClient
+
+from source.core.stream.manager import StreamManager
+from source.core.simulator.manager import SimulatorManager
 
 from source.core.session.operations import SessionOperations
 from source.core.session.connection_utils import ConnectionUtils
 from source.core.session.tasks import SessionTasks
 
-from source.core.stream.manager import StreamManager
-from source.core.simulator.manager import SimulatorManager
-
-from source.models.session import SessionStatus
-from source.models.simulator import SimulatorStatus
 
 logger = logging.getLogger('session_manager')
 

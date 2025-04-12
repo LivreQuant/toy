@@ -7,11 +7,12 @@ import time
 import asyncio
 from opentelemetry import trace
 
-from source.config import config
-from source.utils.event_bus import event_bus
 from source.models.simulator import SimulatorStatus
+
+from source.config import config
+
+from source.utils.event_bus import event_bus
 from source.utils.metrics import track_cleanup_operation, track_session_count, track_simulator_count
-from source.utils.tracing import optional_trace_span
 
 logger = logging.getLogger('session_tasks')
 
@@ -34,7 +35,8 @@ class SessionTasks:
         try:
             if hasattr(self.manager, 'simulator_manager') and self.manager.simulator_manager:
                 # Get simulators in STARTING state
-                starting_simulators = await self.manager.simulator_manager.get_simulators_with_status(SimulatorStatus.STARTING)
+                starting_simulators = await self.manager.simulator_manager.get_simulators_with_status(
+                    SimulatorStatus.STARTING)
 
                 if not starting_simulators:
                     return
@@ -61,12 +63,13 @@ class SessionTasks:
 
                             # Publish simulator ready event
                             await event_bus.publish('simulator_ready',
-                                                  session_id=simulator.session_id,
-                                                  simulator_id=simulator.simulator_id,
-                                                  endpoint=simulator.endpoint)
+                                                    session_id=simulator.session_id,
+                                                    simulator_id=simulator.simulator_id,
+                                                    endpoint=simulator.endpoint)
 
                         except Exception as e:
-                            logger.error(f"Failed to update session metadata for simulator {simulator.simulator_id}: {e}")
+                            logger.error(
+                                f"Failed to update session metadata for simulator {simulator.simulator_id}: {e}")
 
         except Exception as e:
             logger.error(f"Error checking starting simulators: {e}", exc_info=True)
@@ -85,8 +88,8 @@ class SessionTasks:
 
                     # Publish cleanup event
                     await event_bus.publish('sessions_cleaned_up',
-                                          count=expired_count,
-                                          reason="expired")
+                                            count=expired_count,
+                                            reason="expired")
 
                 # Cleanup inactive simulators (managed by SimulatorManager)
                 if hasattr(self.manager, 'simulator_manager') and self.manager.simulator_manager:
@@ -107,8 +110,8 @@ class SessionTasks:
 
                     # Publish zombie cleanup event
                     await event_bus.publish('sessions_cleaned_up',
-                                          count=zombie_count,
-                                          reason="zombie")
+                                            count=zombie_count,
+                                            reason="zombie")
 
                 # Update active session/simulator count metrics periodically
                 active_sessions = await self.manager.store.session_store.get_active_session_count()
@@ -180,8 +183,8 @@ class SessionTasks:
 
                 # Publish zombie session detected event
                 await event_bus.publish('zombie_session_detected',
-                                      session_id=session.session_id,
-                                      user_id=session.user_id)
+                                        session_id=session.session_id,
+                                        user_id=session.user_id)
 
                 # Stop any running simulators associated with this zombie session
                 sim_id = getattr(metadata, 'simulator_id', None)
@@ -201,8 +204,8 @@ class SessionTasks:
 
                 # Publish session expired event
                 await event_bus.publish('session_expired',
-                                      session_id=session.session_id,
-                                      reason="zombie")
+                                        session_id=session.session_id,
+                                        reason="zombie")
 
                 zombie_count += 1
 
@@ -300,8 +303,8 @@ class SessionTasks:
 
                 # Publish successful heartbeat event
                 await event_bus.publish('simulator_heartbeat_success',
-                                      session_id=session_id,
-                                      simulator_id=simulator_id)
+                                        session_id=session_id,
+                                        simulator_id=simulator_id)
 
                 return True
             else:
@@ -310,9 +313,9 @@ class SessionTasks:
 
                 # Publish heartbeat failure event
                 await event_bus.publish('simulator_heartbeat_failed',
-                                      session_id=session_id,
-                                      simulator_id=simulator_id,
-                                      error=result.get('error', 'Unknown error'))
+                                        session_id=session_id,
+                                        simulator_id=simulator_id,
+                                        error=result.get('error', 'Unknown error'))
 
                 # Consider updating simulator status in DB to ERROR if heartbeats consistently fail
                 return False
@@ -321,9 +324,9 @@ class SessionTasks:
 
             # Publish heartbeat error event
             await event_bus.publish('simulator_heartbeat_error',
-                                  session_id=session_id,
-                                  simulator_id=simulator_id,
-                                  error=str(e))
+                                    session_id=session_id,
+                                    simulator_id=simulator_id,
+                                    error=str(e))
 
             # Consider updating simulator status in DB to ERROR here as well
             return False
@@ -417,8 +420,8 @@ class SessionTasks:
 
                     # Publish pod terminating event
                     await event_bus.publish('pod_terminating',
-                                          session_id=s_id,
-                                          pod_name=pod_name)
+                                            session_id=s_id,
+                                            pod_name=pod_name)
 
                 except Exception as e:
                     logger.error(f"Error updating session {s_id} metadata during shutdown: {e}", exc_info=True)
@@ -456,8 +459,8 @@ class SessionTasks:
 
                         # Publish simulator stopped event
                         await event_bus.publish('simulator_stopped',
-                                              session_id=session_id,
-                                              simulator_id=simulator_id)
+                                                session_id=session_id,
+                                                simulator_id=simulator_id)
                         return
                 except Exception as k8s_error:
                     logger.error(f"K8s fallback deletion failed for {simulator_id}: {k8s_error}")
@@ -472,9 +475,9 @@ class SessionTasks:
 
             # Publish simulator error event
             await event_bus.publish('simulator_error',
-                                  session_id=session_id,
-                                  simulator_id=simulator_id,
-                                  error="Failed to stop properly during pod shutdown")
+                                    session_id=session_id,
+                                    simulator_id=simulator_id,
+                                    error="Failed to stop properly during pod shutdown")
 
             logger.warning(f"All shutdown attempts failed for simulator {simulator_id}, marked as ERROR in metadata")
 
@@ -483,6 +486,6 @@ class SessionTasks:
 
             # Publish error event
             await event_bus.publish('simulator_error',
-                                  session_id=session_id,
-                                  simulator_id=simulator_id,
-                                  error=str(e))
+                                    session_id=session_id,
+                                    simulator_id=simulator_id,
+                                    error=str(e))
