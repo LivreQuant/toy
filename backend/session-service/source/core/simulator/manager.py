@@ -285,6 +285,13 @@ class SimulatorManager:
                 track_simulator_operation("stop", "failure")
                 return False, f"Error stopping simulator: {str(e)}"
 
+    async def update_simulator_activity(self, simulator_id):
+        """Update the last active timestamp for a simulator"""
+        try:
+            await self.store_manager.simulator_store.update_simulator_activity(simulator_id)
+        except Exception as e:
+            logger.error(f"Error updating simulator {simulator_id} activity: {e}")
+
     # ----- Event handlers -----
 
     async def handle_session_expired(self, session_id: str):
@@ -319,24 +326,3 @@ class SimulatorManager:
                 await asyncio.gather(*stop_tasks, return_exceptions=True)
         except Exception as e:
             logger.error(f"Error cleaning up simulators during shutdown: {e}")
-
-    # ----- Background tasks -----
-
-    async def start_cleanup_task(self):
-        """Start background cleanup task"""
-        if self.cleanup_task is None or self.cleanup_task.done():
-            self.cleanup_task = asyncio.create_task(_run_cleanup_loop())
-            logger.info("Started simulator cleanup task")
-
-    async def stop_cleanup_task(self):
-        """Stop background cleanup task"""
-        if self.cleanup_task and not self.cleanup_task.done():
-            self.cleanup_task.cancel()
-            try:
-                await self.cleanup_task
-            except asyncio.CancelledError:
-                logger.info("Simulator cleanup task cancelled")
-            except Exception as e:
-                logger.error(f"Error awaiting cancelled cleanup task: {e}")
-            self.cleanup_task = None
-            logger.info("Simulator cleanup task stopped")

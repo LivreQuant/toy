@@ -136,7 +136,7 @@ async def handle_stop_session(request):
             # Stop simulator first if needed
             if simulator_running:
                 logger.info(f"Stopping simulator {simulator_id} before ending session {session_id}")
-                sim_success, sim_error = await session_manager.stop_simulator(session_id, token)
+                sim_success, sim_error = await session_manager.stop_simulator(session_id, user_id)
 
                 if not sim_success:
                     # Log the error but proceed with session termination
@@ -146,7 +146,7 @@ async def handle_stop_session(request):
                     logger.info(f"Successfully stopped simulator before ending session")
 
             # Now end the session
-            success, error = await session_manager.end_session(session_id, token)
+            success, error = await session_manager.end_session(session_id, user_id)
             span.set_attribute("end_success", success)
 
             if not success:

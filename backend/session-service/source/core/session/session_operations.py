@@ -28,22 +28,14 @@ class SessionOperations:
         self.manager = session_manager
         self.tracer = trace.get_tracer("session_operations")
 
-    async def get_user_from_token(self, token: str) -> Optional[str]:
-        """Extract user ID from token via AuthClient"""
-        validation = await self.manager.auth_client.validate_token(token)
-        if validation.get('valid', False):
-            return validation.get('userId')
-        return None
-
-    async def create_session(self, user_id: str, device_id: str, token: str, ip_address: Optional[str] = None) -> Tuple[
+    async def create_session(self, user_id: str, device_id: str, ip_address: Optional[str] = None) -> Tuple[
         Optional[str], bool]:
         """
         Create a new session for a user with device ID, ensuring only one active session per user.
 
         Args:
-            user_id: The user ID (extracted from the token)
+            user_id: The user ID
             device_id: The device ID from the current connection attempt
-            token: Authentication token (used for potential actions like stopping old simulator)
             ip_address: Client IP address
 
         Returns:
@@ -61,7 +53,7 @@ class SessionOperations:
                     logger.warning(f"User {user_id} has existing active session {old_session.session_id}. Ending it.")
                     span.add_event("Ending existing session", {"old_session_id": old_session.session_id})
                     # Force stop the simulator associated with the old session
-                    await self.manager.simulator_ops.stop_simulator(old_session.session_id, token=token, force=True)
+                    await self.manager.simulator_ops.stop_simulator(old_session.session_id, force=True)
                     # Mark the old session as expired in DB
                     await self.manager.postgres_store.update_session_status(old_session.session_id,
                                                                             SessionStatus.EXPIRED.value)
@@ -137,13 +129,13 @@ class SessionOperations:
                 span.record_exception(e)
                 return None
 
-    async def validate_session(self, session_id: str, token: str, device_id: Optional[str] = None) -> Optional[str]:
+    async def validate_session(self, session_id: str, user_id: str, device_id: Optional[str] = None) -> Optional[str]:
         """
-        Validate session, token, and optionally device ID. Updates activity on success.
+        Validate session, user_id, and optionally device ID. Updates activity on success.
 
         Args:
             session_id: The session ID
-            token: Authentication token
+            user_id: The User
             device_id: Optional device ID to validate against stored metadata
 
         Returns:
@@ -151,24 +143,7 @@ class SessionOperations:
         """
         with optional_trace_span(self.tracer, "validate_session") as span:
             span.set_attribute("session_id", session_id)
-            span.set_attribute("has_token", token is not None)
             span.set_attribute("device_id_provided", device_id is not None)
-
-            # 1. Validate token first (less expensive than DB call)
-            validation = await self.manager.auth_client.validate_token(token)
-            span.set_attribute("token_valid", validation.get('valid', False))
-
-            if not validation.get('valid', False):
-                logger.warning(f"Invalid token provided for session validation {session_id}")
-                span.set_attribute("validation_error", "Invalid token")
-                return None
-
-            user_id = validation.get('userId')
-            span.set_attribute("user_id_from_token", user_id)
-            if not user_id:
-                logger.error(f"Token validation succeeded but no userId returned for session {session_id}")
-                span.set_attribute("validation_error", "Missing userId in token")
-                return None
 
             # 2. Get session from database
             session = await self.manager.postgres_store.get_session_from_db(session_id)  # Fetches Session object
@@ -179,9 +154,9 @@ class SessionOperations:
                 span.set_attribute("validation_error", "Session not found")
                 return None
 
-            # 3. Check if session belongs to the user from the token
+            # 3. Check if session belongs to the user
             if session.user_id != user_id:
-                logger.warning(f"Session {session_id} user mismatch. DB: {session.user_id}, Token: {user_id}")
+                logger.warning(f"Session {session_id} user mismatch. DB: {session.user_id}, User: {user_id}")
                 span.set_attribute("validation_error", "User ID mismatch")
                 return None
 
@@ -233,30 +208,20 @@ class SessionOperations:
             logger.error(f"Error updating session activity for {session_id}: {e}", exc_info=True)
             return False
 
-    async def end_session(self, session_id: str, token: str) -> Tuple[bool, str]:
+    async def end_session(self, session_id: str, user_id: str) -> Tuple[bool, str]:
         """
-        End a session gracefully. Validates token, stops simulator, updates DB.
+        End a session gracefully. stops simulator, updates DB.
 
         Args:
             session_id: The session ID
-            token: Authentication token
+            user_id: The User
 
         Returns:
             Tuple of (success, error_message)
         """
         with optional_trace_span(self.tracer, "end_session") as span:
             span.set_attribute("session_id", session_id)
-
-            # 1. Validate session and token first
-            user_id = await self.validate_session(session_id, token)  # Validation updates activity if successful
             span.set_attribute("user_id", user_id)
-            span.set_attribute("session_valid", user_id is not None)
-
-            if not user_id:
-                error_msg = "Invalid session or token for ending session."
-                span.set_attribute("error", error_msg)
-                logger.warning(f"Attempt to end session {session_id} failed validation.")
-                return False, error_msg
 
             try:
                 # 2. Get current session details (needed for simulator info and lifetime metric)
@@ -280,7 +245,6 @@ class SessionOperations:
                     logger.info(f"Stopping simulator {sim_id} as part of ending session {session_id}.")
                     # Use force=True because the session is ending regardless
                     sim_stopped, sim_stop_error = await self.manager.simulator_ops.stop_simulator(session_id,
-                                                                                                  token=token,
                                                                                                   force=True)
                     if not sim_stopped:
                         # Log error but continue ending the session

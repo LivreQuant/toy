@@ -149,15 +149,14 @@ class SessionServer:
         # Register session manager with its dependencies
         self.di.register(
             'session_manager',
-            lambda store_manager, auth_client, exchange_client, stream_manager, simulator_manager: 
+            lambda store_manager, exchange_client, stream_manager, simulator_manager:
                 SessionManager(
                     store_manager, 
-                    auth_client=auth_client,
                     exchange_client=exchange_client,
                     stream_manager=stream_manager,
                     simulator_manager=simulator_manager
                 ),
-            ['store_manager', 'auth_client', 'exchange_client', 'stream_manager', 'simulator_manager']
+            ['store_manager', 'exchange_client', 'stream_manager', 'simulator_manager']
         )
         
         # Register websocket manager which depends on session_manager
