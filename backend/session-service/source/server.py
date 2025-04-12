@@ -159,8 +159,8 @@ class SessionServer:
         # Register websocket manager which depends on session_manager
         self.di.register(
             'websocket_manager',
-            lambda stream_manager, session_manager: WebSocketManager(session_manager, stream_manager),
-            ['session_manager']
+            lambda session_manager, stream_manager: WebSocketManager(session_manager, stream_manager),
+            ['session_manager', 'stream_manager']
         )
 
     # The rest of the methods remain largely unchanged

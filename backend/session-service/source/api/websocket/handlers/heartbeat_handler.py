@@ -4,16 +4,14 @@ Handler for the 'heartbeat' WebSocket message type.
 """
 import logging
 import time
-from typing import Dict, Any, TYPE_CHECKING
+from typing import Dict, Any
 
 from opentelemetry import trace
 from aiohttp import web
 
+from source.core.session.manager import SessionManager
 from source.utils.metrics import track_websocket_message
 from source.utils.tracing import optional_trace_span
-
-if TYPE_CHECKING:
-    from source.api.websocket.manager import WebSocketManager
 
 logger = logging.getLogger('websocket_handler_heartbeat')
 
@@ -22,10 +20,9 @@ async def handle_heartbeat(
         *,
         ws: web.WebSocketResponse,
         session_id: str,
-        user_id: str,
         client_id: str,
         message: Dict[str, Any],
-        ws_manager: 'WebSocketManager',
+        session_manager: SessionManager,
         tracer: trace.Tracer
 ):
     """
@@ -34,10 +31,9 @@ async def handle_heartbeat(
     Args:
         ws: The WebSocket connection.
         session_id: Session ID.
-        user_id: User ID.
         client_id: Client ID.
         message: The parsed heartbeat message dictionary.
-        ws_manager: Instance of the WebSocketManager.
+        session_manager: Direct access to SessionManager.
         tracer: OpenTelemetry Tracer instance.
     """
     with optional_trace_span(tracer, "handle_heartbeat_message") as span:
@@ -58,23 +54,18 @@ async def handle_heartbeat(
         span.set_attribute("session_status_client", session_status_client)
         span.set_attribute("simulator_status_client", simulator_status_client)
 
-        # Access the session manager through the WebSocket manager
-        session_manager = ws_manager.session_manager
-
         # Get session and validate device ID
         device_id_valid_server = False
         current_device_id = None
         simulator_status_server = 'none'  # Default
-        session_valid_server = False
 
-        # Get session from database through the session manager
+        # Get session from database through the session manager directly
         session = await session_manager.get_session(session_id)
 
         if session:
             session_valid_server = True  # Session exists
 
             # Get device ID and simulator status through session manager's methods
-            # instead of directly accessing session.metadata
             session_metadata = await session_manager.get_session_metadata(session_id)
 
             if session_metadata:

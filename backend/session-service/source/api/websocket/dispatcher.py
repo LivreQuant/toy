@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Dict, Any, Optional, Tuple, Callable, Awaitabl
 from opentelemetry import trace
 from aiohttp import web
 
+from source.core.session.manager import SessionManager
 from source.api.websocket.exceptions import (
     WebSocketError,
     WebSocketClientError,
@@ -23,12 +24,13 @@ from source.api.websocket.handlers import (
 )
 
 from source.api.websocket.emitters import error_emitter
+from source.api.websocket.registry import WebSocketRegistry
 
 from source.utils.metrics import track_websocket_message
 from source.utils.tracing import optional_trace_span
 
 if TYPE_CHECKING:
-    from source.api.websocket.manager import WebSocketManager
+    pass
 
 logger = logging.getLogger('websocket_dispatcher')
 
@@ -145,14 +147,16 @@ async def _handle_unexpected_error(ws: web.WebSocketResponse, error: Exception,
 class WebSocketDispatcher:
     """Parses and dispatches WebSocket messages to registered handlers."""
 
-    def __init__(self, ws_manager: 'WebSocketManager'):
+    def __init__(self, session_manager: SessionManager, registry: WebSocketRegistry):
         """
-        Initialize the dispatcher.
+        Initialize the dispatcher with direct access to required components.
 
         Args:
-            ws_manager: The WebSocket manager instance.
+            session_manager: The session manager instance.
+            registry: The WebSocket registry instance.
         """
-        self.ws_manager = ws_manager
+        self.session_manager = session_manager
+        self.registry = registry
         self.tracer = trace.get_tracer("websocket_dispatcher")
 
         # Register message handlers: message_type -> handler_function
@@ -193,8 +197,8 @@ class WebSocketDispatcher:
                 # Log received message
                 track_websocket_message("received", message_type)
 
-                # Update session activity
-                await self.ws_manager.register_activity(session_id)
+                # Update session activity directly through session manager
+                await self.session_manager.update_session_activity(session_id)
 
                 # Execute the appropriate handler
                 await self._execute_handler(ws, session_id, user_id, client_id, message, message_type)
@@ -232,14 +236,15 @@ class WebSocketDispatcher:
                 error_code="UNKNOWN_MESSAGE_TYPE"
             )
 
-        # Execute handler
+        # Execute handler with direct access to session_manager and registry
         await handler(
             ws=ws,
             session_id=session_id,
             user_id=user_id,
             client_id=client_id,
             message=message,
-            ws_manager=self.ws_manager,
+            session_manager=self.session_manager,
+            registry=self.registry,
             tracer=self.tracer
         )
 

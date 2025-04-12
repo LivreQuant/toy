@@ -24,7 +24,7 @@ from source.core.session.manager import SessionManager
 from source.core.stream.manager import StreamManager
 
 # WebSocket Components
-from source.api.websocket.authenticator import authenticate_websocket_request
+from source.api.websocket.utils import authenticate_websocket_request
 from source.api.websocket.dispatcher import WebSocketDispatcher
 from source.api.websocket.exceptions import WebSocketError
 from source.api.websocket.registry import WebSocketRegistry
@@ -41,10 +41,14 @@ class WebSocketManager:
         """Initialize WebSocket manager."""
         self.session_manager = session_manager
         self.stream_manager = stream_manager
-        self.registry = WebSocketRegistry(session_manager=self.session_manager)
 
-        self.dispatcher = WebSocketDispatcher(session_manager, self)
-        self.cleanup_task = asyncio.create_task(self._cleanup_stale_connections(self.registry))
+        # Create registry with direct access to session_manager
+        self.registry = WebSocketRegistry(session_manager)
+
+        # Create dispatcher with direct access to session_manager and registry
+        self.dispatcher = WebSocketDispatcher(session_manager, self.registry)
+
+        self.cleanup_task = asyncio.create_task(self._cleanup_stale_connections())
         self.tracer = trace.get_tracer("websocket_manager")
 
         # Subscribe to events
@@ -55,7 +59,7 @@ class WebSocketManager:
         event_bus.subscribe('connection_quality_updated', self.handle_connection_quality_update)
 
         track_websocket_connection_count(self.registry.get_total_connection_count())
-        logger.info("WebSocketManager initialized with StreamManager.")
+        logger.info("WebSocketManager initialized with SessionManager and StreamManager.")
 
     async def handle_connection(self, request: web.Request) -> web.WebSocketResponse:
         """Handle incoming HTTP request, authentication, registration, and message loop."""
@@ -72,8 +76,8 @@ class WebSocketManager:
             if device_id_from_query: span.set_attribute("device_id_query", device_id_from_query)
 
             try:
-                # Pass self (WebSocketManager) instead of session_manager
-                user_id, session_id, device_id = await authenticate_websocket_request(request, self)
+                # Pass session_manager directly to authenticator
+                user_id, session_id, device_id = await authenticate_websocket_request(request, self.session_manager)
                 span.set_attribute("user_id", str(user_id))
                 span.set_attribute("session_id", session_id)
                 span.set_attribute("device_id", device_id)
@@ -106,7 +110,6 @@ class WebSocketManager:
 
             try:
                 async for msg in ws:
-                    # ... (message loop remains the same) ...
                     if msg.type == WSMsgType.TEXT:
                         self.registry.update_connection_activity(ws)
                         await self.dispatcher.dispatch_message(ws, session_id, user_id, client_id, msg.data)
@@ -200,7 +203,7 @@ class WebSocketManager:
             logger.error(f"Failed to send message to client {client_id} in session {session_id}: {e}")
             raise
 
-    # --- Event handlers ---
+        # --- Event handlers ---
 
     async def handle_exchange_data(self, session_id: str, data: Dict[str, Any]):
         """Handle exchange data event by broadcasting to session clients"""
@@ -264,7 +267,7 @@ class WebSocketManager:
 
         logger.info("All WebSocket connections closed and resources cleaned up.")
 
-    async def _cleanup_stale_connections(self, registry: WebSocketRegistry):
+    async def _cleanup_stale_connections(self):
         """Periodically check for and clean up stale connections"""
         await asyncio.sleep(15)
         while True:
@@ -274,7 +277,7 @@ class WebSocketManager:
                 stale_connections_ws = []
                 timeout_threshold = (config.websocket.heartbeat_interval * 3) + 10
 
-                for ws, info in list(registry.get_all_connection_info_items()):
+                for ws, info in list(self.registry.get_all_connection_info_items()):
                     last_activity = info.get('last_activity', info.get('connected_at', current_time))
                     inactive_time = current_time - last_activity
 
@@ -310,13 +313,3 @@ class WebSocketManager:
             except Exception as e:
                 logger.error(f"Error in cleanup task: {e}", exc_info=True)
                 await asyncio.sleep(60)
-
-    async def register_activity(self, session_id: str) -> None:
-        """
-        Register activity for a session and update last activity.
-
-        Args:
-            session_id: The session ID to update activity for
-        """
-        # Update session activity through session manager
-        await self.session_manager.update_session_activity(session_id)

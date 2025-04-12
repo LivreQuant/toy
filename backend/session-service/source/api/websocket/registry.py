@@ -9,6 +9,7 @@ from typing import Dict, Set, Any, Optional, Tuple, ItemsView, List
 
 from aiohttp import web
 
+from source.core.session.manager import SessionManager
 from source.utils.metrics import track_websocket_connection_count
 
 logger = logging.getLogger('websocket_registry')
@@ -17,18 +18,18 @@ logger = logging.getLogger('websocket_registry')
 class WebSocketRegistry:
     """Stores and manages active WebSocket connections and their metadata."""
 
-    def __init__(self, session_manager):
+    def __init__(self, session_manager: SessionManager):
         """
         Initialize the registry.
 
         Args:
-            session_manager: The session manager instance.
+            session_manager: The session manager instance for direct access.
         """
         # session_id -> set of ws connections for that session
         self._connections: Dict[str, Set[web.WebSocketResponse]] = {}
         # ws -> connection metadata dictionary
         self._connection_info: Dict[web.WebSocketResponse, Dict[str, Any]] = {}
-        # Reference to session manager
+        # Reference to session manager for direct use
         self._session_manager = session_manager
 
         logger.info("WebSocketRegistry initialized.")
@@ -75,7 +76,7 @@ class WebSocketRegistry:
             'last_activity': time.time()
         }
 
-        # Update session metadata through session manager
+        # Update session metadata directly through session manager
         try:
             await self._session_manager.update_session_metadata(session_id, {
                 'device_id': device_id,  # Update device ID on new connection potentially
@@ -131,7 +132,7 @@ class WebSocketRegistry:
             session_connection_count = 0
             session_became_empty = True  # Assume empty if session key doesn't exist
 
-        # Update session metadata through session manager
+        # Update session metadata directly through session manager
         try:
             await self._session_manager.update_session_metadata(session_id, {
                 'frontend_connections': session_connection_count,
@@ -187,3 +188,4 @@ class WebSocketRegistry:
         logger.info("WebSocketRegistry cleared.")
         # Update metrics after clearing
         track_websocket_connection_count(0)
+        

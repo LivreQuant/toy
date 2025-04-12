@@ -7,6 +7,7 @@ from typing import Tuple, Any
 
 from aiohttp import web
 
+from source.core.session.manager import SessionManager
 from source.api.utils import validate_token_with_auth_service
 from source.api.websocket.exceptions import (
     WebSocketClientError,
@@ -19,14 +20,14 @@ logger = logging.getLogger('websocket_authenticator')
 
 async def authenticate_websocket_request(
         request: web.Request,
-        ws_manager
+        session_manager: SessionManager
 ) -> Tuple[Any, str, str]:
     """
     Authenticates a WebSocket connection request and establishes session details.
 
     Args:
         request: The incoming aiohttp request object.
-        ws_manager: The WebSocket manager instance.
+        session_manager: The session manager instance for direct access.
 
     Returns:
         A tuple containing: (user_id, session_id, device_id)
@@ -40,9 +41,6 @@ async def authenticate_websocket_request(
     token = query.get('token')
     device_id = query.get('deviceId')
     session_id_from_query = query.get('sessionId')
-
-    # Access session manager through ws_manager
-    session_manager = ws_manager.session_manager
 
     # 1. Validate required parameters
     if not token or not device_id:
@@ -91,7 +89,7 @@ async def authenticate_websocket_request(
     if not session_id:
         client_ip = request.remote
         logger.info(f"Creating new session for user {user_id}, device {device_id} from IP {client_ip}")
-        session_id, is_new = await session_manager.create_session(user_id, device_id, token, client_ip)
+        session_id, is_new = await session_manager.create_session(user_id, device_id, token)
 
         if not session_id:
             # This indicates an internal problem with session creation

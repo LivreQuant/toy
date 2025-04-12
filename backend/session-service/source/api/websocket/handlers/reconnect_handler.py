@@ -9,11 +9,12 @@ from typing import Dict, Any, TYPE_CHECKING
 from opentelemetry import trace
 from aiohttp import web
 
+from source.core.session.manager import SessionManager
 from source.utils.metrics import track_websocket_message
 from source.utils.tracing import optional_trace_span
 
 if TYPE_CHECKING:
-    from source.api.websocket.manager import WebSocketManager
+    from source.api.websocket.registry import WebSocketRegistry
 
 logger = logging.getLogger('websocket_handler_reconnect')
 
@@ -25,7 +26,8 @@ async def handle_reconnect(
         user_id: str,
         client_id: str,
         message: Dict[str, Any],
-        ws_manager: 'WebSocketManager',
+        session_manager: SessionManager,
+        registry: 'WebSocketRegistry',
         tracer: trace.Tracer
 ):
     """
@@ -38,15 +40,13 @@ async def handle_reconnect(
         user_id: User ID (from initial connection auth).
         client_id: Client ID.
         message: The parsed reconnect message dictionary.
-        ws_manager: Instance of the WebSocketManager.
+        session_manager: Direct access to SessionManager.
+        registry: Direct access to WebSocketRegistry.
         tracer: OpenTelemetry Tracer instance.
     """
     with optional_trace_span(tracer, "handle_reconnect_message") as span:
         span.set_attribute("session_id", session_id)
         span.set_attribute("client_id", client_id)
-
-        # Access the session manager through the WebSocket manager
-        session_manager = ws_manager.session_manager
 
         # Extract data from message
         device_id = message.get('deviceId')
@@ -67,7 +67,7 @@ async def handle_reconnect(
             response_message = "Missing deviceId or sessionToken in reconnect request"
             span.set_attribute("error", response_message)
         else:
-            # Validate the session through the session manager
+            # Validate the session directly through the session manager
             validated_user_id = await session_manager.validate_session(session_id, user_id, session_token, device_id)
 
             if validated_user_id:
@@ -85,8 +85,8 @@ async def handle_reconnect(
                     authoritative_device_id = device_id  # Use the validated device ID
                     simulator_status_server = session_metadata.get('simulator_status', 'none')
 
-                    # Update connection activity through WebSocket manager
-                    ws_manager.registry.update_connection_activity(ws)
+                    # Update connection activity directly in registry
+                    registry.update_connection_activity(ws)
                 else:
                     # Should not happen if validate_session passed, but handle defensively
                     response_message = "Reconnect validation passed but session data not found"
