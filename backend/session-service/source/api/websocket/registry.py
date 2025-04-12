@@ -9,8 +9,6 @@ from typing import Dict, Set, Any, Optional, Tuple, ItemsView, List
 
 from aiohttp import web
 
-from source.core.session.manager import SessionManager
-
 from source.utils.metrics import track_websocket_connection_count
 
 logger = logging.getLogger('websocket_registry')
@@ -19,19 +17,19 @@ logger = logging.getLogger('websocket_registry')
 class WebSocketRegistry:
     """Stores and manages active WebSocket connections and their metadata."""
 
-    def __init__(self, session_manager: SessionManager):
+    def __init__(self, session_manager):
         """
         Initialize the registry.
 
         Args:
-            session_manager: The session manager instance (used to access db_manager).
+            session_manager: The session manager instance.
         """
         # session_id -> set of ws connections for that session
         self._connections: Dict[str, Set[web.WebSocketResponse]] = {}
         # ws -> connection metadata dictionary
         self._connection_info: Dict[web.WebSocketResponse, Dict[str, Any]] = {}
-        # Store db_manager for convenience
-        self._db_manager = session_manager.db_manager  # Assuming this path exists
+        # Reference to session manager
+        self._session_manager = session_manager
 
         logger.info("WebSocketRegistry initialized.")
 
@@ -77,10 +75,9 @@ class WebSocketRegistry:
             'last_activity': time.time()
         }
 
-        # Update session metadata in DB
-        # Run this as a background task to avoid blocking registration? For now, await.
+        # Update session metadata through session manager
         try:
-            await self._db_manager.update_session_metadata(session_id, {
+            await self._session_manager.update_session_metadata(session_id, {
                 'device_id': device_id,  # Update device ID on new connection potentially
                 'frontend_connections': len(self._connections[session_id]),
                 'last_ws_connection': time.time()
@@ -112,7 +109,6 @@ class WebSocketRegistry:
         conn_info = self._connection_info.pop(ws, None)
         if not conn_info:
             # Not registered or already unregistered
-            # logger.debug(f"Attempted to unregister a non-registered WebSocket.")
             return None, None, False
 
         session_id = conn_info['session_id']
@@ -135,9 +131,9 @@ class WebSocketRegistry:
             session_connection_count = 0
             session_became_empty = True  # Assume empty if session key doesn't exist
 
-        # Update session metadata in DB
+        # Update session metadata through session manager
         try:
-            await self._db_manager.update_session_metadata(session_id, {
+            await self._session_manager.update_session_metadata(session_id, {
                 'frontend_connections': session_connection_count,
                 'last_ws_disconnection': time.time()
             })
@@ -162,12 +158,10 @@ class WebSocketRegistry:
         conn_info = self._connection_info.get(ws)
         if conn_info:
             conn_info['last_activity'] = time.time()
-        # else:
-        # logger.warning("Attempted to update activity for non-registered WebSocket.")
 
     def get_session_connections(self, session_id: str) -> Set[web.WebSocketResponse]:
         """Return the set of WebSocket connections for a given session ID."""
-        return self._connections.get(session_id, set())  # Return copy or original? Return original for now.
+        return self._connections.get(session_id, set())
 
     def get_all_connection_info_items(self) -> ItemsView[web.WebSocketResponse, Dict[str, Any]]:
         """

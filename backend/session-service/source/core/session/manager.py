@@ -4,6 +4,7 @@ Coordinates the core components for session management.
 """
 import logging
 import asyncio
+from typing import Optional, Dict, Any
 
 from opentelemetry import trace
 
@@ -85,6 +86,27 @@ class SessionManager:
     async def get_session(self, session_id):
         """Get session by ID"""
         return await self.session_ops.get_session(session_id)
+
+    async def get_session_metadata(self, session_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Get session metadata as a dictionary.
+
+        Args:
+            session_id: The session ID
+
+        Returns:
+            Dictionary of metadata or None if session not found
+        """
+        session = await self.get_session(session_id)
+        if not session or not hasattr(session, 'metadata'):
+            return None
+
+        # Convert the SessionMetadata object to a dictionary
+        try:
+            return session.metadata.dict()
+        except Exception as e:
+            logger.error(f"Error converting session metadata to dict for {session_id}: {e}")
+            return {}
 
     async def validate_session(self, session_id, user_id, device_id=None):
         """Validate session ownership"""

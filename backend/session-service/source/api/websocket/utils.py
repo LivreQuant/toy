@@ -19,14 +19,14 @@ logger = logging.getLogger('websocket_authenticator')
 
 async def authenticate_websocket_request(
         request: web.Request,
-        session_manager
+        ws_manager
 ) -> Tuple[Any, str, str]:
     """
     Authenticates a WebSocket connection request and establishes session details.
 
     Args:
         request: The incoming aiohttp request object.
-        session_manager: The session manager instance.
+        ws_manager: The WebSocket manager instance.
 
     Returns:
         A tuple containing: (user_id, session_id, device_id)
@@ -40,6 +40,9 @@ async def authenticate_websocket_request(
     token = query.get('token')
     device_id = query.get('deviceId')
     session_id_from_query = query.get('sessionId')
+
+    # Access session manager through ws_manager
+    session_manager = ws_manager.session_manager
 
     # 1. Validate required parameters
     if not token or not device_id:
@@ -78,7 +81,7 @@ async def authenticate_websocket_request(
         if not session or session.user_id != user_id:
             logger.warning(f"Session {session_id} validation failed for user {user_id}")
             session_id = None  # Mark for new session creation
-        elif hasattr(session.metadata, 'device_id') and session.metadata.device_id != device_id:
+        elif hasattr(session, 'metadata') and session.metadata.device_id != device_id:
             # Device ID mismatch - decide how to handle (continue with new session in this case)
             logger.warning(
                 f"Device ID mismatch for session {session_id}. Expected {session.metadata.device_id}, got {device_id}")

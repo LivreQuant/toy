@@ -72,7 +72,8 @@ class WebSocketManager:
             if device_id_from_query: span.set_attribute("device_id_query", device_id_from_query)
 
             try:
-                user_id, session_id, device_id = await authenticate_websocket_request(request, self.session_manager)
+                # Pass self (WebSocketManager) instead of session_manager
+                user_id, session_id, device_id = await authenticate_websocket_request(request, self)
                 span.set_attribute("user_id", str(user_id))
                 span.set_attribute("session_id", session_id)
                 span.set_attribute("device_id", device_id)
@@ -309,3 +310,13 @@ class WebSocketManager:
             except Exception as e:
                 logger.error(f"Error in cleanup task: {e}", exc_info=True)
                 await asyncio.sleep(60)
+
+    async def register_activity(self, session_id: str) -> None:
+        """
+        Register activity for a session and update last activity.
+
+        Args:
+            session_id: The session ID to update activity for
+        """
+        # Update session activity through session manager
+        await self.session_manager.update_session_activity(session_id)

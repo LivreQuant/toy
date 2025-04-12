@@ -19,15 +19,19 @@ async def send_connected(
         *,
         client_id: str,
         device_id: str,
-        session_id: str
+        session_id: str,
+        pod_name: str = None  # Allow injection for testing
 ):
     """Sends the 'connected' message upon successful registration."""
+    if pod_name is None:
+        pod_name = config.kubernetes.pod_name
+
     payload = {
         'type': 'connected',
         'clientId': client_id,
         'deviceId': device_id,
         'sessionId': session_id,
-        'podName': config.kubernetes.pod_name,  # Assuming config is accessible
+        'podName': pod_name,
         'timestamp': int(time.time() * 1000)
     }
     try:
