@@ -1,7 +1,6 @@
 # websocket/exceptions.py
 class WebSocketError(Exception):
     """Base class for WebSocket related errors."""
-
     def __init__(self, message: str, error_code: str = "UNKNOWN_ERROR", details: dict = None):
         super().__init__(message)
         self.message = message
@@ -11,21 +10,18 @@ class WebSocketError(Exception):
 
 class WebSocketClientError(WebSocketError):
     """Error due to invalid client input or state."""
-
     def __init__(self, message: str, error_code: str = "CLIENT_ERROR", details: dict = None):
         super().__init__(message, error_code, details)
 
 
 class WebSocketSessionError(WebSocketError):
     """Error related to session validation or state."""
-
     def __init__(self, message: str, error_code: str = "SESSION_ERROR", details: dict = None):
         super().__init__(message, error_code, details)
 
 
 class WebSocketServerError(WebSocketError):
     """Internal server-side error."""
-
     def __init__(self, message: str = "Internal server error", error_code: str = "SERVER_ERROR", details: dict = None):
         # Default message hides internal details from client
         super().__init__(message, error_code, details)

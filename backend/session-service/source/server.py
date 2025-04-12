@@ -18,7 +18,6 @@ from source.core.stream.manager import StreamManager
 from source.core.session.manager import SessionManager
 from source.core.simulator.manager import SimulatorManager
 
-from source.clients.auth import AuthClient
 from source.clients.exchange import ExchangeClient
 from source.clients.k8s import KubernetesClient
 
@@ -100,7 +99,6 @@ class SessionServer:
         logger.info("Session cleanup tasks started.")
 
         # Make components available in application context
-        self.app['auth_client'] = self.di.get('auth_client')
         self.app['exchange_client'] = self.di.get('exchange_client')
         self.app['k8s_client'] = self.di.get('k8s_client')
         self.app['stream_manager'] = self.di.get('stream_manager')
@@ -134,7 +132,6 @@ class SessionServer:
         """Register all component factories and their dependencies"""
         # Register simple components with no dependencies
         self.di.register_instance('store_manager', StoreManager())
-        self.di.register('auth_client', lambda: AuthClient(), [])
         self.di.register('exchange_client', lambda: ExchangeClient(), [])
         self.di.register('k8s_client', lambda: KubernetesClient(), [])
         self.di.register('stream_manager', lambda: StreamManager(), [])
@@ -210,7 +207,6 @@ class SessionServer:
         # Get components from dependency container
         session_manager = self.di.get('session_manager')
         websocket_manager = self.di.get('websocket_manager')
-        auth_client = self.di.get('auth_client')
         exchange_client = self.di.get('exchange_client')
         store_manager = self.di.get('store_manager')
 
@@ -224,7 +220,6 @@ class SessionServer:
         await websocket_manager.close_all_connections("Server is shutting down")
 
         # Close external connections
-        await auth_client.close()
         await exchange_client.close()
         await store_manager.close()
 
@@ -243,7 +238,6 @@ class SessionServer:
 
         # Get dependencies from container
         store_manager = self.di.get('store_manager')
-        auth_client = self.di.get('auth_client')
 
         # Check database connections
         db_ready = await store_manager.check_connection()
@@ -251,12 +245,6 @@ class SessionServer:
         if not db_ready:
             all_ready = False
             logger.warning("Database connection check failed!")
-
-        # Check Auth service
-        auth_ready = await auth_client.check_service()
-        checks['auth_service'] = 'UP' if auth_ready else 'DOWN'
-        if not auth_ready:
-            all_ready = False
 
         status_code = 200 if all_ready else 503  # Service Unavailable if not ready
         return web.json_response({
@@ -273,7 +261,7 @@ class SessionServer:
         logger.info(f"Setting up CORS for origins: {origins}")
 
         cors_options = aiohttp_cors.ResourceOptions(
-            allow_credentials=True,  # Important for cookies/auth headers
+            allow_credentials=True,
             expose_headers="*",
             allow_headers="*",  # Be more specific in production if possible
             allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"]  # Include common methods

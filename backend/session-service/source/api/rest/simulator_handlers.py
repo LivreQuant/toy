@@ -9,7 +9,7 @@ from opentelemetry import trace
 
 from source.utils.metrics import track_simulator_operation
 from source.utils.tracing import optional_trace_span
-from source.api.rest.utils import validate_auth_token, get_active_session, create_error_response
+from source.api.rest.utils import validate_auth_token, create_error_response
 
 logger = logging.getLogger('simulator_handlers')
 _tracer = trace.get_tracer("simulator_handlers")
@@ -37,7 +37,7 @@ async def handle_start_simulator(request):
                 return error_response
 
             # Get active session for user
-            session, error_response = await get_active_session(request, user_id, validation.get('token'), span)
+            session, error_response = await session_manager.get_active_session(request, user_id, validation.get('token'), span)
             if error_response:
                 track_simulator_operation("start", "error_session")
                 return error_response
@@ -102,7 +102,7 @@ async def handle_stop_simulator(request):
                 return error_response
 
             # Get active session for user
-            session, error_response = await get_active_session(request, user_id, validation.get('token'), span)
+            session, error_response = await session_manager.get_active_session(request, user_id, validation.get('token'), span)
             if error_response:
                 track_simulator_operation("stop", "error_session")
                 return error_response

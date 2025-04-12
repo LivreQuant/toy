@@ -13,7 +13,6 @@ from source.utils.event_bus import event_bus
 
 from source.db.manager import StoreManager
 
-from source.clients.auth import AuthClient
 from source.clients.exchange import ExchangeClient
 
 from source.core.stream.manager import StreamManager

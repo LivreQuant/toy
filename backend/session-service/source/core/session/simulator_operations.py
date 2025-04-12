@@ -3,14 +3,12 @@ Comprehensive simulator management operations.
 Wraps and extends simulator manager functionality.
 """
 import logging
-import time
 from typing import Tuple, Optional, Dict, Any, AsyncGenerator
 
 from opentelemetry import trace
 
 from source.utils.event_bus import event_bus
 from source.utils.retry import retry_with_backoff
-from source.models.simulator import SimulatorStatus
 
 logger = logging.getLogger('simulator_operations')
 
