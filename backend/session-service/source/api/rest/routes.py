@@ -1,17 +1,8 @@
 # source/api/rest/routes.py
 """
 REST API route setup.
-Configures the RESTful API routes for the session and simulator services.
+Only essential endpoints remain, with session/simulator operations moved to WebSocket.
 """
-from source.api.rest.session_handlers import (
-    handle_session_info,
-    handle_stop_session,
-)
-from source.api.rest.simulator_handlers import (
-    handle_start_simulator,
-    handle_stop_simulator,
-)
-
 
 def setup_rest_routes(app):
     """
@@ -20,10 +11,6 @@ def setup_rest_routes(app):
     Args:
         app: The aiohttp web application instance.
     """
-    # Session routes
-    app.router.add_post('/api/session', handle_session_info, name='session_info')
-    app.router.add_delete('/api/session', handle_stop_session, name='stop_session')
-
-    # Simulator routes with proper REST methods
-    app.router.add_post('/api/simulator', handle_start_simulator, name='start_simulator')
-    app.router.add_delete('/api/simulator', handle_stop_simulator, name='stop_simulator')
+    # Keep only essential REST endpoints
+    # Health check, metrics, etc. are handled by the main server.py
+    pass

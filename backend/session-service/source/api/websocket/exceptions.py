@@ -1,4 +1,8 @@
 # websocket/exceptions.py
+"""
+Custom exceptions for WebSocket operations.
+"""
+
 class WebSocketError(Exception):
     """Base class for WebSocket related errors."""
     def __init__(self, message: str, error_code: str = "UNKNOWN_ERROR", details: dict = None):
@@ -42,3 +46,27 @@ class DeviceMismatchError(WebSocketSessionError):
     def __init__(self, message: str = "Device ID mismatch", expected: str = None, received: str = None):
         details = {'expected': expected, 'received': received}
         super().__init__(message, "DEVICE_MISMATCH", details)
+
+
+class ConnectionLimitError(WebSocketSessionError):
+    def __init__(self, message: str = "Connection limit reached", details: dict = None):
+        super().__init__(message, "CONNECTION_LIMIT_REACHED", details)
+
+
+class ConnectionReplacedError(WebSocketSessionError):
+    def __init__(self, message: str = "Connection replaced by new device connection", details: dict = None):
+        super().__init__(message, "CONNECTION_REPLACED", details)
+
+
+class InvalidSessionStateError(WebSocketSessionError):
+    def __init__(self, message: str = "Invalid session state for this operation", current_state: str = None, details: dict = None):
+        if current_state and not details:
+            details = {'current_state': current_state}
+        super().__init__(message, "INVALID_SESSION_STATE", details)
+
+
+class SimulatorError(WebSocketError):
+    """Error related to simulator operations."""
+    def __init__(self, message: str, error_code: str = "SIMULATOR_ERROR", details: dict = None):
+        super().__init__(message, error_code, details)
+        

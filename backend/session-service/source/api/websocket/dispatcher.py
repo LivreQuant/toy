@@ -19,7 +19,9 @@ from source.api.websocket.exceptions import (
 
 from source.api.websocket.handlers import (
     heartbeat_handler,
-    reconnect_handler
+    reconnect_handler,
+    session_handler,
+    simulator_handler
 )
 
 from source.api.websocket.emitters import error_emitter
@@ -74,8 +76,6 @@ async def _parse_message(raw_data: str) -> Tuple[Dict[str, Any], str, Optional[s
     return message, message_type, request_id
 
 
-# source/api/websocket/dispatcher.py
-
 class WebSocketDispatcher:
     """Parses and dispatches WebSocket messages to registered handlers."""
 
@@ -91,9 +91,17 @@ class WebSocketDispatcher:
 
         # Register message handlers: message_type -> handler_function
         self.message_handlers: Dict[str, HandlerFunc] = {
+            # Original handlers
             'heartbeat': heartbeat_handler.handle_heartbeat,
             'reconnect': reconnect_handler.handle_reconnect,
-            # Add other handlers here as they are created
+            
+            # Session handlers
+            'session_info': session_handler.handle_session_info,
+            'stop_session': session_handler.handle_stop_session,
+            
+            # Simulator handlers
+            'start_simulator': simulator_handler.handle_start_simulator,
+            'stop_simulator': simulator_handler.handle_stop_simulator,
         }
         logger.info(f"WebSocketDispatcher initialized with handlers for: {list(self.message_handlers.keys())}")
 
@@ -191,3 +199,4 @@ class WebSocketDispatcher:
             session_manager=self.session_manager,
             tracer=self.tracer
         )
+        

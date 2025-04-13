@@ -234,4 +234,48 @@ class SessionManager:
 
         logger.info(f"Cleaned up session {self.session_id}")
         return True
-    
+        
+    async def validate_device(self, device_id: str) -> tuple[bool, str, str]:
+        """
+        Validate if device ID matches the current session.
+        
+        Args:
+            device_id: The device ID to validate
+            
+        Returns:
+            Tuple of (is_valid, existing_device_id, error_message)
+        """
+        metadata = await self.get_session_metadata()
+        if not metadata:
+            return True, None, ""
+            
+        existing_device_id = metadata.get('device_id')
+        if not existing_device_id:
+            return True, None, ""
+            
+        if existing_device_id != device_id:
+            return False, existing_device_id, "Session already active on another device"
+        
+        return True, existing_device_id, ""
+
+    async def register_device(self, device_id: str, user_id: str) -> bool:
+        """
+        Register a device with the session.
+        
+        Args:
+            device_id: The device ID to register
+            user_id: The user ID
+            
+        Returns:
+            True if successful
+        """
+        try:
+            await self.update_session_metadata({
+                'device_id': device_id,
+                'last_device_update': time.time()
+            })
+            logger.info(f"Registered device {device_id} for user {user_id} with session {self.session_id}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to register device: {e}")
+            return False
