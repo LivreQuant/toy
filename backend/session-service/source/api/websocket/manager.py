@@ -3,7 +3,7 @@ import json
 import logging
 import time
 import asyncio
-from typing import Dict, Set
+from typing import Set
 from aiohttp import web, WSMsgType
 from opentelemetry import trace
 

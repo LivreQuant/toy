@@ -50,7 +50,7 @@ async def handle_session_info(request, user_id):
 
 
 @with_auth_validation(operation_type="stop", metrics_category="session")
-async def handle_stop_session(request, user_id):
+async def handle_stop_session(request):
     """
     Handle session termination request.
     In singleton mode, we don't actually end the session, just clean up resources

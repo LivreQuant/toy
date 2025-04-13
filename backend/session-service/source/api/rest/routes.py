@@ -21,7 +21,7 @@ def setup_rest_routes(app):
         app: The aiohttp web application instance.
     """
     # Session routes
-    app.router.add_get('/api/session', handle_session_info, name='session_info')
+    app.router.add_post('/api/session', handle_session_info, name='session_info')
     app.router.add_delete('/api/session', handle_stop_session, name='stop_session')
 
     # Simulator routes with proper REST methods
