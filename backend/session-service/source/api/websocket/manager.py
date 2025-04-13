@@ -2,6 +2,8 @@
 import json
 import logging
 import time
+import asyncio
+from typing import Dict, Set
 from aiohttp import web, WSMsgType
 from opentelemetry import trace
 
@@ -15,6 +17,12 @@ class WebSocketManager:
         self.simulator_manager = simulator_manager
         self.tracer = trace.get_tracer("websocket_manager")
         self.logger = logging.getLogger('websocket_manager')
+
+        # Track active connections
+        self.active_connections: Set[web.WebSocketResponse] = set()
+
+        # Register for exchange data
+        self.session_manager.register_exchange_data_callback(self.broadcast_exchange_data)
 
     async def handle_connection(self, request: web.Request) -> web.WebSocketResponse:
         """
@@ -34,12 +42,23 @@ class WebSocketManager:
             ws = web.WebSocketResponse(heartbeat=10)
             await ws.prepare(request)
 
+            # Add to active connections
+            self.active_connections.add(ws)
+
             # Connection handler
             try:
+                # Send connected message
+                await self._send_connected(ws, user_id, device_id, session_id)
+
+                # Process messages
                 await self._connection_loop(ws, user_id, device_id)
             except Exception as e:
                 self.logger.error(f"WebSocket connection error: {e}")
                 await self._send_error(ws, "Unexpected connection error")
+            finally:
+                # Remove from active connections when done
+                if ws in self.active_connections:
+                    self.active_connections.remove(ws)
 
             return ws
 
@@ -112,20 +131,75 @@ class WebSocketManager:
 
     async def _handle_reconnect(self, ws, user_id, device_id, message):
         """Handle reconnection"""
-        # Implement reconnection logic using session_manager
-        pass
+        # Update session metadata with device ID
+        await self.session_manager.update_session_metadata({
+            'device_id': device_id,
+            'last_reconnect': time.time()
+        })
+
+        # Send reconnect result message
+        await ws.send_json({
+            'type': 'reconnect_result',
+            'success': True,
+            'message': 'Session reconnected successfully',
+            'deviceId': device_id,
+            'deviceIdValid': True,
+            'sessionStatus': 'valid',
+            'simulatorStatus': self._get_simulator_status()
+        })
+
+    def _get_simulator_status(self):
+        """Get current simulator status"""
+        return "RUNNING" if self.session_manager.simulator_active else "NONE"
+
+    async def broadcast_exchange_data(self, data):
+        """Broadcast exchange data to all active WebSocket clients"""
+        if not self.active_connections:
+            return
+
+        # Create message payload
+        payload = {
+            'type': 'exchange_data',
+            'timestamp': int(time.time() * 1000),
+            'data': data
+        }
+
+        # Send to all active connections
+        send_tasks = []
+        for ws in list(self.active_connections):
+            if not ws.closed:
+                send_tasks.append(asyncio.ensure_future(ws.send_json(payload)))
+
+        if send_tasks:
+            # Wait for all sends to complete
+            await asyncio.gather(*send_tasks, return_exceptions=True)
+
+    async def _send_connected(self, ws, user_id, device_id, session_id):
+        """Send connected message to client"""
+        payload = {
+            'type': 'connected',
+            'timestamp': int(time.time() * 1000),
+            'userId': user_id,
+            'deviceId': device_id,
+            'sessionId': session_id
+        }
+        if not ws.closed:
+            await ws.send_json(payload)
 
     async def _send_error(self, ws: web.WebSocketResponse, error_message: str):
         """Send error message to client"""
-        await ws.send_json({
-            'type': 'error',
-            'message': error_message
-        })
+        if not ws.closed:
+            await ws.send_json({
+                'type': 'error',
+                'message': error_message,
+                'timestamp': int(time.time() * 1000)
+            })
 
     async def _cleanup(self, ws: web.WebSocketResponse):
         """Cleanup resources when connection closes"""
-        # Implement any necessary cleanup
-        pass
+        if ws in self.active_connections:
+            self.active_connections.remove(ws)
+        self.logger.info(f"WebSocket connection closed, remaining connections: {len(self.active_connections)}")
 
     def _reject_connection(self, reason: str) -> web.WebSocketResponse:
         """Reject WebSocket connection"""

@@ -6,8 +6,6 @@ import asyncio
 import logging
 from typing import Dict
 
-from source.utils.event_bus import event_bus
-
 logger = logging.getLogger('stream_manager')
 
 
@@ -49,9 +47,6 @@ class StreamManager:
         # Optional: Add a done callback to automatically remove finished/cancelled tasks
         task.add_done_callback(lambda t: self._handle_task_completion(session_id, t))
 
-        # Publish event that stream was started
-        asyncio.create_task(event_bus.publish('stream_started', session_id=session_id))
-
     async def stop_stream(self, session_id: str):
         """
         Stop and remove the stream task for a given session ID, if it exists.
@@ -67,11 +62,8 @@ class StreamManager:
                 # Wait briefly for cancellation to occur, but don't block indefinitely
                 await asyncio.wait_for(task, timeout=1.0)
                 logger.debug(f"Stream task for session {session_id} awaited after cancellation.")
-                # Publish event that stream was stopped
-                await event_bus.publish('stream_stopped', session_id=session_id)
             except asyncio.CancelledError:
                 logger.info(f"Stream task for session {session_id} successfully cancelled.")
-                await event_bus.publish('stream_stopped', session_id=session_id)
             except asyncio.TimeoutError:
                 logger.warning(f"Timeout waiting for stream task cancellation for session {session_id}.")
             except Exception as e:
@@ -80,7 +72,6 @@ class StreamManager:
                              exc_info=False)  # Keep log concise
         elif task and task.done():
             logger.debug(f"Stream task for session {session_id} was already done when stop was called.")
-            await event_bus.publish('stream_stopped', session_id=session_id)
 
     def _handle_task_completion(self, session_id: str, task: asyncio.Task):
         """Internal callback for when a managed task finishes (completes, cancels, or errors)."""
@@ -91,8 +82,6 @@ class StreamManager:
             logger.debug(
                 f"Stream task completed or cancelled for session {session_id}. Removing from active streams. Task: {task.get_name()}")
             del self._streams[session_id]
-            # Publish event that stream ended
-            asyncio.create_task(event_bus.publish('stream_ended', session_id=session_id))
 
         # Log errors if the task completed with an exception
         try:
@@ -100,10 +89,6 @@ class StreamManager:
             if exception:
                 logger.error(f"Managed stream task for session {session_id} finished with error: {exception}",
                              exc_info=exception)
-                # Publish stream error event
-                asyncio.create_task(event_bus.publish('stream_error',
-                                                      session_id=session_id,
-                                                      error=str(exception)))
         except asyncio.CancelledError:
             logger.debug(f"Managed stream task for session {session_id} was cancelled.")
         except asyncio.InvalidStateError:

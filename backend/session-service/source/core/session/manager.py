@@ -1,14 +1,12 @@
 """
 Session manager for handling a single user session.
-Coordinates the core components for session management.
+Simplified for dedicated single-user service.
 """
 import logging
 import asyncio
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Callable
 
 from opentelemetry import trace
-
-from source.utils.event_bus import event_bus
 
 from source.db.manager import StoreManager
 
@@ -17,21 +15,13 @@ from source.clients.exchange import ExchangeClient
 from source.core.stream.manager import StreamManager
 from source.core.simulator.manager import SimulatorManager
 
-from source.core.session.simulator_operations import SimulatorOperations
 from source.core.session.connection import Connection
 
 logger = logging.getLogger('session_manager')
 
 
-async def validate_session(user_id):
-    """
-    Validate session ownership - always validates successfully in singleton mode
-    """
-    return user_id
-
-
 class SessionManager:
-    """Manager for a single user session - coordinates all session-related operations"""
+    """Manager for a single user session - core of the session service"""
 
     def __init__(
             self,
@@ -59,17 +49,59 @@ class SessionManager:
         # Session identifier
         self.session_id = session_id
 
-        # Initialize component modules
-        self.simulator_ops = SimulatorOperations(self)
-        self.connection = Connection(self)
+        # Track if we have a simulator
+        self.simulator_active = False
 
-        # Connection tracking
-        self.frontend_connections = 0
+        # Callbacks for exchange data
+        self.exchange_data_callbacks = set()
+
+        # Initialize connection component
+        self.connection = Connection(self)
 
         # Create tracer
         self.tracer = trace.get_tracer("session_manager")
 
+        # Set up data callback to simulator manager
+        self.simulator_manager.set_data_callback(self._handle_exchange_data)
+
         logger.info(f"Session manager initialized with session ID: {session_id}")
+
+    # ----- Callback management -----
+
+    def register_exchange_data_callback(self, callback: Callable[[Dict[str, Any]], None]):
+        """
+        Register a callback to receive exchange data
+
+        Args:
+            callback: Function that accepts exchange data dictionary
+        """
+        self.exchange_data_callbacks.add(callback)
+        logger.debug(f"Registered exchange data callback, total: {len(self.exchange_data_callbacks)}")
+
+    def unregister_exchange_data_callback(self, callback: Callable[[Dict[str, Any]], None]):
+        """
+        Unregister a previously registered callback
+
+        Args:
+            callback: The callback function to remove
+        """
+        if callback in self.exchange_data_callbacks:
+            self.exchange_data_callbacks.remove(callback)
+            logger.debug(f"Unregistered exchange data callback, remaining: {len(self.exchange_data_callbacks)}")
+
+    def _handle_exchange_data(self, data: Dict[str, Any]):
+        """
+        Handle incoming exchange data by forwarding to all registered callbacks
+
+        Args:
+            data: Exchange data dictionary
+        """
+        for callback in list(self.exchange_data_callbacks):
+            try:
+                callback(data)
+            except Exception as e:
+                logger.error(f"Error in exchange data callback: {e}")
+                # Consider removing problematic callbacks
 
     # ----- Public API methods -----
 
@@ -92,83 +124,87 @@ class SessionManager:
 
     async def update_session_activity(self):
         """Update session last activity time"""
-        success = await self.store_manager.session_store.update_session_activity(self.session_id)
-        if success:
-            # Publish event that session activity was updated
-            await event_bus.publish('session_activity_updated', session_id=self.session_id)
-        return success
+        return await self.store_manager.session_store.update_session_activity(self.session_id)
 
     async def update_session_metadata(self, metadata_updates):
         """Update session metadata"""
-        success = await self.store_manager.session_store.update_session_metadata(self.session_id, metadata_updates)
-        if success:
-            # Publish event that metadata was updated
-            await event_bus.publish('session_metadata_updated',
-                                    session_id=self.session_id,
-                                    updates=metadata_updates)
-        return success
+        return await self.store_manager.session_store.update_session_metadata(self.session_id, metadata_updates)
 
     # ----- Simulator operations -----
 
     async def start_simulator(self, user_id=None):
         """Start a simulator for the session"""
-        # Delegate to simulator operations
-        simulator, error = await self.simulator_ops.create_simulator(self.session_id, user_id or "default-user")
+        # Use user ID from the session if not specified
+        if not user_id:
+            session = await self.get_session()
+            user_id = session.user_id if session else "default-user"
+
+        # Start the simulator
+        simulator, error = await self.simulator_manager.create_simulator(self.session_id, user_id)
 
         if simulator and not error:
+            # Update session metadata with simulator info
+            await self.update_session_metadata({
+                'simulator_id': simulator.simulator_id,
+                'simulator_status': simulator.status.value,
+                'simulator_endpoint': simulator.endpoint
+            })
+
+            # Set flag for active simulator
+            self.simulator_active = True
+
             # Start exchange stream if simulator created successfully
             try:
                 # Create the exchange data stream task
                 stream_task = asyncio.create_task(
-                    self._stream_simulator_data(simulator['endpoint'])
+                    self._stream_simulator_data(simulator.endpoint, simulator.simulator_id)
                 )
+                stream_task.set_name(f"stream-{simulator.simulator_id}")
 
                 # Register with stream manager
                 if stream_task and self.stream_manager:
                     self.stream_manager.register_stream(self.session_id, stream_task)
 
-                # Publish event that simulator was started
-                await event_bus.publish('simulator_started',
-                                        session_id=self.session_id,
-                                        simulator_id=simulator['simulator_id'],
-                                        endpoint=simulator['endpoint'])
-
             except Exception as e:
                 logger.error(f"Failed to start exchange stream: {e}", exc_info=True)
 
-            return simulator['simulator_id'], simulator['endpoint'], ""
+            return simulator.simulator_id, simulator.endpoint, ""
 
         return None, None, error
 
-    async def _stream_simulator_data(self, endpoint: str):
-        """Stream simulator data"""
+    async def _stream_simulator_data(self, endpoint: str, simulator_id: str):
+        """Stream simulator data - data is handled via callback now"""
         try:
-            async for data in self.simulator_ops.stream_exchange_data(endpoint):
-                await event_bus.publish('exchange_data_received',
-                                        session_id=self.session_id,
-                                        data=data)
+            # Stream data - handling will occur via callbacks
+            async for _ in self.simulator_manager.stream_exchange_data(
+                endpoint,
+                self.session_id,
+                f"stream-{self.session_id}"
+            ):
+                # The simulator manager will call our _handle_exchange_data method
+                # for each data item. We just need to keep the stream running.
+                pass
+
         except Exception as e:
             logger.error(f"Error in simulator data streaming: {e}")
-            await event_bus.publish('stream_failed',
-                                    session_id=self.session_id,
-                                    error=str(e))
+            self.simulator_active = False
+
+            # Update session metadata to reflect error
+            await self.update_session_metadata({
+                'simulator_status': 'ERROR',
+            })
 
     async def stop_simulator(self, force=False):
-        """Stop the simulator for the session"""
-        # Get session to find simulator
-        session = await self.store_manager.session_store.get_session_from_db(self.session_id, skip_activity_check=force)
-        if not session:
-            return False, "Session not found"
+        """Stop the current simulator"""
+        # First check if there's a simulator to stop
+        metadata = await self.get_session_metadata()
+        if not metadata or not metadata.get('simulator_id'):
+            return True, "No simulator to stop"
 
-        # Extract simulator details from metadata
-        metadata = session.metadata
-        simulator_id = getattr(metadata, 'simulator_id', None)
+        simulator_id = metadata.get('simulator_id')
 
-        if not simulator_id:
-            return True, ""
-
-        # Delegate to simulator operations
-        success, error = await self.simulator_ops.stop_simulator(force)
+        # Stop via the simulator manager
+        success, error = await self.simulator_manager.stop_simulator(simulator_id, force)
 
         # Update session metadata
         await self.update_session_metadata({
@@ -177,24 +213,25 @@ class SessionManager:
             'simulator_endpoint': None
         })
 
-        # Publish event that simulator was stopped
-        if success:
-            await event_bus.publish('simulator_stopped',
-                                    session_id=self.session_id,
-                                    simulator_id=simulator_id)
+        # Update state tracking
+        self.simulator_active = False
+
+        # Stop the stream if running
+        if self.stream_manager:
+            await self.stream_manager.stop_stream(self.session_id)
 
         return success, error
 
-    # Also simplify the cleanup_session method
     async def cleanup_session(self):
-        """Clean up the session resources"""
-        # Get session to find simulator
-        session = await self.get_session()
-        if session:
-            metadata = session.metadata
-            simulator_id = getattr(metadata, 'simulator_id', None)
-            if simulator_id:
-                await self.stop_simulator(force=True)
+        """Clean up the session resources - important for graceful shutdown"""
+        # Stop simulator if active
+        if self.simulator_active:
+            await self.stop_simulator(force=True)
+
+        # Make sure all streams are stopped
+        if self.stream_manager:
+            await self.stream_manager.stop_stream(self.session_id)
 
         logger.info(f"Cleaned up session {self.session_id}")
         return True
+    

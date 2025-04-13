@@ -1,7 +1,7 @@
 # source/api/websocket/utils.py
 """
 WebSocket utility functions.
-Simplified for singleton session mode.
+Simplified for single-user mode.
 """
 import logging
 from typing import Tuple, Any
@@ -23,28 +23,24 @@ async def authenticate_websocket_request(
         session_manager: SessionManager
 ) -> Tuple[Any, str, str]:
     """
-    Authenticates a WebSocket connection request in singleton mode.
-    
-    In singleton mode, we still validate the token but always use the 
-    pre-initialized session.
+    Authenticates a WebSocket connection request for a single-user service.
 
     Args:
         request: The incoming aiohttp request object.
-        session_manager: The session manager instance for direct access.
+        session_manager: The session manager instance.
 
     Returns:
         A tuple containing: (user_id, session_id, device_id)
 
     Raises:
-        WebSocketClientError: If required parameters are missing or invalid input.
+        WebSocketClientError: If required parameters are missing.
         AuthenticationError: If the token is invalid.
-        WebSocketServerError: If session validation fails unexpectedly.
     """
     query = request.query
     token = query.get('token')
     device_id = query.get('deviceId', 'default-device')
 
-    # 1. Validate required parameters
+    # Validate required parameters
     if not token:
         logger.warning("Authentication failed: Missing token query parameter")
         raise WebSocketClientError(
@@ -52,31 +48,32 @@ async def authenticate_websocket_request(
             error_code="MISSING_PARAMETERS"
         )
 
-    # 2. In singleton mode, get the session ID from the session manager
-    if session_manager.singleton_mode:
-        session_id = session_manager.singleton_session_id
-        
-        # Validate token but don't enforce user matching
-        validation_result = await validate_token_with_auth_service(token)
-        
-        if not validation_result.get('valid', False):
-            logger.warning(f"Authentication failed: Invalid token for device {device_id}")
-            raise AuthenticationError(
-                message="Invalid authentication token",
-            )
-        
-        user_id = validation_result.get('userId')
-        
-        if not user_id:
-            logger.warning(f"Authentication failed: No user ID in token for device {device_id}")
-            raise AuthenticationError(
-                message="Invalid authentication token - missing user ID",
-            )
-        
-        # In singleton mode, we don't validate that the user matches the session
-        logger.info(f"Using singleton session {session_id} for user {user_id}, device {device_id}")
-        return user_id, session_id, device_id
-    else:
-        # Original multi-user authentication would go here
-        raise NotImplementedError("Multi-user mode authentication not implemented")
-    
+    # Get the session ID (in single-user mode, it's pre-defined)
+    session_id = session_manager.session_id
+
+    # Validate token
+    validation_result = await validate_token_with_auth_service(token)
+
+    if not validation_result.get('valid', False):
+        logger.warning(f"Authentication failed: Invalid token for device {device_id}")
+        raise AuthenticationError(
+            message="Invalid authentication token",
+        )
+
+    user_id = validation_result.get('userId')
+
+    if not user_id:
+        logger.warning(f"Authentication failed: No user ID in token for device {device_id}")
+        raise AuthenticationError(
+            message="Invalid authentication token - missing user ID",
+        )
+
+    # In single-user mode, we don't validate that the user matches the session
+    logger.info(f"WebSocket authenticated for user {user_id}, device {device_id}, session {session_id}")
+
+    # Update the session metadata with the device ID
+    await session_manager.update_session_metadata({
+        'device_id': device_id
+    })
+
+    return user_id, session_id, device_id

@@ -1,126 +1,101 @@
 """
 State manager for session service.
-Controls the service's readiness state to handle user sessions.
+Simplified for single-user service.
 """
 import logging
 import asyncio
 import time
-from typing import Optional
 
 logger = logging.getLogger('state_manager')
 
 
 class StateManager:
     """
-    Manages the session service state (ready, active, resetting).
-    Controls whether the instance can accept new users.
+    Manages the single session service state.
     """
 
     def __init__(self):
         """Initialize the state manager"""
         self._lock = asyncio.Lock()
 
-        # Service state
+        # Service state - for a single user service, we only need to track if ready
         self._is_ready = True
-        self._active_user_id = None
-        self._active_session_id = None
-        self._connection_time = None
+        self._session_id = None
+        self._start_time = None
 
     async def initialize(self):
         """Initialize the state manager at service startup"""
         async with self._lock:
             self._is_ready = True
-            self._active_user_id = None
-            self._active_session_id = None
-            self._connection_time = None
+            self._session_id = None
+            self._start_time = None
             logger.info("State manager initialized to READY state")
 
     async def set_ready(self):
-        """Mark the service as ready to receive a new user"""
+        """Mark the service as ready"""
         async with self._lock:
             self._is_ready = True
-            self._active_user_id = None
-            self._active_session_id = None
-            self._connection_time = None
+            self._session_id = None
             logger.info("Service state set to READY")
             return True
 
-    async def set_active(self, user_id: str, session_id: str) -> bool:
+    async def set_active(self, session_id: str):
         """
-        Mark the service as actively serving a user.
+        Mark the service as actively serving a session.
 
         Args:
-            user_id: The ID of the active user
             session_id: The ID of the active session
 
         Returns:
-            True if successfully set to active, False otherwise
+            True
         """
         async with self._lock:
-            if self._active_user_id is not None:
-                logger.warning(f"Attempted to set active but user {self._active_user_id} is already active")
-                return False
-
             self._is_ready = False
-            self._active_user_id = user_id
-            self._active_session_id = session_id
-            self._connection_time = time.time()
-
-            logger.info(f"Service state set to ACTIVE for user {user_id}, session {session_id}")
+            self._session_id = session_id
+            self._start_time = time.time()
+            logger.info(f"Service state set to ACTIVE for session {session_id}")
             return True
 
-    async def reset_to_ready(self) -> bool:
+    async def reset_to_ready(self):
         """
-        Reset the service state back to ready after a user disconnects.
+        Reset the service state back to ready.
 
         Returns:
-            True if successfully reset, False otherwise
+            True
         """
         async with self._lock:
-            # Reset all state variables
-            old_user_id = self._active_user_id
+            old_session = self._session_id
             self._is_ready = True
-            self._active_user_id = None
-            self._active_session_id = None
-            self._connection_time = None
-
-            logger.info(f"Service state reset to READY (was active for user {old_user_id})")
+            self._session_id = None
+            logger.info(f"Service state reset to READY (was serving session {old_session})")
             return True
 
-    def is_ready(self) -> bool:
+    def is_ready(self):
         """Check if the service is in ready state"""
         return self._is_ready
 
-    def is_active(self) -> bool:
-        """Check if the service has an active user"""
-        return self._active_user_id is not None
+    def is_active(self):
+        """Check if the service has an active session"""
+        return self._session_id is not None
 
-    def get_active_user_id(self) -> Optional[str]:
-        """Get the active user ID if any"""
-        return self._active_user_id
-
-    def get_active_session_id(self) -> Optional[str]:
+    def get_active_session_id(self):
         """Get the active session ID if any"""
-        return self._active_session_id
+        return self._session_id
 
-    def get_active_connection_time(self) -> Optional[float]:
-        """Get the timestamp when the active connection was established"""
-        return self._connection_time
+    def get_uptime_seconds(self):
+        """Get the time this session has been active"""
+        if not self._start_time:
+            return 0
+        return time.time() - self._start_time
 
-    def get_status_info(self) -> dict:
+    def get_status_info(self):
         """Get detailed status information"""
-        current_time = time.time()
-        connection_duration = None
-        if self._connection_time:
-            connection_duration = current_time - self._connection_time
-
         return {
             "is_ready": self._is_ready,
-            "is_active": self._active_user_id is not None,
-            "active_user_id": self._active_user_id,
-            "active_session_id": self._active_session_id,
-            "connection_time": self._connection_time,
-            "connection_duration_seconds": connection_duration,
+            "is_active": self._session_id is not None,
+            "active_session_id": self._session_id,
+            "start_time": self._start_time,
+            "uptime_seconds": self.get_uptime_seconds(),
         }
 
     async def close(self):
