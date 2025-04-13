@@ -169,7 +169,7 @@ class Config(BaseModel):
                 enabled=os.getenv('SINGLETON_MODE', 'true').lower() == 'true',
                 user_id=os.getenv('SINGLETON_USER_ID', 'default-user'),
                 device_id=os.getenv('SINGLETON_DEVICE_ID', 'server-instance')
-            )
+            ),  # Added missing comma here
             state_management=StateManagementConfig(
                 ready_file_path=os.getenv('READY_FILE_PATH', '/tmp/session_service_ready'),
                 health_check_path=os.getenv('HEALTH_CHECK_PATH', '/health'),

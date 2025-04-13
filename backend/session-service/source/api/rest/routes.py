@@ -11,6 +11,9 @@ from source.api.rest.simulator_handlers import (
     handle_start_simulator,
     handle_stop_simulator,
 )
+from source.api.rest.admin_handlers import (
+    handle_reset_service,  # Added missing import
+)
 
 
 def setup_rest_routes(app):
@@ -28,5 +31,5 @@ def setup_rest_routes(app):
     app.router.add_post('/api/simulator', handle_start_simulator, name='start_simulator')
     app.router.add_delete('/api/simulator', handle_stop_simulator, name='stop_simulator')
 
-
+    # Admin routes
     app.router.add_post('/api/admin/reset', handle_reset_service, name='reset_service')

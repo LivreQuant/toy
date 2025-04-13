@@ -68,16 +68,48 @@ class SessionManager:
         self.cleanup_task = None
         self.heartbeat_task = None
 
+        # Connection tracking
+        self.frontend_connections = 0
+
         # Create tracer
         self.tracer = trace.get_tracer("session_manager")
 
         # Subscribe to events
         event_bus.subscribe('stream_error', self.handle_stream_error)
+        event_bus.subscribe('ws_connection_established', self.handle_connection_established)
+        event_bus.subscribe('ws_connection_closed', self.handle_connection_closed)
 
         logger.info(f"Session manager initialized in {'singleton' if singleton_mode else 'multi-user'} mode")
         if singleton_mode:
             logger.info(f"Singleton session ID: {singleton_session_id}")
 
+    # ----- Connection tracking methods -----
+    
+    async def handle_connection_established(self, session_id, client_id, user_id):
+        """Handle new WebSocket connection event"""
+        self.frontend_connections += 1
+        logger.info(f"New connection established (total: {self.frontend_connections})")
+        
+        # Update session metadata
+        await self.update_session_metadata(session_id, {
+            'frontend_connections': self.frontend_connections,
+            'last_ws_connection': asyncio.get_event_loop().time()
+        })
+        
+        # Update session activity
+        await self.update_session_activity(session_id)
+
+    async def handle_connection_closed(self, session_id, client_id, session_empty):
+        """Handle WebSocket connection closed event"""
+        self.frontend_connections = max(0, self.frontend_connections - 1)
+        logger.info(f"Connection closed (remaining: {self.frontend_connections})")
+        
+        # Update session metadata
+        await self.update_session_metadata(session_id, {
+            'frontend_connections': self.frontend_connections,
+            'last_ws_disconnection': asyncio.get_event_loop().time()
+        })
+    
     # ----- Public API methods -----
 
     async def get_session_id(self, user_id=None, device_id=None):

@@ -67,6 +67,38 @@ class Tasks:
         except Exception as e:
             logger.error(f"Error checking starting simulators: {e}", exc_info=True)
 
+    async def check_and_handle_orphaned_sessions(self):
+        """Check for and handle orphaned sessions (user left without proper cleanup)"""
+        try:
+            # Get state manager
+            state_manager = self.manager.app.get('state_manager')
+            if not state_manager:
+                logger.warning("State manager not available in session manager")
+                return
+                
+            # If service is active but no WebSocket connections for a certain time
+            if state_manager.is_active():
+                session_id = state_manager.get_active_session_id()
+                if session_id:
+                    # Check frontend connections count from session manager
+                    active_connection_count = self.manager.frontend_connections
+                        
+                    # If no active connections for more than 5 minutes, reset
+                    connection_time = state_manager.get_active_connection_time()
+                    inactive_threshold = 300  # 5 minutes
+                        
+                    if active_connection_count == 0 and connection_time and (time.time() - connection_time) > inactive_threshold:
+                        logger.warning(f"Detected orphaned session {session_id} - no connections for over 5 minutes")
+                            
+                        # Clean up session resources
+                        await self.manager.cleanup_session(session_id)
+                            
+                        # Reset state
+                        await state_manager.reset_to_ready()
+                        logger.info("Reset service to ready state after cleaning up orphaned session")
+        except Exception as e:
+            logger.error(f"Error checking for orphaned sessions: {e}")
+
     async def run_cleanup_loop(self):
         """Background loop for periodic checks and updates"""
         logger.info("Session maintenance loop starting.")
@@ -76,6 +108,9 @@ class Tasks:
                 
                 # Check if simulator in STARTING state has become ready
                 await self._check_starting_simulators()
+                
+                # Check for orphaned sessions
+                await self.check_and_handle_orphaned_sessions()
                 
                 # Update metrics
                 if self.manager.singleton_mode:
@@ -138,62 +173,4 @@ class Tasks:
                 logger.info(f"Session {session_id} resources cleaned up during shutdown")
             except Exception as e:
                 logger.error(f"Error during session cleanup: {e}", exc_info=True)
-
-
-    async def check_and_handle_orphaned_sessions(self):
-        """Check for and handle orphaned sessions (user left without proper cleanup)"""
-        try:
-            # Get state manager
-            state_manager = self.manager.app.get('state_manager')
-            if not state_manager:
-                logger.warning("State manager not available in session manager")
-                return
                 
-            # If service is active but no WebSocket connections for a certain time
-            if state_manager.is_active():
-                session_id = state_manager.get_active_session_id()
-                if session_id:
-                    # Check if any WebSocket connections are still active
-                    if hasattr(self.manager, 'websocket_manager'):
-                        ws_manager = self.manager.websocket_manager
-                        active_connection_count = len(ws_manager._active_connections)
-                        
-                        # If no active connections for more than 5 minutes, reset
-                        connection_time = state_manager.get_active_connection_time()
-                        inactive_threshold = 300  # 5 minutes
-                        
-                        if active_connection_count == 0 and connection_time and (time.time() - connection_time) > inactive_threshold:
-                            logger.warning(f"Detected orphaned session {session_id} - no connections for over 5 minutes")
-                            
-                            # Clean up session resources
-                            await self.manager.cleanup_session(session_id)
-                            
-                            # Reset state
-                            await state_manager.reset_to_ready()
-                            logger.info("Reset service to ready state after cleaning up orphaned session")
-        except Exception as e:
-            logger.error(f"Error checking for orphaned sessions: {e}")
-
-    # Modify run_cleanup_loop to include this check
-    async def run_cleanup_loop(self):
-        """Background loop for periodic checks and updates"""
-        logger.info("Session maintenance loop starting.")
-        while True:
-            try:
-                logger.info("Running periodic maintenance...")
-                
-                # ... existing maintenance code ...
-                
-                # Check for orphaned sessions
-                await self.check_and_handle_orphaned_sessions()
-                
-                logger.info("Periodic maintenance finished.")
-                
-                # Sleep until next cycle
-                await asyncio.sleep(60)  # Check every minute
-            except asyncio.CancelledError:
-                logger.info("Maintenance loop cancelled.")
-                break
-            except Exception as e:
-                logger.error(f"Error in maintenance loop: {e}", exc_info=True)
-                await asyncio.sleep(60)  # Retry after a minute
