@@ -3,10 +3,7 @@
 Handles PostgreSQL interactions for Simulator data.
 """
 import logging
-import time
 from typing import Optional, List
-
-from opentelemetry import trace
 
 from source.models.simulator import Simulator, SimulatorStatus
 from source.utils.metrics import track_db_operation, track_db_error, TimedOperation, track_cleanup_operation

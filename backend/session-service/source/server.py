@@ -52,10 +52,10 @@ async def health_check(request):
 
 
 class SessionServer:
-    """Simplified session service server for singleton mode"""
-
     def __init__(self):
-        """Initialize server components"""
+        # Create state manager
+        self.state_manager = StateManager()
+
         # Apply middleware
         self.app = web.Application(middlewares=[
             metrics_middleware,
@@ -67,12 +67,18 @@ class SessionServer:
         self.initialized = False
         self.shutdown_event = asyncio.Event()
 
-        # Create state manager
-        self.state_manager = StateManager()
-
         # Generate a stable session ID for this instance
         self.session_id = str(uuid.uuid4())
         self.user_id = config.singleton.user_id  # Get from config
+
+        # Initialize other managers and clients to None initially
+        self.store_manager = None
+        self.exchange_client = None
+        self.k8s_client = None
+        self.stream_manager = None
+        self.simulator_manager = None
+        self.session_manager = None
+        self.websocket_manager = None
 
     async def initialize(self):
         """Initialize all server components"""
@@ -86,46 +92,46 @@ class SessionServer:
         await self.state_manager.initialize()
 
         # Create core components directly without complex dependency injection
-        store_manager = StoreManager()
-        await store_manager.connect()
+        self.store_manager = StoreManager()
+        await self.store_manager.connect()
 
         # Create clients
-        exchange_client = ExchangeClient()
-        k8s_client = KubernetesClient()
+        self.exchange_client = ExchangeClient()
+        self.k8s_client = KubernetesClient()
 
         # Create managers
-        stream_manager = StreamManager()
-        simulator_manager = SimulatorManager(store_manager, k8s_client)
+        self.stream_manager = StreamManager()
+        self.simulator_manager = SimulatorManager(self.store_manager, self.k8s_client)
 
         # Create session manager with singleton session ID
-        session_manager = SessionManager(
-            store_manager,
-            exchange_client,
-            stream_manager,
-            simulator_manager,
+        self.session_manager = SessionManager(
+            self.store_manager,
+            self.exchange_client,
+            self.stream_manager,
+            self.simulator_manager,
             self.session_id
         )
 
         # Create websocket manager
-        websocket_manager = WebSocketManager(session_manager, stream_manager)
+        self.websocket_manager = WebSocketManager(self.session_manager, self.simulator_manager)
 
         # Create singleton session
-        success = await self._create_singleton_session(session_manager)
+        success = await self._create_singleton_session(self.session_manager)
         if not success:
             raise RuntimeError("Failed to initialize singleton session")
 
         # Start background tasks
-        await session_manager.start_session_tasks()
+        await self.session_manager.start_session_tasks()
 
         # Store components in app context
         self.app['state_manager'] = self.state_manager
-        self.app['store_manager'] = store_manager
-        self.app['exchange_client'] = exchange_client
-        self.app['k8s_client'] = k8s_client
-        self.app['stream_manager'] = stream_manager
-        self.app['simulator_manager'] = simulator_manager
-        self.app['session_manager'] = session_manager
-        self.app['websocket_manager'] = websocket_manager
+        self.app['store_manager'] = self.store_manager
+        self.app['exchange_client'] = self.exchange_client
+        self.app['k8s_client'] = self.k8s_client
+        self.app['stream_manager'] = self.stream_manager
+        self.app['simulator_manager'] = self.simulator_manager
+        self.app['session_manager'] = self.session_manager
+        self.app['websocket_manager'] = self.websocket_manager
 
         # Set up routes
         self._setup_routes()
@@ -135,6 +141,29 @@ class SessionServer:
 
         self.initialized = True
         logger.info(f"Server initialization complete with singleton session {self.session_id}")
+
+    async def start(self):
+        """Start the server"""
+        # Start web application
+        app_runner = web.AppRunner(self.app)
+        await app_runner.setup()
+        site = web.TCPSite(
+            app_runner,
+            config.server.host,
+            config.server.port
+        )
+        await site.start()
+        logger.info(f"Server started on {config.server.host}:{config.server.port}")
+
+    async def shutdown(self):
+        """Graceful shutdown"""
+        logger.info("Initiating server shutdown")
+        # Perform cleanup tasks
+        self.shutdown_event.set()
+
+    async def wait_for_shutdown(self):
+        """Wait for shutdown signal"""
+        await self.shutdown_event.wait()
 
     def _setup_routes(self):
         """Set up all server routes"""

@@ -3,13 +3,11 @@ Simulator manager for handling exchange simulator lifecycle.
 Simplified for singleton mode with one simulator per session.
 """
 import logging
-import asyncio
 import time
 from typing import Optional, Tuple
 
 from opentelemetry import trace
 
-from source.config import config
 from source.utils.event_bus import event_bus
 from source.utils.tracing import optional_trace_span
 from source.utils.metrics import track_simulator_operation, track_simulator_count, track_simulator_creation_time

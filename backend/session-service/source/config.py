@@ -16,6 +16,7 @@ LOG_LEVELS = {
     'CRITICAL': logging.CRITICAL
 }
 
+
 class StateManagementConfig(BaseModel):
     """Service state management configuration"""
     ready_file_path: str = Field(default="/tmp/session_service_ready")
@@ -23,6 +24,7 @@ class StateManagementConfig(BaseModel):
     readiness_check_path: str = Field(default="/ready")
     active_lock_file_path: str = Field(default="/tmp/session_service_active")
     reset_on_startup: bool = Field(default=True)
+
 
 class DatabaseConfig(BaseModel):
     """Database connection configuration"""
@@ -52,7 +54,7 @@ class ServerConfig(BaseModel):
     port: int = Field(default=8080)
     workers: int = Field(default=4)
     cors_allowed_origins: List[str] = Field(default=["*"])
-    shutdown_timeout: int = Field(default=30) 
+    shutdown_timeout: int = Field(default=30)
 
 
 class SessionConfig(BaseModel):
@@ -86,17 +88,20 @@ class TracingConfig(BaseModel):
     exporter_endpoint: str = Field(default="http://jaeger-collector:14268/api/traces")
     service_name: str = Field(default="session-service")
 
+
 class MetricsConfig(BaseModel):
     """Metrics configuration"""
     enabled: bool = Field(default=True)
     port: int = Field(default=9090)
     endpoint: str = Field(default="/metrics")
 
+
 class SingletonConfig(BaseModel):
     """Singleton mode configuration"""
     enabled: bool = Field(default=False)
     user_id: str = Field(default="default-user")  # Default user ID for singleton mode
     device_id: str = Field(default="server-instance")  # Default device ID
+
 
 class Config(BaseModel):
     """Main configuration class"""
@@ -121,7 +126,7 @@ class Config(BaseModel):
             environment=os.getenv('ENVIRONMENT', 'development'),
             log_level=os.getenv('LOG_LEVEL', 'INFO'),
             db=DatabaseConfig(
-                host=os.getenv('DB_HOST', 'postgres'), #'localhost'),
+                host=os.getenv('DB_HOST', 'postgres'),  # 'localhost'),
                 port=int(os.getenv('DB_PORT', '5432')),
                 database=os.getenv('DB_NAME', 'opentp'),
                 user=os.getenv('DB_USER', 'opentp'),
@@ -158,8 +163,9 @@ class Config(BaseModel):
                 in_cluster=os.getenv('K8S_IN_CLUSTER', 'true').lower() == 'true'
             ),
             tracing=TracingConfig(
-                enabled=os.getenv('ENABLE_TRACING', 'true').lower() == 'true',
-                exporter_endpoint=os.getenv('OTEL_EXPORTER_JAEGER_ENDPOINT', 'http://jaeger-collector:14268/api/traces'),
+                enabled=os.getenv('ENABLE_TRACING', 'false').lower() == 'true',
+                exporter_endpoint=os.getenv('OTEL_EXPORTER_JAEGER_ENDPOINT',
+                                            'http://jaeger-collector:14268/api/traces'),
                 service_name=os.getenv('OTEL_SERVICE_NAME', 'session-service')
             ),
             metrics=MetricsConfig(

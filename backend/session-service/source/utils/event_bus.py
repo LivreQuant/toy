@@ -1,57 +1,46 @@
-# source/utils/event_bus.py
+# source/event_bus.py
 import asyncio
-import logging
-from typing import Dict, List, Callable, Awaitable
-
-logger = logging.getLogger('event_bus')
-
-EventHandler = Callable[..., Awaitable[None]]
+from typing import Callable, Dict
+from dataclasses import dataclass, field
 
 
+@dataclass
 class EventBus:
-    """Central event bus for application-wide communication"""
+    """Simplified async event bus"""
+    _subscribers: Dict[str, list[Callable]] = field(default_factory=dict)
 
-    def __init__(self):
-        self.subscribers: Dict[str, List[EventHandler]] = {}
-        logger.info("Event bus initialized")
+    async def publish(self, event_type: str, **kwargs):
+        """
+        Publish an event to all subscribers
 
-    def subscribe(self, event_type: str, handler: EventHandler) -> None:
-        """Subscribe to an event type with a handler function"""
-        if event_type not in self.subscribers:
-            self.subscribers[event_type] = []
-        self.subscribers[event_type].append(handler)
-        logger.debug(f"Subscribed to event: {event_type}")
-
-    def unsubscribe(self, event_type: str, handler: EventHandler) -> None:
-        """Unsubscribe a handler from an event type"""
-        if event_type in self.subscribers and handler in self.subscribers[event_type]:
-            self.subscribers[event_type].remove(handler)
-            logger.debug(f"Unsubscribed from event: {event_type}")
-
-    async def publish(self, event_type: str, **data) -> None:
-        """Publish an event to all subscribers"""
-        if event_type not in self.subscribers:
+        Args:
+            event_type: Type of event
+            kwargs: Event payload
+        """
+        if event_type not in self._subscribers:
             return
 
-        handlers = self.subscribers[event_type]
+        tasks = [
+            asyncio.create_task(subscriber(**kwargs))
+            for subscriber in self._subscribers[event_type]
+        ]
 
-        if handlers:
-            logger.debug(f"Publishing event {event_type} to {len(handlers)} subscribers")
+        # Wait for all tasks, ignore individual task failures
+        await asyncio.gather(*tasks, return_exceptions=True)
 
-            # Create tasks for all handlers
-            tasks = [asyncio.create_task(handler(**data)) for handler in handlers]
+    def subscribe(self, event_type: str, subscriber: Callable):
+        """
+        Subscribe to an event type
 
-            # Wait for all handlers to complete
-            if tasks:
-                results = await asyncio.gather(*tasks, return_exceptions=True)
+        Args:
+            event_type: Type of event
+            subscriber: Async function to handle event
+        """
+        if event_type not in self._subscribers:
+            self._subscribers[event_type] = []
 
-                # Log any exceptions
-                for i, result in enumerate(results):
-                    if isinstance(result, Exception):
-                        logger.error(f"Error in event handler for {event_type}: {result}")
-        else:
-            logger.debug(f"Event {event_type} published but no subscribers")
+        self._subscribers[event_type].append(subscriber)
 
 
-# Global event bus instance
+# Global event bus
 event_bus = EventBus()

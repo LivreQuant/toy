@@ -45,12 +45,18 @@ async def main():
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, lambda: asyncio.create_task(server.shutdown()))
 
-    # Initialize server components
+    # Initialize server components with proper error handling
     try:
         await server.initialize()
+    except Exception as init_error:
+        logger.error(f"Server initialization failed: {init_error}")
+        return 1
+
+    # Start server with error handling
+    try:
         await server.start()
-    except Exception as e:
-        logger.error(f"Failed to start server: {e}")
+    except Exception as start_error:
+        logger.error(f"Failed to start server: {start_error}")
         return 1
 
     # Run until shutdown is complete

@@ -1,235 +1,132 @@
-# websocket/manager.py
-"""
-WebSocket connection manager for single-user mode.
-Handles WebSocket connections and message dispatching.
-"""
-import asyncio
+# source/websocket/manager.py
 import json
 import logging
 import time
-from typing import Dict, Any, Optional, List
-
 from aiohttp import web, WSMsgType
-from opentelemetry import trace, context
+from opentelemetry import trace
 
-from source.config import config
-from source.utils.event_bus import event_bus
-from source.utils.metrics import track_websocket_connection_count, track_websocket_error
+from source.api.websocket.utils import authenticate_websocket_request
 from source.utils.tracing import optional_trace_span
 
-from source.core.session.manager import SessionManager
-from source.core.stream.manager import StreamManager
-
-# WebSocket Components
-from source.api.websocket.utils import authenticate_websocket_request
-from source.api.websocket.dispatcher import WebSocketDispatcher
-from source.api.websocket.exceptions import WebSocketError
-
-from source.api.websocket.emitters import connection_emitter, error_emitter
-
-logger = logging.getLogger('websocket_manager')
-
-
-# source/api/websocket/manager.py
 
 class WebSocketManager:
-    """Manages WebSocket connections for a single session."""
-
-    def __init__(self, session_manager: SessionManager, stream_manager: StreamManager):
-        """Initialize WebSocket manager."""
+    def __init__(self, session_manager, simulator_manager):
         self.session_manager = session_manager
-        self.stream_manager = stream_manager
-
-        # The session ID is now always taken from the session manager
-        self.session_id = session_manager.session_id
-
-        # Active connections list
-        self._active_connections: List[web.WebSocketResponse] = []
-
-        # Create dispatcher
-        self.dispatcher = WebSocketDispatcher(session_manager)
-
-        self.cleanup_task = asyncio.create_task(self._cleanup_stale_connections())
+        self.simulator_manager = simulator_manager
         self.tracer = trace.get_tracer("websocket_manager")
-
-        # Subscribe to events
-        event_bus.subscribe('exchange_data_received', self.handle_exchange_data)
-        event_bus.subscribe('stream_error', self.handle_stream_error)
-        event_bus.subscribe('simulator_ready', self.handle_simulator_ready)
-        event_bus.subscribe('simulator_stopped', self.handle_simulator_stopped)
-        event_bus.subscribe('connection_quality_updated', self.handle_connection_quality_update)
-
-        logger.info(f"WebSocketManager initialized for session {self.session_id}")
+        self.logger = logging.getLogger('websocket_manager')
 
     async def handle_connection(self, request: web.Request) -> web.WebSocketResponse:
-        """Handle incoming HTTP request, authentication, and message loop."""
-
-        with optional_trace_span(self.tracer, "handle_websocket_connection") as span:
-            # Check if service is ready for new connections
-            state_manager = request.app['state_manager']
-
-            if not state_manager.is_ready() and state_manager.is_active():
-                logger.warning("Rejecting connection - service is already handling a user session")
-                return web.Response(
-                    status=503,  # Service Unavailable
-                    text="This session service instance is already handling a user session",
-                    content_type="text/plain"
-                )
-
-            ws = web.WebSocketResponse(heartbeat=config.websocket.heartbeat_interval, autoping=True)
+        """
+        Handle WebSocket connection lifecycle
+        """
+        with optional_trace_span(self.tracer, "websocket_connection") as span:
+            # Authenticate user
             try:
-                await ws.prepare(request)
-            except Exception as prepare_err:
-                logger.error(f"WebSocket prepare failed: {prepare_err}", exc_info=True)
-                return web.Response(status=400, text=f"WebSocket handshake failed: {prepare_err}")
+                user_id, session_id, device_id = await authenticate_websocket_request(request, self.session_manager)
+                span.set_attribute("user_id", user_id)
+                span.set_attribute("device_id", device_id)
+            except Exception as auth_error:
+                self.logger.warning(f"WebSocket authentication failed: {auth_error}")
+                return self._reject_connection(str(auth_error))
 
+            # Create WebSocket
+            ws = web.WebSocketResponse(heartbeat=10)
+            await ws.prepare(request)
+
+            # Connection handler
             try:
-                # Authenticate user
-                user_id, device_id = await self._authenticate_user(request, span)
-            except WebSocketError as e:
-                logger.warning(f"WebSocket connection rejected: {e.error_code} - {e.message}")
-                return await self._close_with_error(ws, span, e.message, code=4001, error_code=e.error_code,
-                                                    exception=e)
+                await self._connection_loop(ws, user_id, device_id)
             except Exception as e:
-                logger.error(f"Unexpected error during WebSocket authentication: {e}", exc_info=True)
-                return await self._close_with_error(ws, span, "Internal server error during authentication",
-                                                    code=5000,
-                                                    error_code="AUTH_UNEXPECTED_ERROR", exception=e)
+                self.logger.error(f"WebSocket connection error: {e}")
+                await self._send_error(ws, "Unexpected connection error")
 
-            # Mark the service as active with this user
-            if not await state_manager.set_active(user_id, self.session_id):
-                logger.error(f"Failed to mark service as active for user {user_id}")
-                return await self._close_with_error(ws, span, "Service unable to handle session", code=5000,
-                                                    error_code="SERVICE_STATE_ERROR")
-
-            client_id = request.query.get('clientId', f"client-{time.time_ns()}")
-            span.set_attribute("client_id", client_id)
-            span.set_attribute("session_id", self.session_id)
-            span.set_attribute("user_id", str(user_id))
-            span.set_attribute("device_id", device_id)
-
-            # Store client info directly on the websocket object
-            ws._client_info = {
-                'session_id': self.session_id,
-                'user_id': user_id,
-                'client_id': client_id,
-                'device_id': device_id,
-                'connected_at': time.time(),
-                'last_activity': time.time()
-            }
-
-            # Add to active connections
-            self._active_connections.append(ws)
-            track_websocket_connection_count(len(self._active_connections))
-
-            # Update session metadata
-            try:
-                await self.session_manager.update_session_metadata({
-                    'device_id': device_id,  # Update device ID on new connection potentially
-                    'frontend_connections': len(self._active_connections),
-                    'last_ws_connection': time.time()
-                })
-            except Exception as e:
-                logger.error(f"Failed to update session metadata during registration: {e}", exc_info=True)
-
-            await connection_emitter.send_connected(ws, client_id=client_id, device_id=device_id,
-                                                    session_id=self.session_id)
-
-            # Publish event about new connection
-            await event_bus.publish('ws_connection_established',
-                                    session_id=self.session_id,
-                                    client_id=client_id,
-                                    user_id=user_id)
-
-            try:
-                async for msg in ws:
-                    if msg.type == WSMsgType.TEXT:
-                        # Update last activity time
-                        ws._client_info['last_activity'] = time.time()
-
-                        # Also update session activity
-                        await self.session_manager.update_session_activity()
-
-                        # Dispatch the message
-                        await self.dispatcher.dispatch_message(ws, user_id, client_id, msg.data)
-                    elif msg.type == WSMsgType.ERROR:
-                        logger.error(f"WS error: client={client_id}: {ws.exception()}")
-                        track_websocket_error("AIOHTTP_CONNECTION_ERROR")
-                        break
-                    elif msg.type in (WSMsgType.CLOSING, WSMsgType.CLOSED):
-                        logger.info(f"WS closing/closed by client: client={client_id}")
-                        break
-            except asyncio.CancelledError:
-                logger.info(f"WS message loop cancelled: client={client_id}")
-                raise
-            except Exception as e:
-                logger.error(f"Error processing WS messages: client={client_id}: {e}",
-                             exc_info=True)
-                await error_emitter.send_error(ws=ws, error_code="MESSAGE_PROCESSING_ERROR",
-                                               message="Internal server error during message processing.",
-                                               span=span,
-                                               exception=e)
-            finally:
-                logger.debug(f"Entering finally block for WS: client={client_id}")
-                if ws in self._active_connections:
-                    self._active_connections.remove(ws)
-                    track_websocket_connection_count(len(self._active_connections))
-
-                    # Update session metadata with reduced connection count
-                    try:
-                        await self.session_manager.update_session_metadata({
-                            'frontend_connections': len(self._active_connections),
-                            'last_ws_disconnection': time.time()
-                        })
-                    except Exception as e:
-                        logger.error(f"Failed to update session metadata during disconnect: {e}", exc_info=True)
-
-                # Publish event about client disconnection
-                await event_bus.publish(
-                    'ws_connection_closed',
-                    session_id=self.session_id,
-                    client_id=client_id,
-                    session_empty=len(self._active_connections) == 0
-                )
-
-                # Reset service to ready state if this was the last connection
-                if len(self._active_connections) == 0:
-                    logger.info("Last connection closed, resetting service to ready state")
-                    await state_manager.reset_to_ready()
-
-            logger.info(f"WS connection handler finished: client={client_id}")
             return ws
 
-    async def _authenticate_user(self, request, span) -> Tuple[str, str]:
-        """Authenticate the WebSocket user"""
-        query = request.query
-        token = query.get('token')
-        device_id = query.get('deviceId', 'default-device')
+    async def _connection_loop(self, ws: web.WebSocketResponse, user_id: str, device_id: str):
+        """Main WebSocket message processing loop"""
+        try:
+            async for msg in ws:
+                if msg.type == WSMsgType.TEXT:
+                    await self._process_message(ws, user_id, device_id, msg.data)
+                elif msg.type in (WSMsgType.CLOSING, WSMsgType.CLOSED):
+                    break
+        finally:
+            await self._cleanup(ws)
 
-        # 1. Validate required parameters
-        if not token:
-            logger.warning("Authentication failed: Missing token query parameter")
-            raise WebSocketClientError(
-                message="Missing required parameter: token",
-                error_code="MISSING_PARAMETERS"
-            )
+    async def _process_message(self, ws: web.WebSocketResponse, user_id: str, device_id: str, raw_message: str):
+        """Process incoming WebSocket messages"""
+        try:
+            message = json.loads(raw_message)
+            message_type = message.get('type')
 
-        # Validate token but don't enforce user matching
-        validation_result = await validate_token_with_auth_service(token)
+            handlers = {
+                'heartbeat': self._handle_heartbeat,
+                'start_simulator': self._handle_start_simulator,
+                'stop_simulator': self._handle_stop_simulator,
+                'reconnect': self._handle_reconnect
+            }
 
-        if not validation_result.get('valid', False):
-            logger.warning(f"Authentication failed: Invalid token for device {device_id}")
-            raise AuthenticationError(
-                message="Invalid authentication token",
-            )
+            handler = handlers.get(message_type)
+            if handler:
+                await handler(ws, user_id, device_id, message)
+            else:
+                await self._send_error(ws, f"Unknown message type: {message_type}")
 
-        user_id = validation_result.get('userId')
+        except json.JSONDecodeError:
+            await self._send_error(ws, "Invalid JSON")
+        except Exception as e:
+            await self._send_error(ws, str(e))
 
-        if not user_id:
-            logger.warning(f"Authentication failed: No user ID in token for device {device_id}")
-            raise AuthenticationError(
-                message="Invalid authentication token - missing user ID",
-            )
+    async def _handle_heartbeat(self, ws, user_id, device_id, message):
+        """Handle heartbeat message"""
+        response = {
+            'type': 'heartbeat_ack',
+            'timestamp': int(time.time() * 1000)
+        }
+        await ws.send_json(response)
 
-        logger.info(f"User {user_id} authenticated with device {device_id}")
-        return user_id, device_id
+    async def _handle_start_simulator(self, ws, user_id, device_id, message):
+        """Start simulator for user"""
+        simulator_id, endpoint, error = await self.session_manager.start_simulator(user_id)
+
+        if error:
+            await self._send_error(ws, error)
+        else:
+            await ws.send_json({
+                'type': 'simulator_started',
+                'simulator_id': simulator_id,
+                'endpoint': endpoint
+            })
+
+    async def _handle_stop_simulator(self, ws, user_id, device_id, message):
+        """Stop user's simulator"""
+        success, error = await self.session_manager.stop_simulator()
+
+        if not success:
+            await self._send_error(ws, error)
+        else:
+            await ws.send_json({
+                'type': 'simulator_stopped'
+            })
+
+    async def _handle_reconnect(self, ws, user_id, device_id, message):
+        """Handle reconnection"""
+        # Implement reconnection logic using session_manager
+        pass
+
+    async def _send_error(self, ws: web.WebSocketResponse, error_message: str):
+        """Send error message to client"""
+        await ws.send_json({
+            'type': 'error',
+            'message': error_message
+        })
+
+    async def _cleanup(self, ws: web.WebSocketResponse):
+        """Cleanup resources when connection closes"""
+        # Implement any necessary cleanup
+        pass
+
+    def _reject_connection(self, reason: str) -> web.WebSocketResponse:
+        """Reject WebSocket connection"""
+        return web.WebSocketResponse(status=403, body=json.dumps({'error': reason}))

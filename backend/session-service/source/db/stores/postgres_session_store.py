@@ -7,10 +7,7 @@ import json
 import time
 import uuid
 import asyncpg
-import asyncio
 from typing import Dict, List, Any, Optional, Tuple
-
-from opentelemetry import trace
 
 from source.config import config
 from source.models.session import Session, SessionStatus, SessionMetadata

@@ -15,12 +15,12 @@ from source.config import config
 logger = logging.getLogger('tracing')
 
 
+# source/utils/tracing.py
 def setup_tracing():
     """Initialize OpenTelemetry tracing with Jaeger exporter"""
     # Check if tracing is enabled (default to true)
     if not config.tracing.enabled:
         logger.info("Tracing is disabled, using no-op tracer")
-        # Set up a no-op tracer provider
         provider = TracerProvider()
         trace.set_tracer_provider(provider)
         return True
@@ -37,20 +37,25 @@ def setup_tracing():
         provider = TracerProvider(resource=resource)
         trace.set_tracer_provider(provider)
 
-        # Create Jaeger exporter and add it to the tracer provider
-        jaeger_exporter = JaegerExporter(
-            collector_endpoint=jaeger_endpoint,
-        )
+        try:
+            # Create Jaeger exporter and add it to the tracer provider
+            jaeger_exporter = JaegerExporter(
+                collector_endpoint=jaeger_endpoint,
+            )
 
-        # Process spans in batches for better performance
-        span_processor = BatchSpanProcessor(jaeger_exporter)
-        provider.add_span_processor(span_processor)
+            # Process spans in batches for better performance
+            span_processor = BatchSpanProcessor(jaeger_exporter)
+            provider.add_span_processor(span_processor)
+        except Exception as export_error:
+            logger.warning(f"Failed to set up Jaeger exporter: {export_error}")
+            # Continue with no-op tracing
+            return True
 
         # Instrument HTTP client and database
         AioHttpClientInstrumentor().instrument()
         AsyncPGInstrumentor().instrument()
 
-        logger.info(f"Tracing initialized for service {service_name}, exporting to {jaeger_endpoint}")
+        logger.info(f"Tracing initialized for service {service_name}")
         return True
     except Exception as e:
         logger.error(f"Failed to initialize tracing: {e}")

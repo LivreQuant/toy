@@ -7,10 +7,6 @@ import time
 import asyncio
 from opentelemetry import trace
 
-from source.models.simulator import SimulatorStatus
-
-from source.config import config
-
 from source.utils.event_bus import event_bus
 from source.utils.metrics import track_cleanup_operation, track_session_count, track_simulator_count
 

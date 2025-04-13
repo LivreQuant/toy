@@ -8,8 +8,7 @@ from aiohttp import web
 from opentelemetry import trace
 
 from source.utils.metrics import track_simulator_operation
-from source.utils.tracing import optional_trace_span
-from source.api.rest.utils import validate_auth_token, create_error_response
+from source.api.rest.utils import create_error_response
 from source.api.rest.decorators import with_auth_validation
 
 logger = logging.getLogger('simulator_handlers')
