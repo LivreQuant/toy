@@ -20,7 +20,19 @@ import {
   ServerExchangeDataStatusMessage,
   isServerHeartbeatAckMessage,
   isServerReconnectResultMessage,
-  isServerExchangeDataStatusMessage
+  isServerExchangeDataStatusMessage,
+  ClientSubmitOrderMessage,
+  ClientCancelOrderMessage,
+  ClientStartSimulatorMessage,
+  ClientStopSimulatorMessage,
+  ClientSessionInfoRequest,
+  ClientStopSessionRequest,
+  ServerSessionInfoResponse,
+  ServerStopSessionResponse,
+  ServerSimulatorStartedResponse,
+  ServerSimulatorStoppedResponse,
+  ServerOrderSubmittedResponse,
+  ServerOrderCancelledResponse
 } from './message-types';
 import {
   appState,
@@ -32,11 +44,17 @@ import { HeartbeatManager } from './heartbeat-manager';
 // Define WebSocket specific event types
 export interface WebSocketEvents {
   message: WebSocketMessage;
+  device_id_invalidated: { deviceId: string, currentValidDeviceId: string };
   heartbeat_ack: ServerHeartbeatAckMessage;
   reconnect_result: ServerReconnectResultMessage;
   exchange_data_status: ServerExchangeDataStatusMessage;
-  device_id_invalidated: { deviceId: string, currentValidDeviceId: string };
   message_error: { error: Error; rawData: any };
+  session_info: ServerSessionInfoResponse;
+  session_stopped: ServerStopSessionResponse;
+  simulator_started: ServerSimulatorStartedResponse;
+  simulator_stopped: ServerSimulatorStoppedResponse;
+  order_submitted: ServerOrderSubmittedResponse;
+  order_cancelled: ServerOrderCancelledResponse;
 }
 
 // Structure for pending request promises
@@ -44,6 +62,7 @@ interface PendingResponse {
   resolve: (value: any) => void;
   reject: (reason?: any) => void;
   timeoutId: number;
+  requestId: string;
   requestTime: number;
 }
 
@@ -188,14 +207,14 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
 
   private handleMessage = (event: MessageEvent): void => {
     if (this.isDisposed || event.currentTarget !== this.webSocket) return;
-
+  
     try {
-      const message = JSON.parse(event.data);
+      const message = JSON.parse(event.data) as WebSocketMessage;
       this.logger.debug(`Received WebSocket message type: ${message?.type}`, { requestId: message?.requestId });
-
+  
       // Emit generic message event
-      this.emit('message', message as WebSocketMessage);
-
+      this.emit('message', message);
+  
       // Handle specific message types
       if (isServerHeartbeatAckMessage(message)) {
         this.handleHeartbeatAckMessage(message);
@@ -204,11 +223,18 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
       } else if (isServerExchangeDataStatusMessage(message)) {
         this.handleExchangeDataStatusMessage(message);
       } else {
-        const potentialMessage = message as any;
-        if (typeof potentialMessage === 'object' && potentialMessage && 'type' in potentialMessage) {
-          this.logger.warn(`Unhandled WebSocket message type: ${potentialMessage.type}`);
-        } else {
-          this.logger.error('Received unhandled WebSocket message with unknown structure', { data: message });
+        // For other message types we're not specifically handling
+        this.logger.debug(`Received message of type: ${message.type}`);
+      }
+  
+      // Check for pending response handlers
+      if ('requestId' in message && message.requestId) {  // Add null check here
+        const pendingReq = this.pendingResponses.get(message.requestId);
+        if (pendingReq) {
+          clearTimeout(pendingReq.timeoutId);
+          pendingReq.resolve(message);
+          this.pendingResponses.delete(message.requestId);
+          this.logger.debug(`Resolved pending request: ${message.requestId}`);
         }
       }
     } catch (error: any) {
@@ -509,6 +535,210 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
         this.logger.error('Failed to send reconnect request', { error: error.message });
         resolve(false);
       }
+    });
+  }
+
+  // Method to submit an order via WebSocket
+  public async submitOrder(params: {
+    symbol: string;
+    side: 'BUY' | 'SELL';
+    quantity: number;
+    price?: number;
+    orderType: 'MARKET' | 'LIMIT';
+  }): Promise<ServerOrderSubmittedResponse> {
+    if (!this.webSocket || this.webSocket.readyState !== WebSocket.OPEN) {
+      throw new Error('Cannot submit order: WebSocket not connected');
+    }
+
+    const requestId = `order-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
+    const message: ClientSubmitOrderMessage = {
+      type: 'submit_order',
+      requestId,
+      timestamp: Date.now(),
+      deviceId: DeviceIdManager.getInstance().getDeviceId(),
+      data: {
+        symbol: params.symbol,
+        side: params.side,
+        quantity: params.quantity,
+        price: params.price,
+        orderType: params.orderType
+      }
+    };
+    
+    try {
+      this.webSocket.send(JSON.stringify(message));
+      this.logger.debug(`Order submission request sent: ${requestId}`);
+    } catch (error: any) {
+      this.logger.error('Failed to send order submit message', { error: error.message });
+      throw error;
+    }
+
+    return this.createResponsePromise<ServerOrderSubmittedResponse>(requestId, 'order_submitted');
+  }
+
+  // Method to cancel an order via WebSocket
+  public async cancelOrder(orderId: string): Promise<ServerOrderCancelledResponse> {
+    if (!this.webSocket || this.webSocket.readyState !== WebSocket.OPEN) {
+      throw new Error('Cannot cancel order: WebSocket not connected');
+    }
+
+    const requestId = `cancel-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
+    const message: ClientCancelOrderMessage = {
+      type: 'cancel_order',
+      requestId,
+      timestamp: Date.now(),
+      deviceId: DeviceIdManager.getInstance().getDeviceId(),
+      data: {
+        orderId
+      }
+    };
+
+    try {
+      this.webSocket.send(JSON.stringify(message));
+      this.logger.debug(`Order cancellation request sent: ${requestId}`);
+    } catch (error: any) {
+      this.logger.error('Failed to send order cancel message', { error: error.message });
+      throw error;
+    }
+
+    return this.createResponsePromise<ServerOrderCancelledResponse>(requestId, 'order_cancelled');
+  }
+
+  /**
+   * Requests session information from the server.
+   */
+  public async requestSessionInfo(): Promise<ServerSessionInfoResponse> {
+    if (!this.webSocket || this.webSocket.readyState !== WebSocket.OPEN) {
+      throw new Error('Cannot request session info: WebSocket not connected');
+    }
+
+    const requestId = `session-info-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
+    const message: ClientSessionInfoRequest = {
+      type: 'request_session_info',
+      requestId,
+      timestamp: Date.now(),
+      deviceId: DeviceIdManager.getInstance().getDeviceId()
+    };
+
+    try {
+      this.webSocket.send(JSON.stringify(message));
+      this.logger.debug(`Session info request sent: ${requestId}`);
+    } catch (error: any) {
+      this.logger.error('Failed to send session info request message', { error: error.message });
+      throw error;
+    }
+
+    return this.createResponsePromise<ServerSessionInfoResponse>(requestId, 'session_info');
+  }
+
+  /**
+   * Stops the current session.
+   */
+  public async stopSession(): Promise<ServerStopSessionResponse> {
+    if (!this.webSocket || this.webSocket.readyState !== WebSocket.OPEN) {
+      throw new Error('Cannot stop session: WebSocket not connected');
+    }
+
+    const requestId = `stop-session-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
+    const message: ClientStopSessionRequest = {
+      type: 'stop_session',
+      requestId,
+      timestamp: Date.now(),
+      deviceId: DeviceIdManager.getInstance().getDeviceId()
+    };
+
+    try {
+      this.webSocket.send(JSON.stringify(message));
+      this.logger.debug(`Stop session request sent: ${requestId}`);
+    } catch (error: any) {
+      this.logger.error('Failed to send stop session message', { error: error.message });
+      throw error;
+    }
+
+    return this.createResponsePromise<ServerStopSessionResponse>(requestId, 'session_stopped');
+  }
+
+  /**
+   * Starts the simulator.
+   */
+  public async startSimulator(): Promise<ServerSimulatorStartedResponse> {
+    if (!this.webSocket || this.webSocket.readyState !== WebSocket.OPEN) {
+      throw new Error('Cannot start simulator: WebSocket not connected');
+    }
+
+    const requestId = `start-simulator-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
+    const message: ClientStartSimulatorMessage = {
+      type: 'start_simulator',
+      requestId,
+      timestamp: Date.now(),
+      deviceId: DeviceIdManager.getInstance().getDeviceId()
+    };
+
+    try {
+      this.webSocket.send(JSON.stringify(message));
+      this.logger.debug(`Start simulator request sent: ${requestId}`);
+    } catch (error: any) {
+      this.logger.error('Failed to send start simulator message', { error: error.message });
+      throw error;
+    }
+
+    return this.createResponsePromise<ServerSimulatorStartedResponse>(requestId, 'simulator_started');
+  }
+
+  /**
+   * Stops the simulator.
+   */
+  public async stopSimulator(): Promise<ServerSimulatorStoppedResponse> {
+    if (!this.webSocket || this.webSocket.readyState !== WebSocket.OPEN) {
+      throw new Error('Cannot stop simulator: WebSocket not connected');
+    }
+
+    const requestId = `stop-simulator-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
+    const message: ClientStopSimulatorMessage = {
+      type: 'stop_simulator',
+      requestId,
+      timestamp: Date.now(),
+      deviceId: DeviceIdManager.getInstance().getDeviceId()
+    };
+
+    try {
+      this.webSocket.send(JSON.stringify(message));
+      this.logger.debug(`Stop simulator request sent: ${requestId}`);
+    } catch (error: any) {
+      this.logger.error('Failed to send stop simulator message', { error: error.message });
+      throw error;
+    }
+
+    return this.createResponsePromise<ServerSimulatorStoppedResponse>(requestId, 'simulator_stopped');
+  }
+
+  /**
+   * Helper method to create a promise for WebSocket responses.
+   */
+  private createResponsePromise<T extends { requestId: string }>(requestId: string, eventType: keyof WebSocketEvents): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+      const subscription = this.once(eventType, (result: any) => {
+        if (result.requestId === requestId) {
+          resolve(result as T);
+        } else {
+          reject(new Error(`Received ${String(eventType)} with mismatched requestId: expected ${requestId}, got ${result.requestId}`));
+        }
+      });
+
+      const timeoutId = window.setTimeout(() => {
+        subscription.unsubscribe();
+        const timeoutError = new Error(`${String(eventType)} request timed out after ${this.responseTimeoutMs}ms`);
+        this.logger.error(`${String(eventType)} request timed out`, { requestId });
+        reject(timeoutError);
+      }, this.responseTimeoutMs);
+
+      this.pendingResponses.set(requestId, {
+        resolve,
+        reject,
+        timeoutId,
+        requestId,
+        requestTime: Date.now()
+      });
     });
   }
 

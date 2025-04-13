@@ -1,9 +1,7 @@
 // src/api/session.ts
-import { HttpClient } from './http-client';
-// Removed SessionManager import as getDeviceId is static on DeviceIdManager
+import { WebSocketManager } from '../services/websocket/websocket-manager';
 import { DeviceIdManager } from '../utils/device-id-manager';
 
-// Interfaces remain the same
 export interface SessionResponse {
   success: boolean;
   errorMessage?: string;
@@ -11,47 +9,58 @@ export interface SessionResponse {
 
 export interface SessionStateResponse {
   success: boolean;
-  simulatorStatus: string; // Consider using a specific enum if possible
-  sessionCreatedAt: number; // Timestamp
-  lastActive: number; // Timestamp
+  simulatorStatus: string;
+  sessionCreatedAt: number;
+  lastActive: number;
 }
 
 /**
- * API client for interacting with the backend session endpoints.
+ * API client for interacting with the backend session endpoints via WebSocket.
  */
 export class SessionApi {
-  private client: HttpClient;
+  private wsManager: WebSocketManager;
 
-  constructor(client: HttpClient) {
-    this.client = client;
+  constructor(wsManager: WebSocketManager) {
+    this.wsManager = wsManager;
   }
 
   /**
    * Creates a new session or validates an existing one on the backend.
-   * Includes the current device ID in the request.
    * @returns A promise resolving to a SessionResponse.
    */
   async createSession(): Promise<SessionResponse> {
-    // Use the static method from DeviceIdManager
-    const deviceId = DeviceIdManager.getInstance().getDeviceId();
-    return this.client.post<SessionResponse>('/sessions', {
-      deviceId // Send deviceId in the request body
-    });
+    try {
+      // Using WebSocket to get session info
+      const response = await this.wsManager.requestSessionInfo();
+      return {
+        success: response.success,
+        errorMessage: response.error
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        errorMessage: error.message || 'Failed to create session via WebSocket'
+      };
+    }
   }
 
   /**
    * Deletes the current session on the backend.
-   * The specific session is typically identified by backend mechanisms (e.g., cookies, tokens).
    * @returns A promise resolving to a SessionResponse.
    */
   async deleteSession(): Promise<SessionResponse> {
-    // Sending an empty object {} might not be necessary for DELETE if no body is expected.
-    // Adjust based on your API definition.
-    return this.client.delete<SessionResponse>('/sessions'); // Pass options if needed, e.g., {}
+    try {
+      // Using WebSocket to stop session
+      const response = await this.wsManager.stopSession();
+      return {
+        success: response.success,
+        errorMessage: response.error
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        errorMessage: error.message || 'Failed to delete session via WebSocket'
+      };
+    }
   }
-
-  // Optional: Method to get session state if your backend provides it
-  // async getSessionState(): Promise<SessionStateResponse> {
-  //   return this.client.get<SessionStateResponse>('/sessions/state');
-  // }
 }

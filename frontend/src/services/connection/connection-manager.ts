@@ -35,6 +35,7 @@ export interface ConnectionDesiredState {
 // Define options for configuring the manager
 export interface ConnectionManagerOptions {
   wsOptions?: WebSocketOptions;
+  wsManager?: WebSocketManager; // Added to support direct instance passing
   resilience?: {
     initialDelayMs?: number;
     maxDelayMs?: number;
@@ -77,20 +78,24 @@ export class ConnectionManager extends TypedEventEmitter<ConnectionManagerEvents
     super(loggerInstance);
     // Assign logger to the instance property
     this.logger = loggerInstance;
-
+  
     this.logger.info('ConnectionManager initializing...', { options });
-
+  
     // --- Service Instantiation ---
     this.tokenManager = tokenManager;
     this.httpClient = new HttpClient(tokenManager); // Used by other API clients
-    this.sessionApi = new SessionApi(this.httpClient); // For session validation
-    this.dataHandlers = new ConnectionDataHandlers(this.httpClient); // For orders etc.
-    this.simulatorManager = new ConnectionSimulatorManager(this.httpClient); // For sim control
-    // WebSocket Manager setup
-    this.wsManager = new WebSocketManager(
+    
+    // WebSocket Manager setup - use provided instance or create new one
+    this.wsManager = options.wsManager || new WebSocketManager(
       tokenManager,
       { ...options.wsOptions, preventAutoConnect: true } // Ensure CM controls connections
     );
+    
+    // Initialize APIs with the WebSocket manager
+    this.sessionApi = new SessionApi(this.wsManager);
+    this.dataHandlers = new ConnectionDataHandlers(this.httpClient); // For orders etc.
+    this.simulatorManager = new ConnectionSimulatorManager(this.wsManager);
+    
     // Resilience Manager Setup
     const resilienceOptions = options.resilience ? {
         initialDelayMs: options.resilience.initialDelayMs, maxDelayMs: options.resilience.maxDelayMs,
@@ -102,10 +107,10 @@ export class ConnectionManager extends TypedEventEmitter<ConnectionManagerEvents
       this.logger, // Pass this logger instance as parent for hierarchical logging
       resilienceOptions
     );
-
+  
     // Subscribe to events from dependencies
     this.setupEventListeners();
-
+  
     this.logger.info('ConnectionManager initialized');
   }
 
@@ -545,6 +550,7 @@ export class ConnectionManager extends TypedEventEmitter<ConnectionManagerEvents
      // --- End Guards ---
 
      this.logger.warn(`Connection recovery requested via resilience manager. Reason: ${reason}`);
+     // continued from connection-manager.ts
      // Optimistically update state to show recovery starting
      // Use resilience attempt count + 1 for the next attempt number
      appState.updateConnectionState({ isRecovering: true, recoveryAttempt: resilienceInfo.attempt + 1 });

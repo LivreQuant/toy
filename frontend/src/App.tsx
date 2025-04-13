@@ -14,6 +14,10 @@ import { TokenManager } from './services/auth/token-manager';
 import { LocalStorageService } from './services/storage/local-storage-service';
 import { HttpClient } from './api/http-client';
 import { AuthApi } from './api/auth';
+import { WebSocketManager } from './services/websocket/websocket-manager';
+import { OrdersApi } from './api/order';
+import { SessionApi } from './api/session';
+import { SimulatorApi } from './api/simulator';
 import { ConnectionManager } from './services/connection/connection-manager';
 import { initializeLogging, getLogger } from './boot/logging'; // Import logging setup
 import { AppErrorHandler } from './utils/app-error-handler';
@@ -40,9 +44,24 @@ const httpClient = new HttpClient(tokenManager); // HttpClient uses TokenManager
 const authApi = new AuthApi(httpClient);
 tokenManager.setAuthApi(authApi); // Important: Set AuthApi dependency in TokenManager
 
-// Instantiate ConnectionManager (often a singleton or app-scoped)
+// Instantiate WebSocketManager for session/simulator
+const wsManager = new WebSocketManager(tokenManager, {
+  // Add any specific wsOptions here if needed
+  preventAutoConnect: true // This is important for connection control
+});
+
+// Keep OrdersApi using HTTP
+const ordersApi = new OrdersApi(httpClient);
+
+// Now instantiate the updated APIs that use WebSocket
+const sessionApi = new SessionApi(wsManager);
+const simulatorApi = new SimulatorApi(wsManager);
+
+// Instantiate ConnectionManager with both WebSocketManager and HttpClient
 const connectionManager = new ConnectionManager(tokenManager, {
-  // Add any specific wsOptions or resilience options here if needed
+  // Use the wsManager we created
+  wsManager: wsManager,
+  // Add any specific resilience options here if needed
 });
 
 logger.info('Application services instantiated.');
@@ -85,4 +104,3 @@ function App() {
 }
 
 export default App;
-
