@@ -74,13 +74,15 @@ async def _parse_message(raw_data: str) -> Tuple[Dict[str, Any], str, Optional[s
     return message, message_type, request_id
 
 
+# source/api/websocket/dispatcher.py
+
 class WebSocketDispatcher:
     """Parses and dispatches WebSocket messages to registered handlers."""
 
     def __init__(self, session_manager: SessionManager):
         """
         Initialize the dispatcher.
-        
+
         Args:
             session_manager: The session manager instance.
         """
@@ -95,14 +97,13 @@ class WebSocketDispatcher:
         }
         logger.info(f"WebSocketDispatcher initialized with handlers for: {list(self.message_handlers.keys())}")
 
-    async def dispatch_message(self, ws: web.WebSocketResponse, session_id: str,
-                               user_id: Any, client_id: str, raw_data: str) -> None:
+    async def dispatch_message(self, ws: web.WebSocketResponse, user_id: str,
+                               client_id: str, raw_data: str) -> None:
         """
         Parse and dispatch a single incoming WebSocket message.
-        
+
         Args:
             ws: The WebSocket connection instance.
-            session_id: The session ID associated with the connection.
             user_id: The user ID associated with the connection.
             client_id: The client ID for this specific connection.
             raw_data: The raw message data string received.
@@ -110,6 +111,7 @@ class WebSocketDispatcher:
         message = None
         message_type = "unknown"
         request_id = None
+        session_id = self.session_manager.session_id
 
         with optional_trace_span(self.tracer, "dispatch_websocket_message") as span:
             span.set_attribute("session_id", session_id)
@@ -126,7 +128,7 @@ class WebSocketDispatcher:
                 track_websocket_message("received", message_type)
 
                 # Execute the appropriate handler
-                await self._execute_handler(ws, session_id, user_id, client_id, message, message_type)
+                await self._execute_handler(ws, user_id, client_id, message, message_type)
 
             except WebSocketError as e:
                 # Log the error
@@ -163,23 +165,14 @@ class WebSocketDispatcher:
                     exception=e
                 )
 
-    async def _execute_handler(self, ws: web.WebSocketResponse, session_id: str,
-                              user_id: Any, client_id: str, message: Dict[str, Any],
-                              message_type: str) -> None:
+    async def _execute_handler(self, ws: web.WebSocketResponse, user_id: Any,
+                               client_id: str, message: Dict[str, Any],
+                               message_type: str) -> None:
         """
         Find and execute the appropriate message handler.
-        
-        Args:
-            ws: The WebSocket connection
-            session_id: The session ID
-            user_id: The user ID
-            client_id: The client ID
-            message: The parsed message object
-            message_type: The message type
-            
-        Raises:
-            WebSocketClientError: If no handler exists for the message type
         """
+        session_id = self.session_manager.session_id
+
         # Find handler
         handler = self.message_handlers.get(message_type)
         if not handler:
@@ -198,15 +191,3 @@ class WebSocketDispatcher:
             session_manager=self.session_manager,
             tracer=self.tracer
         )
-
-    def register_handler(self, message_type: str, handler: HandlerFunc) -> None:
-        """
-        Register a new message handler.
-        
-        Args:
-            message_type: The message type to handle
-            handler: The handler function
-        """
-        self.message_handlers[message_type] = handler
-        logger.debug(f"Registered handler for message type: {message_type}")
-        

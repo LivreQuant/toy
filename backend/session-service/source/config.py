@@ -127,7 +127,9 @@ class Config(BaseModel):
                 user=os.getenv('DB_USER', 'opentp'),
                 password=os.getenv('DB_PASSWORD', 'samaral'),
                 min_connections=int(os.getenv('DB_MIN_CONNECTIONS', '2')),
-                max_connections=int(os.getenv('DB_MAX_CONNECTIONS', '10'))
+                max_connections=int(os.getenv('DB_MAX_CONNECTIONS', '10')),
+                max_retries=int(os.getenv('DB_MAX_RETRIES', '5')),
+                retry_delay=int(os.getenv('DB_RETRY_DELAY', '1'))
             ),
             services=ServiceConfig(
                 auth_service_url=os.getenv('AUTH_SERVICE_URL', 'http://auth-service:8000'),

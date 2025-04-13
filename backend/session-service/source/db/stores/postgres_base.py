@@ -5,9 +5,7 @@ Base PostgreSQL connection management and generic repository implementation.
 import logging
 import asyncio
 import asyncpg
-import json
-import time
-from typing import Optional, Dict, Any, List, TypeVar, Generic, Tuple, Type
+from typing import Optional, Dict, Any, List, TypeVar, Generic, Type
 
 from opentelemetry import trace
 
@@ -17,7 +15,6 @@ from source.utils.metrics import track_db_error, track_db_operation, TimedOperat
 
 logger = logging.getLogger(__name__)
 
-# Generic type for entity models
 T = TypeVar('T')
 
 
@@ -42,9 +39,9 @@ class PostgresBase:
                 if self.pool is not None:
                     return
 
-                max_retries = 5
+                max_retries = self.db_config.max_retries
                 retry_count = 0
-                retry_delay = 1.0
+                retry_delay = self.db_config.retry_delay
 
                 while retry_count < max_retries:
                     try:
@@ -115,26 +112,16 @@ class PostgresBase:
 
 
 class PostgresRepository(PostgresBase, Generic[T]):
-    """Generic PostgreSQL repository for entity type T"""
-    
-    def __init__(self, 
-                 entity_class: Type[T], 
+    """Generic PostgreSQL repository with improved CRUD operations"""
+
+    def __init__(self,
+                 entity_class: Type[T],
                  schema_name: str,
-                 table_name: str, 
+                 table_name: str,
                  id_field: str = None,
                  tracer_name: str = None,
                  db_config=None):
-        """
-        Initialize a generic repository
-
-        Args:
-            entity_class: The entity model class (e.g., Session, Simulator)
-            schema_name: Database schema name (e.g., "session", "simulator")
-            table_name: Database table name (e.g., "active_sessions", "instances")
-            id_field: Primary key field name (e.g., "session_id", "simulator_id")
-            tracer_name: Name for the tracer
-            db_config: Optional database configuration
-        """
+        """Initialize a generic repository"""
         super().__init__(db_config)
         self.entity_class = entity_class
         self.schema_name = schema_name
@@ -143,233 +130,212 @@ class PostgresRepository(PostgresBase, Generic[T]):
         self.full_table_name = f"{schema_name}.{table_name}"
         self.tracer = trace.get_tracer(tracer_name or f"postgres_{table_name}_store")
         logger.info(f"Initialized repository for {self.full_table_name} with entity {entity_class.__name__}")
-    
-    async def get_by_id(self, id_value: str, skip_status_check: bool = False) -> Optional[T]:
+
+    # Core CRUD operations
+
+    async def create(self, entity: T) -> bool:
+        """
+        Create a new entity in the database
+
+        Args:
+            entity: The entity to create
+
+        Returns:
+            True if creation was successful, False otherwise
+        """
+        operation_name = f"pg_create_{self.table_name[:-1]}"
+        with optional_trace_span(self.tracer, operation_name) as span:
+            # Extract primary key for span attribute
+            id_value = getattr(entity, self.id_field)
+            span.set_attribute(self.id_field, id_value)
+
+            # Convert entity to dict
+            entity_dict = self._entity_to_dict(entity)
+
+            pool = await self._get_pool()
+            try:
+                with TimedOperation(track_db_operation, operation_name):
+                    async with pool.acquire() as conn:
+                        # Dynamically generate insert SQL using dict keys/values
+                        fields = list(entity_dict.keys())
+                        placeholders = [f'${i + 1}' for i in range(len(fields))]
+                        values = [entity_dict[field] for field in fields]
+
+                        query = f"""
+                            INSERT INTO {self.full_table_name}
+                            ({', '.join(fields)})
+                            VALUES ({', '.join(placeholders)})
+                        """
+
+                        await conn.execute(query, *values)
+                        return True
+            except Exception as e:
+                logger.error(f"Error creating {self.entity_class.__name__}: {e}")
+                span.record_exception(e)
+                track_db_error(operation_name)
+                return False
+
+    async def get_by_id(self, id_value: str) -> Optional[T]:
         """
         Generic get entity by ID
 
         Args:
             id_value: The ID value to look up
-            skip_status_check: If True, don't filter by status (get all records)
 
         Returns:
             Entity object if found, None otherwise
         """
         operation_name = f"pg_get_{self.table_name[:-1]}"
-        with optional_trace_span(self.tracer, f"pg_store_{operation_name}") as span:
+        with optional_trace_span(self.tracer, operation_name) as span:
             span.set_attribute(self.id_field, id_value)
-            span.set_attribute("skip_status_check", skip_status_check)
-            
+
             pool = await self._get_pool()
             try:
                 with TimedOperation(track_db_operation, operation_name):
                     async with pool.acquire() as conn:
-                        # Base query - override in subclasses to customize
                         query = f"SELECT * FROM {self.full_table_name} WHERE {self.id_field} = $1"
-                        params = [id_value]
-                        
-                        # Check result
-                        row = await conn.fetchrow(query, *params)
+                        row = await conn.fetchrow(query, id_value)
+
                         if not row:
                             logger.debug(f"{self.entity_class.__name__} with {self.id_field}={id_value} not found.")
                             return None
-                        
-                        # Process result - override in subclasses to customize
+
                         return self._row_to_entity(row)
-                        
             except Exception as e:
-                logger.error(f"Error getting {self.entity_class.__name__} {id_value} from PostgreSQL: {e}", exc_info=True)
+                logger.error(f"Error getting {self.entity_class.__name__} {id_value}: {e}")
                 span.record_exception(e)
                 track_db_error(operation_name)
                 return None
 
-    async def update_status(self, id_value: str, status: Any) -> bool:
+    async def update(self, id_value: str, updates: Dict[str, Any]) -> bool:
         """
-        Generic status update method
-        
+        Update an entity with the given values
+
         Args:
-            id_value: ID of the entity to update
-            status: Status value (string or enum)
-            
+            id_value: The ID of the entity to update
+            updates: Dictionary of field/value pairs to update
+
         Returns:
-            True if update succeeded, False otherwise
+            True if update was successful, False otherwise
         """
-        operation_name = f"pg_update_{self.table_name[:-1]}_status"
-        with optional_trace_span(self.tracer, f"pg_store_{operation_name}") as span:
+        operation_name = f"pg_update_{self.table_name[:-1]}"
+        with optional_trace_span(self.tracer, operation_name) as span:
             span.set_attribute(self.id_field, id_value)
-            
-            # Handle enum status values
-            status_value = status.value if hasattr(status, 'value') else status
-            span.set_attribute("status", status_value)
+
+            if not updates:
+                logger.warning(f"No updates provided for {self.entity_class.__name__} {id_value}")
+                return False
 
             pool = await self._get_pool()
             try:
                 with TimedOperation(track_db_operation, operation_name):
                     async with pool.acquire() as conn:
-                        # Simple update query - override in subclasses for more complex logic
+                        # Build update statement dynamically
+                        set_clauses = []
+                        values = []
+
+                        for i, (field, value) in enumerate(updates.items(), 1):
+                            set_clauses.append(f"{field} = ${i}")
+                            values.append(value)
+
+                        # Add ID as the last parameter
+                        values.append(id_value)
+
                         query = f"""
                             UPDATE {self.full_table_name}
-                            SET status = $1
-                            WHERE {self.id_field} = $2
+                            SET {', '.join(set_clauses)}
+                            WHERE {self.id_field} = ${len(values)}
                         """
-                        result = await conn.execute(query, status_value, id_value)
+
+                        result = await conn.execute(query, *values)
                         updated = 'UPDATE 1' in result
                         span.set_attribute("updated", updated)
                         return updated
-                        
             except Exception as e:
-                logger.error(f"Error updating status for {self.entity_class.__name__} {id_value} to {status_value}: {e}", 
-                             exc_info=True)
+                logger.error(f"Error updating {self.entity_class.__name__} {id_value}: {e}")
                 span.record_exception(e)
                 track_db_error(operation_name)
                 return False
 
-    async def update_activity(self, id_value: str) -> bool:
+    async def delete(self, id_value: str) -> bool:
         """
-        Generic method to update last_active timestamp
-        
+        Delete an entity by ID
+
         Args:
-            id_value: ID of the entity to update
-            
+            id_value: The ID of the entity to delete
+
         Returns:
-            True if update succeeded, False otherwise
+            True if deletion was successful, False otherwise
         """
-        operation_name = f"pg_update_{self.table_name[:-1]}_activity"
-        with optional_trace_span(self.tracer, f"pg_store_{operation_name}") as span:
+        operation_name = f"pg_delete_{self.table_name[:-1]}"
+        with optional_trace_span(self.tracer, operation_name) as span:
             span.set_attribute(self.id_field, id_value)
-            
+
             pool = await self._get_pool()
             try:
                 with TimedOperation(track_db_operation, operation_name):
                     async with pool.acquire() as conn:
-                        current_time = time.time()
-                        query = f"""
-                            UPDATE {self.full_table_name}
-                            SET last_active = to_timestamp($1)
-                            WHERE {self.id_field} = $2
-                        """
-                        result = await conn.execute(query, current_time, id_value)
-                        updated = 'UPDATE 1' in result
-                        span.set_attribute("updated", updated)
-                        return updated
-                        
+                        query = f"DELETE FROM {self.full_table_name} WHERE {self.id_field} = $1"
+                        result = await conn.execute(query, id_value)
+                        deleted = 'DELETE 1' in result
+                        span.set_attribute("deleted", deleted)
+                        return deleted
             except Exception as e:
-                logger.error(f"Error updating activity for {self.entity_class.__name__} {id_value}: {e}", 
-                             exc_info=True)
+                logger.error(f"Error deleting {self.entity_class.__name__} {id_value}: {e}")
                 span.record_exception(e)
                 track_db_error(operation_name)
                 return False
 
-    async def update_json_metadata(self, id_value: str, metadata_updates: Dict[str, Any]) -> bool:
+    async def get_all(self, limit: int = 100, offset: int = 0) -> List[T]:
         """
-        Generic method to update JSONB metadata using merge operation
-        
-        Args:
-            id_value: ID of the entity to update
-            metadata_updates: Dictionary of metadata fields to update
-            
-        Returns:
-            True if update succeeded, False otherwise
-        """
-        operation_name = f"pg_update_{self.table_name[:-1]}_metadata"
-        with optional_trace_span(self.tracer, f"pg_store_{operation_name}") as span:
-            span.set_attribute(self.id_field, id_value)
-            
-            pool = await self._get_pool()
-            try:
-                with TimedOperation(track_db_operation, operation_name):
-                    async with pool.acquire() as conn:
-                        # Add updated_at timestamp
-                        metadata_updates['updated_at'] = time.time()
-                        update_json = json.dumps(metadata_updates)
-                        
-                        # UPSERT with JSONB concatenation
-                        query = f"""
-                            INSERT INTO {self.schema_name}.{self.table_name}_metadata ({self.id_field}, metadata)
-                            VALUES ($1, $2::jsonb)
-                            ON CONFLICT ({self.id_field})
-                            DO UPDATE SET metadata = {self.schema_name}.{self.table_name}_metadata.metadata || $2::jsonb
-                        """
-                        result = await conn.execute(query, id_value, update_json)
-                        
-                        updated = 'INSERT 1' in result or 'UPDATE 1' in result
-                        span.set_attribute("updated", updated)
-                        return updated
-                        
-            except Exception as e:
-                logger.error(f"Error updating metadata for {self.entity_class.__name__} {id_value}: {e}", 
-                             exc_info=True)
-                span.record_exception(e)
-                track_db_error(operation_name)
-                return False
+        Get all entities with pagination
 
-    async def get_with_criteria(self, criteria: Dict[str, Any]) -> List[T]:
-        """
-        Generic method to get entities matching criteria
-        
         Args:
-            criteria: Dictionary of field/value pairs to match
-            
+            limit: Maximum number of entities to return
+            offset: Number of entities to skip
+
         Returns:
-            List of matching entities
+            List of entity objects
         """
-        operation_name = f"pg_get_{self.table_name}_with_criteria"
-        with optional_trace_span(self.tracer, f"pg_store_{operation_name}") as span:
-            span.set_attribute("criteria", json.dumps(criteria))
-            
+        operation_name = f"pg_get_all_{self.table_name}"
+        with optional_trace_span(self.tracer, operation_name) as span:
+            span.set_attribute("limit", limit)
+            span.set_attribute("offset", offset)
+
             pool = await self._get_pool()
             entities = []
             try:
                 with TimedOperation(track_db_operation, operation_name):
                     async with pool.acquire() as conn:
-                        # Base query - subclasses should override to include metadata joins if needed
-                        query_parts = [f"SELECT * FROM {self.full_table_name}"]
-                        conditions = []
-                        params = []
-                        param_idx = 1
-                        
-                        # Build simple exact-match conditions
-                        for key, value in criteria.items():
-                            conditions.append(f"{key} = ${param_idx}")
-                            params.append(value)
-                            param_idx += 1
-                        
-                        if conditions:
-                            query_parts.append("WHERE " + " AND ".join(conditions))
-                        
-                        query = " ".join(query_parts)
-                        span.set_attribute("db.statement", query)
-                        
-                        rows = await conn.fetch(query, *params)
-                        
-                        logger.info(f"Query returned {len(rows)} matches.")
-                        span.set_attribute("result_count", len(rows))
-                        
+                        query = f"""
+                            SELECT * FROM {self.full_table_name}
+                            ORDER BY created_at DESC
+                            LIMIT $1 OFFSET $2
+                        """
+                        rows = await conn.fetch(query, limit, offset)
+
                         for row in rows:
-                            try:
-                                entity = self._row_to_entity(row)
-                                if entity:
-                                    entities.append(entity)
-                            except Exception as e:
-                                logger.error(f"Error converting row to entity: {e}", exc_info=True)
-                                
+                            entity = self._row_to_entity(row)
+                            if entity:
+                                entities.append(entity)
+
                         return entities
-                        
             except Exception as e:
-                logger.error(f"Error getting entities with criteria {criteria}: {e}", 
-                             exc_info=True)
+                logger.error(f"Error getting all {self.entity_class.__name__} entities: {e}")
                 span.record_exception(e)
                 track_db_error(operation_name)
                 return []
-    
+
+    # Helper methods
+
     def _row_to_entity(self, row: asyncpg.Record) -> Optional[T]:
         """
         Convert database row to entity object.
         Subclasses should override this to handle specific entity conversion.
-        
+
         Args:
             row: Database row from query
-            
+
         Returns:
             Entity object or None on error
         """
@@ -379,3 +345,23 @@ class PostgresRepository(PostgresBase, Generic[T]):
         except Exception as e:
             logger.error(f"Error converting row to {self.entity_class.__name__}: {e}")
             return None
+
+    def _entity_to_dict(self, entity: T) -> Dict[str, Any]:
+        """
+        Convert entity to dictionary for database operations
+
+        Args:
+            entity: The entity object
+
+        Returns:
+            Dictionary of field/value pairs
+        """
+        try:
+            # Use the entity's .dict() method if available (for Pydantic models)
+            if hasattr(entity, 'dict'):
+                return entity.dict()
+            # Otherwise use the entity's __dict__ attribute
+            return entity.__dict__
+        except Exception as e:
+            logger.error(f"Error converting {self.entity_class.__name__} to dict: {e}")
+            return {}

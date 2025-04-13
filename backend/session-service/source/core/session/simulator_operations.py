@@ -37,16 +37,16 @@ class SimulatorOperations:
 
             try:
                 # Check if there's already a simulator for this session
-                session_metadata = await self.manager.get_session_metadata(session_id)
-                
+                session_metadata = await self.manager.get_session_metadata()
+
                 if session_metadata and session_metadata.get('simulator_id'):
                     simulator_id = session_metadata.get('simulator_id')
                     simulator_status = session_metadata.get('simulator_status')
                     endpoint = session_metadata.get('simulator_endpoint')
-                    
+
                     # If already running, just return existing one
                     if simulator_status in ['RUNNING', 'STARTING', 'CREATING'] and endpoint:
-                        logger.info(f"Reusing existing simulator {simulator_id} for session {session_id}")
+                        logger.info(f"Reusing existing simulator {simulator_id}")
                         return {
                             'simulator_id': simulator_id,
                             'status': simulator_status,
@@ -58,12 +58,12 @@ class SimulatorOperations:
 
                 if simulator:
                     # Update session metadata
-                    await self.manager.update_session_metadata(session_id, {
+                    await self.manager.update_session_metadata({
                         'simulator_id': simulator.simulator_id,
                         'simulator_status': simulator.status.value,
                         'simulator_endpoint': simulator.endpoint
                     })
-                    
+
                     return simulator.to_dict(), None
 
                 return None, error
@@ -75,13 +75,14 @@ class SimulatorOperations:
 
     async def stream_exchange_data(
             self,
-            session_id: str,
             endpoint: str
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """
         Stream exchange data with retry mechanism.
         """
+
         async def _stream_data():
+            session_id = self.manager.session_id
             async for data in self.manager.exchange_client.stream_exchange_data(
                     endpoint, session_id, f"stream-{session_id}"
             ):
@@ -97,12 +98,12 @@ class SimulatorOperations:
 
     async def stop_simulator(
             self,
-            session_id: str,
             force: bool = False
     ) -> Tuple[bool, Optional[str]]:
         """
-        Stop simulator, using simulator_manager.
+        Stop simulator associated with the session.
         """
+        session_id = self.manager.session_id
         with self.tracer.start_as_current_span("stop_simulator") as span:
             span.set_attribute("session_id", session_id)
             span.set_attribute("force", force)
@@ -123,11 +124,11 @@ class SimulatorOperations:
                 if not simulator_id:
                     return True, ""
 
-                # Directly use simulator_manager's stop method
+                # Use simulator_manager's stop method
                 success, error = await self.manager.simulator_manager.stop_simulator(simulator_id)
 
                 # Update session metadata
-                await self.manager.update_session_metadata(session_id, {
+                await self.manager.update_session_metadata({
                     'simulator_status': 'STOPPED',
                     'simulator_id': None,
                     'simulator_endpoint': None
@@ -136,15 +137,5 @@ class SimulatorOperations:
                 return success, error
 
             except Exception as e:
-                logger.error(f"Error stopping simulator for session {session_id}: {e}")
+                logger.error(f"Error stopping simulator: {e}")
                 return False, str(e)
-
-    async def run_simulator_heartbeat_loop(self):
-        """
-        Placeholder for simulator heartbeat loop - would be implemented in the real system
-        to maintain connections with active simulators.
-        """
-        # This would implement a heartbeat mechanism to keep simulators alive
-        # For simplicity in the MVP, we're leaving this as a stub
-        pass
-    
