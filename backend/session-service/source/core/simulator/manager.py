@@ -37,10 +37,6 @@ class SimulatorManager:
         # Create tracer
         self.tracer = trace.get_tracer("simulator_manager")
 
-        # Subscribe to relevant events
-        event_bus.subscribe('session_expired', self.handle_session_expired)
-        event_bus.subscribe('server_shutting_down', self.handle_server_shutdown)
-
         logger.info("Simulator manager initialized")
     
     # ----- Public API methods -----
@@ -279,32 +275,3 @@ class SimulatorManager:
         except Exception as e:
             logger.error(f"Error checking simulator {simulator_id} readiness: {e}")
             return False
-
-    # ----- Event handlers -----
-
-    async def handle_session_expired(self, session_id: str):
-        """Handle session expired event"""
-        logger.info(f"Session {session_id} expired, cleaning up associated simulator")
-
-        # Get simulator for this session
-        simulator = await self.store_manager.simulator_store.get_simulator_by_session(session_id)
-        if simulator and simulator.status not in [SimulatorStatus.STOPPED, SimulatorStatus.ERROR]:
-            await self.stop_simulator(simulator.simulator_id)
-
-    async def handle_server_shutdown(self, reason: str):
-        """Handle server shutdown event"""
-        logger.info("Server shutting down, cleaning up active simulators")
-
-        # In singleton mode, we only need to worry about our single simulator
-        try:
-            simulators = await self.store_manager.simulator_store.get_active_simulators()
-            
-            for simulator in simulators:
-                if simulator.status not in [SimulatorStatus.STOPPED, SimulatorStatus.ERROR]:
-                    logger.info(f"Stopping simulator {simulator.simulator_id} during shutdown")
-                    await self.stop_simulator(simulator.simulator_id)
-                    
-            logger.info("All simulators stopped during shutdown")
-        except Exception as e:
-            logger.error(f"Error cleaning up simulators during shutdown: {e}")
-            

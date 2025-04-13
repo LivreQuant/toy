@@ -5,10 +5,10 @@ Defines the structure and state management for user sessions.
 import time
 import uuid
 from enum import Enum
-from typing import Dict, Any, Optional
+from typing import Optional
 from pydantic import BaseModel, Field
 
-from source.models.simulator import SimulatorStatus
+from source.models.simulator import Simulator, SimulatorStatus
 
 
 class SessionStatus(str, Enum):
@@ -28,32 +28,17 @@ class ConnectionQuality(str, Enum):
     POOR = "poor"
 
 
-class Subscription(BaseModel):
-    """Data subscription model"""
-    timestamp: float = Field(default_factory=time.time)
-
-
 class SessionMetadata(BaseModel):
     """Session metadata"""
-    frontend_connections: int = 0
-    last_ws_connection: Optional[float] = None
-    last_sse_connection: Optional[float] = None
-    reconnect_count: int = 0
-    connection_quality: ConnectionQuality = ConnectionQuality.GOOD
-    heartbeat_latency: Optional[int] = None
-    missed_heartbeats: int = 0
-    subscriptions: Dict[str, Subscription] = Field(default_factory=dict)
     device_id: Optional[str] = None
-    simulator_id: Optional[str] = None
-    simulator_endpoint: Optional[str] = None
-    simulator_status: SimulatorStatus = SimulatorStatus.NONE
     user_agent: Optional[str] = None
     ip_address: Optional[str] = None
     pod_name: Optional[str] = None
-    pod_transferred: bool = False
-    previous_pod: Optional[str] = None
     created_at: float = Field(default_factory=time.time)
     updated_at: float = Field(default_factory=time.time)
+    connection_quality: ConnectionQuality = ConnectionQuality.GOOD
+    heartbeat_latency: Optional[int] = None
+    missed_heartbeats: int = 0
 
 
 class Session(BaseModel):
@@ -65,6 +50,7 @@ class Session(BaseModel):
     last_active: float = Field(default_factory=time.time)
     expires_at: float = Field(default_factory=lambda: time.time() + 3600)
     metadata: SessionMetadata = Field(default_factory=SessionMetadata)
+    simulator: Optional[Simulator] = None
     token: Optional[str] = None
 
     def update_activity(self, extension_seconds: int = 3600):
@@ -81,11 +67,10 @@ class Session(BaseModel):
 
     def update_connection_quality(self,
                                   latency_ms: int,
-                                  missed_heartbeats: int,
-                                  connection_type: str = "websocket") -> tuple:
+                                  missed_heartbeats: int) -> tuple:
         """
         Update connection quality metrics
-        
+
         Returns:
             Tuple of (quality, reconnect_recommended)
         """
@@ -106,53 +91,44 @@ class Session(BaseModel):
         self.metadata.connection_quality = quality
         return quality.value, reconnect_recommended
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict:
         """Convert to dictionary for serialization"""
-        return {
+        base_dict = {
             "session_id": self.session_id,
             "user_id": self.user_id,
             "status": self.status.value,
             "created_at": self.created_at,
             "last_active": self.last_active,
             "expires_at": self.expires_at,
+            "token": self.token,
             **self.metadata.dict()
         }
 
+        # Include simulator if exists
+        if self.simulator:
+            base_dict['simulator'] = self.simulator.to_dict()
+
+        return base_dict
+
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'Session':
+    def from_dict(cls, data: dict) -> 'Session':
         """Create a Session from a dictionary"""
-        # Extract metadata fields
-        metadata_dict = {}
-        session_dict = {}
+        # Extract simulator data if present
+        simulator_data = data.pop('simulator', None)
 
-        # Sort fields into session and metadata
-        for key, value in data.items():
-            if key in ['session_id', 'user_id', 'status', 'created_at',
-                       'last_active', 'expires_at', 'token']:
-                session_dict[key] = value
-            else:
-                metadata_dict[key] = value
+        # Convert status enum
+        if 'status' in data and isinstance(data['status'], str):
+            data['status'] = SessionStatus(data['status'])
 
-        # Convert enums
-        if 'status' in session_dict and isinstance(session_dict['status'], str):
-            session_dict['status'] = SessionStatus(session_dict['status'])
+        # Convert connection quality
+        if 'connection_quality' in data and isinstance(data['connection_quality'], str):
+            data['connection_quality'] = ConnectionQuality(data['connection_quality'])
 
-        if 'connection_quality' in metadata_dict and isinstance(metadata_dict['connection_quality'], str):
-            metadata_dict['connection_quality'] = ConnectionQuality(metadata_dict['connection_quality'])
+        # Create session
+        session = cls(**data)
 
-        if 'simulator_status' in metadata_dict and isinstance(metadata_dict['simulator_status'], str):
-            metadata_dict['simulator_status'] = SimulatorStatus(metadata_dict['simulator_status'])
+        # Add simulator if data exists
+        if simulator_data:
+            session.simulator = Simulator.from_dict(simulator_data)
 
-        # Convert subscriptions
-        if 'subscriptions' in metadata_dict and isinstance(metadata_dict['subscriptions'], dict):
-            subscriptions = {}
-            for key, value in metadata_dict['subscriptions'].items():
-                if isinstance(value, dict):
-                    subscriptions[key] = Subscription(**value)
-                else:
-                    subscriptions[key] = value
-            metadata_dict['subscriptions'] = subscriptions
-
-        # Create session with metadata
-        session_dict['metadata'] = SessionMetadata(**metadata_dict)
-        return cls(**session_dict)
+        return session

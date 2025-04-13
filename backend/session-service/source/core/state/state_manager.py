@@ -29,7 +29,7 @@ class StateManager:
     async def initialize(self):
         """Initialize the state manager at service startup"""
         async with self._lock:
-            self._is_ready = True  # Start as ready
+            self._is_ready = True
             self._active_user_id = None
             self._active_session_id = None
             self._connection_time = None

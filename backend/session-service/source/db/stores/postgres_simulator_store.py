@@ -6,7 +6,7 @@ import logging
 from typing import Optional, List
 
 from source.models.simulator import Simulator, SimulatorStatus
-from source.utils.metrics import track_db_operation, track_db_error, TimedOperation, track_cleanup_operation
+from source.utils.metrics import track_db_operation, track_db_error, TimedOperation
 from source.utils.tracing import optional_trace_span
 from source.db.stores.postgres_base import PostgresRepository
 
@@ -27,30 +27,6 @@ class PostgresSimulatorStore(PostgresRepository[Simulator]):
             db_config=db_config
         )
         logger.info("PostgresSimulatorStore initialized.")
-
-    def _row_to_entity(self, row):
-        """
-        Convert database row to Simulator entity object.
-        
-        Args:
-            row: Database row from query
-            
-        Returns:
-            Simulator object or None on error
-        """
-        try:
-            return Simulator(
-                simulator_id=row['simulator_id'],
-                session_id=row['session_id'],
-                user_id=row['user_id'],
-                status=SimulatorStatus(row['status']),
-                endpoint=row['endpoint'],
-                created_at=row['created_at'].timestamp() if hasattr(row['created_at'], 'timestamp') else row['created_at'],
-                last_active=row['last_active'].timestamp() if hasattr(row['last_active'], 'timestamp') else row['last_active'],
-            )
-        except Exception as e:
-            logger.error(f"Error converting row to Simulator: {e}")
-            return None
 
     async def create_simulator(self, simulator: Simulator) -> bool:
         """
@@ -177,12 +153,6 @@ class PostgresSimulatorStore(PostgresRepository[Simulator]):
                 track_db_error("pg_get_simulator_by_session")
                 return None
 
-    async def get_simulators_with_status(self, status: SimulatorStatus) -> List[Simulator]:
-        """
-        Get all simulators with a specific status.
-        """
-        return await self.get_with_criteria({'status': status.value})
-
     async def get_active_user_simulators(self, user_id: str) -> List[Simulator]:
         """
         Get all active simulators for a user.
@@ -213,82 +183,3 @@ class PostgresSimulatorStore(PostgresRepository[Simulator]):
                 span.record_exception(e)
                 track_db_error("pg_get_active_user_simulators")
                 return []
-
-    async def get_active_simulators(self) -> List[Simulator]:
-        """
-        Get all active simulators (not STOPPED or ERROR).
-        """
-        with optional_trace_span(self.tracer, "pg_store_get_active_simulators"):
-            try:
-                pool = await self._get_pool()
-                with TimedOperation(track_db_operation, "pg_get_active_simulators"):
-                    async with pool.acquire() as conn:
-                        rows = await conn.fetch('''
-                            SELECT * FROM simulator.instances
-                            WHERE status NOT IN ($1, $2)
-                        ''', SimulatorStatus.STOPPED.value, SimulatorStatus.ERROR.value)
-
-                        simulators = []
-                        for row in rows:
-                            simulator = self._row_to_entity(row)
-                            if simulator:
-                                simulators.append(simulator)
-
-                        logger.info(f"Found {len(simulators)} active simulators")
-                        return simulators
-            except Exception as e:
-                logger.error(f"Error getting active simulators: {e}")
-                track_db_error("pg_get_active_simulators")
-                return []
-
-    async def get_active_simulator_count(self) -> int:
-        """
-        Get count of active simulators.
-        """
-        with optional_trace_span(self.tracer, "pg_store_get_active_simulator_count"):
-            try:
-                pool = await self._get_pool()
-                with TimedOperation(track_db_operation, "pg_get_active_simulator_count"):
-                    async with pool.acquire() as conn:
-                        count = await conn.fetchval('''
-                            SELECT COUNT(*) FROM simulator.instances
-                            WHERE status NOT IN ($1, $2)
-                        ''', SimulatorStatus.STOPPED.value, SimulatorStatus.ERROR.value)
-
-                        return count or 0
-            except Exception as e:
-                logger.error(f"Error getting active simulator count: {e}")
-                track_db_error("pg_get_active_simulator_count")
-                return 0
-
-    async def cleanup_inactive_simulators(self, inactivity_timeout: int) -> int:
-        """
-        Mark simulators as STOPPED if they've been inactive beyond the timeout.
-        """
-        with optional_trace_span(self.tracer, "pg_store_cleanup_inactive_simulators") as span:
-            span.set_attribute("inactivity_timeout", inactivity_timeout)
-
-            try:
-                pool = await self._get_pool()
-                with TimedOperation(track_db_operation, "pg_cleanup_inactive_simulators"):
-                    async with pool.acquire() as conn:
-                        # Mark simulators as STOPPED if they've been inactive
-                        result = await conn.execute('''
-                            UPDATE simulator.instances
-                            SET status = $1
-                            WHERE status != $1
-                            AND last_active < NOW() - INTERVAL '1 second' * $2
-                        ''', SimulatorStatus.STOPPED.value, inactivity_timeout)
-
-                        count = int(result.split()[-1]) if result else 0
-                        span.set_attribute("simulators_cleaned", count)
-
-                        if count > 0:
-                            logger.info(f"Marked {count} inactive simulators as STOPPED")
-                            track_cleanup_operation("simulators", count)
-                        return count
-            except Exception as e:
-                logger.error(f"Error cleaning up inactive simulators in PostgreSQL: {e}")
-                span.record_exception(e)
-                track_db_error("pg_cleanup_inactive_simulators")
-                return 0

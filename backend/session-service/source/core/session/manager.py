@@ -19,9 +19,15 @@ from source.core.simulator.manager import SimulatorManager
 
 from source.core.session.simulator_operations import SimulatorOperations
 from source.core.session.connection import Connection
-from source.core.session.tasks import Tasks
 
 logger = logging.getLogger('session_manager')
+
+
+async def validate_session(user_id):
+    """
+    Validate session ownership - always validates successfully in singleton mode
+    """
+    return user_id
 
 
 class SessionManager:
@@ -56,11 +62,6 @@ class SessionManager:
         # Initialize component modules
         self.simulator_ops = SimulatorOperations(self)
         self.connection = Connection(self)
-        self.tasks = Tasks(self)
-
-        # Background tasks
-        self.cleanup_task = None
-        self.heartbeat_task = None
 
         # Connection tracking
         self.frontend_connections = 0
@@ -68,39 +69,7 @@ class SessionManager:
         # Create tracer
         self.tracer = trace.get_tracer("session_manager")
 
-        # Subscribe to events
-        event_bus.subscribe('stream_error', self.handle_stream_error)
-        event_bus.subscribe('ws_connection_established', self.handle_connection_established)
-        event_bus.subscribe('ws_connection_closed', self.handle_connection_closed)
-
         logger.info(f"Session manager initialized with session ID: {session_id}")
-
-    # ----- Connection tracking methods -----
-
-    async def handle_connection_established(self, session_id, client_id, user_id):
-        """Handle new WebSocket connection event"""
-        self.frontend_connections += 1
-        logger.info(f"New connection established (total: {self.frontend_connections})")
-
-        # Update session metadata
-        await self.update_session_metadata({
-            'frontend_connections': self.frontend_connections,
-            'last_ws_connection': asyncio.get_event_loop().time()
-        })
-
-        # Update session activity
-        await self.update_session_activity()
-
-    async def handle_connection_closed(self, session_id, client_id, session_empty):
-        """Handle WebSocket connection closed event"""
-        self.frontend_connections = max(0, self.frontend_connections - 1)
-        logger.info(f"Connection closed (remaining: {self.frontend_connections})")
-
-        # Update session metadata
-        await self.update_session_metadata({
-            'frontend_connections': self.frontend_connections,
-            'last_ws_disconnection': asyncio.get_event_loop().time()
-        })
 
     # ----- Public API methods -----
 
@@ -120,12 +89,6 @@ class SessionManager:
         except Exception as e:
             logger.error(f"Error converting session metadata to dict: {e}")
             return {}
-
-    async def validate_session(self, user_id, device_id=None):
-        """
-        Validate session ownership - always validates successfully in singleton mode
-        """
-        return user_id
 
     async def update_session_activity(self):
         """Update session last activity time"""
@@ -223,7 +186,7 @@ class SessionManager:
         return success, error
 
     # Also simplify the cleanup_session method
-    async def cleanup_session(self, force=False):
+    async def cleanup_session(self):
         """Clean up the session resources"""
         # Get session to find simulator
         session = await self.get_session()

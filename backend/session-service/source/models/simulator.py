@@ -11,7 +11,7 @@ from enum import Enum
 
 class SimulatorStatus(str, Enum):
     """Simulator status enum"""
-    NONE = "NONE"  # Added this
+    NONE = "NONE"
     CREATING = "CREATING"
     STARTING = "STARTING"
     RUNNING = "RUNNING"
@@ -24,7 +24,6 @@ class Simulator(BaseModel):
     """Exchange simulator model"""
     simulator_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     session_id: str
-    user_id: str
     status: SimulatorStatus = SimulatorStatus.CREATING
     endpoint: Optional[str] = None
     created_at: float = Field(default_factory=time.time)
@@ -39,7 +38,6 @@ class Simulator(BaseModel):
         return {
             "simulator_id": self.simulator_id,
             "session_id": self.session_id,
-            "user_id": self.user_id,
             "status": self.status.value,
             "endpoint": self.endpoint,
             "created_at": self.created_at,

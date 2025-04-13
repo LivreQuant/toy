@@ -35,6 +35,9 @@ class DatabaseConfig(BaseModel):
     password: str = Field(default="postgres")
     min_connections: int = Field(default=2)
     max_connections: int = Field(default=10)
+    max_retries: int = Field(default=5)
+    retry_delay: int = Field(default=1)
+
 
     @property
     def connection_string(self) -> str:
@@ -96,7 +99,7 @@ class MetricsConfig(BaseModel):
     endpoint: str = Field(default="/metrics")
 
 
-class SingletonConfig(BaseModel):
+class UserConfig(BaseModel):
     """Singleton mode configuration"""
     enabled: bool = Field(default=False)
     user_id: str = Field(default="default-user")  # Default user ID for singleton mode
@@ -116,7 +119,7 @@ class Config(BaseModel):
     kubernetes: KubernetesConfig = Field(default_factory=KubernetesConfig)
     tracing: TracingConfig = Field(default_factory=TracingConfig)
     metrics: MetricsConfig = Field(default_factory=MetricsConfig)
-    singleton: SingletonConfig = Field(default_factory=SingletonConfig)
+    user: UserConfig = Field(default_factory=UserConfig)
     state_management: StateManagementConfig = Field(default_factory=StateManagementConfig)
 
     @classmethod
@@ -173,7 +176,7 @@ class Config(BaseModel):
                 port=int(os.getenv('METRICS_PORT', '9090')),
                 endpoint=os.getenv('METRICS_ENDPOINT', '/metrics')
             ),
-            singleton=SingletonConfig(
+            user=UserConfig(
                 enabled=os.getenv('SINGLETON_MODE', 'true').lower() == 'true',
                 user_id=os.getenv('SINGLETON_USER_ID', 'default-user'),
                 device_id=os.getenv('SINGLETON_DEVICE_ID', 'server-instance')

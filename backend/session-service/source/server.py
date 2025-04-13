@@ -6,14 +6,16 @@ import logging
 import asyncio
 import time
 import uuid
+import aiohttp_cors
 from aiohttp import web
 
 from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 
 from source.config import config
-from source.core.state.state_manager import StateManager
 
 from source.db.manager import StoreManager
+
+from source.core.state.state_manager import StateManager
 from source.core.stream.manager import StreamManager
 from source.core.session.manager import SessionManager
 from source.core.simulator.manager import SimulatorManager
@@ -69,7 +71,7 @@ class SessionServer:
 
         # Generate a stable session ID for this instance
         self.session_id = str(uuid.uuid4())
-        self.user_id = config.singleton.user_id  # Get from config
+        self.user_id = config.user.user_id  # Get from config
 
         # Initialize other managers and clients to None initially
         self.store_manager = None
@@ -88,12 +90,20 @@ class SessionServer:
 
         logger.info("Initializing server components")
 
-        # Initialize state manager
-        await self.state_manager.initialize()
+        try:
+            # Initialize state manager
+            await self.state_manager.initialize()
+        except Exception as e:
+            logger.error(f"Failed to initialize state manager: {e}", exc_info=True)
+            raise
 
-        # Create core components directly without complex dependency injection
-        self.store_manager = StoreManager()
-        await self.store_manager.connect()
+        try:
+            # Create store manager
+            self.store_manager = StoreManager()
+            await self.store_manager.connect()
+        except Exception as e:
+            logger.error(f"Failed to initialize store manager: {e}", exc_info=True)
+            raise
 
         # Create clients
         self.exchange_client = ExchangeClient()
@@ -103,7 +113,7 @@ class SessionServer:
         self.stream_manager = StreamManager()
         self.simulator_manager = SimulatorManager(self.store_manager, self.k8s_client)
 
-        # Create session manager with singleton session ID
+        # Create session manager with user session ID
         self.session_manager = SessionManager(
             self.store_manager,
             self.exchange_client,
@@ -115,13 +125,10 @@ class SessionServer:
         # Create websocket manager
         self.websocket_manager = WebSocketManager(self.session_manager, self.simulator_manager)
 
-        # Create singleton session
-        success = await self._create_singleton_session(self.session_manager)
+        # Create user session
+        success = await self._create_user_session(self.session_manager)
         if not success:
-            raise RuntimeError("Failed to initialize singleton session")
-
-        # Start background tasks
-        await self.session_manager.start_session_tasks()
+            raise RuntimeError("Failed to initialize user session")
 
         # Store components in app context
         self.app['state_manager'] = self.state_manager
@@ -140,7 +147,7 @@ class SessionServer:
         self._setup_cors()
 
         self.initialized = True
-        logger.info(f"Server initialization complete with singleton session {self.session_id}")
+        logger.info(f"Server initialization complete with user session {self.session_id}")
 
     async def start(self):
         """Start the server"""
@@ -180,24 +187,65 @@ class SessionServer:
 
         logger.info("All routes configured")
 
-    async def _create_singleton_session(self, session_manager):
-        """Create the singleton session for this server instance"""
+    async def _create_user_session(self, session_manager):
+        """Create the user session for this server instance"""
         try:
-            device_id = config.singleton.device_id
+            device_id = config.user.device_id
 
             # Store session directly
-            success = await session_manager.store_manager.session_store.create_session_with_id(
+            success = await session_manager.store_manager.session_store.create_session(
                 self.session_id, self.user_id, device_id, ip_address="127.0.0.1"
             )
 
             if success:
-                logger.info(f"Successfully created singleton session {self.session_id} for user {self.user_id}")
+                logger.info(f"Successfully created user session {self.session_id} for user {self.user_id}")
                 return True
             else:
-                logger.error("Failed to create singleton session in database")
+                logger.error("Failed to create user session in database")
                 return False
 
         except Exception as e:
-            logger.error(f"Error creating singleton session: {e}", exc_info=True)
+            logger.error(f"Error creating user session: {e}", exc_info=True)
             return False
-        
+
+    def _setup_cors(self):
+        """Set up CORS for API endpoints"""
+        # Allow all origins specified in config, or '*' if none/empty
+        origins = config.server.cors_allowed_origins or ["*"]
+        logger.info(f"Setting up CORS for origins: {origins}")
+
+        cors_options = aiohttp_cors.ResourceOptions(
+            allow_credentials=True,
+            expose_headers="*",
+            allow_headers="*",  # Be more specific in production if possible
+            allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"]  # Include common methods
+        )
+        defaults = {origin: cors_options for origin in origins}
+
+        cors = aiohttp_cors.setup(self.app, defaults=defaults)
+
+        for route in list(self.app.router.routes()):
+            try:
+                cors.add(route)
+            except ValueError:
+                pass
+
+    async def readiness_check(self, request):
+        """Comprehensive readiness check for dependencies"""
+        checks = {}
+        all_ready = True
+
+        # Check database connections
+        db_ready = await self.store_manager.check_connection()
+        checks['database'] = 'UP' if db_ready else 'DOWN'
+        if not db_ready:
+            all_ready = False
+            logger.warning("Database connection check failed!")
+
+        status_code = 200 if all_ready else 503  # Service Unavailable if not ready
+        return web.json_response({
+            'status': 'READY' if all_ready else 'NOT READY',
+            'timestamp': time.time(),
+            'pod': config.kubernetes.pod_name,
+            'checks': checks
+        }, status=status_code)
