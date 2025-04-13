@@ -1,6 +1,6 @@
 """
 Simulator manager for handling exchange simulator lifecycle.
-Coordinates the creation, monitoring, and termination of simulator instances.
+Simplified for singleton mode with one simulator per session.
 """
 import logging
 import asyncio
@@ -36,9 +36,6 @@ class SimulatorManager:
         self.store_manager = store_manager
         self.k8s_client = k8s_client
         
-        # Background tasks
-        self.cleanup_task = None
-        
         # Create tracer
         self.tracer = trace.get_tracer("simulator_manager")
 
@@ -65,16 +62,6 @@ class SimulatorManager:
             span.set_attribute("session_id", session_id)
             span.set_attribute("user_id", user_id)
             start_time = time.time()
-
-            # Check user simulator limits
-            existing_simulators = await self.store_manager.simulator_store.get_active_user_simulators(user_id)
-            span.set_attribute("existing_simulators_count", len(existing_simulators))
-
-            if len(existing_simulators) >= config.simulator.max_per_user:
-                error_msg = f"Maximum simulator limit ({config.simulator.max_per_user}) reached"
-                span.set_attribute("error", error_msg)
-                track_simulator_operation("create", "limit_exceeded")
-                return None, error_msg
 
             # Check if there's an existing simulator for this session
             existing_simulator = await self.store_manager.simulator_store.get_simulator_by_session(session_id)
@@ -140,7 +127,7 @@ class SimulatorManager:
                 creation_time = time.time() - start_time
                 track_simulator_creation_time(creation_time)
                 track_simulator_operation("create", "success")
-                track_simulator_count(await self.store_manager.simulator_store.get_active_simulator_count())
+                track_simulator_count(1)  # In singleton mode, we have 0 or 1 simulators
 
                 # Publish simulator starting event
                 await event_bus.publish('simulator_starting',
@@ -234,6 +221,7 @@ class SimulatorManager:
                                         success=k8s_success)
 
                 track_simulator_operation("stop", "success" if k8s_success else "partial")
+                track_simulator_count(0)  # After stopping, we have 0 simulators
 
                 if not k8s_success:
                     return False, "Failed to delete Kubernetes resources"
@@ -259,12 +247,40 @@ class SimulatorManager:
                 track_simulator_operation("stop", "failure")
                 return False, f"Error stopping simulator: {str(e)}"
 
-    async def update_simulator_activity(self, simulator_id):
-        """Update the last active timestamp for a simulator"""
+    async def check_simulator_ready(self, simulator_id: str) -> bool:
+        """
+        Check if a simulator in STARTING state is now ready
+        
+        Args:
+            simulator_id: Simulator ID to check
+            
+        Returns:
+            True if simulator is ready, False otherwise
+        """
         try:
-            await self.store_manager.simulator_store.update_simulator_activity(simulator_id)
+            # First check K8s status
+            if self.k8s_client:
+                status = await self.k8s_client.check_simulator_status(simulator_id)
+                
+                if status == "RUNNING":
+                    # Update simulator status in database
+                    await self.store_manager.simulator_store.update_simulator_status(
+                        simulator_id, SimulatorStatus.RUNNING
+                    )
+                    return True
+                    
+                elif status in ["FAILED", "ERROR"]:
+                    # Mark as error in database
+                    await self.store_manager.simulator_store.update_simulator_status(
+                        simulator_id, SimulatorStatus.ERROR
+                    )
+                    return False
+            
+            # Default to not ready
+            return False
         except Exception as e:
-            logger.error(f"Error updating simulator {simulator_id} activity: {e}")
+            logger.error(f"Error checking simulator {simulator_id} readiness: {e}")
+            return False
 
     # ----- Event handlers -----
 
@@ -279,24 +295,18 @@ class SimulatorManager:
 
     async def handle_server_shutdown(self, reason: str):
         """Handle server shutdown event"""
-        logger.info("Server shutting down, cleaning up all active simulators")
-        if self.cleanup_task and not self.cleanup_task.done():
-            self.cleanup_task.cancel()
-            try:
-                await self.cleanup_task
-            except asyncio.CancelledError:
-                pass
+        logger.info("Server shutting down, cleaning up active simulators")
 
-        # Stop all active simulators
+        # In singleton mode, we only need to worry about our single simulator
         try:
-            active_simulators = await self.store_manager.simulator_store.get_active_simulators()
-            stop_tasks = []
-
-            for simulator in active_simulators:
+            simulators = await self.store_manager.simulator_store.get_active_simulators()
+            
+            for simulator in simulators:
                 if simulator.status not in [SimulatorStatus.STOPPED, SimulatorStatus.ERROR]:
-                    stop_tasks.append(self.stop_simulator(simulator.simulator_id))
-
-            if stop_tasks:
-                await asyncio.gather(*stop_tasks, return_exceptions=True)
+                    logger.info(f"Stopping simulator {simulator.simulator_id} during shutdown")
+                    await self.stop_simulator(simulator.simulator_id)
+                    
+            logger.info("All simulators stopped during shutdown")
         except Exception as e:
             logger.error(f"Error cleaning up simulators during shutdown: {e}")
+            

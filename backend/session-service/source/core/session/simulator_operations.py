@@ -1,6 +1,5 @@
 """
-Comprehensive simulator management operations.
-Wraps and extends simulator manager functionality.
+Simplified simulator management operations for singleton mode.
 """
 import logging
 from typing import Tuple, Optional, Dict, Any, AsyncGenerator
@@ -8,7 +7,7 @@ from typing import Tuple, Optional, Dict, Any, AsyncGenerator
 from opentelemetry import trace
 
 from source.utils.event_bus import event_bus
-from source.utils.retry import retry_with_backoff
+from source.utils.retry import retry_with_backoff_generator
 
 logger = logging.getLogger('simulator_operations')
 
@@ -37,10 +36,34 @@ class SimulatorOperations:
             span.set_attribute("user_id", user_id)
 
             try:
-                # Directly use simulator_manager's create method
+                # Check if there's already a simulator for this session
+                session_metadata = await self.manager.get_session_metadata(session_id)
+                
+                if session_metadata and session_metadata.get('simulator_id'):
+                    simulator_id = session_metadata.get('simulator_id')
+                    simulator_status = session_metadata.get('simulator_status')
+                    endpoint = session_metadata.get('simulator_endpoint')
+                    
+                    # If already running, just return existing one
+                    if simulator_status in ['RUNNING', 'STARTING', 'CREATING'] and endpoint:
+                        logger.info(f"Reusing existing simulator {simulator_id} for session {session_id}")
+                        return {
+                            'simulator_id': simulator_id,
+                            'status': simulator_status,
+                            'endpoint': endpoint
+                        }, None
+
+                # Create a new simulator
                 simulator, error = await self.manager.simulator_manager.create_simulator(session_id, user_id)
 
                 if simulator:
+                    # Update session metadata
+                    await self.manager.update_session_metadata(session_id, {
+                        'simulator_id': simulator.simulator_id,
+                        'simulator_status': simulator.status.value,
+                        'simulator_endpoint': simulator.endpoint
+                    })
+                    
                     return simulator.to_dict(), None
 
                 return None, error
@@ -58,25 +81,19 @@ class SimulatorOperations:
         """
         Stream exchange data with retry mechanism.
         """
-
         async def _stream_data():
             async for data in self.manager.exchange_client.stream_exchange_data(
                     endpoint, session_id, f"stream-{session_id}"
             ):
                 yield data
 
-        try:
-            async for data in retry_with_backoff(
-                    _stream_data,
-                    max_attempts=5,
-                    retriable_exceptions=(ConnectionError, TimeoutError)
-            ):
-                yield data
-        except Exception as e:
-            logger.error(f"Exchange data streaming failed: {e}")
-            await event_bus.publish('stream_failed',
-                                    session_id=session_id,
-                                    error=str(e))
+        # Use our retry generator to handle connection issues
+        async for data in retry_with_backoff_generator(
+                _stream_data,
+                max_attempts=5,
+                retriable_exceptions=(ConnectionError, TimeoutError)
+        ):
+            yield data
 
     async def stop_simulator(
             self,
@@ -84,7 +101,7 @@ class SimulatorOperations:
             force: bool = False
     ) -> Tuple[bool, Optional[str]]:
         """
-        Stop simulator, using simulator_manager as primary method.
+        Stop simulator, using simulator_manager.
         """
         with self.tracer.start_as_current_span("stop_simulator") as span:
             span.set_attribute("session_id", session_id)
@@ -124,6 +141,10 @@ class SimulatorOperations:
 
     async def run_simulator_heartbeat_loop(self):
         """
-        Wrapper around simulator_manager's heartbeat loop
+        Placeholder for simulator heartbeat loop - would be implemented in the real system
+        to maintain connections with active simulators.
         """
-        await self.manager.simulator_manager.run_simulator_heartbeat_loop()
+        # This would implement a heartbeat mechanism to keep simulators alive
+        # For simplicity in the MVP, we're leaving this as a stub
+        pass
+    

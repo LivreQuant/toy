@@ -1,10 +1,11 @@
 # source/api/server.py
 """
-Session service main server with dependency injection.
+Session service main server with dependency injection for single-user mode.
 """
 import logging
 import asyncio
 import time
+import uuid
 import aiohttp_cors
 from aiohttp import web
 
@@ -12,6 +13,7 @@ from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 
 from source.config import config
 from source.utils.di import DependencyContainer
+from source.utils.state_manager import StateManager
 
 from source.db.manager import StoreManager
 from source.core.stream.manager import StreamManager
@@ -25,6 +27,7 @@ from source.api.rest.routes import setup_rest_routes
 from source.api.websocket.manager import WebSocketManager
 
 from source.utils.middleware import tracing_middleware, metrics_middleware, error_handling_middleware
+from source.models.session import Session, SessionStatus
 
 logger = logging.getLogger('server')
 
@@ -52,7 +55,7 @@ async def health_check(request):
 
 
 class SessionServer:
-    """Main session service server using dependency injection"""
+    """Main session service server using dependency injection for single-user mode"""
 
     def __init__(self):
         """Initialize server components"""
@@ -70,6 +73,13 @@ class SessionServer:
         # Create dependency container
         self.di = DependencyContainer()
         
+        # For single-user mode, we'll create and store the session ID at startup
+        self.session_id = str(uuid.uuid4())
+        self.user_id = None  # Will be set during initialization
+            
+        # Initialize state manager
+        self.state_manager = StateManager()
+        
     async def initialize(self):
         """Initialize all server components using dependency injection"""
         if self.initialized:
@@ -77,6 +87,9 @@ class SessionServer:
             return
 
         logger.info("Initializing server components")
+            
+        # Initialize state manager first
+        await self.state_manager.initialize()
         
         # Initialize dependency container with factories
         self._register_dependencies()
@@ -94,11 +107,23 @@ class SessionServer:
         session_manager = self.di.get('session_manager')
         websocket_manager = self.di.get('websocket_manager')
         
+        # In single-user mode, we create a default user and session at startup
+        # This would typically come from environment variables or config
+        self.user_id = "default-user-123"  # In production, get this from config
+        device_id = "server-instance"      # Default device ID for server-created session
+
+        # Create the singleton session
+        success = await self._create_singleton_session(session_manager, self.user_id, device_id)
+        if not success:
+            logger.critical("Failed to create singleton session! Cannot start server.")
+            raise RuntimeError("Failed to initialize singleton session")
+            
         # Start background tasks now that everything is initialized
         await session_manager.start_session_tasks()
         logger.info("Session cleanup tasks started.")
 
         # Make components available in application context
+        self.app['state_manager'] = self.state_manager
         self.app['exchange_client'] = self.di.get('exchange_client')
         self.app['k8s_client'] = self.di.get('k8s_client')
         self.app['stream_manager'] = self.di.get('stream_manager')
@@ -106,6 +131,10 @@ class SessionServer:
         self.app['simulator_manager'] = self.di.get('simulator_manager')
         self.app['session_manager'] = session_manager
         self.app['websocket_manager'] = websocket_manager
+        
+        # Add single-user mode context
+        self.app['singleton_session_id'] = self.session_id
+        self.app['singleton_user_id'] = self.user_id
 
         # Set up routes
         setup_rest_routes(self.app)
@@ -126,7 +155,33 @@ class SessionServer:
         logger.info("CORS configured.")
 
         self.initialized = True
-        logger.info("Server initialization complete")
+        logger.info(f"Server initialization complete with singleton session {self.session_id}")
+    
+    async def _create_singleton_session(self, session_manager, user_id, device_id):
+        """Create the singleton session for this server instance"""
+        try:
+            # We'll use our pre-generated session ID rather than creating a new one
+            session = Session(
+                session_id=self.session_id,
+                user_id=user_id,
+                status=SessionStatus.ACTIVE
+            )
+            
+            # Store session directly 
+            success = await session_manager.store_manager.session_store.create_session_with_id(
+                self.session_id, user_id, device_id, ip_address="127.0.0.1"
+            )
+            
+            if success:
+                logger.info(f"Successfully created singleton session {self.session_id} for user {user_id}")
+                return True
+            else:
+                logger.error("Failed to create singleton session in database")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error creating singleton session: {e}", exc_info=True)
+            return False
     
     def _register_dependencies(self):
         """Register all component factories and their dependencies"""
@@ -151,7 +206,9 @@ class SessionServer:
                     store_manager, 
                     exchange_client=exchange_client,
                     stream_manager=stream_manager,
-                    simulator_manager=simulator_manager
+                    simulator_manager=simulator_manager,
+                    singleton_mode=True,
+                    singleton_session_id=self.session_id
                 ),
             ['store_manager', 'exchange_client', 'stream_manager', 'simulator_manager']
         )
@@ -159,7 +216,12 @@ class SessionServer:
         # Register websocket manager which depends on session_manager
         self.di.register(
             'websocket_manager',
-            lambda session_manager, stream_manager: WebSocketManager(session_manager, stream_manager),
+            lambda session_manager, stream_manager: WebSocketManager(
+                session_manager, 
+                stream_manager,
+                singleton_mode=True,
+                singleton_session_id=self.session_id
+            ),
             ['session_manager', 'stream_manager']
         )
 
@@ -210,9 +272,9 @@ class SessionServer:
         exchange_client = self.di.get('exchange_client')
         store_manager = self.di.get('store_manager')
 
-        # Clean up sessions
-        logger.info("Stopping session manager cleanup task...")
-        await session_manager.cleanup_pod_sessions(config.kubernetes.pod_name)
+        # In single-user mode, clean up the singleton session
+        logger.info(f"Cleaning up singleton session {self.session_id}...")
+        await session_manager.cleanup_session(self.session_id)
         await session_manager.stop_cleanup_task()
 
         # Close WebSocket connections
@@ -227,7 +289,11 @@ class SessionServer:
         if self._runner:
             logger.info("Cleaning up aiohttp AppRunner...")
             await self._runner.cleanup()
-
+        
+        # Reset state manager
+        logger.info("Resetting state manager...")
+        await self.state_manager.close()
+        
         logger.info("Server shutdown sequence finished.")
         self.shutdown_event.set()
 
@@ -246,9 +312,28 @@ class SessionServer:
             all_ready = False
             logger.warning("Database connection check failed!")
 
+        # Check if service is ready for new connections
+        service_ready = self.state_manager.is_ready()
+        checks['service_state'] = 'READY' if service_ready else 'ACTIVE'
+        if not service_ready:
+            # Note: We don't set all_ready to False here - service can be healthy but busy
+            logger.info("Service is currently active with a user session")
+                
+        # Include active user info in the response if available
+        active_user = self.state_manager.get_active_user_id()
+        if active_user:
+            checks['active_user'] = active_user
+            checks['active_session'] = self.state_manager.get_active_session_id()
+            connection_time = self.state_manager.get_active_connection_time()
+            if connection_time:
+                checks['connection_duration'] = f"{int(time.time() - connection_time)} seconds"
+
         status_code = 200 if all_ready else 503  # Service Unavailable if not ready
+        ready_status = "READY" if service_ready else "BUSY"
+        
         return web.json_response({
-            'status': 'READY' if all_ready else 'NOT READY',
+            'status': 'HEALTHY' if all_ready else 'DEGRADED',
+            'readyStatus': ready_status,
             'timestamp': time.time(),
             'pod': config.kubernetes.pod_name,
             'checks': checks

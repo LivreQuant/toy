@@ -382,4 +382,107 @@ class PostgresSessionStore(PostgresRepository[Session]):
             except Exception as e:
                 logger.error(f"Error getting active session count from PostgreSQL: {e}", exc_info=True)
 
-                
+
+    async def create_session_with_id(self, session_id: str, user_id: str, device_id: Optional[str] = None, ip_address: Optional[str] = None) -> bool:
+        """
+        Create a new session with a specific ID (for singleton mode).
+
+        Args:
+            session_id: The session ID to use
+            user_id: The user ID to associate with this session
+            device_id: Optional device ID for metadata
+            ip_address: Optional IP address for metadata
+
+        Returns:
+            bool: True if session was created successfully
+        """
+        with optional_trace_span(self.tracer, "pg_store_create_session_with_id") as span:
+            span.set_attribute("session_id", session_id)
+            span.set_attribute("user_id", user_id)
+            if device_id: span.set_attribute("device_id", device_id)
+            if ip_address: span.set_attribute("ip_address", ip_address)
+
+            pool = await self._get_pool()
+            try:
+                with TimedOperation(track_db_operation, "pg_create_session_with_id"):
+                    async with pool.acquire() as conn:
+                        # Check if session already exists
+                        existing_session = await conn.fetchrow('''
+                            SELECT session_id
+                            FROM session.active_sessions
+                            WHERE session_id = $1
+                            LIMIT 1
+                        ''', session_id)
+
+                        if existing_session:
+                            logger.info(f"Session with ID {session_id} already exists, updating activity.")
+                            # Update activity time for the existing session
+                            await self.update_activity(session_id)
+                            return True
+
+                        # Create new session with the provided ID
+                        current_time = time.time()
+                        expires_at = current_time + config.session.timeout_seconds
+
+                        logger.info(f"Creating new session with ID {session_id} for user {user_id}.")
+                        await conn.execute('''
+                            INSERT INTO session.active_sessions
+                            (session_id, user_id, status, created_at, last_active, expires_at)
+                            VALUES ($1, $2, $3, to_timestamp($4), to_timestamp($5), to_timestamp($6))
+                        ''',
+                                            session_id,
+                                            user_id,
+                                            SessionStatus.ACTIVE.value,  # Start as ACTIVE
+                                            current_time,
+                                            current_time,
+                                            expires_at
+                                            )
+
+                        # Initialize metadata
+                        metadata = {
+                            'pod_name': config.kubernetes.pod_name,
+                            'ip_address': ip_address,
+                            'device_id': device_id,
+                            'created_at': current_time,
+                            'updated_at': current_time
+                            # Ensure all required fields of SessionMetadata have defaults
+                        }
+                        # Filter metadata to only include keys defined in SessionMetadata model
+                        valid_metadata = SessionMetadata(**metadata).dict(exclude_unset=True)
+
+                        await conn.execute('''
+                            INSERT INTO session.session_metadata
+                            (session_id, metadata)
+                            VALUES ($1, $2)
+                        ''', session_id, json.dumps(valid_metadata))
+
+                        return True
+
+            except Exception as e:
+                logger.error(f"Error creating session with ID {session_id} for user {user_id} in PostgreSQL: {e}", exc_info=True)
+                span.record_exception(e)
+                track_db_error("pg_create_session_with_id")
+                return False
+
+    async def get_user_id_for_session(self, session_id: str) -> Optional[str]:
+        """
+        Get the user ID associated with a session.
+        
+        Args:
+            session_id: The session ID
+            
+        Returns:
+            The user ID or None if session not found
+        """
+        try:
+            pool = await self._get_pool()
+            async with pool.acquire() as conn:
+                user_id = await conn.fetchval('''
+                    SELECT user_id
+                    FROM session.active_sessions
+                    WHERE session_id = $1
+                ''', session_id)
+                return user_id
+        except Exception as e:
+            logger.error(f"Error getting user_id for session {session_id}: {e}")
+            return None

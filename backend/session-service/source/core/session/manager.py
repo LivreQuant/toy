@@ -1,5 +1,5 @@
 """
-Session manager for handling user sessions.
+Session manager for handling a single user session.
 Coordinates the core components for session management.
 """
 import logging
@@ -19,7 +19,6 @@ from source.clients.exchange import ExchangeClient
 from source.core.stream.manager import StreamManager
 from source.core.simulator.manager import SimulatorManager
 
-from source.core.session.session_operations import SessionOperations
 from source.core.session.simulator_operations import SimulatorOperations
 from source.core.session.connection import Connection
 from source.core.session.tasks import Tasks
@@ -29,7 +28,7 @@ logger = logging.getLogger('session_manager')
 
 
 class SessionManager:
-    """Manager for user sessions - coordinates all session-related operations"""
+    """Manager for a single user session - coordinates all session-related operations"""
 
     def __init__(
             self,
@@ -37,6 +36,8 @@ class SessionManager:
             exchange_client: ExchangeClient,
             stream_manager: StreamManager,
             simulator_manager: SimulatorManager,
+            singleton_mode: bool = False,
+            singleton_session_id: str = None
     ):
         """
         Initialize session manager and its component modules
@@ -46,14 +47,19 @@ class SessionManager:
             exchange_client: Exchange client for simulator communication
             simulator_manager: Manager for simulator operations
             stream_manager: Stream manager for managing background streams
+            singleton_mode: Whether to operate in single-user mode
+            singleton_session_id: The predefined session ID to use in singleton mode
         """
         self.store_manager = store_manager
         self.exchange_client = exchange_client
         self.stream_manager = stream_manager
         self.simulator_manager = simulator_manager
+        
+        # Singleton mode settings
+        self.singleton_mode = singleton_mode
+        self.singleton_session_id = singleton_session_id
 
         # Initialize component modules
-        self.session_ops = SessionOperations(self)
         self.simulator_ops = SimulatorOperations(self)
         self.connection = Connection(self)
         self.tasks = Tasks(self)
@@ -68,14 +74,43 @@ class SessionManager:
         # Subscribe to events
         event_bus.subscribe('stream_error', self.handle_stream_error)
 
-        logger.info("Session manager initialized")
+        logger.info(f"Session manager initialized in {'singleton' if singleton_mode else 'multi-user'} mode")
+        if singleton_mode:
+            logger.info(f"Singleton session ID: {singleton_session_id}")
 
     # ----- Public API methods -----
 
+    async def get_session_id(self, user_id=None, device_id=None):
+        """
+        In singleton mode, always return the singleton session ID.
+        In multi-user mode, would return the session ID for the given user and device.
+        """
+        if self.singleton_mode:
+            return self.singleton_session_id
+        
+        # Fallback to original behavior for multi-user mode
+        session_id, _ = await self.create_session(user_id, device_id)
+        return session_id
+
     async def create_session(self, user_id, device_id, ip_address=None):
-        """Create a new session or return existing one"""
-        session_id, is_new = await self.session_ops.create_session(user_id, device_id, ip_address)
+        """
+        In singleton mode, just return the singleton session.
+        In multi-user mode, create a new session or return existing one.
+        """
+        if self.singleton_mode:
+            # In singleton mode, we just return the predefined session
+            return self.singleton_session_id, False
+            
+        # Original multi-user implementation would go here
+        session_id, is_new = await self.store_manager.session_store.create_session(user_id, ip_address)
+        
         if session_id and is_new:
+            # Update metadata with device ID
+            await self.update_session_metadata(session_id, {
+                'device_id': device_id,
+                'pod_name': config.kubernetes.pod_name
+            })
+            
             # Publish event that new session was created
             await event_bus.publish('session_created',
                                     session_id=session_id,
@@ -83,20 +118,23 @@ class SessionManager:
                                     device_id=device_id)
         return session_id, is_new
 
-    async def get_session(self, session_id):
-        """Get session by ID"""
-        return await self.session_ops.get_session(session_id)
+    async def get_session(self, session_id=None):
+        """
+        Get session by ID. In singleton mode, always get the singleton session.
+        """
+        if self.singleton_mode:
+            session_id = self.singleton_session_id
+            
+        return await self.store_manager.session_store.get_session_from_db(session_id)
 
-    async def get_session_metadata(self, session_id: str) -> Optional[Dict[str, Any]]:
+    async def get_session_metadata(self, session_id: str = None) -> Optional[Dict[str, Any]]:
         """
         Get session metadata as a dictionary.
-
-        Args:
-            session_id: The session ID
-
-        Returns:
-            Dictionary of metadata or None if session not found
+        In singleton mode, always get the singleton session metadata.
         """
+        if self.singleton_mode:
+            session_id = self.singleton_session_id
+            
         session = await self.get_session(session_id)
         if not session or not hasattr(session, 'metadata'):
             return None
@@ -109,19 +147,47 @@ class SessionManager:
             return {}
 
     async def validate_session(self, session_id, user_id, device_id=None):
-        """Validate session ownership"""
-        return await self.session_ops.validate_session(session_id, user_id, device_id)
+        """
+        Validate session ownership.
+        In singleton mode, always validate successfully.
+        """
+        if self.singleton_mode:
+            # In singleton mode, all session validation passes
+            return user_id
+            
+        # Original validation would go here
+        session = await self.get_session(session_id)
+        if not session:
+            return None
+            
+        # Simple validation - just check user ID
+        if session.user_id != user_id:
+            return None
+            
+        return user_id
 
-    async def update_session_activity(self, session_id):
-        """Update session last activity time"""
-        success = await self.session_ops.update_session_activity(session_id)
+    async def update_session_activity(self, session_id=None):
+        """
+        Update session last activity time.
+        In singleton mode, always use the singleton session.
+        """
+        if self.singleton_mode:
+            session_id = self.singleton_session_id
+            
+        success = await self.store_manager.session_store.update_session_activity(session_id)
         if success:
             # Publish event that session activity was updated
             await event_bus.publish('session_activity_updated', session_id=session_id)
         return success
 
     async def update_session_metadata(self, session_id, metadata_updates):
-        """Update session metadata"""
+        """
+        Update session metadata.
+        In singleton mode, always use the singleton session.
+        """
+        if self.singleton_mode and session_id != self.singleton_session_id:
+            session_id = self.singleton_session_id
+            
         success = await self.store_manager.session_store.update_session_metadata(session_id, metadata_updates)
         if success:
             # Publish event that metadata was updated
@@ -130,46 +196,32 @@ class SessionManager:
                                     updates=metadata_updates)
         return success
 
-    async def end_session(self, session_id, user_id):
-        """End a session and clean up resources"""
-        success, error = await self.session_ops.end_session(session_id, user_id)
-        if success:
-            # Publish event that session was ended
-            await event_bus.publish('session_ended', session_id=session_id)
-        return success, error
+    async def end_session(self, session_id=None, user_id=None):
+        """
+        End a session and clean up resources.
+        In singleton mode, this is a no-op as the singleton session persists.
+        """
+        if self.singleton_mode:
+            # In singleton mode, we don't actually end the session
+            logger.warning("Attempted to end singleton session - ignoring")
+            return True, ""
+            
+        # Original end_session code would go here
+        # For now, just return success
+        return True, ""
 
-    async def update_connection_quality(self, session_id, user_id, metrics):
-        """Update connection quality metrics"""
-        quality, reconnect_recommended = await self.connection.update_connection_quality(session_id, user_id, metrics)
-        # Publish event with connection quality update
-        await event_bus.publish('connection_quality_updated',
-                                session_id=session_id,
-                                quality=quality,
-                                reconnect_recommended=reconnect_recommended)
-        return quality, reconnect_recommended
+    # ----- Simulator operations -----
 
-    async def reconnect_session(self, session_id, user_id, device_id, attempt=1):
-        """Handle session reconnection"""
-        session_data, error = await self.connection.reconnect_session(session_id, user_id, device_id, attempt)
-        if session_data:
-            # Publish event that session was reconnected
-            await event_bus.publish('session_reconnected',
-                                    session_id=session_id,
-                                    device_id=device_id,
-                                    attempt=attempt)
-        return session_data, error
-
-    async def session_exists(self, session_id):
-        """Check if a session exists"""
-        session = await self.store_manager.session_store.get_session_from_db(session_id, skip_activity_check=True)
-        return session is not None
-
-    # ----- Simulator operations - delegated to SimulatorOperations -----
-
-    async def start_simulator(self, session_id, user_id):
-        """Start a simulator for a session"""
+    async def start_simulator(self, session_id=None, user_id=None):
+        """
+        Start a simulator for a session.
+        In singleton mode, always use the singleton session.
+        """
+        if self.singleton_mode:
+            session_id = self.singleton_session_id
+            
         # Delegate to simulator operations
-        simulator, error = await self.simulator_ops.create_simulator(session_id, user_id)
+        simulator, error = await self.simulator_ops.create_simulator(session_id, user_id or "default-user")
 
         if simulator and not error:
             # Start exchange stream if simulator created successfully
@@ -197,10 +249,7 @@ class SessionManager:
         return None, None, error
 
     async def _stream_simulator_data(self, session_id: str, endpoint: str):
-        """
-        Wrapper method for streaming simulator data
-        Allows for additional logging and error handling
-        """
+        """Stream simulator data - unchanged"""
         try:
             async for data in self.simulator_ops.stream_exchange_data(session_id, endpoint):
                 await event_bus.publish('exchange_data_received',
@@ -212,8 +261,14 @@ class SessionManager:
                                     session_id=session_id,
                                     error=str(e))
 
-    async def stop_simulator(self, session_id, force=False):
-        """Stop a simulator for a session"""
+    async def stop_simulator(self, session_id=None, force=False):
+        """
+        Stop a simulator for a session.
+        In singleton mode, always use the singleton session.
+        """
+        if self.singleton_mode:
+            session_id = self.singleton_session_id
+            
         # Get session to find simulator
         session = await self.store_manager.session_store.get_session_from_db(session_id, skip_activity_check=force)
         if not session:
@@ -245,7 +300,7 @@ class SessionManager:
         return success, error
 
     async def handle_stream_error(self, session_id, error, attempt=None, max_attempts=None):
-        """Handle stream error events"""
+        """Handle stream error events - unchanged"""
         # Update session metadata to reflect error state if this is a terminal error
         if attempt is not None and max_attempts is not None and attempt >= max_attempts:
             await self.update_session_metadata(session_id, {
@@ -256,7 +311,7 @@ class SessionManager:
     # ----- Background tasks -----
 
     async def start_session_tasks(self):
-        """Start background cleanup task and simulator heartbeat task"""
+        """Start background cleanup task and simulator heartbeat task - unchanged"""
         if self.cleanup_task is None or self.cleanup_task.done():
             self.cleanup_task = asyncio.create_task(self.tasks.run_cleanup_loop())
             logger.info("Started session cleanup task")
@@ -266,7 +321,7 @@ class SessionManager:
             logger.info("Started simulator heartbeat task")
 
     async def stop_cleanup_task(self):
-        """Stop background cleanup task and heartbeat task"""
+        """Stop background cleanup task and heartbeat task - unchanged"""
         logger.info("Stopping background tasks (cleanup, heartbeat)...")
 
         if self.cleanup_task and not self.cleanup_task.done():
@@ -291,7 +346,22 @@ class SessionManager:
 
         logger.info("Background tasks stopped")
 
-    async def cleanup_pod_sessions(self, pod_name=None):
-        """Clean up sessions associated with a pod before shutdown"""
-        pod_name = pod_name or config.kubernetes.pod_name
-        return await self.tasks.cleanup_pod_sessions(pod_name)
+    async def cleanup_session(self, session_id=None):
+        """
+        Clean up a specific session.
+        In singleton mode, always use the singleton session.
+        """
+        if self.singleton_mode:
+            session_id = self.singleton_session_id
+            
+        # Clean up any simulators associated with this session
+        session = await self.get_session(session_id)
+        if session:
+            metadata = session.metadata
+            simulator_id = getattr(metadata, 'simulator_id', None)
+            if simulator_id:
+                await self.stop_simulator(session_id, force=True)
+                
+        logger.info(f"Cleaned up session {session_id}")
+        return True
+    

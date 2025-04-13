@@ -1,6 +1,6 @@
 """
 Connection utilities for session management.
-Handles connection quality, reconnection, and related operations.
+Simplified for singleton mode.
 """
 import logging
 import time
@@ -74,7 +74,7 @@ class Connection:
                     span.set_attribute("db_update_failed", True)
 
                 # Track connection quality metric
-                track_connection_quality(quality.value, self.manager.pod_name)
+                track_connection_quality(quality.value)
 
                 return quality.value, reconnect_recommended
             except Exception as e:
