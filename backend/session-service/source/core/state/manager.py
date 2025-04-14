@@ -5,6 +5,7 @@ Simplified for single-user service.
 import logging
 import asyncio
 import time
+import uuid
 
 logger = logging.getLogger('state_manager')
 
@@ -31,15 +32,7 @@ class StateManager:
             self._start_time = None
             logger.info("State manager initialized to READY state")
 
-    async def set_ready(self):
-        """Mark the service as ready"""
-        async with self._lock:
-            self._is_ready = True
-            self._session_id = None
-            logger.info("Service state set to READY")
-            return True
-
-    async def set_active(self, session_id: str):
+    async def set_active(self):
         """
         Mark the service as actively serving a session.
 
@@ -51,35 +44,11 @@ class StateManager:
         """
         async with self._lock:
             self._is_ready = False
-            self._session_id = session_id
+            self._session_id = str(uuid.uuid4())
             self._start_time = time.time()
-            logger.info(f"Service state set to ACTIVE for session {session_id}")
+            logger.info(f"Service state set to ACTIVE for session {self._session_id}")
             return True
 
-    async def reset_to_ready(self):
-        """
-        Reset the service state back to ready.
-
-        Returns:
-            True
-        """
-        async with self._lock:
-            old_session = self._session_id
-            # Completely clear all session-related state
-            self._is_ready = True
-            self._session_id = None
-            self._start_time = None
-            
-            # Additional cleanup steps
-            if hasattr(self, '_active_resources'):
-                # Close any active resources
-                for resource in self._active_resources:
-                    try:
-                        await resource.close()
-                    except Exception as e:
-                        logger.error(f"Error closing resource during reset: {e}")
-            
-            logger.critical(f"SERVICE RESET: Was serving session {old_session}")
     def is_ready(self):
         """Check if the service is in ready state"""
         return self._is_ready
@@ -111,5 +80,10 @@ class StateManager:
     async def close(self):
         """Clean up the state manager during service shutdown"""
         async with self._lock:
-            await self.reset_to_ready()
-            logger.info("State manager closed")
+            old_session = self._session_id
+            # Completely clear all session-related state
+            self._is_ready = True
+            self._session_id = None
+            self._start_time = None
+            logger.critical(f"SERVICE RESET: Was serving session {old_session}")
+

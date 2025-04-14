@@ -91,7 +91,7 @@ async def metrics_middleware(request: web.Request, handler):
     method = request.method
     route_name = _get_route_name(request)
 
-    logger.debug(f"Request Started: {method} {route_name} [id:{request_id}]")
+    #logger.debug(f"Request Started: {method} {route_name} [id:{request_id}]")
 
     try:
         # Process the request through the next middleware or the handler
@@ -108,6 +108,7 @@ async def metrics_middleware(request: web.Request, handler):
         track_rest_request(method, route_name, status_code, duration)
 
         # Categorize response as success/error for logging level
+        """
         if status_code >= 400:
             logger.warning(
                 f"Request Error: {method} {route_name} -> {status_code} ({duration:.4f}s) [id:{request_id}]"
@@ -116,6 +117,7 @@ async def metrics_middleware(request: web.Request, handler):
             logger.debug(
                 f"Request Success: {method} {route_name} -> {status_code} ({duration:.4f}s) [id:{request_id}]"
             )
+        """
 
         return response
 

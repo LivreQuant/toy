@@ -99,13 +99,6 @@ class MetricsConfig(BaseModel):
     endpoint: str = Field(default="/metrics")
 
 
-class UserConfig(BaseModel):
-    """Singleton mode configuration"""
-    enabled: bool = Field(default=False)
-    user_id: str = Field(default="default-user")  # Default user ID for singleton mode
-    device_id: str = Field(default="server-instance")  # Default device ID
-
-
 class Config(BaseModel):
     """Main configuration class"""
     environment: str = Field(default="development")
@@ -119,7 +112,6 @@ class Config(BaseModel):
     kubernetes: KubernetesConfig = Field(default_factory=KubernetesConfig)
     tracing: TracingConfig = Field(default_factory=TracingConfig)
     metrics: MetricsConfig = Field(default_factory=MetricsConfig)
-    user: UserConfig = Field(default_factory=UserConfig)
     state_management: StateManagementConfig = Field(default_factory=StateManagementConfig)
 
     @classmethod
@@ -176,15 +168,10 @@ class Config(BaseModel):
                 port=int(os.getenv('METRICS_PORT', '9090')),
                 endpoint=os.getenv('METRICS_ENDPOINT', '/metrics')
             ),
-            user=UserConfig(
-                enabled=os.getenv('SINGLETON_MODE', 'true').lower() == 'true',
-                user_id=os.getenv('SINGLETON_USER_ID', 'default-user'),
-                device_id=os.getenv('SINGLETON_DEVICE_ID', 'server-instance')
-            ),  # Added missing comma here
             state_management=StateManagementConfig(
                 ready_file_path=os.getenv('READY_FILE_PATH', '/tmp/session_service_ready'),
                 health_check_path=os.getenv('HEALTH_CHECK_PATH', '/health'),
-                readiness_check_path=os.getenv('READINESS_CHECK_PATH', '/ready'),
+                readiness_check_path=os.getenv('READINESS_CHECK_PATH', '/readiness'),
                 active_lock_file_path=os.getenv('ACTIVE_LOCK_FILE_PATH', '/tmp/session_service_active'),
                 reset_on_startup=os.getenv('RESET_ON_STARTUP', 'true').lower() == 'true'
             )

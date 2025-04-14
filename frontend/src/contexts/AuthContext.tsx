@@ -8,6 +8,7 @@ import LoadingSpinner from '../components/Common/LoadingSpinner'; // Assuming co
 import { appState } from '../services/state/app-state.service'; // Adjust path as needed
 import { getLogger } from '../boot/logging'; // Adjust path as needed
 import { DeviceIdManager } from '../utils/device-id-manager';
+import { ConnectionManager } from '../services/connection/connection-manager';
 
 const logger = getLogger('AuthContext'); // Initialize logger for this context
 
@@ -26,9 +27,10 @@ interface AuthProviderProps {
   children: ReactNode;
   tokenManager: TokenManager; // Receive instances via props
   authApi: AuthApi;         // Receive instances via props
+  connectionManager: ConnectionManager;
 }
 
-export const AuthProvider: React.FC<AuthProviderProps> = ({ children, tokenManager, authApi }) => {
+export const AuthProvider: React.FC<AuthProviderProps> = ({ children, tokenManager, authApi, connectionManager }) => {
   // Use initial state from token manager for consistency on load
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => tokenManager.isAuthenticated());
   const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true); // Start loading
@@ -140,16 +142,38 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, tokenManag
   // Logout function
   const logout = useCallback(async (): Promise<void> => {
     logger.info('Attempting logout...');
-    setIsAuthLoading(true); // Optional: Show loading during logout
-    appState.updateAuthState({ isAuthLoading: true }); // Reflect loading globally too
+    setIsAuthLoading(true);
+    appState.updateAuthState({ isAuthLoading: true });
 
     try {
-      await authApi.logout(); // Optional: Call backend logout
-      logger.info('Backend logout successful (or skipped)');
-    } catch (error) {
-      logger.error("Backend logout failed, clearing local session anyway:", { error });
-      // Error handled by HttpClient/ErrorHandler
-    } finally {
+      // First, stop the session via the ConnectionManager
+      if (connectionManager) {
+        try {
+          // Call the ConnectionManager's stopSession method first
+          const sessionStopped = await connectionManager.disconnect();
+          logger.info(`Session ${sessionStopped ? 'successfully stopped' : 'stop request failed'}`);
+        } catch (sessionError) {
+          // Log but continue with logout process
+          logger.warn('Failed to stop session via ConnectionManager:', { error: sessionError });
+        }
+      }
+
+      // Then, disconnect the connection
+      if (connectionManager) {
+        connectionManager.disconnect('user_logout');
+        logger.info('ConnectionManager disconnected');
+      }
+
+      // Now call the backend logout API if needed
+      try {
+        await authApi.logout();
+        logger.info('Backend logout API call successful');
+      } catch (apiError) {
+        logger.error("Backend logout API call failed:", { error: apiError });
+        // Continue with logout process regardless
+      }
+
+      // Finally, clear tokens and update state
       tokenManager.clearTokens();
       logger.info('Tokens cleared');
 
@@ -165,13 +189,26 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, tokenManag
       setIsAuthenticated(false);
       setUserId(null);
       setIsAuthLoading(false);
-      logger.info('Global and local state updated for logout');
+      logger.info('Logout process completed');
 
-      // Optionally disconnect connection manager here if needed
-      // import { connectionManager } from '...'; // If accessible
-      // connectionManager?.disconnect('user_logout');
+    } catch (error) {
+      logger.error("Unexpected error during logout process:", { error });
+      
+      // Ensure we still clear tokens and update state even if errors occur
+      tokenManager.clearTokens();
+      
+      appState.updateAuthState({
+        isAuthenticated: false,
+        isAuthLoading: false,
+        userId: null,
+        lastAuthError: String(error),
+      });
+      
+      setIsAuthenticated(false);
+      setUserId(null);
+      setIsAuthLoading(false);
     }
-  }, [authApi, tokenManager]); // Dependencies
+  }, [authApi, tokenManager, connectionManager]);
 
   // Memoize context value
   const contextValue = useMemo(() => ({

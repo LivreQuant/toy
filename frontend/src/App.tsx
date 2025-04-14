@@ -73,7 +73,7 @@ function App() {
   return (
     // Order matters: Toast > Auth > Connection
     <ToastProvider>
-       <AuthProvider tokenManager={tokenManager} authApi={authApi}>
+       <AuthProvider tokenManager={tokenManager} authApi={authApi} connectionManager={connectionManager}>
          <ConnectionProvider connectionManager={connectionManager}>
             <Router>
               <Routes>

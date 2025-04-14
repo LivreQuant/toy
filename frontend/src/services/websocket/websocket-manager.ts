@@ -275,12 +275,19 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
 
   private handleConnectionOpen(): void {
     if (this.isDisposed) return;
+    console.log("CRITICAL DEBUG: WebSocket connection established successfully");
     this.logger.info('WebSocket connection established');
     appState.updateConnectionState({
         webSocketStatus: ConnectionStatus.CONNECTED,
         lastConnectionError: null,
     });
     this.connectionStatus$.next(ConnectionStatus.CONNECTED);
+
+    // Add more detailed logging here
+    console.log("CRITICAL DEBUG: App state after WebSocket connection:", {
+      appConnectionState: appState.getState().connection,
+      connectionStatus: this.connectionStatus$.getValue()
+    });
 
     if (!this.heartbeatManager && this.webSocket) {
         this.heartbeatManager = new HeartbeatManager(

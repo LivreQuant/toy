@@ -93,6 +93,14 @@ export const ConnectionProvider: React.FC<ConnectionProviderProps> = ({
       currentConnState.isRecovering;
     const isRecovering = currentConnState.isRecovering;
 
+    console.log("CRITICAL DEBUG: ConnectionContext value calculation:", {
+      overallStatus: currentConnState.overallStatus,
+      webSocketStatus: currentConnState.webSocketStatus,
+      isConnected,
+      isConnecting,
+      isRecovering
+    });
+    
     return {
       connectionManager,
       connectionState: currentConnState,

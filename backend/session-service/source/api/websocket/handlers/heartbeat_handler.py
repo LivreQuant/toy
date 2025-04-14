@@ -10,6 +10,7 @@ from typing import Dict, Any
 from opentelemetry import trace
 from aiohttp import web
 
+from source.core.state.manager import StateManager
 from source.core.session.manager import SessionManager
 from source.utils.metrics import track_websocket_message
 from source.utils.tracing import optional_trace_span
@@ -20,8 +21,8 @@ logger = logging.getLogger('websocket_handler_heartbeat')
 async def handle_heartbeat(
         *,
         ws: web.WebSocketResponse,
-        session_id: str,
         client_id: str,
+        device_id: str,
         message: Dict[str, Any],
         session_manager: SessionManager,
         tracer: trace.Tracer,
@@ -32,14 +33,12 @@ async def handle_heartbeat(
 
     Args:
         ws: The WebSocket connection.
-        session_id: Session ID.
         client_id: Client ID.
         message: The parsed heartbeat message dictionary.
         session_manager: Direct access to SessionManager.
         tracer: OpenTelemetry Tracer instance.
     """
     with optional_trace_span(tracer, "handle_heartbeat_message") as span:
-        span.set_attribute("session_id", session_id)
         span.set_attribute("client_id", client_id)
 
         # Extract data from message (provide defaults or handle missing keys)
@@ -53,12 +52,12 @@ async def handle_heartbeat(
         span.set_attribute("client_timestamp", client_timestamp)
         span.set_attribute("device_id_from_client", str(device_id))
         span.set_attribute("connection_quality_client", connection_quality)
-        
+
         # Update session activity timestamp
-        await session_manager.update_session_activity(session_id)
+        await session_manager.update_session_activity()
 
         # Get latest session data
-        session_metadata = await session_manager.get_session_metadata(session_id)
+        session_metadata = await session_manager.get_session_metadata()
         simulator_status_server = session_metadata.get('simulator_status', 'NONE') if session_metadata else 'NONE'
         current_device_id = session_metadata.get('device_id') if session_metadata else None
 

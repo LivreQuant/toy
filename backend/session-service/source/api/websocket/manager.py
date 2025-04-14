@@ -15,9 +15,8 @@ from source.api.websocket.emitters import error_emitter, connection_emitter
 
 
 class WebSocketManager:
-    def __init__(self, session_manager, simulator_manager):
+    def __init__(self, session_manager):
         self.session_manager = session_manager
-        self.simulator_manager = simulator_manager
         self.tracer = trace.get_tracer("websocket_manager")
         self.logger = logging.getLogger('websocket_manager')
 
@@ -46,12 +45,9 @@ class WebSocketManager:
                 self.logger.info(f"Headers: {dict(request.headers)}")
                 self.logger.info(f"Query params: {dict(request.query)}")
                 
-                user_id, session_id, device_id = await authenticate_websocket_request(request, self.session_manager)
-                span.set_attribute("user_id", user_id)
-                span.set_attribute("device_id", device_id)
+                user_id, device_id = await authenticate_websocket_request(request, self.session_manager)
                 client_id = f"{device_id}-{time.time_ns()}"
-                span.set_attribute("client_id", client_id)
-                
+
                 # Check if previous_device_id was flagged by authentication process
                 previous_device_id = request.get('previous_device_id')
                 
@@ -107,8 +103,7 @@ class WebSocketManager:
                 await connection_emitter.send_connected(
                     ws, 
                     client_id=client_id,
-                    device_id=device_id,
-                    session_id=session_id
+                    device_id=device_id
                 )
 
                 # Process messages
@@ -139,7 +134,7 @@ class WebSocketManager:
                         self.connection_metadata[device_id]['last_activity'] = time.time()
                         
                     # Use the dispatcher to handle the message
-                    await self.dispatcher.dispatch_message(ws, user_id, client_id, msg.data)
+                    await self.dispatcher.dispatch_message(ws, user_id, client_id, device_id, msg.data)
                 elif msg.type in (WSMsgType.CLOSING, WSMsgType.CLOSED):
                     break
         finally:
@@ -167,12 +162,11 @@ class WebSocketManager:
             # Wait for all sends to complete
             await asyncio.gather(*send_tasks, return_exceptions=True)
 
-    async def broadcast_to_session(self, session_id: str, payload: Dict[str, Any]) -> int:
+    async def broadcast_to_session(self, payload: Dict[str, Any]) -> int:
         """
         Broadcast a message to all devices connected to a session.
         
         Args:
-            session_id: The session ID
             payload: The message payload
             
         Returns:

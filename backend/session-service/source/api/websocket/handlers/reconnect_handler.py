@@ -10,6 +10,7 @@ from typing import Dict, Any, TYPE_CHECKING
 from opentelemetry import trace
 from aiohttp import web
 
+from source.core.state.manager import StateManager
 from source.core.session.manager import SessionManager
 from source.utils.metrics import track_websocket_message
 from source.utils.tracing import optional_trace_span
@@ -20,9 +21,9 @@ logger = logging.getLogger('websocket_handler_reconnect')
 async def handle_reconnect(
         *,
         ws: web.WebSocketResponse,
-        session_id: str,
         user_id: str,
         client_id: str,
+        device_id: str,
         message: Dict[str, Any],
         session_manager: SessionManager,
         tracer: trace.Tracer,
@@ -34,7 +35,6 @@ async def handle_reconnect(
 
     Args:
         ws: The WebSocket connection.
-        session_id: Session ID (from the initial connection params or message).
         user_id: User ID (from initial connection auth).
         client_id: Client ID.
         message: The parsed reconnect message dictionary.
@@ -42,7 +42,6 @@ async def handle_reconnect(
         tracer: OpenTelemetry Tracer instance.
     """
     with optional_trace_span(tracer, "handle_reconnect_message") as span:
-        span.set_attribute("session_id", session_id)
         span.set_attribute("client_id", client_id)
 
         # Extract data from message
@@ -57,14 +56,15 @@ async def handle_reconnect(
         response_message = "Session reconnected successfully"
         
         # Get session metadata
-        session_metadata = await session_manager.get_session_metadata(session_id)
+        session_metadata = await session_manager.get_session_metadata()
         simulator_status = session_metadata.get('simulator_status', 'NONE') if session_metadata else 'NONE'
         
         # Update connection count in session metadata
         try:
             # Try to update metadata with device ID if provided
             if device_id:
-                await session_manager.update_session_metadata(session_id, {
+                session_id = session_manager.state_manager.get_active_session_id()
+                await session_manager.update_session_metadata({
                     'device_id': device_id,
                     'last_reconnect': time.time()
                 })

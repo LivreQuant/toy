@@ -221,11 +221,13 @@ export class EnhancedLogger {
             const formattedMessage = `<span class="math-inline">\{timePrefix\}</span>{levelIndicator}<span class="math-inline">\{namePrefix\}</span>{message}`;
 
             // Log message and context separately if context exists
+            /*
             if (context !== undefined) {
                 console[consoleMethod](formattedMessage, context);
             } else {
                 console[consoleMethod](formattedMessage);
             }
+            */
         }
     }
 

@@ -5,7 +5,6 @@ Session service main server with dependency injection for single-user mode.
 import logging
 import asyncio
 import time
-import uuid
 import aiohttp_cors
 from aiohttp import web
 
@@ -15,7 +14,7 @@ from source.config import config
 
 from source.db.manager import StoreManager
 
-from source.core.state.state_manager import StateManager
+from source.core.state.manager import StateManager
 from source.core.stream.manager import StreamManager
 from source.core.session.manager import SessionManager
 from source.core.simulator.manager import SimulatorManager
@@ -69,10 +68,6 @@ class SessionServer:
         self.initialized = False
         self.shutdown_event = asyncio.Event()
 
-        # Generate a stable session ID for this instance
-        self.session_id = str(uuid.uuid4())
-        self.user_id = config.user.user_id  # Get from config
-
         # Initialize other managers and clients to None initially
         self.store_manager = None
         self.exchange_client = None
@@ -118,26 +113,21 @@ class SessionServer:
             self.store_manager,
             self.exchange_client,
             self.stream_manager,
+            self.state_manager,
             self.simulator_manager,
-            self.session_id
         )
 
         # Create websocket manager
-        self.websocket_manager = WebSocketManager(self.session_manager, self.simulator_manager)
-
-        # Create user session
-        success = await self._create_user_session(self.session_manager)
-        if not success:
-            raise RuntimeError("Failed to initialize user session")
+        self.websocket_manager = WebSocketManager(self.session_manager)
 
         # Store components in app context
-        self.app['state_manager'] = self.state_manager
         self.app['store_manager'] = self.store_manager
         self.app['exchange_client'] = self.exchange_client
         self.app['k8s_client'] = self.k8s_client
         self.app['stream_manager'] = self.stream_manager
-        self.app['simulator_manager'] = self.simulator_manager
+        self.app['state_manager'] = self.state_manager
         self.app['session_manager'] = self.session_manager
+        self.app['simulator_manager'] = self.simulator_manager
         self.app['websocket_manager'] = self.websocket_manager
 
         # Set up routes
@@ -147,7 +137,7 @@ class SessionServer:
         self._setup_cors()
 
         self.initialized = True
-        logger.info(f"Server initialization complete with user session {self.session_id}")
+        logger.info(f"Server initialization complete!")
 
     async def start(self):
         """Start the server"""
@@ -187,27 +177,6 @@ class SessionServer:
 
         logger.info("All routes configured")
 
-    async def _create_user_session(self, session_manager):
-        """Create the user session for this server instance"""
-        try:
-            device_id = config.user.device_id
-
-            # Store session directly
-            success = await session_manager.store_manager.session_store.create_session(
-                self.session_id, self.user_id, device_id, ip_address="127.0.0.1"
-            )
-
-            if success:
-                logger.info(f"Successfully created user session {self.session_id} for user {self.user_id}")
-                return True
-            else:
-                logger.error("Failed to create user session in database")
-                return False
-
-        except Exception as e:
-            logger.error(f"Error creating user session: {e}", exc_info=True)
-            return False
-
     def _setup_cors(self):
         """Set up CORS for API endpoints"""
         # Allow all origins specified in config, or '*' if none/empty
@@ -231,17 +200,47 @@ class SessionServer:
                 pass
 
     async def readiness_check(self, request):
-        """Comprehensive readiness check for dependencies"""
-        checks = {}
+        """
+        Comprehensive readiness check for session service.
+        
+        Checks:
+        - Database connectivity
+        - Session state
+        - External service dependencies
+        """
+        checks = {
+            'database': 'DOWN',
+            'session_state': 'DOWN',
+            'external_services': {}
+        }
+        
         all_ready = True
 
         # Check database connections
-        db_ready = await self.store_manager.check_connection()
-        checks['database'] = 'UP' if db_ready else 'DOWN'
-        if not db_ready:
+        try:
+            db_ready = await self.store_manager.check_connection()
+            checks['database'] = 'UP' if db_ready else 'DOWN'
+            logger.warning(f"Check database: {db_ready}")
+            if not db_ready:
+                all_ready = False
+                logger.warning("Database connection check failed!")
+        except Exception as e:
+            logger.error(f"Database connection check error: {e}")
             all_ready = False
-            logger.warning("Database connection check failed!")
 
+        # Check session state
+        try:
+            # Use state manager to check readiness
+            session_ready = self.session_manager.state_manager.is_ready()
+            logger.warning(f"Check session state: {session_ready}")
+            checks['session_state'] = 'UP' if session_ready else 'DOWN'
+            if not session_ready:
+                all_ready = False
+        except Exception as e:
+            logger.error(f"Session state check error: {e}")
+            all_ready = False
+                
+        logger.warning(f"Check send: {all_ready}")
         status_code = 200 if all_ready else 503  # Service Unavailable if not ready
         return web.json_response({
             'status': 'READY' if all_ready else 'NOT READY',
@@ -249,4 +248,3 @@ class SessionServer:
             'pod': config.kubernetes.pod_name,
             'checks': checks
         }, status=status_code)
-    

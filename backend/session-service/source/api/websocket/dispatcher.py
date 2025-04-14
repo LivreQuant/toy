@@ -96,9 +96,8 @@ class WebSocketDispatcher:
             'reconnect': reconnect_handler.handle_reconnect,
             
             # Session handlers
-            #'session_info': session_handler.handle_session_info,
+            'request_session_info': session_handler.handle_session_info,
             'stop_session': session_handler.handle_stop_session,
-            'request_session_info': session_handler.handle_session_info,  # Add this line - map to the same handler
             
             # Simulator handlers
             'start_simulator': simulator_handler.handle_start_simulator,
@@ -107,7 +106,7 @@ class WebSocketDispatcher:
         logger.info(f"WebSocketDispatcher initialized with handlers for: {list(self.message_handlers.keys())}")
 
     async def dispatch_message(self, ws: web.WebSocketResponse, user_id: str,
-                               client_id: str, raw_data: str) -> None:
+                               client_id: str, device_id: str, raw_data: str) -> None:
         """
         Parse and dispatch a single incoming WebSocket message.
 
@@ -115,16 +114,15 @@ class WebSocketDispatcher:
             ws: The WebSocket connection instance.
             user_id: The user ID associated with the connection.
             client_id: The client ID for this specific connection.
+            device_id: The device ID for this specific connection.
             raw_data: The raw message data string received.
         """
-        message = None
         message_type = "unknown"
         request_id = None
-        session_id = self.session_manager.session_id
 
         with optional_trace_span(self.tracer, "dispatch_websocket_message") as span:
-            span.set_attribute("session_id", session_id)
             span.set_attribute("client_id", client_id)
+            span.set_attribute("device_id", device_id)
             span.set_attribute("raw_message_preview", raw_data[:100])
 
             try:
@@ -137,7 +135,7 @@ class WebSocketDispatcher:
                 track_websocket_message("received", message_type)
 
                 # Execute the appropriate handler
-                await self._execute_handler(ws, user_id, client_id, message, message_type)
+                await self._execute_handler(ws, user_id, client_id, device_id, message, message_type)
 
             except WebSocketError as e:
                 # Log the error
@@ -175,13 +173,11 @@ class WebSocketDispatcher:
                 )
 
     async def _execute_handler(self, ws: web.WebSocketResponse, user_id: Any,
-                               client_id: str, message: Dict[str, Any],
+                               client_id: str, device_id: str, message: Dict[str, Any],
                                message_type: str) -> None:
         """
         Find and execute the appropriate message handler.
         """
-        session_id = self.session_manager.session_id
-
         # Find handler
         handler = self.message_handlers.get(message_type)
         if not handler:
@@ -193,9 +189,9 @@ class WebSocketDispatcher:
         # Execute handler with direct access to session_manager
         await handler(
             ws=ws,
-            session_id=session_id,
             user_id=user_id,
             client_id=client_id,
+            device_id=device_id,
             message=message,
             session_manager=self.session_manager,
             tracer=self.tracer

@@ -19,7 +19,6 @@ async def send_connected(
         *,
         client_id: str,
         device_id: str,
-        session_id: str,
         pod_name: str = None  # Allow injection for testing
 ):
     """Sends the 'connected' message upon successful registration."""
@@ -30,7 +29,6 @@ async def send_connected(
         'type': 'connected',
         'clientId': client_id,
         'deviceId': device_id,
-        'sessionId': session_id,
         'podName': pod_name,
         'timestamp': int(time.time() * 1000)
     }
@@ -38,7 +36,7 @@ async def send_connected(
         if not ws.closed:
             await ws.send_json(payload)
             track_websocket_message("sent", "connected")
-            logger.debug(f"Sent 'connected' to client {client_id} in session {session_id}")
+            logger.debug(f"Sent 'connected' to client {client_id} in session")
         else:
             logger.warning(f"Attempted to send 'connected' to already closed WS for client {client_id}")
     except Exception as e:

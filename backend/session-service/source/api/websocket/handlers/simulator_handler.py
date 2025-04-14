@@ -20,9 +20,9 @@ logger = logging.getLogger('websocket_handler_simulator')
 async def handle_start_simulator(
         *,
         ws: web.WebSocketResponse,
-        session_id: str,
         user_id: str,
         client_id: str,
+        device_id: str,
         message: Dict[str, Any],
         session_manager: SessionManager,
         tracer: trace.Tracer,
@@ -33,15 +33,14 @@ async def handle_start_simulator(
     
     Args:
         ws: The WebSocket connection.
-        session_id: Session ID.
         user_id: User ID.
         client_id: Client ID.
+        device_id: Device ID.
         message: The parsed message dictionary.
         session_manager: Direct access to SessionManager.
         tracer: OpenTelemetry Tracer instance.
     """
     with optional_trace_span(tracer, "handle_start_simulator_message") as span:
-        span.set_attribute("session_id", session_id)
         span.set_attribute("client_id", client_id)
         span.set_attribute("user_id", user_id)
         
@@ -89,9 +88,9 @@ async def handle_start_simulator(
 async def handle_stop_simulator(
         *,
         ws: web.WebSocketResponse,
-        session_id: str,
         user_id: str,
         client_id: str,
+        device_id: str,
         message: Dict[str, Any],
         session_manager: SessionManager,
         tracer: trace.Tracer,
@@ -102,15 +101,14 @@ async def handle_stop_simulator(
     
     Args:
         ws: The WebSocket connection.
-        session_id: Session ID.
         user_id: User ID.
         client_id: Client ID.
+        device_id: Device ID.
         message: The parsed message dictionary.
         session_manager: Direct access to SessionManager.
         tracer: OpenTelemetry Tracer instance.
     """
     with optional_trace_span(tracer, "handle_stop_simulator_message") as span:
-        span.set_attribute("session_id", session_id)
         span.set_attribute("client_id", client_id)
         
         request_id = message.get('requestId', f'stop-sim-{time.time_ns()}')

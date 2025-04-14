@@ -4,6 +4,7 @@ Simplified for dedicated single-user service.
 """
 import logging
 import asyncio
+import time
 from typing import Optional, Dict, Any, Callable
 
 from opentelemetry import trace
@@ -13,6 +14,7 @@ from source.db.manager import StoreManager
 from source.clients.exchange import ExchangeClient
 
 from source.core.stream.manager import StreamManager
+from source.core.state.manager import StateManager
 from source.core.simulator.manager import SimulatorManager
 
 from source.core.session.connection import Connection
@@ -28,8 +30,8 @@ class SessionManager:
             store_manager: StoreManager,
             exchange_client: ExchangeClient,
             stream_manager: StreamManager,
+            state_manager: StateManager,
             simulator_manager: SimulatorManager,
-            session_id: str
     ):
         """
         Initialize session manager with a pre-defined session ID
@@ -39,15 +41,12 @@ class SessionManager:
             exchange_client: Exchange client for simulator communication
             simulator_manager: Manager for simulator operations
             stream_manager: Stream manager for managing background streams
-            session_id: The predefined session ID to use
         """
         self.store_manager = store_manager
         self.exchange_client = exchange_client
         self.stream_manager = stream_manager
+        self.state_manager = state_manager
         self.simulator_manager = simulator_manager
-
-        # Session identifier
-        self.session_id = session_id
 
         # Track if we have a simulator
         self.simulator_active = False
@@ -64,7 +63,7 @@ class SessionManager:
         # Set up data callback to simulator manager
         self.simulator_manager.set_data_callback(self._handle_exchange_data)
 
-        logger.info(f"Session manager initialized with session ID: {session_id}")
+        logger.info(f"Session manager initialized!")
 
     # ----- Callback management -----
 
@@ -104,27 +103,23 @@ class SessionManager:
                 # Consider removing problematic callbacks
 
     # ----- Public API methods -----
-    async def get_session(self, session_id=None):
+    async def get_session(self):
         """
         Get the current session
         
         Args:
-            session_id: Optional session ID, defaults to self.session_id if not provided
         """
         # Use provided session_id or fall back to the manager's session_id
-        session_id = session_id or self.session_id
+        session_id = self.state_manager.get_active_session_id()
         return await self.store_manager.session_store.get_session_from_db(session_id)
 
-    async def get_session_metadata(self, session_id=None) -> Optional[Dict[str, Any]]:
+    async def get_session_metadata(self) -> Optional[Dict[str, Any]]:
         """
         Get session metadata as a dictionary
         
         Args:
-            session_id: Optional session ID, defaults to self.session_id if not provided
         """
         # Use provided session_id or fall back to the manager's session_id
-        session_id = session_id or self.session_id
-        
         session = await self.get_session()
         if not session or not hasattr(session, 'metadata'):
             return None
@@ -136,20 +131,22 @@ class SessionManager:
             logger.error(f"Error converting session metadata to dict: {e}")
             return {}
 
-    async def update_session_activity(self, session_id=None):
+    async def update_session_activity(self):
         """
         Update session last activity time.
         
         Args:
-            session_id: Optional session ID, defaults to self.session_id if not provided
         """
         # Use provided session_id or fall back to the manager's session_id
-        session_id = session_id or self.session_id
-        return await self.store_manager.session_store.update_session_activity(session_id)
+        session_id = self.state_manager.get_active_session_id()
+        if session_id:
+            return await self.store_manager.session_store.update_session_activity(session_id)
 
     async def update_session_metadata(self, metadata_updates):
         """Update session metadata"""
-        return await self.store_manager.session_store.update_session_metadata(self.session_id, metadata_updates)
+        session_id = self.state_manager.get_active_session_id()
+        if session_id:
+            return await self.store_manager.session_store.update_session_metadata(session_id, metadata_updates)
 
     # ----- Simulator operations -----
 
@@ -161,7 +158,8 @@ class SessionManager:
             user_id = session.user_id if session else "default-user"
 
         # Start the simulator
-        simulator, error = await self.simulator_manager.create_simulator(self.session_id, user_id)
+        session_id = self.state_manager.get_active_session_id()
+        simulator, error = await self.simulator_manager.create_simulator(session_id, user_id)
 
         if simulator and not error:
             # Update session metadata with simulator info
@@ -184,7 +182,7 @@ class SessionManager:
 
                 # Register with stream manager
                 if stream_task and self.stream_manager:
-                    self.stream_manager.register_stream(self.session_id, stream_task)
+                    self.stream_manager.register_stream(session_id, stream_task)
 
             except Exception as e:
                 logger.error(f"Failed to start exchange stream: {e}", exc_info=True)
@@ -196,11 +194,13 @@ class SessionManager:
     async def _stream_simulator_data(self, endpoint: str, simulator_id: str):
         """Stream simulator data - data is handled via callback now"""
         try:
+            session_id = self.state_manager.get_active_session_id()
+
             # Stream data - handling will occur via callbacks
             async for _ in self.simulator_manager.stream_exchange_data(
                 endpoint,
-                self.session_id,
-                f"stream-{self.session_id}"
+                session_id,
+                f"stream-{session_id}"
             ):
                 # The simulator manager will call our _handle_exchange_data method
                 # for each data item. We just need to keep the stream running.
@@ -237,9 +237,11 @@ class SessionManager:
         # Update state tracking
         self.simulator_active = False
 
+        session_id = self.state_manager.get_active_session_id()
+
         # Stop the stream if running
         if self.stream_manager:
-            await self.stream_manager.stop_stream(self.session_id)
+            await self.stream_manager.stop_stream(session_id)
 
         return success, error
 
@@ -249,11 +251,13 @@ class SessionManager:
         if self.simulator_active:
             await self.stop_simulator(force=True)
 
+        session_id = self.state_manager.get_active_session_id()
+
         # Make sure all streams are stopped
         if self.stream_manager:
-            await self.stream_manager.stop_stream(self.session_id)
+            await self.stream_manager.stop_stream(session_id)
 
-        logger.info(f"Cleaned up session {self.session_id}")
+        logger.info(f"Cleaned up session {session_id}")
         return True
         
     async def validate_device(self, device_id: str) -> tuple[bool, str, str]:
@@ -295,7 +299,8 @@ class SessionManager:
                 'device_id': device_id,
                 'last_device_update': time.time()
             })
-            logger.info(f"Registered device {device_id} for user {user_id} with session {self.session_id}")
+            session_id = self.state_manager.get_active_session_id()
+            logger.info(f"Registered device {device_id} for user {user_id} with session {session_id}")
             return True
         except Exception as e:
             logger.error(f"Failed to register device: {e}")

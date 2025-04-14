@@ -32,11 +32,13 @@ export class SessionApi {
     try {
       // Using WebSocket to get session info
       const response = await this.wsManager.requestSessionInfo();
+      console.log("CRITICAL DEBUG: Session validation response:", response);
       return {
         success: response.success,
         errorMessage: response.error
       };
     } catch (error: any) {
+      console.log("CRITICAL DEBUG: Session validation error:", error);
       return {
         success: false,
         errorMessage: error.message || 'Failed to create session via WebSocket'

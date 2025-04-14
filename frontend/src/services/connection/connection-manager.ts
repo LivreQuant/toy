@@ -517,33 +517,61 @@ export class ConnectionManager extends TypedEventEmitter<ConnectionManagerEvents
    * Disconnects the WebSocket connection and resets resilience state.
    * @param reason - A string indicating the reason for disconnection.
    */
-  public disconnect(reason: string = 'manual_disconnect'): void {
+  public async disconnect(reason: string = 'manual_disconnect'): Promise<boolean> {
     this.logger.info(`disconnect() called. Reason: ${reason}`);
-    if (this.isDisposed && reason !== 'manager_disposed') { this.logger.debug(`Disconnect ignored: Disposed.`); return; }
+    if (this.isDisposed && reason !== 'manager_disposed') { this.logger.debug(`Disconnect ignored: Disposed.`); return true; }
 
      // Check if already disconnected or not trying to connect/recover
      const currentState = appState.getState().connection;
      const wasConnectedOrConnecting = currentState.webSocketStatus !== ConnectionStatus.DISCONNECTED || currentState.isRecovering;
      if (!wasConnectedOrConnecting) {
          this.logger.debug(`Disconnect ignored: Already disconnected.`);
-         return;
+         return true;
      }
 
-     this.logger.warn(`Disconnecting internal state. Reason: ${reason}`);
-     this.resilienceManager.reset(); // Reset failure counts and timers
-     this.wsManager.disconnect(reason); // Tell WebSocketManager to close the socket
+     try {
+      this.logger.info('Requesting session stop via SessionAPI...');
+      // Use the sessionApi instance to request session termination
+      const response = await this.sessionApi.deleteSession();
+      
+      if (response.success) {
+        this.logger.info('Session stop request successful');
+        
+        // Update app state to reflect stopped simulator
+        appState.updateConnectionState({
+          simulatorStatus: 'STOPPED'
+        });
+        
+        // Clear desired state for simulator
+        this.desiredState.simulatorRunning = false;
+        
+      } else {
+        this.logger.warn('Session stop request failed:', { error: response.errorMessage });
+      }
 
-     // Immediately update app state to reflect disconnection
-     appState.updateConnectionState({
-         webSocketStatus: ConnectionStatus.DISCONNECTED,
-         isRecovering: false, // Ensure recovery is off
-         quality: ConnectionQuality.UNKNOWN, // Reset quality metrics
-         heartbeatLatency: null,
-         lastHeartbeatTime: undefined,
-         lastConnectionError: `Disconnected: ${reason}`,
-         // Reset simulator status if it wasn't already stopped/unknown
-         ...(currentState.simulatorStatus !== 'STOPPED' && currentState.simulatorStatus !== 'UNKNOWN' && { simulatorStatus: 'UNKNOWN' })
-     });
+      this.logger.warn(`Disconnecting internal state. Reason: ${reason}`);
+      this.resilienceManager.reset(); // Reset failure counts and timers
+      this.wsManager.disconnect(reason); // Tell WebSocketManager to close the socket
+
+      // Immediately update app state to reflect disconnection
+      appState.updateConnectionState({
+          webSocketStatus: ConnectionStatus.DISCONNECTED,
+          isRecovering: false, // Ensure recovery is off
+          quality: ConnectionQuality.UNKNOWN, // Reset quality metrics
+          heartbeatLatency: null,
+          lastHeartbeatTime: undefined,
+          lastConnectionError: `Disconnected: ${reason}`,
+          // Reset simulator status if it wasn't already stopped/unknown
+          ...(currentState.simulatorStatus !== 'STOPPED' && currentState.simulatorStatus !== 'UNKNOWN' && { simulatorStatus: 'UNKNOWN' })
+      });
+
+      return true;
+    } catch (error: any) {
+      this.logger.error('Exception during session stop request:', { 
+        error: error instanceof Error ? error.message : String(error) 
+      });
+      return false;
+    }
   }
 
   /**
