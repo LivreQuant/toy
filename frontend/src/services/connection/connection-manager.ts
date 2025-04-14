@@ -125,18 +125,29 @@ export class ConnectionManager extends TypedEventEmitter<ConnectionManagerEvents
     // --- WebSocketManager Listeners ---
     this.subscriptions.add(
       this.wsManager.getConnectionStatus().subscribe(status => {
-          this.logger.warn(`WebSocket Status Changed`, { 
-            status, 
-            desiredState: this.desiredState 
+        console.error('🚨 CONNECTION STATUS CHANGE 🚨', {
+          status,
+          desiredState: this.desiredState,
+          currentAuthState: {
+            isAuthenticated: appState.getState().auth.isAuthenticated,
+            isAuthLoading: appState.getState().auth.isAuthLoading
+          },
+          connectionState: appState.getState().connection,
+          stackTrace: new Error().stack?.split('\n').slice(1, 10).join('\n'),
+          timestamp: new Date().toISOString()
+        });
+  
+        // Original logic remains the same
+        if (this.isDisposed) return;
+  
+        // Add explicit logging for each condition
+        if (status === ConnectionStatus.DISCONNECTED && this.desiredState.connected) {
+          console.error('💥 UNEXPECTED DISCONNECT - ATTEMPTING RECOVERY', {
+            reason: 'WebSocket disconnected unexpectedly',
+            stackTrace: new Error().stack?.split('\n').slice(1, 10).join('\n')
           });
-          
-          if (this.isDisposed) return;
-          this.logger.debug(`[Listener] WebSocketManager status changed: ${status}`);
-          // React to WebSocket status changes
-          if (status === ConnectionStatus.DISCONNECTED && this.desiredState.connected) {
-             this.logger.warn('[Listener] WebSocket disconnected unexpectedly. Attempting recovery.');
-             this.attemptRecovery('ws_unexpected_disconnect');
-          } else if (status === ConnectionStatus.CONNECTED) {
+          this.attemptRecovery('ws_unexpected_disconnect');
+        } else if (status === ConnectionStatus.CONNECTED) {
               this.logger.info('[Listener] WebSocket connected. Resetting resilience.');
               this.resilienceManager.reset();
               if (appState.getState().connection.webSocketStatus !== ConnectionStatus.CONNECTED) {
@@ -329,6 +340,18 @@ export class ConnectionManager extends TypedEventEmitter<ConnectionManagerEvents
    * Considers resilience state and authentication status.
    */
   private syncConnectionState(): void {
+    this.logger.warn('Sync Connection State - Detailed Diagnostic', {
+      desiredState: this.desiredState,
+      currentAuthState: {
+        isAuthenticated: appState.getState().auth.isAuthenticated,
+        isAuthLoading: appState.getState().auth.isAuthLoading,
+        userId: appState.getState().auth.userId
+      },
+      currentConnectionState: appState.getState().connection,
+      resilienceManagerState: this.resilienceManager.getState(),
+      timestamp: new Date().toISOString()
+    });
+
     // --- GUARD 1: Check if disposed ---
     if (this.isDisposed) {
       return;
@@ -581,7 +604,14 @@ export class ConnectionManager extends TypedEventEmitter<ConnectionManagerEvents
    * @returns {Promise<boolean>} True if recovery attempt was successfully initiated, false otherwise.
    */
    public async attemptRecovery(reason: string = 'manual'): Promise<boolean> {
-     this.logger.info(`attemptRecovery() called. Reason: ${reason}`);
+    this.logger.error('Attempt Recovery Triggered', {
+      reason,
+      currentAuthState: appState.getState().auth,
+      currentConnectionState: appState.getState().connection,
+      desiredState: this.desiredState,
+      resilienceState: this.resilienceManager.getState()
+    });
+  
      if (this.isDisposed) { this.logger.debug('Recovery aborted: Disposed.'); return false; }
 
      // --- Guards ---

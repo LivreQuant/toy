@@ -77,6 +77,14 @@ export class ConnectionResilienceManager extends TypedEventEmitter<ResilienceEve
 
 
   public recordFailure(errorInfo?: any): void {
+    this.logger.error('Failure Recorded - Detailed Analysis', {
+      failureCount: this.failureCount,
+      failureThreshold: this.options.failureThreshold,
+      currentState: this.state,
+      errorDetails: errorInfo,
+      stackTrace: new Error().stack?.split('\n').slice(1, 5).join('\n')
+    });
+
     if (this.isDisposed || this.state === ResilienceState.SUSPENDED || this.state === ResilienceState.FAILED) {
         this.logger.debug(`Failure recording skipped in state: ${this.state}`);
         return;
@@ -99,7 +107,15 @@ export class ConnectionResilienceManager extends TypedEventEmitter<ResilienceEve
   }
 
 
-  public async attemptReconnection(connectCallback: () => Promise<boolean>): Promise<boolean> {
+  public async attemptReconnection(connectCallback: () => Promise<boolean>): Promise<boolean> {  
+    console.error('🔄 RESILIENCE: Attempting Reconnection', {
+      currentState: this.state,
+      reconnectAttempt: this.reconnectAttempt,
+      maxAttempts: this.options.maxAttempts,
+      stackTrace: new Error().stack?.split('\n').slice(1, 10).join('\n'),
+      timestamp: new Date().toISOString()
+    });
+
     if (this.isDisposed || this.state === ResilienceState.SUSPENDED || this.state === ResilienceState.FAILED) {
       this.logger.warn(`Reconnection attempt cancelled: State is ${this.state}`);
       return false;

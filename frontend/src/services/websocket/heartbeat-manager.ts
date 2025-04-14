@@ -5,6 +5,9 @@ import { Disposable } from '../../utils/disposable';
 import { getLogger } from '../../boot/logging';
 import { appState } from '../state/app-state.service';
 
+import { WebSocketMessage, ServerHeartbeatAckMessage } from './message-types';
+import { ConnectionStatus } from '../state/app-state.service';
+
 export interface HeartbeatManagerOptions {
   interval?: number; // How often to send heartbeats (ms)
   timeout?: number;  // How long to wait for response before considering connection dead (ms)
@@ -19,6 +22,8 @@ export class HeartbeatManager implements Disposable {
   private isDisposed: boolean = false;
   private logger: EnhancedLogger;
   private subscription: any = null;
+
+  private lastHeartbeatTimestamp: number = 0; // Add this property
 
   constructor(
     wsManager: WebSocketManager,
@@ -86,6 +91,16 @@ export class HeartbeatManager implements Disposable {
   }
 
   private handleHeartbeatTimeout(): void {
+    this.logger.error('Heartbeat Timeout - Detailed Diagnostics', {
+      isStarted: this.isStarted,
+      isDisposed: this.isDisposed,
+      interval: this.options.interval,
+      timeout: this.options.timeout,
+      lastHeartbeatTimestamp: this.lastHeartbeatTimestamp,
+      currentTime: Date.now(),
+      timeSinceLastHeartbeat: Date.now() - this.lastHeartbeatTimestamp
+    });
+
     if (!this.isStarted || this.isDisposed) return;
     this.logger.error(`Heartbeat timeout after ${this.options.timeout}ms`);
     
@@ -99,7 +114,18 @@ export class HeartbeatManager implements Disposable {
     }
   }
 
-  public handleHeartbeatResponse(): void {
+  public handleHeartbeatResponse(message: ServerHeartbeatAckMessage): void {
+    this.lastHeartbeatTimestamp = Date.now();
+    
+    this.logger.debug('Heartbeat Response Analysis', {
+      deviceIdValid: message.deviceIdValid,
+      sessionStatus: message.sessionStatus,
+      simulatorStatus: message.simulatorStatus,
+      clientTimestamp: message.clientTimestamp,
+      serverTimestamp: Date.now(),
+      latency: message.clientTimestamp ? (Date.now() - message.clientTimestamp) : -1
+    });
+
     // This method is kept for backward compatibility
     this.clearHeartbeatTimeout();
   }

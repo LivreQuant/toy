@@ -91,8 +91,8 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
 
     this.tokenManager = tokenManager;
     const defaultOptions: Required<WebSocketOptions> = {
-        heartbeatInterval: 15000,
-        heartbeatTimeout: 5000,
+        heartbeatInterval: 30000,
+        heartbeatTimeout: 10000,
         reconnectMaxAttempts: 5,
         preventAutoConnect: true
     };
@@ -302,8 +302,25 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
   }
 
   private handleConnectionClose(event: CloseEvent): void {
+    console.error('🔌 WebSocket Close Event DETAILS', {
+      closeCode: event.code,
+      closeReason: event.reason,
+      wasClean: event.wasClean,
+      currentStatus: this.connectionStatus$.getValue(),
+      stackTrace: new Error().stack?.split('\n').slice(1, 10).join('\n'),
+      timestamp: new Date().toISOString()
+    });
+
     if (this.isDisposed) return;
-    this.logger.warn(`WebSocket connection closed. Code: ${event.code}, Reason: "${event.reason}", Clean: ${event.wasClean}`);
+    
+    // Add more detailed logging
+    this.logger.warn(`WebSocket connection closed. Details:`, {
+      code: event.code,
+      reason: event.reason,
+      wasClean: event.wasClean,
+      currentStatus: this.connectionStatus$.getValue(),
+      timestamp: new Date().toISOString()
+    });
 
     if (this.heartbeatManager) {
       this.heartbeatManager.dispose();
@@ -396,6 +413,24 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
 
   private handleHeartbeatAckMessage(message: ServerHeartbeatAckMessage): void {
     if (this.isDisposed) return;
+      
+    this.logger.debug('Detailed Heartbeat Ack Received', {
+      deviceIdValid: message.deviceIdValid,
+      sessionStatus: message.sessionStatus,
+      simulatorStatus: message.simulatorStatus,
+      clientTimestamp: message.clientTimestamp,
+      serverTimestamp: Date.now(),
+      latency: message.clientTimestamp ? (Date.now() - message.clientTimestamp) : -1
+    });
+      
+    // Check for specific conditions that might trigger reconnection
+    if (!message.deviceIdValid) {
+      this.logger.error('Device ID invalidated - forcing reconnection');
+    }
+
+    if (message.sessionStatus !== 'valid') {
+      this.logger.error(`Session status invalid: ${message.sessionStatus} - potential reconnection trigger`);
+    }
     
     // Check if device ID is still valid
     if (!message.deviceIdValid) {
@@ -413,9 +448,9 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
     const latency = message.clientTimestamp ? (now - message.clientTimestamp) : -1;
     
     this.emit('heartbeat_ack', message);
-    
+      
     if (this.heartbeatManager) {
-      this.heartbeatManager.handleHeartbeatResponse();
+      this.heartbeatManager.handleHeartbeatResponse(message);
     }
     
     const quality = appState.calculateConnectionQuality(latency);

@@ -166,10 +166,26 @@ export class AppStateService {
   // }
 
   // Update connection state slice
-  updateConnectionState(connectionChanges: Partial<AppState['connection']>): void {
+  updateConnectionState(connectionChanges: Partial<AppState['connection']>): void {  
+    
+    // If logger isn't working, use console
+    console.log('Changes:', JSON.stringify(connectionChanges, null, 2));
+    console.log('Stack:', new Error().stack);
+
     const currentState = this.getState();
+
+    // Log who is calling this method
+    const stackTrace = new Error().stack?.split('\n').slice(1, 5).join('\n');
+    
+    this.logger.info('Connection State Update Attempt', {
+      currentState: currentState.connection,
+      proposedChanges: connectionChanges,
+      stackTrace: stackTrace
+    });
+    
     // Recalculate overall status if specific statuses change
     let newOverallStatus = connectionChanges.overallStatus ?? currentState.connection.overallStatus;
+
     if (connectionChanges.webSocketStatus || connectionChanges.isRecovering !== undefined) {
         const wsStatus = connectionChanges.webSocketStatus ?? currentState.connection.webSocketStatus;
         const isRecovering = connectionChanges.isRecovering ?? currentState.connection.isRecovering;
