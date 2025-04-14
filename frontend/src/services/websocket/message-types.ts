@@ -171,6 +171,16 @@ export interface BaseWebSocketMessage {
     error?: string;
  }
  
+export interface ServerConnectionReplacedMessage extends BaseWebSocketMessage {
+   type: 'connection_replaced';
+   message: string;
+   timestamp: number;
+   newDeviceInfo?: {
+     newDeviceId: string;
+     timestamp: number;
+   };
+ }
+
  // --- Union Type for All Possible Messages ---
  export type WebSocketMessage =
     | ClientHeartbeatMessage
@@ -189,7 +199,8 @@ export interface BaseWebSocketMessage {
     | ServerSessionInfoResponse
     | ServerStopSessionResponse
     | ServerSimulatorStartedResponse
-    | ServerSimulatorStoppedResponse;
+    | ServerSimulatorStoppedResponse
+    | ServerConnectionReplacedMessage;
  
  // --- Type Guard Functions ---
  export function isServerHeartbeatAckMessage(msg: WebSocketMessage): msg is ServerHeartbeatAckMessage {
@@ -218,4 +229,8 @@ export interface BaseWebSocketMessage {
  
  export function isServerSimulatorStoppedResponse(msg: WebSocketMessage): msg is ServerSimulatorStoppedResponse {
     return msg.type === 'simulator_stopped';
+ }
+ 
+ export function isServerConnectionReplacedMessage(msg: WebSocketMessage): msg is ServerConnectionReplacedMessage {
+   return msg.type === 'connection_replaced';
  }

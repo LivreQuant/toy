@@ -85,7 +85,9 @@ spec:
             path: /readiness
             port: 8080
           initialDelaySeconds: 10
-          periodSeconds: 10
+          periodSeconds: 5
+          failureThreshold: 3
+          successThreshold: 1
         livenessProbe:
           httpGet:
             path: /health

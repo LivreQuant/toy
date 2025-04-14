@@ -104,13 +104,27 @@ class SessionManager:
                 # Consider removing problematic callbacks
 
     # ----- Public API methods -----
+    async def get_session(self, session_id=None):
+        """
+        Get the current session
+        
+        Args:
+            session_id: Optional session ID, defaults to self.session_id if not provided
+        """
+        # Use provided session_id or fall back to the manager's session_id
+        session_id = session_id or self.session_id
+        return await self.store_manager.session_store.get_session_from_db(session_id)
 
-    async def get_session(self):
-        """Get the current session"""
-        return await self.store_manager.session_store.get_session_from_db(self.session_id)
-
-    async def get_session_metadata(self) -> Optional[Dict[str, Any]]:
-        """Get session metadata as a dictionary"""
+    async def get_session_metadata(self, session_id=None) -> Optional[Dict[str, Any]]:
+        """
+        Get session metadata as a dictionary
+        
+        Args:
+            session_id: Optional session ID, defaults to self.session_id if not provided
+        """
+        # Use provided session_id or fall back to the manager's session_id
+        session_id = session_id or self.session_id
+        
         session = await self.get_session()
         if not session or not hasattr(session, 'metadata'):
             return None
@@ -122,9 +136,16 @@ class SessionManager:
             logger.error(f"Error converting session metadata to dict: {e}")
             return {}
 
-    async def update_session_activity(self):
-        """Update session last activity time"""
-        return await self.store_manager.session_store.update_session_activity(self.session_id)
+    async def update_session_activity(self, session_id=None):
+        """
+        Update session last activity time.
+        
+        Args:
+            session_id: Optional session ID, defaults to self.session_id if not provided
+        """
+        # Use provided session_id or fall back to the manager's session_id
+        session_id = session_id or self.session_id
+        return await self.store_manager.session_store.update_session_activity(session_id)
 
     async def update_session_metadata(self, metadata_updates):
         """Update session metadata"""

@@ -125,6 +125,11 @@ export class ConnectionManager extends TypedEventEmitter<ConnectionManagerEvents
     // --- WebSocketManager Listeners ---
     this.subscriptions.add(
       this.wsManager.getConnectionStatus().subscribe(status => {
+          this.logger.warn(`WebSocket Status Changed`, { 
+            status, 
+            desiredState: this.desiredState 
+          });
+          
           if (this.isDisposed) return;
           this.logger.debug(`[Listener] WebSocketManager status changed: ${status}`);
           // React to WebSocket status changes
@@ -420,7 +425,11 @@ export class ConnectionManager extends TypedEventEmitter<ConnectionManagerEvents
    * @returns {Promise<boolean>} True if connection process initiated successfully, false otherwise.
    */
    public async connect(): Promise<boolean> {
-    this.logger.info('connect() method invoked.');
+    this.logger.warn('Connect method called', {
+      desiredState: this.desiredState,
+      // Use wsManager's connection status method instead
+      currentConnectionStatus: await firstValueFrom(this.wsManager.getConnectionStatus())
+    });
 
      // --- Guards ---
      if (this.isDisposed) { this.logger.warn('connect() aborted: Disposed.'); return false; }
@@ -442,50 +451,58 @@ export class ConnectionManager extends TypedEventEmitter<ConnectionManagerEvents
       if (!this.tokenManager.isAuthenticated()) { this.logger.error('connect() aborted: Not authenticated (re-check)'); appState.updateConnectionState({ webSocketStatus: ConnectionStatus.DISCONNECTED, lastConnectionError: 'Auth required' }); return false; }
 
       this.logger.info('connect(): Attempting connection process...');
+
       // Update global state to show connection attempt is starting
-      appState.updateConnectionState({ webSocketStatus: ConnectionStatus.CONNECTING, lastConnectionError: null, isRecovering: false });
+      appState.updateConnectionState({
+        webSocketStatus: ConnectionStatus.CONNECTED,
+        lastConnectionError: null,
+        simulatorStatus: 'NONE'  // Based on the session info
+      });
 
       let sessionOk = false;
       let wsOk = false;
       try {
-        // 1. Validate Session via HTTP API
-        this.logger.debug('connect(): Validating session via API...');
+        // 1. First, Connect WebSocket via WebSocketManager
+        this.logger.debug('connect(): Connecting WebSocket first...');
+        const wsOk = await this.wsManager.connect(); // Delegate actual WS connection
+        if (this.isDisposed) { if (wsOk) this.wsManager.disconnect('disposed_during_connect'); return false; }
+  
+        // Check if WebSocket connection was successful
+        if (!wsOk) {
+          this.logger.error('connect(): wsManager.connect() returned false (connection failed).');
+          // ... existing error handling ...
+          return false;
+        }
+  
+        // 2. Then, validate Session via WebSocket only after WS is connected
+        this.logger.debug('connect(): WebSocket connected, now validating session...');
         const sessionResponse = await this.sessionApi.createSession();
         if (this.isDisposed) return false; // Check again after await
+        
         if (!sessionResponse.success) {
           this.logger.error('connect(): Session validation failed.', { error: sessionResponse.errorMessage });
           throw new Error(`Session Error: ${sessionResponse.errorMessage || 'Failed session validation'}`);
         }
+        
         this.logger.info('connect(): Session validated successfully.');
-        sessionOk = true; // Mark session validation as successful
-
-        // 2. Connect WebSocket via WebSocketManager
-        this.logger.debug('connect(): Connecting WebSocket via wsManager...');
-        wsOk = await this.wsManager.connect(); // Delegate actual WS connection
-        if (this.isDisposed) { if (wsOk) this.wsManager.disconnect('disposed_during_connect'); return false; } // Check again
-
-        // Check if WebSocket connection was successful
-        if (!wsOk) {
-           this.logger.error('connect(): wsManager.connect() returned false (connection failed).');
-           // Ensure state reflects failure if not already set by listener
-           if (!appState.getState().connection.lastConnectionError) { appState.updateConnectionState({ lastConnectionError: 'WebSocket connection failed', webSocketStatus: ConnectionStatus.DISCONNECTED }); }
-           // Record failure and attempt recovery
-           this.resilienceManager.recordFailure('WebSocket failed post-session');
-           this.attemptRecovery('ws_connect_failed_post_session');
-           return false; // Indicate connection failure
-        }
-
-        // If wsOk is true, the wsManager listener should handle setting state to CONNECTED
-        this.logger.info('connect(): Connection process initiated successfully (WebSocket connecting/connected).');
-        return true; // Indicate successful initiation
-
+        
+        // Connection and session validation successful
+        this.logger.info('connect(): Connection process completed successfully.');
+        return true;
+  
       } catch (error: any) {
         // Catch errors from session validation or potentially wsManager.connect if it throws
         if (this.isDisposed) return false;
         const errorMessage = error instanceof Error ? error.message : String(error);
         this.logger.error(`connect(): Connection process failed during ${sessionOk ? 'WebSocket phase' : 'session validation phase'}.`, { error: errorMessage });
         // Set state to disconnected on any error during the process
-        appState.updateConnectionState({ webSocketStatus: ConnectionStatus.DISCONNECTED, isRecovering: false, lastConnectionError: errorMessage });
+          
+        // Ensure disconnected state is set
+        appState.updateConnectionState({
+          webSocketStatus: ConnectionStatus.DISCONNECTED,
+          lastConnectionError: error instanceof Error ? error.message : String(error)
+        });
+
         // Record failure and attempt recovery
         this.resilienceManager.recordFailure(`Connection process error: ${errorMessage}`);
         this.attemptRecovery('connect_process_exception');

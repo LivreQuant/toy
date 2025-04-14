@@ -35,35 +35,62 @@ class WebSocketManager:
         """
         Handle WebSocket connection lifecycle
         """
+        self.logger.info(f"WebSocket connection request received from {request.remote}")
+        self.logger.info(f"Headers: {dict(request.headers)}")
+        self.logger.info(f"Query params: {dict(request.query)}")
+            
         with optional_trace_span(self.tracer, "websocket_connection") as span:
-            # Authenticate user - this now checks for device ID conflicts
+            # Authenticate user and check for device conflicts
             try:
+                self.logger.info(f"WebSocket connection request received from {request.remote}")
+                self.logger.info(f"Headers: {dict(request.headers)}")
+                self.logger.info(f"Query params: {dict(request.query)}")
+                
                 user_id, session_id, device_id = await authenticate_websocket_request(request, self.session_manager)
                 span.set_attribute("user_id", user_id)
                 span.set_attribute("device_id", device_id)
                 client_id = f"{device_id}-{time.time_ns()}"
                 span.set_attribute("client_id", client_id)
+                
+                # Check if previous_device_id was flagged by authentication process
+                previous_device_id = request.get('previous_device_id')
+                
             except Exception as auth_error:
                 self.logger.warning(f"WebSocket authentication failed: {auth_error}")
                 return self._reject_connection(str(auth_error))
 
-            # Check if device already has an active connection
-            if device_id in self.active_connections:
-                old_ws = self.active_connections[device_id]
-                if not old_ws.closed:
-                    self.logger.warning(f"Device {device_id} already has an active connection. Closing old connection.")
-                    await connection_emitter.send_connection_replaced(old_ws)
-                    # Force close the old connection
-                    await old_ws.close(code=1000, message=b"Connection replaced by new device connection")
-                
-                # Remove old connection
-                del self.active_connections[device_id]
-                if device_id in self.connection_metadata:
-                    del self.connection_metadata[device_id]
-
             # Create WebSocket
             ws = web.WebSocketResponse(heartbeat=10)
             await ws.prepare(request)
+
+            # Handle device replacement if needed
+            if previous_device_id:
+                self.logger.warning(f"Device {device_id} is replacing existing device {previous_device_id}")
+                
+                # Find the old connection for this device
+                old_ws = self.active_connections.get(previous_device_id)
+                if old_ws and not old_ws.closed:
+                    self.logger.info(f"Closing connection for replaced device {previous_device_id}")
+                    # Send notification to the old device before closing it
+                    try:
+                        await connection_emitter.send_connection_replaced(old_ws, {
+                            'newDeviceId': device_id,
+                            'timestamp': time.time() * 1000
+                        })
+                    except Exception as e:
+                        self.logger.error(f"Error sending replacement notice: {e}")
+                    
+                    # Force close the old connection
+                    try:
+                        await old_ws.close(code=1000, message=b"Connection replaced by new device connection")
+                    except Exception as e:
+                        self.logger.error(f"Error closing old connection: {e}")
+                    
+                    # Remove old connection
+                    if previous_device_id in self.active_connections:
+                        del self.active_connections[previous_device_id]
+                    if previous_device_id in self.connection_metadata:
+                        del self.connection_metadata[previous_device_id]
 
             # Add to active connections
             self.active_connections[device_id] = ws
@@ -101,7 +128,7 @@ class WebSocketManager:
                         del self.connection_metadata[device_id]
 
             return ws
-
+        
     async def _connection_loop(self, ws: web.WebSocketResponse, user_id: str, device_id: str, client_id: str):
         """Main WebSocket message processing loop"""
         try:

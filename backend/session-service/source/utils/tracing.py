@@ -107,4 +107,11 @@ def optional_trace_span(tracer, name, attributes=None):
             logger.debug(f"Tracing disabled or failed: {e}")
 
         dummy = DummySpan()
+        
         yield dummy
+        # Yield the dummy span to prevent the generator from not stopping after throw exception
+        try:
+            yield dummy
+        except Exception:
+            # Just swallow the exception and continue with the dummy span
+            pass

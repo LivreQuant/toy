@@ -21,6 +21,7 @@ import {
   isServerHeartbeatAckMessage,
   isServerReconnectResultMessage,
   isServerExchangeDataStatusMessage,
+  isServerConnectionReplacedMessage,
   ClientSubmitOrderMessage,
   ClientCancelOrderMessage,
   ClientStartSimulatorMessage,
@@ -32,7 +33,8 @@ import {
   ServerSimulatorStartedResponse,
   ServerSimulatorStoppedResponse,
   ServerOrderSubmittedResponse,
-  ServerOrderCancelledResponse
+  ServerOrderCancelledResponse,
+  ServerConnectionReplacedMessage
 } from './message-types';
 import {
   appState,
@@ -55,6 +57,7 @@ export interface WebSocketEvents {
   simulator_stopped: ServerSimulatorStoppedResponse;
   order_submitted: ServerOrderSubmittedResponse;
   order_cancelled: ServerOrderCancelledResponse;
+  connection_replaced: ServerConnectionReplacedMessage;
 }
 
 // Structure for pending request promises
@@ -104,6 +107,11 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
 
   public async connect(): Promise<boolean> {
     if (this.isDisposed) return false;
+
+    // Add more detailed logging
+    this.logger.info('WebSocketManager.connect() called - detailed debug info:');
+    this.logger.info(`- Is authenticated: ${this.tokenManager.isAuthenticated()}`);
+    
     if (!this.tokenManager.isAuthenticated()) {
       this.logger.error('Cannot connect: Not authenticated');
       appState.updateConnectionState({
@@ -131,13 +139,18 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
       this.connectionStatus$.next(ConnectionStatus.CONNECTING);
 
       const token = await this.tokenManager.getAccessToken();
+      this.logger.debug(`Token retrieved - length: ${token ? token.length : 0}, first 10 chars: ${token ? token.substring(0, 10) : 'null'}`);
+      
       if (!token) throw new Error('Failed to get authentication token for WebSocket');
 
       const deviceId = DeviceIdManager.getInstance().getDeviceId();
+      this.logger.debug(`Device ID: ${deviceId}`);
+      
       const params = new URLSearchParams({ token, deviceId });
       const wsUrl = `${config.wsBaseUrl}?${params.toString()}`;
 
-      this.logger.debug(`Attempting WebSocket connection to URL: ${wsUrl}`);
+      this.logger.info(`Full WebSocket URL: ${wsUrl}`);
+      this.logger.info(`WebSocket base URL from config: ${config.wsBaseUrl}`); 
 
       this.webSocket = new WebSocket(wsUrl);
 
@@ -210,8 +223,19 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
   
     try {
       const message = JSON.parse(event.data) as WebSocketMessage;
-      this.logger.debug(`Received WebSocket message type: ${message?.type}`, { requestId: message?.requestId });
+      this.logger.warn('FULL WebSocket Message Received', { 
+        type: message.type, 
+        fullMessage: message 
+      });
   
+      // Specifically for session_info
+      if (message.type === 'session_info') {
+        this.logger.warn('Session Info Received', {
+          sessionId: (message as ServerSessionInfoResponse).sessionId,
+          success: (message as ServerSessionInfoResponse).success
+        });
+      }
+      
       // Emit generic message event
       this.emit('message', message);
   
@@ -222,6 +246,9 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
         this.handleReconnectResultMessage(message);
       } else if (isServerExchangeDataStatusMessage(message)) {
         this.handleExchangeDataStatusMessage(message);
+      } else if (isServerConnectionReplacedMessage(message)) {
+        this.handleConnectionReplacedMessage(message);
+        this.emit('connection_replaced', message);
       } else {
         // For other message types we're not specifically handling
         this.logger.debug(`Received message of type: ${message.type}`);
@@ -238,7 +265,10 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
         }
       }
     } catch (error: any) {
-      this.logger.error('Error processing WebSocket message', { error: error.message, data: event.data?.substring(0, 200) });
+      this.logger.error('Error processing WebSocket message', { 
+        error: error.message, 
+        rawData: event.data?.substring(0, 200) 
+      });
       this.emit('message_error', { error: error, rawData: event.data });
     }
   };
@@ -288,9 +318,44 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
 
   private handleConnectionError(event: Event): void {
     if (this.isDisposed) return;
+
+    const wsUrl = this.webSocket?.url || 'unknown';
+    this.logger.error('WebSocket connection error event occurred.', { 
+      event, 
+      url: wsUrl,
+      readyState: this.webSocket ? this.webSocket.readyState : 'no_socket'
+    });
+    
     this.logger.error('WebSocket connection error event occurred.', { event });
     appState.updateConnectionState({ lastConnectionError: 'WebSocket error occurred' });
     AppErrorHandler.handleConnectionError('WebSocket connection error', ErrorSeverity.MEDIUM, 'WebSocketManagerErrorEvent');
+  }
+
+  private handleConnectionReplacedMessage(message: any): void {
+    if (this.isDisposed) return;
+    
+    this.logger.warn(`Connection replaced by another device: ${message.newDeviceId || 'unknown'}`);
+    
+    // Notify user via toast or other means
+    AppErrorHandler.handleAuthError(
+      'Your session was opened on another device. You have been logged out.',
+      ErrorSeverity.MEDIUM,
+      'ConnectionReplaced'
+    );
+    
+    // Clean up the session locally
+    this.disconnect('connection_replaced_by_other_device');
+    
+    // Clear auth tokens to force logout
+    this.tokenManager.clearTokens();
+    
+    // Update app state
+    appState.updateAuthState({
+      isAuthenticated: false,
+      isAuthLoading: false,
+      userId: null,
+      lastAuthError: 'Session opened on another device'
+    });
   }
 
   private updateStateOnError(errorMessage: string): void {
@@ -717,18 +782,31 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
    */
   private createResponsePromise<T extends { requestId: string }>(requestId: string, eventType: keyof WebSocketEvents): Promise<T> {
     return new Promise<T>((resolve, reject) => {
+      this.logger.warn(`Creating response promise for ${String(eventType)}`, { 
+        requestId, 
+        pendingResponsesCount: this.pendingResponses.size 
+      });
+
       const subscription = this.once(eventType, (result: any) => {
+        this.logger.warn(`Received response for ${String(eventType)}`, {
+          receivedRequestId: result.requestId,
+          expectedRequestId: requestId
+        });
+  
         if (result.requestId === requestId) {
           resolve(result as T);
         } else {
-          reject(new Error(`Received ${String(eventType)} with mismatched requestId: expected ${requestId}, got ${result.requestId}`));
+          reject(new Error(`Mismatched requestId for ${String(eventType)}`));
         }
       });
-
+      
       const timeoutId = window.setTimeout(() => {
         subscription.unsubscribe();
-        const timeoutError = new Error(`${String(eventType)} request timed out after ${this.responseTimeoutMs}ms`);
-        this.logger.error(`${String(eventType)} request timed out`, { requestId });
+        const timeoutError = new Error(`${String(eventType)} request timed out`);
+        this.logger.error(`Response promise timed out`, { 
+          requestId, 
+          eventType: String(eventType) 
+        });
         reject(timeoutError);
       }, this.responseTimeoutMs);
 

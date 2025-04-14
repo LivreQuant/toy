@@ -249,3 +249,4 @@ class SessionServer:
             'pod': config.kubernetes.pod_name,
             'checks': checks
         }, status=status_code)
+    

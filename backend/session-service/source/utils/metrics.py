@@ -173,7 +173,7 @@ def track_session_count(count, pod_name=None):
     ACTIVE_SESSIONS.labels(pod_name=pod_name).set(count)
 
 
-def track_session_operation(operation):
+def track_session_operation(operation, status="success"):
     """Track session operation"""
     SESSION_OPERATIONS.labels(operation=operation).inc()
 

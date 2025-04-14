@@ -202,10 +202,105 @@ class PostgresSessionStore(PostgresRepository[Session]):
                 span.record_exception(e)
                 track_db_error("pg_get_session")
                 return None
-
+            
     async def update_session_metadata(self, session_id: str, metadata_updates: Dict[str, Any]) -> bool:
         """
         Update session metadata in PostgreSQL using JSONB merge.
-        Wrapper around the generic update_json_metadata method.
+        
+        Args:
+            session_id: Session ID
+            metadata_updates: Dictionary of metadata updates to merge
+            
+        Returns:
+            True if update successful, False otherwise
         """
-        return await self.update_json_metadata(session_id, metadata_updates)
+        with optional_trace_span(self.tracer, "pg_store_update_json_metadata") as span:
+            span.set_attribute("session_id", session_id)
+            
+            pool = await self._get_pool()
+            try:
+                with TimedOperation(track_db_operation, "pg_update_json_metadata"):
+                    async with pool.acquire() as conn:
+                        # First, get current metadata
+                        current_metadata = await conn.fetchval('''
+                            SELECT metadata FROM session.session_metadata
+                            WHERE session_id = $1
+                        ''', session_id)
+                        
+                        # If no metadata exists yet, create a new record
+                        if current_metadata is None:
+                            # Convert updates to JSON string
+                            metadata_json = json.dumps(metadata_updates)
+                            
+                            # Insert new metadata record
+                            result = await conn.execute('''
+                                INSERT INTO session.session_metadata (session_id, metadata)
+                                VALUES ($1, $2)
+                                ON CONFLICT (session_id) DO UPDATE
+                                SET metadata = $2
+                            ''', session_id, metadata_json)
+                            
+                            return 'INSERT' in result or 'UPDATE' in result
+                        
+                        # Parse current metadata
+                        if isinstance(current_metadata, dict):
+                            # already a dict (asyncpg handles JSONB)
+                            merged_metadata = current_metadata
+                        else:
+                            # parse from string if needed
+                            try:
+                                merged_metadata = json.loads(current_metadata)
+                            except (json.JSONDecodeError, TypeError):
+                                self.logger.error(f"Failed to parse existing metadata for session {session_id}")
+                                merged_metadata = {}
+                        
+                        # Merge with updates (shallow merge)
+                        merged_metadata.update(metadata_updates)
+                        
+                        # Update in database using Postgres JSONB merge operator
+                        result = await conn.execute('''
+                            UPDATE session.session_metadata
+                            SET metadata = $2
+                            WHERE session_id = $1
+                        ''', session_id, json.dumps(merged_metadata))
+                        
+                        return 'UPDATE 1' in result
+                        
+            except Exception as e:
+                self.logger.error(f"Error updating session metadata for {session_id} in PostgreSQL: {e}", exc_info=True)
+                span.record_exception(e)
+                track_db_error("pg_update_json_metadata")
+                return False
+            
+    async def update_session_activity(self, session_id: str) -> bool:
+        """
+        Update the last_active timestamp for a session.
+        
+        Args:
+            session_id: The session ID to update
+            
+        Returns:
+            True if update successful, False otherwise
+        """
+        with optional_trace_span(self.tracer, "pg_store_update_session_activity") as span:
+            span.set_attribute("session_id", session_id)
+            
+            pool = await self._get_pool()
+            try:
+                with TimedOperation(track_db_operation, "pg_update_session_activity"):
+                    async with pool.acquire() as conn:
+                        # Update last_active timestamp to current time
+                        result = await conn.execute('''
+                            UPDATE session.active_sessions
+                            SET last_active = NOW(), expires_at = NOW() + interval '1 hour'
+                            WHERE session_id = $1
+                        ''', session_id)
+                        
+                        return 'UPDATE 1' in result
+                        
+            except Exception as e:
+                self.logger.error(f"Error updating session activity for {session_id} in PostgreSQL: {e}", exc_info=True)
+                span.record_exception(e)
+                track_db_error("pg_update_session_activity")
+                return False
+            
