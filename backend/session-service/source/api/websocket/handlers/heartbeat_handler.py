@@ -57,9 +57,9 @@ async def handle_heartbeat(
         await session_manager.update_session_activity()
 
         # Get latest session data
-        session_metadata = await session_manager.get_session_metadata()
-        simulator_status_server = session_metadata.get('simulator_status', 'NONE') if session_metadata else 'NONE'
-        current_device_id = session_metadata.get('device_id') if session_metadata else None
+        session_details = await session_manager.get_session_details()
+        simulator_status_server = session_details.get('simulator_status', 'NONE') if session_details else 'NONE'
+        current_device_id = session_details.get('device_id') if session_details else None
 
         # Prepare response - in singleton mode, session is always valid
         response = {

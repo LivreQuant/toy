@@ -55,21 +55,21 @@ async def handle_reconnect(
         success = True
         response_message = "Session reconnected successfully"
         
-        # Get session metadata
-        session_metadata = await session_manager.get_session_metadata()
-        simulator_status = session_metadata.get('simulator_status', 'NONE') if session_metadata else 'NONE'
+        # Get session details
+        session_details = await session_manager.get_session_details()
+        simulator_status = session_details.get('simulator_status', 'NONE') if session_details else 'NONE'
         
-        # Update connection count in session metadata
+        # Update connection count in session details
         try:
-            # Try to update metadata with device ID if provided
+            # Try to update details with device ID if provided
             if device_id:
                 session_id = session_manager.state_manager.get_active_session_id()
-                await session_manager.update_session_metadata({
+                await session_manager.update_session_details({
                     'device_id': device_id,
                     'last_reconnect': time.time()
                 })
         except Exception as e:
-            logger.error(f"Failed to update metadata during reconnect: {e}")
+            logger.error(f"Failed to update details during reconnect: {e}")
 
         response = {
             'type': 'reconnect_result',

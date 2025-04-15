@@ -95,8 +95,8 @@ async def authenticate_websocket_request(
         logger.warning(f"Session not found during WebSocket authentication, continue with new session.")
         return user_id, device_id
 
-    metadata = session.metadata if session else None
-    existing_device_id = metadata.device_id if metadata else None
+    details = session.details if session else None
+    existing_device_id = details.device_id if details else None
     
     # CHANGE: Instead of rejecting the new device, flag it for replacement
     if existing_device_id and existing_device_id != device_id:
@@ -110,8 +110,8 @@ async def authenticate_websocket_request(
     
     logger.info(f"WebSocket authenticated for user {user_id}, device {device_id}, session {session_id}")
 
-    # Update the session metadata with the device ID and connection timestamp
-    await session_manager.store_manager.session_store.update_session_metadata(session_id, {
+    # Update the session details with the device ID and connection timestamp
+    await session_manager.store_manager.session_store.update_session_details(session_id, {
         'device_id': device_id,
         'last_connection': time.time(),
         'user_agent': request.headers.get('User-Agent', 'unknown'),

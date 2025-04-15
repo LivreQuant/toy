@@ -114,7 +114,7 @@ async def handle_stop_simulator(
         request_id = message.get('requestId', f'stop-sim-{time.time_ns()}')
         span.set_attribute("request_id", request_id)
 
-        # Get simulator ID from optional parameter or from session metadata
+        # Get simulator ID from optional parameter or from session details
         simulator_id = message.get('simulatorId')
         force_stop = message.get('force', False)
         

@@ -5,10 +5,8 @@ Defines the structure and state management for user sessions.
 import time
 import uuid
 from enum import Enum
-from typing import Optional
+from typing import Optional, Dict, Any
 from pydantic import BaseModel, Field
-
-from source.models.simulator import Simulator, SimulatorStatus
 
 
 class SessionStatus(str, Enum):
@@ -28,35 +26,19 @@ class ConnectionQuality(str, Enum):
     POOR = "poor"
 
 
-class SessionMetadata(BaseModel):
-    """Session metadata"""
-    device_id: Optional[str] = None
-    user_agent: Optional[str] = None
-    ip_address: Optional[str] = None
-    pod_name: Optional[str] = None
-    created_at: float = Field(default_factory=time.time)
-    updated_at: float = Field(default_factory=time.time)
-    connection_quality: ConnectionQuality = ConnectionQuality.GOOD
-    heartbeat_latency: Optional[int] = None
-    missed_heartbeats: int = 0
-
-
 class Session(BaseModel):
-    """Session model"""
+    """Core Session model - essential session properties only"""
     session_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     user_id: str
     status: SessionStatus = SessionStatus.CREATING
     created_at: float = Field(default_factory=time.time)
     last_active: float = Field(default_factory=time.time)
     expires_at: float = Field(default_factory=lambda: time.time() + 3600)
-    metadata: SessionMetadata = Field(default_factory=SessionMetadata)
-    simulator: Optional[Simulator] = None
     token: Optional[str] = None
 
     def update_activity(self, extension_seconds: int = 3600):
         """Update last activity time and optionally extend expiry"""
         self.last_active = time.time()
-        self.metadata.updated_at = time.time()
 
         # Reset expiration
         self.expires_at = time.time() + extension_seconds
@@ -64,6 +46,39 @@ class Session(BaseModel):
     def is_expired(self) -> bool:
         """Check if session is expired"""
         return time.time() > self.expires_at
+
+
+class SessionDetails(BaseModel):
+    """
+    Session details model - separate from core session
+    Stored in a dedicated table rather than as JSON
+    """
+    session_id: str
+
+    # Device and connection information
+    device_id: Optional[str] = None
+    user_agent: Optional[str] = None
+    ip_address: Optional[str] = None
+    pod_name: Optional[str] = None
+
+    # Connection quality metrics
+    connection_quality: ConnectionQuality = ConnectionQuality.GOOD
+    heartbeat_latency: Optional[int] = None
+    missed_heartbeats: int = 0
+    reconnect_count: int = 0
+
+    # Simulator information
+    simulator_id: Optional[str] = None
+    simulator_status: Optional[str] = None
+    simulator_endpoint: Optional[str] = None
+    simulator_error: Optional[str] = None
+
+    # Timestamps
+    created_at: float = Field(default_factory=time.time)
+    updated_at: float = Field(default_factory=time.time)
+    last_reconnect: Optional[float] = None
+    last_device_update: Optional[float] = None
+    last_quality_update: Optional[float] = None
 
     def update_connection_quality(self,
                                   latency_ms: int,
@@ -74,8 +89,9 @@ class Session(BaseModel):
         Returns:
             Tuple of (quality, reconnect_recommended)
         """
-        self.metadata.heartbeat_latency = latency_ms
-        self.metadata.missed_heartbeats = missed_heartbeats
+        self.heartbeat_latency = latency_ms
+        self.missed_heartbeats = missed_heartbeats
+        self.last_quality_update = time.time()
 
         # Determine connection quality
         if missed_heartbeats >= 3:
@@ -88,47 +104,90 @@ class Session(BaseModel):
             quality = ConnectionQuality.GOOD
             reconnect_recommended = False
 
-        self.metadata.connection_quality = quality
+        self.connection_quality = quality
+        self.updated_at = time.time()
         return quality.value, reconnect_recommended
 
-    def to_dict(self) -> dict:
+
+class SessionWithDetails(BaseModel):
+    """
+    Combined view of session with details.
+    Used for presenting a complete session view in the API.
+    """
+    session: Session
+    details: SessionDetails
+
+    @property
+    def session_id(self) -> str:
+        return self.session.session_id
+
+    @property
+    def user_id(self) -> str:
+        return self.session.user_id
+
+    @property
+    def status(self) -> SessionStatus:
+        return self.session.status
+
+    @property
+    def created_at(self) -> float:
+        return self.session.created_at
+
+    @property
+    def expires_at(self) -> float:
+        return self.session.expires_at
+
+    @property
+    def device_id(self) -> Optional[str]:
+        return self.details.device_id
+
+    @property
+    def simulator_id(self) -> Optional[str]:
+        return self.details.simulator_id
+
+    @property
+    def simulator_status(self) -> Optional[str]:
+        return self.details.simulator_status
+
+    def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization"""
-        base_dict = {
-            "session_id": self.session_id,
-            "user_id": self.user_id,
-            "status": self.status.value,
-            "created_at": self.created_at,
-            "last_active": self.last_active,
-            "expires_at": self.expires_at,
-            "token": self.token,
-            **self.metadata.dict()
+        return {
+            # Session core data
+            "session_id": self.session.session_id,
+            "user_id": self.session.user_id,
+            "status": self.session.status.value,
+            "created_at": self.session.created_at,
+            "last_active": self.session.last_active,
+            "expires_at": self.session.expires_at,
+
+            # Session details
+
+            # Device and connection information
+            "device_id": self.details.device_id,
+            "user_agent": self.details.user_agent,
+            "ip_address": self.details.ip_address,
+            "pod_name": self.details.pod_name,
+
+            # Connection quality metrics
+            "connection_quality": self.details.connection_quality,
+            "heartbeat_latency": self.details.heartbeat_latency,
+            "missed_heartbeats": self.details.missed_heartbeats,
+            "reconnect_count": self.details.reconnect_count,
+
+            # Simulator information
+            "simulator_id": self.details.simulator_id,
+            "simulator_status": self.details.simulator_status,
+            "simulator_endpoint": self.details.simulator_endpoint,
+
+            # Timestamps
+            #"created_at": self.details.created_at,
+            "updated_at": self.details.updated_at,
+            "last_reconnect": self.details.last_reconnect,
+            "last_device_update": self.details.last_device_update,
+            "last_quality_update": self.details.last_quality_update,
         }
 
-        # Include simulator if exists
-        if self.simulator:
-            base_dict['simulator'] = self.simulator.to_dict()
-
-        return base_dict
-
     @classmethod
-    def from_dict(cls, data: dict) -> 'Session':
-        """Create a Session from a dictionary"""
-        # Extract simulator data if present
-        simulator_data = data.pop('simulator', None)
-
-        # Convert status enum
-        if 'status' in data and isinstance(data['status'], str):
-            data['status'] = SessionStatus(data['status'])
-
-        # Convert connection quality
-        if 'connection_quality' in data and isinstance(data['connection_quality'], str):
-            data['connection_quality'] = ConnectionQuality(data['connection_quality'])
-
-        # Create session
-        session = cls(**data)
-
-        # Add simulator if data exists
-        if simulator_data:
-            session.simulator = Simulator.from_dict(simulator_data)
-
-        return session
+    def from_components(cls, session: Session, details: SessionDetails) -> 'SessionWithDetails':
+        """Create a SessionWithDetails from separate components"""
+        return cls(session=session, details=details)

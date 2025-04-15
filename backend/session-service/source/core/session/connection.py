@@ -61,8 +61,8 @@ class Connection:
                 span.set_attribute("calculated_quality", quality.value)
                 span.set_attribute("reconnect_recommended", reconnect_recommended)
 
-                # Update database metadata
-                update_success = await self.manager.update_session_metadata(session_id, {
+                # Update database details
+                update_success = await self.manager.update_session_details(session_id, {
                     'connection_quality': quality.value,
                     'heartbeat_latency': latency_ms,
                     'missed_heartbeats': missed_heartbeats,
@@ -70,7 +70,7 @@ class Connection:
                 })
 
                 if not update_success:
-                    logger.warning(f"Failed to update session metadata for connection quality on {session_id}")
+                    logger.warning(f"Failed to update session details for connection quality on {session_id}")
                     span.set_attribute("db_update_failed", True)
 
                 # Track connection quality metric
@@ -106,11 +106,11 @@ class Connection:
                 span.set_attribute("error", error_msg)
                 return {}, error_msg
 
-            # Update reconnection counter in metadata
-            metadata = session.metadata
-            reconnect_count = getattr(metadata, 'reconnect_count', 0) + 1
+            # Update reconnection counter in details
+            details = session.details
+            reconnect_count = getattr(details, 'reconnect_count', 0) + 1
 
-            await self.manager.update_session_metadata(session_id, {
+            await self.manager.update_session_details(session_id, {
                 'reconnect_count': reconnect_count,
                 'last_reconnect': time.time()
             })
@@ -126,8 +126,8 @@ class Connection:
                 'status': session.status.value,
                 'created_at': session.created_at,
                 'expires_at': session.expires_at,
-                'simulator_status': getattr(metadata, 'simulator_status', 'NONE'),
-                'connection_quality': getattr(metadata, 'connection_quality', 'GOOD'),
+                'simulator_status': getattr(details, 'simulator_status', 'NONE'),
+                'connection_quality': getattr(details, 'connection_quality', 'GOOD'),
                 'device_id': device_id
             }
 

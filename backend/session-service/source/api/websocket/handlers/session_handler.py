@@ -78,8 +78,8 @@ async def handle_session_info(
             track_session_operation("info", "error_not_found")
             return
 
-        # Get metadata
-        metadata = await session_manager.get_session_metadata()
+        # Get details
+        details = await session_manager.get_session_details()
         
         # Build response
         response = {
@@ -88,11 +88,11 @@ async def handle_session_info(
             'sessionId': session_id,
             'userId': user_id,
             'status': session.status.value,
-            'deviceId': metadata.get('device_id', 'unknown'),
+            'deviceId': details.get('device_id', 'unknown'),
             'createdAt': session.created_at,
             'expiresAt': session.expires_at,
-            'simulatorStatus': metadata.get('simulator_status', 'NONE'),
-            'simulatorId': metadata.get('simulator_id')
+            'simulatorStatus': details.get('simulator_status', 'NONE'),
+            'simulatorId': details.get('simulator_id')
         }
 
         try:
@@ -142,7 +142,6 @@ async def handle_stop_session(
         try:
             # Check if there's a simulator running
             simulator = await session_manager.store_manager.simulator_store.get_simulator_by_session(session_id)
-            #metadata = await session_manager.get_session_metadata()
             simulator_running = False
             simulator_id = None
 
@@ -181,7 +180,7 @@ async def handle_stop_session(
             logger.info(f"Stopping session 4")
 
             # Update session state but don't actually end it in singleton mode
-            await session_manager.update_session_metadata({
+            await session_manager.update_session_details({
                 'device_id': None,
                 'status': SessionStatus.INACTIVE.value,
                 'simulator_id': None,

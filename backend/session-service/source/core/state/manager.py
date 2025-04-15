@@ -36,9 +36,6 @@ class StateManager:
         """
         Mark the service as actively serving a session.
 
-        Args:
-            session_id: The ID of the active session
-
         Returns:
             True
         """

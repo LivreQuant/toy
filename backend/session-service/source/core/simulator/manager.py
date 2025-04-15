@@ -152,6 +152,24 @@ class SimulatorManager:
                 track_simulator_operation("create", "error")
                 return None, f"Error creating simulator: {str(e)}"
 
+    async def _stream_data(self, endpoint: str, session_id: str, client_id: str):
+        async for data in self.exchange_client.stream_exchange_data(
+                endpoint, session_id, client_id
+        ):
+            # Call the callback function if set
+            if self.data_callback:
+                try:
+                    # Check if callback is a coroutine function and await it properly
+                    if asyncio.iscoroutinefunction(self.data_callback):
+                        await self.data_callback(data)
+                    else:
+                        self.data_callback(data)
+                except Exception as e:
+                    logger.error(f"Error in data callback: {e}", exc_info=True)
+
+            # Always yield the data regardless of callback
+            yield data
+
     async def stream_exchange_data(
             self,
             endpoint: str,
@@ -184,28 +202,10 @@ class SimulatorManager:
                 logger.error(f"Error updating simulator status: {e}")
                 # Continue despite the error - this is non-critical
 
-        async def _stream_data():
-            async for data in self.exchange_client.stream_exchange_data(
-                    endpoint, session_id, client_id
-            ):
-                # Call the callback function if set
-                if self.data_callback:
-                    try:
-                        # Check if callback is a coroutine function and await it properly
-                        if asyncio.iscoroutinefunction(self.data_callback):
-                            await self.data_callback(data)
-                        else:
-                            self.data_callback(data)
-                    except Exception as e:
-                        logger.error(f"Error in data callback: {e}", exc_info=True)
-
-                # Always yield the data regardless of callback
-                yield data
-
         # Use retry generator to handle connection issues
         try:
             async for data in retry_with_backoff_generator(
-                    _stream_data,
+                    self._stream_data,
                     max_attempts=5,
                     retriable_exceptions=(ConnectionError, TimeoutError)
             ):

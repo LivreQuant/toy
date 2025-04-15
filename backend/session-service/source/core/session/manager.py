@@ -122,22 +122,22 @@ class SessionManager:
         session_id = self.state_manager.get_active_session_id()
         return await self.store_manager.session_store.get_session_from_db(session_id)
 
-    async def get_session_metadata(self) -> Optional[Dict[str, Any]]:
+    async def get_session_details(self) -> Optional[Dict[str, Any]]:
         """
-        Get session metadata as a dictionary
+        Get session details as a dictionary
         
         Args:
         """
         # Use provided session_id or fall back to the manager's session_id
         session = await self.get_session()
-        if not session or not hasattr(session, 'metadata'):
+        if not session or not hasattr(session, 'details'):
             return None
 
-        # Convert the SessionMetadata object to a dictionary
+        # Convert the SessionDetails object to a dictionary
         try:
-            return session.metadata.dict()
+            return session.details.dict()
         except Exception as e:
-            logger.error(f"Error converting session metadata to dict: {e}")
+            logger.error(f"Error converting session details to dict: {e}")
             return {}
 
     async def update_session_activity(self):
@@ -151,11 +151,11 @@ class SessionManager:
         if session_id:
             return await self.store_manager.session_store.update_session_activity(session_id)
 
-    async def update_session_metadata(self, metadata_updates):
-        """Update session metadata"""
+    async def update_session_details(self, details_updates: Dict[str, Any]):
+        """Update session details"""
         session_id = self.state_manager.get_active_session_id()
         if session_id:
-            return await self.store_manager.session_store.update_session_metadata(session_id, metadata_updates)
+            return await self.store_manager.session_store.update_session_details(session_id, details_updates)
 
     # ----- Simulator operations -----
 
@@ -171,8 +171,8 @@ class SessionManager:
         simulator, error = await self.simulator_manager.create_simulator(session_id, user_id)
 
         if simulator and not error:
-            # Update session metadata with simulator info
-            await self.update_session_metadata({
+            # Update session details with simulator info
+            await self.update_session_details({
                 'simulator_id': simulator.simulator_id,
                 'simulator_status': simulator.status.value,
                 'simulator_endpoint': simulator.endpoint
@@ -237,7 +237,7 @@ class SessionManager:
 
             if not connected:
                 logger.error(f"Failed to connect to simulator {simulator_id} after {max_attempts} attempts")
-                await self.update_session_metadata({
+                await self.update_session_details({
                     'simulator_status': 'ERROR',
                     'simulator_error': 'Failed to connect to simulator after multiple attempts'
                 })
@@ -258,7 +258,7 @@ class SessionManager:
                 logger.error(f"Error in simulator data stream: {stream_error}")
                 # Attempt to recover
                 self.simulator_active = False
-                await self.update_session_metadata({
+                await self.update_session_details({
                     'simulator_status': 'ERROR',
                     'simulator_error': f"Stream error: {str(stream_error)}"
                 })
@@ -273,8 +273,8 @@ class SessionManager:
             logger.error(f"Error in simulator data streaming: {e}")
             self.simulator_active = False
 
-            # Update session metadata to reflect error
-            await self.update_session_metadata({
+            # Update session details to reflect error
+            await self.update_session_details({
                 'simulator_status': 'ERROR',
                 'simulator_error': str(e)
             })
@@ -326,11 +326,11 @@ class SessionManager:
         Returns:
             Tuple of (is_valid, existing_device_id, error_message)
         """
-        metadata = await self.get_session_metadata()
-        if not metadata:
+        details = await self.get_session_details()
+        if not details:
             return True, "", ""
             
-        existing_device_id = metadata.get('device_id')
+        existing_device_id = details.get('device_id')
         if not existing_device_id:
             return True, "", ""
             
@@ -351,7 +351,7 @@ class SessionManager:
             True if successful
         """
         try:
-            await self.update_session_metadata({
+            await self.update_session_details({
                 'device_id': device_id,
                 'last_device_update': time.time()
             })

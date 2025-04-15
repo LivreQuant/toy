@@ -99,10 +99,38 @@ data:
     CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON session.active_sessions(expires_at);
     
     -- Create session metadata table
-    CREATE TABLE IF NOT EXISTS session.session_metadata (
-        session_id TEXT PRIMARY KEY REFERENCES session.active_sessions(session_id) ON DELETE CASCADE,
-        metadata JSONB NOT NULL DEFAULT '{}'::jsonb
+    CREATE TABLE session.session_details (
+        session_id VARCHAR(36) PRIMARY KEY REFERENCES session.active_sessions(session_id) ON DELETE CASCADE,
+        
+        -- Device and connection information
+        device_id VARCHAR(64),
+        user_agent TEXT,
+        ip_address VARCHAR(45),  -- Supports IPv6
+        pod_name VARCHAR(255),
+        
+        -- Status and quality metrics
+        connection_quality VARCHAR(20) CHECK (connection_quality IN ('good', 'degraded', 'poor')),
+        heartbeat_latency INTEGER,
+        missed_heartbeats INTEGER DEFAULT 0,
+        reconnect_count INTEGER DEFAULT 0,
+        
+        -- Simulator information
+        simulator_id VARCHAR(36),
+        simulator_status VARCHAR(20),
+        simulator_endpoint VARCHAR(255),
+        simulator_error TEXT,
+        
+        -- Timestamps
+        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+        last_reconnect TIMESTAMP WITH TIME ZONE,
+        last_device_update TIMESTAMP WITH TIME ZONE,
+        last_quality_update TIMESTAMP WITH TIME ZONE
     );
+
+    -- Index for faster lookups
+    CREATE INDEX idx_session_details_device_id ON session.session_details(device_id);
+    CREATE INDEX idx_session_details_simulator_id ON session.session_details(simulator_id);
     
     -- Create cleanup function for expired sessions
     CREATE OR REPLACE FUNCTION session.cleanup_expired_sessions() 

@@ -4,9 +4,9 @@ Defines the structure for exchange simulator instances.
 """
 import time
 import uuid
-from typing import Optional, Dict, Any
-from pydantic import BaseModel, Field
 from enum import Enum
+from pydantic import BaseModel, Field
+from typing import Optional, Dict, Any
 
 
 class SimulatorStatus(str, Enum):
