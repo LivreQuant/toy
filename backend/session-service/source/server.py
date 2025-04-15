@@ -103,10 +103,11 @@ class SessionServer:
         # Create clients
         self.exchange_client = ExchangeClient()
         self.k8s_client = KubernetesClient()
+        logger.info(f"Kubernetes client initialized: {self.k8s_client is not None}")
 
         # Create managers
         self.stream_manager = StreamManager()
-        self.simulator_manager = SimulatorManager(self.store_manager, self.k8s_client)
+        self.simulator_manager = SimulatorManager(self.store_manager, self.exchange_client, self.k8s_client)
 
         # Create session manager with user session ID
         self.session_manager = SessionManager(
