@@ -273,7 +273,13 @@ class SimulatorManager:
                     logger.error("Kubernetes client not available")
                     return False, "Kubernetes client not available"
 
-                k8s_success = await self.k8s_client.delete_simulator_deployment(simulator_id)
+                logger.info(f"Calling Kubernetes client to delete simulator deployment {simulator_id}")
+                try:
+                    k8s_success = await self.k8s_client.delete_simulator_deployment(simulator_id)
+                    logger.info(f"Kubernetes delete result: {k8s_success}")
+                except Exception as k8s_error:
+                    logger.error(f"Kubernetes delete error: {str(k8s_error)}", exc_info=True)
+                    k8s_success = False
 
                 # Update status to STOPPED
                 await self.store_manager.simulator_store.update_simulator_status(simulator_id, SimulatorStatus.STOPPED)

@@ -279,24 +279,10 @@ class SessionManager:
                 'simulator_error': str(e)
             })
 
-    async def stop_simulator(self, force=False):
+    async def stop_simulator(self, simulator_id: str, force=False):
         """Stop the current simulator"""
-        # First check if there's a simulator to stop
-        metadata = await self.get_session_metadata()
-        if not metadata or not metadata.get('simulator_id'):
-            return True, "No simulator to stop"
-
-        simulator_id = metadata.get('simulator_id')
-
         # Stop via the simulator manager
         success, error = await self.simulator_manager.stop_simulator(simulator_id, force)
-
-        # Update session metadata
-        await self.update_session_metadata({
-            'simulator_status': 'STOPPED',
-            'simulator_id': None,
-            'simulator_endpoint': None
-        })
 
         # Update state tracking
         self.simulator_active = False

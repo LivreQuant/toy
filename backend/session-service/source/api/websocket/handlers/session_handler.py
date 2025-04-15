@@ -149,8 +149,8 @@ async def handle_stop_session(
             logger.info(f"Stopping session 2: {simulator}")
 
             if simulator:
-                simulator_id = simulator.get('simulator_id')
-                simulator_status = simulator.get('status')
+                simulator_id = simulator.simulator_id
+                simulator_status = simulator.status.value
 
                 # Check if simulator is in an active state
                 active_states = ['CREATING', 'STARTING', 'RUNNING']
@@ -162,7 +162,7 @@ async def handle_stop_session(
             # Stop simulator if running
             if simulator_running:
                 logger.info(f"Stopping simulator {simulator_id} for session")
-                success, error = await session_manager.stop_simulator(force=True)
+                success, error = await session_manager.stop_simulator(simulator_id=simulator_id, force=True)
 
                 if not success:
                     logger.warning(f"Failed to stop simulator: {error}")

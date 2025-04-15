@@ -328,20 +328,23 @@ class KubernetesClient(BaseClient):
         deployment_name = f"simulator-{simulator_id}"
         service_name = f"simulator-{simulator_id}"
 
+        logger.info(
+            f"Attempting to delete deployment {deployment_name} and service {service_name} in namespace {self.namespace}")
+
         try:
             # Delete deployment
-            self.apps_v1.delete_namespaced_deployment(
+            delete_deployment_result = self.apps_v1.delete_namespaced_deployment(
                 name=deployment_name,
                 namespace=self.namespace
             )
-            logger.info(f"Deleted deployment {deployment_name}")
+            logger.info(f"Deployment deletion result: {delete_deployment_result}")
 
             # Delete service
-            self.core_v1.delete_namespaced_service(
+            delete_service_result = self.core_v1.delete_namespaced_service(
                 name=service_name,
                 namespace=self.namespace
             )
-            logger.info(f"Deleted service {service_name}")
+            logger.info(f"Service deletion result: {delete_service_result}")
 
             # Track external request metrics
             duration = time.time() - start_time
