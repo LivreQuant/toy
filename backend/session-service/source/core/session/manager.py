@@ -95,21 +95,28 @@ class SessionManager:
         Args:
             data: Exchange data dictionary
         """
+        data_id = f"{data.get('timestamp', time.time())}-{hash(str(data))}"
+        logger.info(f"Session manager processing exchange data [ID: {data_id}] with {len(self.exchange_data_callbacks)} callbacks")
+
         tasks = []
 
-        for callback in list(self.exchange_data_callbacks):
+        for idx, callback in enumerate(list(self.exchange_data_callbacks)):
             try:
                 # Check if callback is a coroutine function
                 if asyncio.iscoroutinefunction(callback):
+                    logger.debug(f"Queuing async callback #{idx} for data [ID: {data_id}]")
                     tasks.append(asyncio.create_task(callback(data)))
                 else:
+                    logger.debug(f"Executing sync callback #{idx} for data [ID: {data_id}]")
                     callback(data)
             except Exception as e:
                 logger.error(f"Error in exchange data callback: {e}")
 
         # Wait for all coroutine tasks to complete
         if tasks:
+            logger.debug(f"Waiting for {len(tasks)} async callbacks to complete for data [ID: {data_id}]")
             await asyncio.gather(*tasks, return_exceptions=True)
+            logger.debug(f"All async callbacks completed for data [ID: {data_id}]")
 
     # ----- Public API methods -----
     async def get_session(self):
@@ -224,6 +231,9 @@ class SessionManager:
                     if heartbeat_result.get('success', False):
                         connected = True
                         logger.info(f"Successfully connected to simulator {simulator_id}")
+
+                        # Update status and notify clients
+                        await self.update_simulator_status(simulator_id, 'RUNNING')
                         break
                     else:
                         logger.info(
@@ -246,12 +256,25 @@ class SessionManager:
 
             # Stream data with error handling
             try:
+                logger.info(f"Starting exchange data stream for simulator {simulator_id}")
+
                 # Stream data - handling will occur via callbacks
                 async for data in self.simulator_manager.stream_exchange_data(
                         endpoint,
                         session_id,
                         f"stream-{session_id}"
                 ):
+                    # Add a unique trace ID to each data point
+                    data_id = f"{data.get('timestamp', time.time())}-{hash(str(data))}"
+                    logger.debug(f"Received data point [ID: {data_id}] from exchange stream")
+
+                    # If we get here, we're successfully receiving data
+                    # Ensure simulator_status is set to RUNNING on first data received
+                    if not self.simulator_active:
+                        logger.info(f"First data received from simulator {simulator_id}, ensuring status is RUNNING")
+                        self.simulator_active = True
+                        await self.update_simulator_status(simulator_id, 'RUNNING')
+
                     # Process data with proper awaiting for async callbacks
                     await self._handle_exchange_data(data)
             except Exception as stream_error:
@@ -278,6 +301,33 @@ class SessionManager:
                 'simulator_status': 'ERROR',
                 'simulator_error': str(e)
             })
+
+    async def update_simulator_status(self, simulator_id: str, status: str):
+        """
+        Update simulator status and notify websocket clients
+
+        Args:
+            simulator_id: The simulator ID
+            status: The new status
+        """
+        # Update session details
+        await self.update_session_details({
+            'simulator_status': status,
+        })
+
+        # Log the status change
+        logger.info(f"Updated simulator {simulator_id} status to {status}")
+
+        # Create a payload that any connected code can use to notify clients
+        update_payload = {
+            'type': 'simulator_status_changed',
+            'simulator_id': simulator_id,
+            'status': status,
+            'timestamp': int(time.time() * 1000)
+        }
+
+        # Call registered callbacks with this payload
+        await self._handle_exchange_data(update_payload)
 
     async def stop_simulator(self, simulator_id: str, force=False):
         """Stop the current simulator"""

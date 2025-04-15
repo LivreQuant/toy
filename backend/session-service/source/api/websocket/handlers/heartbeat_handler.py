@@ -58,6 +58,7 @@ async def handle_heartbeat(
 
         # Get latest session data
         session_details = await session_manager.get_session_details()
+        logger.info(f"Heartbeat: simulator status from database: {session_details}")
         simulator_status_server = session_details.get('simulator_status', 'NONE') if session_details else 'NONE'
         current_device_id = session_details.get('device_id') if session_details else None
 

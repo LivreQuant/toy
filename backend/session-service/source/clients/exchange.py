@@ -272,11 +272,15 @@ class ExchangeClient(BaseClient):
 
         try:
             # Add wait_for_ready=True and increase timeout to 10 seconds
+            logger.info(f"Sending heartbeat to simulator at {endpoint} for session {session_id}")
             response = await stub.Heartbeat(
                 request,
                 timeout=10,
                 wait_for_ready=True
             )
+
+            logger.info(
+                f"Received heartbeat response from simulator: success={response.success}, timestamp={response.server_timestamp}")
 
             return {
                 'success': response.success,

@@ -28,6 +28,7 @@ from source.api.rest.health import HealthService
 
 logger = logging.getLogger('exchange_simulator')
 
+
 class ExchangeSimulatorService(ExchangeSimulatorServicer):
     def __init__(self, exchange_manager: ExchangeManager):
         self.exchange_manager = exchange_manager
@@ -39,7 +40,7 @@ class ExchangeSimulatorService(ExchangeSimulatorServicer):
     async def start_health_service(self):
         """Start the health check HTTP server"""
         await self.health_service.setup()
-        
+
     # Add this method as well
     async def stop_health_service(self):
         """Stop the health check HTTP server"""
@@ -66,9 +67,9 @@ class ExchangeSimulatorService(ExchangeSimulatorServicer):
             return HeartbeatResponse(success=False)
 
     async def StreamExchangeData(
-        self,
-        request: StreamRequest,
-        context
+            self,
+            request: StreamRequest,
+            context
     ) -> AsyncGenerator[ExchangeDataUpdate, None]:
         """Stream market data, orders, and portfolio updates"""
         try:
@@ -76,16 +77,16 @@ class ExchangeSimulatorService(ExchangeSimulatorServicer):
             client_id = request.client_id  # For logging which client connected
 
             logger.info(f"Client {client_id} subscribed to exchange data stream for symbols: {symbols}")
-            
+
             update_count = 0
             while True:
                 # Generate market data
                 market_data, portfolio_data, orders_data = self.exchange_manager.generate_periodic_data(symbols)
-                
+
                 # Log periodically to avoid flooding logs
                 update_count += 1
                 logger.info(f"Sending update #{update_count} to client {client_id} for {len(market_data)} symbols")
-                
+
                 # Create ExchangeDataUpdate
                 update = ExchangeDataUpdate(
                     timestamp=int(time.time() * 1000)
@@ -129,7 +130,7 @@ class ExchangeSimulatorService(ExchangeSimulatorServicer):
 
                 # Send the update
                 yield update
-                
+
                 # Sleep for 60 seconds (1 minute) before generating the next update
                 await asyncio.sleep(60)  # Update interval changed to 1 minute
 
@@ -141,9 +142,9 @@ class ExchangeSimulatorService(ExchangeSimulatorServicer):
             context.set_details(str(e))
 
     async def SubmitOrder(
-        self,
-        request: SubmitOrderRequest,
-        context
+            self,
+            request: SubmitOrderRequest,
+            context
     ) -> SubmitOrderResponse:
         """Submit an order"""
         try:
@@ -173,9 +174,9 @@ class ExchangeSimulatorService(ExchangeSimulatorServicer):
             )
 
     async def CancelOrder(
-        self,
-        request: CancelOrderRequest,
-        context
+            self,
+            request: CancelOrderRequest,
+            context
     ) -> CancelOrderResponse:
         """Cancel an existing order"""
         try:

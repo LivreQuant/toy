@@ -11,7 +11,7 @@ from source.api.websocket.utils import authenticate_websocket_request
 from source.utils.tracing import optional_trace_span
 from source.utils.metrics import track_websocket_message
 from source.api.websocket.dispatcher import WebSocketDispatcher
-from source.api.websocket.emitters import error_emitter, connection_emitter
+from source.api.websocket.emitters import error_emitter, connection_emitter, session_emitter
 
 
 class WebSocketManager:
@@ -23,12 +23,15 @@ class WebSocketManager:
         # Enhanced connection tracking
         self.active_connections: Dict[str, web.WebSocketResponse] = {}  # device_id -> ws
         self.connection_metadata: Dict[str, Dict[str, Any]] = {}  # device_id -> metadata
-        
+
         # Create a dispatcher instance
         self.dispatcher = WebSocketDispatcher(session_manager)
-        
+
         # Register for exchange data
         self.session_manager.register_exchange_data_callback(self.broadcast_exchange_data)
+
+        # Register for simulator status updates - look for special type
+        self.session_manager.register_exchange_data_callback(self.handle_simulator_status_update)
 
     async def handle_connection(self, request: web.Request) -> web.WebSocketResponse:
         """
@@ -37,20 +40,20 @@ class WebSocketManager:
         self.logger.info(f"WebSocket connection request received from {request.remote}")
         self.logger.info(f"Headers: {dict(request.headers)}")
         self.logger.info(f"Query params: {dict(request.query)}")
-            
+
         with optional_trace_span(self.tracer, "websocket_connection") as span:
             # Authenticate user and check for device conflicts
             try:
                 self.logger.info(f"WebSocket connection request received from {request.remote}")
                 self.logger.info(f"Headers: {dict(request.headers)}")
                 self.logger.info(f"Query params: {dict(request.query)}")
-                
+
                 user_id, device_id = await authenticate_websocket_request(request, self.session_manager)
                 client_id = f"{device_id}-{time.time_ns()}"
 
                 # Check if previous_device_id was flagged by authentication process
                 previous_device_id = request.get('previous_device_id')
-                
+
             except Exception as auth_error:
                 self.logger.warning(f"WebSocket authentication failed: {auth_error}")
                 return self._reject_connection(str(auth_error))
@@ -62,7 +65,7 @@ class WebSocketManager:
             # Handle device replacement if needed
             if previous_device_id:
                 self.logger.warning(f"Device {device_id} is replacing existing device {previous_device_id}")
-                
+
                 # Find the old connection for this device
                 old_ws = self.active_connections.get(previous_device_id)
                 if old_ws and not old_ws.closed:
@@ -75,13 +78,13 @@ class WebSocketManager:
                         })
                     except Exception as e:
                         self.logger.error(f"Error sending replacement notice: {e}")
-                    
+
                     # Force close the old connection
                     try:
                         await old_ws.close(code=1000, message=b"Connection replaced by new device connection")
                     except Exception as e:
                         self.logger.error(f"Error closing old connection: {e}")
-                    
+
                     # Remove old connection
                     if previous_device_id in self.active_connections:
                         del self.active_connections[previous_device_id]
@@ -101,7 +104,7 @@ class WebSocketManager:
             try:
                 # Send connected message
                 await connection_emitter.send_connected(
-                    ws, 
+                    ws,
                     client_id=client_id,
                     device_id=device_id
                 )
@@ -123,7 +126,7 @@ class WebSocketManager:
                         del self.connection_metadata[device_id]
 
             return ws
-        
+
     async def _connection_loop(self, ws: web.WebSocketResponse, user_id: str, device_id: str, client_id: str):
         """Main WebSocket message processing loop"""
         try:
@@ -132,7 +135,7 @@ class WebSocketManager:
                     # Update last activity time
                     if device_id in self.connection_metadata:
                         self.connection_metadata[device_id]['last_activity'] = time.time()
-                        
+
                     # Use the dispatcher to handle the message
                     await self.dispatcher.dispatch_message(ws, user_id, client_id, device_id, msg.data)
                 elif msg.type in (WSMsgType.CLOSING, WSMsgType.CLOSED):
@@ -144,6 +147,11 @@ class WebSocketManager:
         """Broadcast exchange data to all active WebSocket clients"""
         if not self.active_connections:
             return
+
+        # Create a unique ID for this broadcast
+        data_id = f"{data.get('timestamp', time.time())}-{hash(str(data))}"
+        self.logger.info(
+            f"WebSocketManager broadcasting exchange data [ID: {data_id}] to {len(self.active_connections)} clients")
 
         # Create message payload
         payload = {
@@ -161,9 +169,42 @@ class WebSocketManager:
         if send_tasks:
             # Wait for all sends to complete
             await asyncio.gather(*send_tasks, return_exceptions=True)
+            self.logger.debug(f"Completed sending exchange data [ID: {data_id}] to {len(send_tasks)} clients")
+
 
         # Track this message
         track_websocket_message("sent_broadcast", "exchange_data")
+
+    # Add this new method
+    async def handle_simulator_status_update(self, data):
+        """Handle simulator status update events"""
+        if data.get('type') == 'simulator_status_changed':
+            simulator_id = data.get('simulator_id')
+            status = data.get('status')
+
+            if simulator_id and status:
+                await self.broadcast_simulator_status(simulator_id, status)
+
+    async def broadcast_simulator_status(self, simulator_id: str, status: str):
+        """
+        Broadcast simulator status update to all connections
+        """
+        if not self.active_connections:
+            return
+
+        self.logger.info(f"Broadcasting simulator status update: {status} for simulator {simulator_id}")
+
+        for device_id, ws in list(self.active_connections.items()):
+            if not ws.closed:
+                try:
+                    await session_emitter.send_simulator_status_update(
+                        ws,
+                        simulator_id=simulator_id,
+                        status=status,
+                        client_id=self.connection_metadata.get(device_id, {}).get('client_id')
+                    )
+                except Exception as e:
+                    self.logger.error(f"Error sending simulator status update to device {device_id}: {e}")
 
     async def broadcast_to_session(self, payload: Dict[str, Any]) -> int:
         """
@@ -177,10 +218,10 @@ class WebSocketManager:
         """
         if not self.active_connections:
             return 0
-            
+
         # Get all device connections for this session
         sent_count = 0
-        
+
         # In singleton mode, all connections belong to the same session
         for device_id, ws in list(self.active_connections.items()):
             if not ws.closed:
@@ -189,7 +230,7 @@ class WebSocketManager:
                     sent_count += 1
                 except Exception as e:
                     self.logger.error(f"Error sending to device {device_id}: {e}")
-                    
+
         track_websocket_message("sent_broadcast", payload.get('type', 'unknown'))
         return sent_count
 
@@ -199,8 +240,9 @@ class WebSocketManager:
             del self.active_connections[device_id]
             if device_id in self.connection_metadata:
                 del self.connection_metadata[device_id]
-        
-        self.logger.info(f"WebSocket connection for device {device_id} closed, remaining connections: {len(self.active_connections)}")
+
+        self.logger.info(
+            f"WebSocket connection for device {device_id} closed, remaining connections: {len(self.active_connections)}")
 
     def _reject_connection(self, reason: str) -> web.Response:
         """Reject WebSocket connection"""
@@ -214,11 +256,11 @@ class WebSocketManager:
         """Send a message to a specific device"""
         if device_id not in self.active_connections:
             return False
-            
+
         ws = self.active_connections[device_id]
         if ws.closed:
             return False
-            
+
         try:
             await ws.send_json(payload)
             track_websocket_message("sent", payload.get('type', 'unknown'))
@@ -231,21 +273,25 @@ class WebSocketManager:
         """Get list of connected devices"""
         return list(self.active_connections.keys())
 
+    def get_session_connections(self) -> list:
+        """Get all active connections for the current session"""
+        return list(self.active_connections.values())
+
     def get_device_connection_info(self, device_id: str) -> Dict[str, Any]:
         """Get connection info for a device"""
         if device_id not in self.connection_metadata:
             return {}
         return self.connection_metadata[device_id]
-        
+
     def get_connection_count(self) -> int:
         """Get total number of active connections"""
         return len(self.active_connections)
-        
+
     async def close_all_connections(self, reason: str = "Service shutting down"):
         """Close all active connections with a message"""
         if not self.active_connections:
             return
-            
+
         close_tasks = []
         for device_id, ws in list(self.active_connections.items()):
             if not ws.closed:
@@ -254,14 +300,14 @@ class WebSocketManager:
                     await connection_emitter.send_shutdown(ws, reason)
                 except Exception:
                     pass
-                    
+
                 # Add close task
                 close_tasks.append(ws.close(code=1000, message=reason.encode('utf-8')))
-                
+
         # Wait for all connections to close
         if close_tasks:
             await asyncio.gather(*close_tasks, return_exceptions=True)
-            
+
         # Clear tracking
         self.active_connections.clear()
         self.connection_metadata.clear()

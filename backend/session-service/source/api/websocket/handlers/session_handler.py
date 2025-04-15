@@ -182,7 +182,6 @@ async def handle_stop_session(
             # Update session state but don't actually end it in singleton mode
             await session_manager.update_session_details({
                 'device_id': None,
-                'status': SessionStatus.INACTIVE.value,
                 'simulator_id': None,
                 'simulator_status': SimulatorStatus.NONE.value,
                 'simulator_endpoint': None

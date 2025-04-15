@@ -57,6 +57,10 @@ class SimulatorManager:
         Args:
             callback: Function that accepts exchange data dictionary
         """
+        # Only store one callback to avoid duplication
+        if self.data_callback:
+            logger.warning("Overwriting existing data callback in simulator manager")
+
         self.data_callback = callback
         logger.debug("Data callback set for simulator manager")
 
@@ -127,6 +131,18 @@ class SimulatorManager:
                 await self.store_manager.simulator_store.update_simulator_endpoint(simulator.simulator_id, endpoint)
                 await self.store_manager.simulator_store.update_simulator_status(simulator.simulator_id, SimulatorStatus.STARTING)
 
+                # Add explicit update in session details
+                try:
+                    # Update session details too to ensure everything is in sync
+                    await self.store_manager.session_store.update_session_details(session_id, {
+                        'simulator_id': simulator.simulator_id,
+                        'simulator_status': SimulatorStatus.STARTING.value,
+                        'simulator_endpoint': endpoint
+                    })
+                    logger.info(f"Updated session details with simulator status: STARTING")
+                except Exception as e:
+                    logger.warning(f"Failed to update session details with simulator status: {e}")
+
                 # Calculate creation time and track metrics
                 creation_time = time.time() - start_time
                 track_simulator_creation_time(creation_time)
@@ -151,24 +167,6 @@ class SimulatorManager:
 
                 track_simulator_operation("create", "error")
                 return None, f"Error creating simulator: {str(e)}"
-
-    async def _stream_data(self, endpoint: str, session_id: str, client_id: str):
-        async for data in self.exchange_client.stream_exchange_data(
-                endpoint, session_id, client_id
-        ):
-            # Call the callback function if set
-            if self.data_callback:
-                try:
-                    # Check if callback is a coroutine function and await it properly
-                    if asyncio.iscoroutinefunction(self.data_callback):
-                        await self.data_callback(data)
-                    else:
-                        self.data_callback(data)
-                except Exception as e:
-                    logger.error(f"Error in data callback: {e}", exc_info=True)
-
-            # Always yield the data regardless of callback
-            yield data
 
     async def stream_exchange_data(
             self,
@@ -202,10 +200,32 @@ class SimulatorManager:
                 logger.error(f"Error updating simulator status: {e}")
                 # Continue despite the error - this is non-critical
 
+        async def _stream_data():
+            async for data in self.exchange_client.stream_exchange_data(
+                    endpoint, session_id, client_id
+            ):
+                # Add a unique identifier to each raw data response
+                data_id = f"{data.get('timestamp', time.time())}-{hash(str(data))}"
+                logger.info(f"Received exchange data [ID: {data_id}] from simulator at {endpoint}")
+
+                # Call the callback function if set
+                if self.data_callback:
+                    try:
+                        # Check if callback is a coroutine function and await it properly
+                        if asyncio.iscoroutinefunction(self.data_callback):
+                            await self.data_callback(data)
+                        else:
+                            self.data_callback(data)
+                    except Exception as e:
+                        logger.error(f"Error in data callback: {e}", exc_info=True)
+
+                # Always yield the data regardless of callback
+                yield data
+
         # Use retry generator to handle connection issues
         try:
             async for data in retry_with_backoff_generator(
-                    self._stream_data,
+                    _stream_data,
                     max_attempts=5,
                     retriable_exceptions=(ConnectionError, TimeoutError)
             ):
