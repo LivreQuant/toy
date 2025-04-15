@@ -138,7 +138,14 @@ export interface BaseWebSocketMessage {
     errorMessage?: string;
     timestamp: number;
  }
- 
+
+ export interface ServerSimulatorStatusUpdateMessage extends BaseWebSocketMessage {
+   type: 'simulator_status_update';
+   simulatorId: string;
+   simulatorStatus: 'RUNNING' | 'STOPPED' | 'STARTING' | 'STOPPING';
+   timestamp: number;
+ }
+
  export interface ServerSessionInfoResponse extends BaseWebSocketMessage {
    type: 'session_info';
    requestId: string;
@@ -205,7 +212,8 @@ export interface ServerConnectionReplacedMessage extends BaseWebSocketMessage {
     | ServerStopSessionResponse
     | ServerSimulatorStartedResponse
     | ServerSimulatorStoppedResponse
-    | ServerConnectionReplacedMessage;
+    | ServerConnectionReplacedMessage
+    | ServerSimulatorStatusUpdateMessage;
  
  // --- Type Guard Functions ---
  export function isServerHeartbeatAckMessage(msg: WebSocketMessage): msg is ServerHeartbeatAckMessage {
@@ -238,4 +246,8 @@ export interface ServerConnectionReplacedMessage extends BaseWebSocketMessage {
  
  export function isServerConnectionReplacedMessage(msg: WebSocketMessage): msg is ServerConnectionReplacedMessage {
    return msg.type === 'connection_replaced';
+ }
+
+ export function isServerSimulatorStatusUpdateMessage(msg: WebSocketMessage): msg is ServerSimulatorStatusUpdateMessage {
+   return msg.type === 'simulator_status_update';
  }

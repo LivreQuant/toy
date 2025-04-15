@@ -34,7 +34,11 @@ import {
   ServerSimulatorStoppedResponse,
   ServerOrderSubmittedResponse,
   ServerOrderCancelledResponse,
-  ServerConnectionReplacedMessage
+  ServerConnectionReplacedMessage,
+
+  isServerSimulatorStatusUpdateMessage,
+  ServerSimulatorStatusUpdateMessage,
+
 } from './message-types';
 import {
   appState,
@@ -242,6 +246,8 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
       // Handle specific message types
       if (isServerHeartbeatAckMessage(message)) {
         this.handleHeartbeatAckMessage(message);
+      } else if (isServerSimulatorStatusUpdateMessage(message)) {
+        this.handleSimulatorStatusUpdateMessage(message);
       } else if (isServerReconnectResultMessage(message)) {
         this.handleReconnectResultMessage(message);
       } else if (isServerExchangeDataStatusMessage(message)) {
@@ -458,6 +464,22 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
       lastHeartbeatTime: now,
       heartbeatLatency: latency >= 0 ? latency : null,
       quality: quality,
+      simulatorStatus: message.simulatorStatus
+    });
+  }
+
+  // Add a new method to handle the simulator status update
+  private handleSimulatorStatusUpdateMessage(message: ServerSimulatorStatusUpdateMessage): void {
+    if (this.isDisposed) return;
+
+    this.logger.info('Simulator Status Update Received', {
+      simulatorId: message.simulatorId,
+      status: message.simulatorStatus,
+      timestamp: message.timestamp
+    });
+
+    // Update the app state with the new simulator status
+    appState.updateConnectionState({
       simulatorStatus: message.simulatorStatus
     });
   }

@@ -63,6 +63,10 @@ class SessionManager:
         # Set up data callback to simulator manager
         self.simulator_manager.set_data_callback(self._handle_exchange_data)
 
+        # Add a recent data cache
+        self._recent_data_cache = {}
+        self._cache_max_size = 100  # Adjust as needed
+
         logger.info(f"Session manager initialized!")
 
     # ----- Callback management -----
@@ -97,6 +101,19 @@ class SessionManager:
         """
         data_id = f"{data.get('timestamp', time.time())}-{hash(str(data))}"
         logger.info(f"Session manager processing exchange data [ID: {data_id}] with {len(self.exchange_data_callbacks)} callbacks")
+
+        # Check if this data has already been processed recently
+        if data_id in self._recent_data_cache:
+            logger.debug(f"Skipping duplicate data [ID: {data_id}]")
+            return
+
+        # Add to recent cache
+        self._recent_data_cache[data_id] = time.time()
+
+        # Trim the cache if it gets too large
+        if len(self._recent_data_cache) > self._cache_max_size:
+            oldest_key = min(self._recent_data_cache, key=self._recent_data_cache.get)
+            del self._recent_data_cache[oldest_key]
 
         tasks = []
 
@@ -254,6 +271,10 @@ class SessionManager:
                 self.simulator_active = False
                 return
 
+            # REMOVE the data_callback setting in SimulatorManager for this method
+            # Remove or comment out this line in the SimulatorManager
+            # self.data_callback(data)
+
             # Stream data with error handling
             try:
                 logger.info(f"Starting exchange data stream for simulator {simulator_id}")
@@ -275,8 +296,8 @@ class SessionManager:
                         self.simulator_active = True
                         await self.update_simulator_status(simulator_id, 'RUNNING')
 
-                    # Process data with proper awaiting for async callbacks
-                    await self._handle_exchange_data(data)
+                    # REMOVE this line to prevent duplicate processing
+                    # await self._handle_exchange_data(data)
             except Exception as stream_error:
                 logger.error(f"Error in simulator data stream: {stream_error}")
                 # Attempt to recover
