@@ -6,6 +6,7 @@ Handles communication with the exchange simulator service using gRPC.
 import logging
 import asyncio
 import time
+import json
 import grpc
 from typing import Any, AsyncGenerator, Dict
 
@@ -89,12 +90,12 @@ class ExchangeClient(BaseClient):
         
         # Default gRPC channel options
         self.default_channel_options = [
-            ('grpc.keepalive_time_ms', 10000),
-            ('grpc.keepalive_timeout_ms', 5000),
+            ('grpc.keepalive_time_ms', 60000),
+            ('grpc.keepalive_timeout_ms', 20000),
             ('grpc.keepalive_permit_without_calls', 1),
-            ('grpc.http2.max_pings_without_data', 0),
-            ('grpc.http2.min_time_between_pings_ms', 10000),
-            ('grpc.http2.min_ping_interval_without_data_ms', 5000)
+            ('grpc.http2.max_pings_without_data', 5),
+            ('grpc.http2.min_time_between_pings_ms', 60000),
+            ('grpc.http2.min_ping_interval_without_data_ms', 12000)
         ]
 
     async def send_heartbeat(self, endpoint: str, session_id: str, client_id: str) -> Dict[str, Any]:
@@ -125,10 +126,10 @@ class ExchangeClient(BaseClient):
     async def get_channel(self, endpoint: str) -> tuple[grpc.aio.Channel, ExchangeSimulatorStub]:
         """
         Get or create a gRPC channel to the endpoint.
-        
+
         Args:
             endpoint: The simulator endpoint
-            
+
         Returns:
             Tuple of (channel, stub)
         """
@@ -146,9 +147,28 @@ class ExchangeClient(BaseClient):
 
             # Create new channel if needed
             logger.info(f"Creating new gRPC channel to {endpoint}")
-            
-            # Create channel with options
-            channel = grpc.aio.insecure_channel(endpoint, options=self.default_channel_options)
+
+            # Update channel options to include backoff parameters
+            options = self.default_channel_options + [
+                ('grpc.enable_retries', 1),
+                ('grpc.initial_reconnect_backoff_ms', 1000),  # Start with 1 second
+                ('grpc.max_reconnect_backoff_ms', 10000),  # Max of 10 seconds
+                ('grpc.service_config', json.dumps({
+                    'methodConfig': [{
+                        'name': [{}],  # Apply to all methods
+                        'retryPolicy': {
+                            'maxAttempts': 5,
+                            'initialBackoff': '1s',
+                            'maxBackoff': '10s',
+                            'backoffMultiplier': 2.0,
+                            'retryableStatusCodes': ['UNAVAILABLE']
+                        }
+                    }]
+                }))
+            ]
+
+            # Create channel with enhanced options
+            channel = grpc.aio.insecure_channel(endpoint, options=options)
             stub = ExchangeSimulatorStub(channel)
 
             # Store for reuse
@@ -235,12 +255,12 @@ class ExchangeClient(BaseClient):
     async def _heartbeat_request(self, endpoint: str, session_id: str, client_id: str) -> Dict[str, Any]:
         """
         Make the actual heartbeat request.
-        
+
         Args:
             endpoint: The endpoint of the simulator
             session_id: The session ID
             client_id: The client ID
-            
+
         Returns:
             Dict with heartbeat results
         """
@@ -251,8 +271,13 @@ class ExchangeClient(BaseClient):
         )
 
         try:
-            response = await stub.Heartbeat(request, timeout=5)
-            
+            # Add wait_for_ready=True and increase timeout to 10 seconds
+            response = await stub.Heartbeat(
+                request,
+                timeout=10,
+                wait_for_ready=True
+            )
+
             return {
                 'success': response.success,
                 'server_timestamp': response.server_timestamp
@@ -303,7 +328,7 @@ class ExchangeClient(BaseClient):
 
                 # Initiate streaming RPC
                 try:
-                    stream = stub.StreamExchangeData(request)
+                    stream = stub.StreamExchangeData(request, wait_for_ready=True)
                     logger.info("Initiated StreamExchangeData RPC")
                 except Exception as rpc_init_error:
                     logger.error(f"Failed to initiate streaming RPC: {rpc_init_error}")

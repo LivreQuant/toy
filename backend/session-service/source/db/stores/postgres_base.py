@@ -5,6 +5,7 @@ Base PostgreSQL connection management and generic repository implementation.
 import logging
 import asyncio
 import asyncpg
+import datetime
 from typing import Optional, Dict, Any, TypeVar, Generic, Type
 
 from opentelemetry import trace
@@ -97,6 +98,20 @@ class PostgresBase:
                 is_healthy = (result == 1)
                 logger.debug(f"PostgreSQL connection check result: {is_healthy}")
                 return is_healthy
+        except asyncpg.exceptions.ProtocolViolationError as e:
+            # pgbouncer error - need to recreate the pool
+            logger.error(f"PostgreSQL connection pool error (pgbouncer): {e}")
+
+            # Try to close the existing pool
+            try:
+                if self.pool:
+                    await self.pool.close()
+            except Exception as close_error:
+                logger.error(f"Error closing pool: {close_error}")
+
+            # Set pool to None and trigger reconnect on next operation
+            self.pool = None
+            return False
         except (asyncio.TimeoutError, Exception) as e:
             logger.error(f"PostgreSQL connection check failed: {e}", exc_info=True)
             return False
@@ -145,8 +160,30 @@ class PostgresRepository(PostgresBase, Generic[T]):
             Entity object or None on error
         """
         try:
-            # Basic implementation - subclasses should override
-            return self.entity_class(**dict(row))
+            # Convert row to dictionary
+            row_dict = dict(row)
+
+            # Convert datetime objects to timestamps if needed
+            if 'created_at' in row_dict and isinstance(row_dict['created_at'], datetime.datetime):
+                row_dict['created_at'] = row_dict['created_at'].timestamp()
+
+            if 'last_active' in row_dict and isinstance(row_dict['last_active'], datetime.datetime):
+                row_dict['last_active'] = row_dict['last_active'].timestamp()
+
+            if 'last_login' in row_dict and isinstance(row_dict['last_login'], datetime.datetime):
+                row_dict['last_login'] = row_dict['last_login'].timestamp()
+
+            if 'last_modified' in row_dict and isinstance(row_dict['last_modified'], datetime.datetime):
+                row_dict['last_modified'] = row_dict['last_modified'].timestamp()
+
+            if 'expires_at' in row_dict and isinstance(row_dict['expires_at'], datetime.datetime):
+                row_dict['expires_at'] = row_dict['expires_at'].timestamp()
+
+            if 'updated_at' in row_dict and isinstance(row_dict['updated_at'], datetime.datetime):
+                row_dict['updated_at'] = row_dict['updated_at'].timestamp()
+
+            # Create entity object
+            return self.entity_class(**row_dict)
         except Exception as e:
             logger.error(f"Error converting row to {self.entity_class.__name__}: {e}")
             return None

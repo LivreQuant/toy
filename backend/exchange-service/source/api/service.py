@@ -84,8 +84,7 @@ class ExchangeSimulatorService(ExchangeSimulatorServicer):
                 
                 # Log periodically to avoid flooding logs
                 update_count += 1
-                if update_count % 10 == 0:  # Log every 10th update
-                    logger.info(f"Sending update #{update_count} to client {client_id} for {len(market_data)} symbols")
+                logger.info(f"Sending update #{update_count} to client {client_id} for {len(market_data)} symbols")
                 
                 # Create ExchangeDataUpdate
                 update = ExchangeDataUpdate(
@@ -128,8 +127,11 @@ class ExchangeSimulatorService(ExchangeSimulatorServicer):
                     ]
                 ))
 
+                # Send the update
                 yield update
-                await asyncio.sleep(1)  # Update interval
+                
+                # Sleep for 60 seconds (1 minute) before generating the next update
+                await asyncio.sleep(60)  # Update interval changed to 1 minute
 
         except asyncio.CancelledError:
             logger.info("Stream data generation cancelled")

@@ -3,6 +3,7 @@ Simulator manager for handling exchange simulator lifecycle.
 Simplified for single-user mode with one simulator per session.
 """
 import logging
+import asyncio
 import time
 from typing import Optional, Tuple, Dict, Any, AsyncGenerator, Callable
 
@@ -174,10 +175,14 @@ class SimulatorManager:
 
         # Update simulator status to RUNNING when streaming begins
         if self.current_simulator_id:
-            await self.store_manager.simulator_store.update_simulator_status(
-                self.current_simulator_id, SimulatorStatus.RUNNING
-            )
-            logger.info(f"Simulator {self.current_simulator_id} now RUNNING")
+            try:
+                await self.store_manager.simulator_store.update_simulator_status(
+                    self.current_simulator_id, SimulatorStatus.RUNNING
+                )
+                logger.info(f"Simulator {self.current_simulator_id} now RUNNING")
+            except Exception as e:
+                logger.error(f"Error updating simulator status: {e}")
+                # Continue despite the error - this is non-critical
 
         async def _stream_data():
             async for data in self.exchange_client.stream_exchange_data(
@@ -186,20 +191,36 @@ class SimulatorManager:
                 # Call the callback function if set
                 if self.data_callback:
                     try:
-                        self.data_callback(data)
+                        # Check if callback is a coroutine function and await it properly
+                        if asyncio.iscoroutinefunction(self.data_callback):
+                            await self.data_callback(data)
+                        else:
+                            self.data_callback(data)
                     except Exception as e:
-                        logger.error(f"Error in data callback: {e}")
+                        logger.error(f"Error in data callback: {e}", exc_info=True)
 
                 # Always yield the data regardless of callback
                 yield data
 
         # Use retry generator to handle connection issues
-        async for data in retry_with_backoff_generator(
-                _stream_data,
-                max_attempts=5,
-                retriable_exceptions=(ConnectionError, TimeoutError)
-        ):
-            yield data
+        try:
+            async for data in retry_with_backoff_generator(
+                    _stream_data,
+                    max_attempts=5,
+                    retriable_exceptions=(ConnectionError, TimeoutError)
+            ):
+                yield data
+        except Exception as e:
+            logger.error(f"Unhandled error in simulator data stream: {e}", exc_info=True)
+            # Update status if possible
+            if self.current_simulator_id:
+                try:
+                    await self.store_manager.simulator_store.update_simulator_status(
+                        self.current_simulator_id, SimulatorStatus.ERROR
+                    )
+                except Exception:
+                    pass  # Ignore errors when trying to update status during an error
+            raise  # Re-raise to let caller handle
 
     async def stop_simulator(self, simulator_id: str = None, force: bool = False) -> Tuple[bool, Optional[str]]:
         """
@@ -213,6 +234,9 @@ class SimulatorManager:
             Tuple of (success, error_message)
         """
         with optional_trace_span(self.tracer, "stop_simulator") as span:
+
+            logger.info(f"STOPPING SIMULATOR: {simulator_id} : {force}")
+
             # Use current simulator ID if none provided
             simulator_id = simulator_id or self.current_simulator_id
             if not simulator_id:

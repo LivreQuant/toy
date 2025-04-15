@@ -88,19 +88,28 @@ class SessionManager:
             self.exchange_data_callbacks.remove(callback)
             logger.debug(f"Unregistered exchange data callback, remaining: {len(self.exchange_data_callbacks)}")
 
-    def _handle_exchange_data(self, data: Dict[str, Any]):
+    async def _handle_exchange_data(self, data: Dict[str, Any]):
         """
         Handle incoming exchange data by forwarding to all registered callbacks
 
         Args:
             data: Exchange data dictionary
         """
+        tasks = []
+
         for callback in list(self.exchange_data_callbacks):
             try:
-                callback(data)
+                # Check if callback is a coroutine function
+                if asyncio.iscoroutinefunction(callback):
+                    tasks.append(asyncio.create_task(callback(data)))
+                else:
+                    callback(data)
             except Exception as e:
                 logger.error(f"Error in exchange data callback: {e}")
-                # Consider removing problematic callbacks
+
+        # Wait for all coroutine tasks to complete
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
 
     # ----- Public API methods -----
     async def get_session(self):
@@ -196,15 +205,69 @@ class SessionManager:
         try:
             session_id = self.state_manager.get_active_session_id()
 
-            # Stream data - handling will occur via callbacks
-            async for _ in self.simulator_manager.stream_exchange_data(
-                endpoint,
-                session_id,
-                f"stream-{session_id}"
-            ):
-                # The simulator manager will call our _handle_exchange_data method
-                # for each data item. We just need to keep the stream running.
-                pass
+            # Add readiness polling
+            max_attempts = 10
+            attempt = 0
+            connected = False
+
+            logger.info(f"Waiting for simulator {simulator_id} to be ready...")
+
+            while attempt < max_attempts and not connected:
+                try:
+                    # Try to send a heartbeat to check readiness
+                    heartbeat_result = await self.exchange_client.heartbeat(
+                        endpoint,
+                        session_id,
+                        f"readiness-check-{session_id}"
+                    )
+
+                    if heartbeat_result.get('success', False):
+                        connected = True
+                        logger.info(f"Successfully connected to simulator {simulator_id}")
+                        break
+                    else:
+                        logger.info(
+                            f"Simulator {simulator_id} not ready yet (heartbeat failed), waiting... (attempt {attempt + 1}/{max_attempts})")
+                except Exception as e:
+                    logger.info(
+                        f"Simulator {simulator_id} not ready yet, waiting... (attempt {attempt + 1}/{max_attempts}): {e}")
+
+                attempt += 1
+                await asyncio.sleep(5)  # Wait between attempts - 5 seconds should be enough
+
+            if not connected:
+                logger.error(f"Failed to connect to simulator {simulator_id} after {max_attempts} attempts")
+                await self.update_session_metadata({
+                    'simulator_status': 'ERROR',
+                    'simulator_error': 'Failed to connect to simulator after multiple attempts'
+                })
+                self.simulator_active = False
+                return
+
+            # Stream data with error handling
+            try:
+                # Stream data - handling will occur via callbacks
+                async for data in self.simulator_manager.stream_exchange_data(
+                        endpoint,
+                        session_id,
+                        f"stream-{session_id}"
+                ):
+                    # Process data with proper awaiting for async callbacks
+                    await self._handle_exchange_data(data)
+            except Exception as stream_error:
+                logger.error(f"Error in simulator data stream: {stream_error}")
+                # Attempt to recover
+                self.simulator_active = False
+                await self.update_session_metadata({
+                    'simulator_status': 'ERROR',
+                    'simulator_error': f"Stream error: {str(stream_error)}"
+                })
+
+                # Try to gracefully close the stream
+                try:
+                    await self.stream_manager.stop_stream(session_id)
+                except Exception as stop_error:
+                    logger.error(f"Error stopping stream: {stop_error}")
 
         except Exception as e:
             logger.error(f"Error in simulator data streaming: {e}")
@@ -213,6 +276,7 @@ class SessionManager:
             # Update session metadata to reflect error
             await self.update_session_metadata({
                 'simulator_status': 'ERROR',
+                'simulator_error': str(e)
             })
 
     async def stop_simulator(self, force=False):
@@ -243,6 +307,12 @@ class SessionManager:
         if self.stream_manager:
             await self.stream_manager.stop_stream(session_id)
 
+        # Even if the simulator_manager.stop_simulator failed, log and continue
+        if success:
+            logger.info(f"Successfully stopped simulator {simulator_id}")
+        else:
+            logger.error(f"Failed to stop simulator {simulator_id}: {error}")
+
         return success, error
 
     async def cleanup_session(self):
@@ -272,11 +342,11 @@ class SessionManager:
         """
         metadata = await self.get_session_metadata()
         if not metadata:
-            return True, None, ""
+            return True, "", ""
             
         existing_device_id = metadata.get('device_id')
         if not existing_device_id:
-            return True, None, ""
+            return True, "", ""
             
         if existing_device_id != device_id:
             return False, existing_device_id, "Session already active on another device"

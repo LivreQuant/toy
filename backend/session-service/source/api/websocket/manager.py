@@ -162,6 +162,9 @@ class WebSocketManager:
             # Wait for all sends to complete
             await asyncio.gather(*send_tasks, return_exceptions=True)
 
+        # Track this message
+        track_websocket_message("sent_broadcast", "exchange_data")
+
     async def broadcast_to_session(self, payload: Dict[str, Any]) -> int:
         """
         Broadcast a message to all devices connected to a session.

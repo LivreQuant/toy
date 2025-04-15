@@ -137,29 +137,32 @@ async def handle_stop_session(
 
         logger.info(f"Stopping session 1")
 
+        session_id = session_manager.state_manager.get_active_session_id()
+
         try:
             # Check if there's a simulator running
-            metadata = await session_manager.get_session_metadata()
+            simulator = await session_manager.store_manager.simulator_store.get_simulator_by_session(session_id)
+            #metadata = await session_manager.get_session_metadata()
             simulator_running = False
             simulator_id = None
 
-            logger.info(f"Stopping session 2")
+            logger.info(f"Stopping session 2: {simulator}")
 
-            if metadata:
-                simulator_id = metadata.get('simulator_id')
-                simulator_status = metadata.get('simulator_status')
+            if simulator:
+                simulator_id = simulator.get('simulator_id')
+                simulator_status = simulator.get('status')
 
                 # Check if simulator is in an active state
                 active_states = ['CREATING', 'STARTING', 'RUNNING']
                 if simulator_id and simulator_status and simulator_status in active_states:
                     simulator_running = True
 
-            logger.info(f"Stopping session 3")
+                logger.info(f"Stopping session 3: {simulator_id} {simulator_status} {simulator_running}")
 
             # Stop simulator if running
             if simulator_running:
                 logger.info(f"Stopping simulator {simulator_id} for session")
-                success, error = await session_manager.stop_simulator()
+                success, error = await session_manager.stop_simulator(force=True)
 
                 if not success:
                     logger.warning(f"Failed to stop simulator: {error}")
@@ -172,6 +175,8 @@ async def handle_stop_session(
                     )
                     track_session_operation("cleanup", "error_simulator")
                     return
+            else:
+                logger.info(f"No simulator found.")
 
             logger.info(f"Stopping session 4")
 
