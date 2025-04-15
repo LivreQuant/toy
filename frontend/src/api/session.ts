@@ -30,12 +30,19 @@ export class SessionApi {
    */
   async createSession(): Promise<SessionResponse> {
     try {
-      // Using WebSocket to get session info
       const response = await this.wsManager.requestSessionInfo();
       console.log("CRITICAL DEBUG: Session validation response:", response);
+      
+      // Explicitly check for valid session conditions
+      const isSessionValid = 
+        response.sessionId && 
+        response.userId && 
+        response.status === "ACTIVE" && 
+        response.expiresAt > (Date.now() / 1000);
+  
       return {
-        success: response.success,
-        errorMessage: response.error
+        success: true,
+        errorMessage: isSessionValid ? undefined : 'Invalid session'
       };
     } catch (error: any) {
       console.log("CRITICAL DEBUG: Session validation error:", error);

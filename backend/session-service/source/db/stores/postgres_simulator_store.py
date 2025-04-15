@@ -36,7 +36,6 @@ class PostgresSimulatorStore(PostgresRepository[Simulator]):
         with optional_trace_span(self.tracer, "pg_store_create_simulator") as span:
             span.set_attribute("simulator_id", simulator.simulator_id)
             span.set_attribute("session_id", simulator.session_id)
-            span.set_attribute("user_id", simulator.user_id)
 
             try:
                 pool = await self._get_pool()
@@ -50,7 +49,7 @@ class PostgresSimulatorStore(PostgresRepository[Simulator]):
                         ''',
                                            simulator.simulator_id,
                                            simulator.session_id,
-                                           simulator.user_id,
+                                           'rmv',
                                            simulator.status.value,
                                            simulator.endpoint,
                                            simulator.created_at,

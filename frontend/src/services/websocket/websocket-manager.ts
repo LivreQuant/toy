@@ -720,6 +720,16 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
     }
 
     const requestId = `session-info-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
+    const deviceId = DeviceIdManager.getInstance().getDeviceId();
+
+    this.logger.warn('Sending session info request', {
+      requestId,
+      deviceId,
+      tokenExists: !!this.tokenManager.getTokens(),
+      tokenExpiration: this.tokenManager.getTokens()?.expiresAt,
+      currentTime: Date.now()
+    });
+    
     const message: ClientSessionInfoRequest = {
       type: 'request_session_info',
       requestId,
@@ -731,7 +741,11 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
       this.webSocket.send(JSON.stringify(message));
       this.logger.debug(`Session info request sent: ${requestId}`);
     } catch (error: any) {
-      this.logger.error('Failed to send session info request message', { error: error.message });
+      this.logger.error('Failed to send session info request message', { 
+        error: error.message,
+        deviceId,
+        requestId
+      });
       throw error;
     }
 

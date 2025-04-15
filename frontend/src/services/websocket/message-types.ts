@@ -140,13 +140,18 @@ export interface BaseWebSocketMessage {
  }
  
  export interface ServerSessionInfoResponse extends BaseWebSocketMessage {
-    type: 'session_info';
-    requestId: string;
-    success: boolean;
-    error?: string;
-    sessionId?: string;
-    createdAt?: number;
-    lastActive?: number;
+   type: 'session_info';
+   requestId: string;
+   sessionId: string;
+   userId: string;
+   status: string;
+   deviceId: string;
+   createdAt: number;
+   expiresAt: number;
+   simulatorStatus: string;
+   simulatorId: string | null;
+   success?: boolean; // Optional, as it wasn't in the original response
+   error?: string;
  }
  
  export interface ServerStopSessionResponse extends BaseWebSocketMessage {
