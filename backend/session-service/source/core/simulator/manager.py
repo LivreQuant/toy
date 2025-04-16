@@ -64,6 +64,118 @@ class SimulatorManager:
         self.data_callback = callback
         logger.debug("Data callback set for simulator manager")
 
+    async def create_or_reuse_simulator(self, session_id: str, user_id: str) -> Tuple[Optional[Simulator], str]:
+        """
+        Create a simulator for the session or reuse an existing one.
+        This is the main entry point for getting a simulator for a session.
+
+        Args:
+            session_id: Session ID
+            user_id: User ID
+
+        Returns:
+            Tuple of (simulator, error_message)
+        """
+        with optional_trace_span(self.tracer, "create_or_reuse_simulator") as span:
+            span.set_attribute("session_id", session_id)
+            span.set_attribute("user_id", user_id)
+
+            # First try to find an existing simulator
+            existing_simulator, error = await self.find_simulator(session_id, user_id)
+
+            if existing_simulator:
+                # Update our current simulator tracking
+                self.current_simulator_id = existing_simulator.simulator_id
+                self.current_endpoint = existing_simulator.endpoint
+
+                # Update simulator session reference if it's from another session
+                if existing_simulator.session_id != session_id:
+                    logger.info(
+                        f"Updating simulator {existing_simulator.simulator_id} to reference session {session_id}")
+
+                    try:
+                        # Update simulator in db to point to new session
+                        await self.store_manager.simulator_store.update_simulator_session(
+                            existing_simulator.simulator_id, session_id
+                        )
+
+                        # Update the simulator object's session_id
+                        existing_simulator.session_id = session_id
+                    except Exception as update_error:
+                        logger.warning(f"Failed to update simulator session reference: {update_error}")
+                        # Continue anyway - this is non-critical
+
+                logger.info(f"Reusing existing simulator {existing_simulator.simulator_id}")
+                return existing_simulator, ""
+
+            # If no existing simulator was found, create a new one
+            return await self.create_simulator(session_id, user_id)
+
+    async def find_simulator(self, session_id: str, user_id: str) -> Tuple[Optional[Simulator], str]:
+        """
+        Find an existing simulator for the user.
+        Handles checking both the current session and other sessions for this user.
+
+        Args:
+            session_id: Session ID
+            user_id: User ID
+
+        Returns:
+            Tuple of (simulator, error_message)
+        """
+        with optional_trace_span(self.tracer, "find_simulator") as span:
+            span.set_attribute("session_id", session_id)
+            span.set_attribute("user_id", user_id)
+
+            # First check if we have a simulator in the current session
+            existing_simulator = await self.store_manager.simulator_store.get_simulator_by_session(session_id)
+
+            if existing_simulator and existing_simulator.status in [
+                SimulatorStatus.RUNNING, SimulatorStatus.STARTING, SimulatorStatus.CREATING
+            ]:
+                logger.info(f"Found active simulator {existing_simulator.simulator_id} for session {session_id}")
+                return existing_simulator, ""
+
+            # If no simulator found for current session, look for any active simulator for this user
+            if self.k8s_client:
+                try:
+                    user_simulators = await self.k8s_client.list_user_simulators(user_id)
+
+                    # Find running simulators
+                    running_simulators = [s for s in user_simulators if s.get('status') == 'RUNNING']
+
+                    if running_simulators:
+                        # Use the most recently created simulator
+                        # Sort by created_at descending
+                        running_simulators.sort(key=lambda x: x.get('created_at', 0), reverse=True)
+                        simulator_data = running_simulators[0]
+                        simulator_id = simulator_data.get('simulator_id')
+
+                        # Get full simulator details from database
+                        simulator = await self.store_manager.simulator_store.get_simulator(simulator_id)
+
+                        # Add explicit update in session details
+                        try:
+                            # Update session details too to ensure everything is in sync
+                            await self.store_manager.session_store.update_session_details(session_id, {
+                                'simulator_id': simulator.simulator_id,
+                                'simulator_status': simulator.simulator_status,
+                                'simulator_endpoint': simulator.endpoint
+                            })
+                            logger.info(f"Updated session details with simulator status: STARTING")
+                        except Exception as e:
+                            logger.warning(f"Failed to update session details with simulator status: {e}")
+
+                        if simulator:
+                            logger.info(f"Found active simulator {simulator_id} for user {user_id}")
+                            return simulator, ""
+                except Exception as e:
+                    error_msg = f"Error finding simulators for user {user_id}: {str(e)}"
+                    logger.error(error_msg)
+                    return None, error_msg
+
+            return None, "No active simulator found"
+
     async def create_simulator(self, session_id: str, user_id: str) -> Tuple[Optional[Simulator], str]:
         """
         Create a simulator for the session.
@@ -80,16 +192,6 @@ class SimulatorManager:
             span.set_attribute("session_id", session_id)
             span.set_attribute("user_id", user_id)
             start_time = time.time()
-
-            # If we already have a simulator running, return it
-            if self.current_simulator_id:
-                existing_simulator = await self.store_manager.simulator_store.get_simulator(self.current_simulator_id)
-                if existing_simulator and existing_simulator.status in [
-                    SimulatorStatus.RUNNING, SimulatorStatus.STARTING, SimulatorStatus.CREATING
-                ]:
-                    logger.info(f"Returning existing simulator {existing_simulator.simulator_id}")
-                    track_simulator_operation("reuse_existing")
-                    return existing_simulator, ""
 
             # Create new simulator
             simulator = Simulator(
@@ -306,8 +408,9 @@ class SimulatorManager:
                 logger.info(f"Simulator {simulator_id} stopped")
 
                 # Clear current simulator tracking
-                self.current_simulator_id = None
-                self.current_endpoint = None
+                if self.current_simulator_id == simulator_id:
+                    self.current_simulator_id = None
+                    self.current_endpoint = None
 
                 track_simulator_operation("stop", "success" if k8s_success else "partial")
                 track_simulator_count(0)

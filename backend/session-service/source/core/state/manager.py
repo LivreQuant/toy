@@ -82,5 +82,6 @@ class StateManager:
             self._is_ready = True
             self._session_id = None
             self._start_time = None
-            logger.critical(f"SERVICE RESET: Was serving session {old_session}")
+            if old_session:
+                logger.info(f"Session {old_session} closed, service reset to READY state")
 

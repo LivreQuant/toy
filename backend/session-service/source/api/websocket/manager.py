@@ -244,6 +244,24 @@ class WebSocketManager:
         self.logger.info(
             f"WebSocket connection for device {device_id} closed, remaining connections: {len(self.active_connections)}")
 
+        # If all connections are closed, reset the session state so pod can be reused
+        if len(self.active_connections) == 0:
+            self.logger.info("All connections closed, resetting session state to ready")
+            try:
+                # First stop any active streams
+                if self.session_manager.stream_manager:
+                    try:
+                        session_id = self.session_manager.state_manager.get_active_session_id()
+                        if session_id:
+                            await self.session_manager.stream_manager.stop_stream(session_id)
+                    except Exception as e:
+                        self.logger.error(f"Error stopping streams during cleanup: {e}")
+
+                # Reset session state
+                await self.session_manager.state_manager.close()
+            except Exception as e:
+                self.logger.error(f"Error resetting session state during connection cleanup: {e}")
+
     def _reject_connection(self, reason: str) -> web.Response:
         """Reject WebSocket connection"""
         return web.Response(

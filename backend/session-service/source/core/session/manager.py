@@ -192,7 +192,7 @@ class SessionManager:
 
         # Start the simulator
         session_id = self.state_manager.get_active_session_id()
-        simulator, error = await self.simulator_manager.create_simulator(session_id, user_id)
+        simulator, error = await self.simulator_manager.create_or_reuse_simulator(session_id, user_id)
 
         if simulator and not error:
             # Update session details with simulator info

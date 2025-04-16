@@ -209,39 +209,6 @@ class SessionServer:
         - Session state
         - External service dependencies
         """
-
-        # Log all request information
-        logger.warning(f"READINESS CHECK DEBUG - Full request details:")
-        logger.warning(f"URL: {request.url}")
-        logger.warning(f"Method: {request.method}")
-        logger.warning(f"Headers: {dict(request.headers)}")
-        logger.warning(f"Query parameters: {dict(request.query)}")
-        logger.warning(f"Remote: {request.remote}")
-        logger.warning(f"Host: {request.host}")
-        logger.warning(f"Path: {request.path}")
-        logger.warning(f"Transport: {request.transport}")
-
-        # Log available state information
-        logger.warning(f"State Manager - is_ready: {self.state_manager.is_ready()}")
-        logger.warning(f"State Manager - is_active: {self.state_manager.is_active()}")
-        logger.warning(f"State Manager - session_id: {self.state_manager.get_active_session_id()}")
-        logger.warning(f"State Manager - uptime: {self.state_manager.get_uptime_seconds()}")
-
-        # Try to get current session info if active
-        active_session = None
-        active_user_id = None
-        if self.state_manager.is_active():
-            try:
-                active_session = await self.session_manager.get_session()
-                active_user_id = active_session.user_id if active_session else None
-                logger.warning(f"Active session user_id: {active_user_id}")
-
-                # Get session details if available
-                session_details = await self.session_manager.get_session_details()
-                logger.warning(f"Session details: {session_details}")
-            except Exception as e:
-                logger.error(f"Error getting active session info: {e}")
-
         checks = {
             'database': 'DOWN',
             'session_state': 'DOWN',
@@ -262,24 +229,10 @@ class SessionServer:
             logger.error(f"Database connection check error: {e}")
             all_ready = False
 
-        """
         # Check session state
         try:
             # Use state manager to check readiness
             session_ready = self.session_manager.state_manager.is_ready()
-            logger.warning(f"Check session state: {session_ready}")
-            checks['session_state'] = 'UP' if session_ready else 'DOWN'
-            if not session_ready:
-                all_ready = False
-        except Exception as e:
-            logger.error(f"Session state check error: {e}")
-            all_ready = False
-        """
-        # Modified session state check - service is ready if either:
-        # 1. It has no active session (is_ready() returns True)
-        # 2. It has an active session but can accept reconnections (is_active() returns True)
-        try:
-            session_ready = self.session_manager.state_manager.is_ready() or self.session_manager.state_manager.is_active()
             logger.warning(f"Check session state: {session_ready}")
             checks['session_state'] = 'UP' if session_ready else 'DOWN'
             if not session_ready:

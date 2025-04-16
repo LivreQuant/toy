@@ -101,7 +101,7 @@ async def authenticate_websocket_request(
     # CHANGE: Instead of rejecting the new device, flag it for replacement
     if existing_device_id and existing_device_id != device_id:
         logger.warning(f"Device mismatch: User {user_id} attempting connection with device {device_id}, " 
-                      f"but session is active on device {existing_device_id}")
+                       f"but session is active on device {existing_device_id}")
         
         # Instead of raising an exception, store the current (old) device ID so we can handle it later
         # This will allow the new device but signal WebSocketManager to handle the transition

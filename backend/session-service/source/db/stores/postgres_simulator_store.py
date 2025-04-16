@@ -136,6 +136,38 @@ class PostgresSimulatorStore(PostgresRepository[Simulator]):
                 track_db_error("pg_get_simulator")
                 return None
 
+    async def update_simulator_session(self, simulator_id: str, session_id: str) -> bool:
+        """
+        Update the session ID for a simulator.
+        Used when reusing a simulator across different sessions.
+
+        Args:
+            simulator_id: The simulator ID to update
+            session_id: The new session ID
+
+        Returns:
+            True if successful, False otherwise
+        """
+        with optional_trace_span(self.tracer, "pg_store_update_simulator_session") as span:
+            span.set_attribute("simulator_id", simulator_id)
+            span.set_attribute("session_id", session_id)
+
+            try:
+                pool = await self._get_pool()
+                with TimedOperation(track_db_operation, "pg_update_simulator_session"):
+                    async with pool.acquire() as conn:
+                        result = await conn.execute('''
+                            UPDATE simulator.instances
+                            SET session_id = $1, last_active = NOW()
+                            WHERE simulator_id = $2
+                        ''', session_id, simulator_id)
+                        return 'UPDATE 1' in result
+            except Exception as e:
+                logger.error(f"Error updating simulator session in PostgreSQL: {e}")
+                span.record_exception(e)
+                track_db_error("pg_update_simulator_session")
+                return False
+
     async def get_simulator_by_session(self, session_id: str) -> Optional[Simulator]:
         """
         Get simulator for a specific session ID.
