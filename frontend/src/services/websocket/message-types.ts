@@ -190,6 +190,13 @@ export interface ServerConnectionReplacedMessage extends BaseWebSocketMessage {
    timestamp: number;
  }
 
+ export interface DeviceIdInvalidatedMessage extends BaseWebSocketMessage {
+   type: 'device_id_invalidated';
+   deviceId: string;
+   reason?: string;
+   timestamp: number;
+ }
+
  // --- Union Type for All Possible Messages ---
  export type WebSocketMessage =
     | ClientHeartbeatMessage
@@ -210,7 +217,8 @@ export interface ServerConnectionReplacedMessage extends BaseWebSocketMessage {
     | ServerSimulatorStartedResponse
     | ServerSimulatorStoppedResponse
     | ServerConnectionReplacedMessage
-    | ServerSimulatorStatusUpdateMessage;
+    | ServerSimulatorStatusUpdateMessage
+    | DeviceIdInvalidatedMessage;
  
  // --- Type Guard Functions ---
  export function isServerHeartbeatAckMessage(msg: WebSocketMessage): msg is ServerHeartbeatAckMessage {
@@ -247,4 +255,8 @@ export interface ServerConnectionReplacedMessage extends BaseWebSocketMessage {
 
  export function isServerSimulatorStatusUpdateMessage(msg: WebSocketMessage): msg is ServerSimulatorStatusUpdateMessage {
    return msg.type === 'simulator_status_update';
+ }
+ 
+ export function isDeviceIdInvalidatedMessage(msg: WebSocketMessage): msg is DeviceIdInvalidatedMessage {
+   return msg.type === 'device_id_invalidated';
  }

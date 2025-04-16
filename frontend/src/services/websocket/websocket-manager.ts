@@ -35,6 +35,7 @@ import {
   ServerOrderSubmittedResponse,
   ServerOrderCancelledResponse,
   ServerConnectionReplacedMessage,
+  DeviceIdInvalidatedMessage,
 
   isServerSimulatorStatusUpdateMessage,
   ServerSimulatorStatusUpdateMessage,
@@ -50,7 +51,6 @@ import { HeartbeatManager } from './heartbeat-manager';
 // Define WebSocket specific event types
 export interface WebSocketEvents {
   message: WebSocketMessage;
-  device_id_invalidated: { deviceId: string, currentValidDeviceId: string };
   heartbeat_ack: ServerHeartbeatAckMessage;
   reconnect_result: ServerReconnectResultMessage;
   exchange_data_status: ServerExchangeDataStatusMessage;
@@ -62,6 +62,11 @@ export interface WebSocketEvents {
   order_submitted: ServerOrderSubmittedResponse;
   order_cancelled: ServerOrderCancelledResponse;
   connection_replaced: ServerConnectionReplacedMessage;
+  device_id_invalidated: { 
+    deviceId: string, 
+    reason?: string,
+    currentValidDeviceId?: string // Add this property
+  };
 }
 
 // Structure for pending request promises
@@ -239,7 +244,14 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
           success: (message as ServerSessionInfoResponse).success
         });
       }
-      
+        
+      // Add a check for device ID invalidation message
+      if (message.type === 'device_id_invalidated') {
+        this.handleDeviceIdInvalidatedMessage(message as DeviceIdInvalidatedMessage);
+        this.emit('device_id_invalidated', message);
+        return;
+      }
+
       // Emit generic message event
       this.emit('message', message);
   
@@ -305,6 +317,22 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
         );
         this.heartbeatManager.start();
     }
+  }
+
+  // Add a new method to handle device ID invalidation
+  private handleDeviceIdInvalidatedMessage(message: DeviceIdInvalidatedMessage): void {
+    if (this.isDisposed) return;
+    
+    this.logger.warn(`Device ID invalidated: ${message.deviceId}. Reason: ${message.reason || 'unknown'}`);
+    
+    // Notify observers - use properties that match the interface
+    this.emit('device_id_invalidated', {
+      deviceId: DeviceIdManager.getInstance().getDeviceId(),
+      reason: message.reason
+    });
+    
+    // Disconnect WebSocket
+    this.disconnect('device_id_invalidated');
   }
 
   private handleConnectionClose(event: CloseEvent): void {

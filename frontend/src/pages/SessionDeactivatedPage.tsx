@@ -1,24 +1,36 @@
-import React from 'react';
+// In src/pages/SessionDeactivatedPage.tsx
+import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { DeviceIdManager } from '../services/auth/device-id-manager';
+import { appState } from '../services/state/app-state.service';
 
 const SessionDeactivatedPage: React.FC = () => {
   const navigate = useNavigate();
   const { logout } = useAuth();
   const deviceIdManager = DeviceIdManager.getInstance();
 
+  // Check if the user should be here
+  useEffect(() => {
+    const authState = appState.getState().auth;
+    // If not authenticated at all, redirect to login
+    if (!authState.isAuthenticated) {
+      navigate('/login', { replace: true });
+    }
+  }, [navigate]);
+
   const handleReactivate = () => {
-    // Use the new public method
+    // Regenerate device ID
     deviceIdManager.regenerateDeviceId();
     
-    // Redirect to home or login page
+    // Redirect to home
     navigate('/home');
   };
 
   const handleClose = () => {
-    // Logout and clear everything
+    // Logout completely
     logout();
+    // Navigation handled by auth context after logout
   };
 
   return (
@@ -26,8 +38,9 @@ const SessionDeactivatedPage: React.FC = () => {
       <h1>Session Deactivated</h1>
       <p>Your current session has been deactivated. This can happen when:</p>
       <ul>
-        <li>You logged in on another device</li>
-        <li>Your session was terminated</li>
+        <li>Your session was opened on another device</li>
+        <li>Your session has expired or been terminated</li>
+        <li>Your device ID is no longer recognized by the server</li>
       </ul>
 
       <div className="session-actions">
@@ -41,7 +54,7 @@ const SessionDeactivatedPage: React.FC = () => {
           onClick={handleClose} 
           className="close-button"
         >
-          Close Session
+          Log Out
         </button>
       </div>
     </div>

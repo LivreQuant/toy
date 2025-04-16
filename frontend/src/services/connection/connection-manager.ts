@@ -13,6 +13,7 @@ import { SessionApi } from '../../api/session';
 import { AppErrorHandler } from '../../utils/app-error-handler';
 import { ErrorSeverity } from '../../utils/error-handler';
 // Import specific request/response types needed for method signatures
+import { DeviceIdManager } from '../auth/device-id-manager';
 import { OrderSide, OrderType, SubmitOrderRequest, SubmitOrderResponse } from '../../api/order';
 import { SimulatorStatusResponse } from '../../api/simulator';
 import { EnhancedLogger } from '../../utils/enhanced-logger';
@@ -24,7 +25,9 @@ import { firstValueFrom } from 'rxjs';
 export interface ConnectionManagerEvents {
   auth_failed: { reason: string };
   device_id_changed: { oldDeviceId: string, newDeviceId: string };
+  device_id_invalidated: { deviceId: string, reason?: string }; // Add this line
 }
+
 
 // Define the desired state structure
 export interface ConnectionDesiredState {
@@ -166,33 +169,25 @@ export class ConnectionManager extends TypedEventEmitter<ConnectionManagerEvents
     // Listen for device ID invalidation events
     this.wsManager.on('device_id_invalidated').subscribe(data => {
       if (this.isDisposed) return;
-      this.logger.warn(`[Listener] Device ID invalidated: ${data.deviceId}. Current valid ID: ${data.currentValidDeviceId}`);
+      this.logger.warn(`[Listener] Device ID invalidated: ${data.deviceId}. Reason: ${data.reason}`);
       
-      // Force logout as this session is now invalid
-      AppErrorHandler.handleAuthError(
-        'Your session was signed in elsewhere. You have been logged out.',
-        ErrorSeverity.HIGH,
-        'DeviceIdInvalidated'
-      );
+      // Clear the device ID in DeviceIdManager
+      DeviceIdManager.getInstance().clearDeviceId();
       
-      // Emit event for other components that might need to handle this
-      this.emit('device_id_changed', { 
-        oldDeviceId: data.deviceId, 
-        newDeviceId: data.currentValidDeviceId 
-      });
-      
-      // Disconnect websocket
+      // Force disconnect
       this.disconnect('device_id_invalidated');
       
-      // Clear auth tokens to force logout
-      //this.tokenManager.clearTokens();
+      // Emit event for other components
+      this.emit('device_id_invalidated', {
+        deviceId: data.deviceId,
+        reason: data.reason
+      });
       
-      // Update app state to reflect logout
+      // Update app state with a special flag to trigger redirect
       appState.updateAuthState({
-        isAuthenticated: false,
+        isAuthenticated: true, // Keep authenticated but with invalid device
         isAuthLoading: false,
-        userId: null,
-        lastAuthError: 'Session signed in elsewhere'
+        lastAuthError: `Device ID invalidated: ${data.reason}`
       });
     });
     

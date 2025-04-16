@@ -28,6 +28,10 @@ import { toastService } from './services/notification/toast-service';
 import { ErrorHandler } from './utils/error-handler'; // Import ErrorHandler
 import { DeviceIdManager } from './services/auth/device-id-manager'; // Import DeviceIdManager
 
+import { useNavigate } from 'react-router-dom';
+import { useConnection } from './hooks/useConnection';
+import { useEffect } from 'react';
+
 // Initialize Logging First
 initializeLogging();
 const logger = getLogger('App'); // Get logger instance
@@ -71,6 +75,26 @@ const connectionManager = new ConnectionManager(tokenManager, {
 logger.info('Application services instantiated.');
 // --- End Service Instantiation ---
 
+function DeviceIdInvalidationHandler({ children }: { children: React.ReactNode }) {
+  const navigate = useNavigate();
+  const { connectionManager } = useConnection(); // Destructure to get connectionManager
+  
+  useEffect(() => {
+    if (!connectionManager) return;
+    
+    // Subscribe to device_id_invalidated events
+    const subscription = connectionManager.on('device_id_invalidated').subscribe(() => {
+      // Redirect to session deactivated page
+      navigate('/session-deactivated', { replace: true });
+    });
+    
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [connectionManager, navigate]);
+  
+  return <>{children}</>;
+}
 
 function App() {
   logger.info('Rendering App component');
@@ -81,28 +105,30 @@ function App() {
         <TokenManagerProvider tokenManager={tokenManager}>
           <ConnectionProvider connectionManager={connectionManager}>
               <Router>
-                <Routes>
-                  <Route path="/login" element={<LoginPage />} />
+                <DeviceIdInvalidationHandler>
+                  <Routes>
+                    <Route path="/login" element={<LoginPage />} />
 
-                  {/* Protected Routes */}
-                  <Route path="/home" element={
-                      <ProtectedRoute>
-                        <HomePage />
-                      </ProtectedRoute>
-                  } />
-                  <Route path="/simulator" element={
-                      <ProtectedRoute>
-                        <SimulatorPage />
-                      </ProtectedRoute>
-                  } />
+                    {/* Protected Routes */}
+                    <Route path="/home" element={
+                        <ProtectedRoute>
+                          <HomePage />
+                        </ProtectedRoute>
+                    } />
+                    <Route path="/simulator" element={
+                        <ProtectedRoute>
+                          <SimulatorPage />
+                        </ProtectedRoute>
+                    } />
 
-                  <Route path="/session-deactivated" element={<SessionDeactivatedPage />} />
+                    <Route path="/session-deactivated" element={<SessionDeactivatedPage />} />
 
-                  {/* Default route */}
-                  <Route path="/" element={<Navigate to="/home" replace />} />
+                    {/* Default route */}
+                    <Route path="/" element={<Navigate to="/home" replace />} />
 
-                  {/* Add other routes here */}
-                </Routes>
+                    {/* Add other routes here */}
+                  </Routes>
+                </DeviceIdInvalidationHandler>
               </Router>
           </ConnectionProvider>
          </TokenManagerProvider>
