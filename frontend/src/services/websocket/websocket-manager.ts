@@ -3,7 +3,7 @@ import { BehaviorSubject, Observable, Subscription } from 'rxjs';
 import { filter, map } from 'rxjs/operators';
 import { TokenManager } from '../auth/token-manager';
 import { WebSocketOptions } from './types';
-import { DeviceIdManager } from '../../utils/device-id-manager';
+import { DeviceIdManager } from '../auth/device-id-manager';
 import { Disposable } from '../../utils/disposable';
 import { config } from '../../config';
 import { AppErrorHandler } from '../../utils/app-error-handler';
@@ -377,7 +377,7 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
     this.disconnect('connection_replaced_by_other_device');
     
     // Clear auth tokens to force logout
-    this.tokenManager.clearTokens();
+    //this.tokenManager.clearTokens();
     
     // Update app state
     appState.updateAuthState({

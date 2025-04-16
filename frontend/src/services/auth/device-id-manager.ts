@@ -1,10 +1,10 @@
 // UPDATED device-id-manager.ts
-import { StorageService } from '../services/storage/storage-service';
-import { EnhancedLogger } from './enhanced-logger';
+import { SessionStorageService } from '../storage/session-storage-service';
+import { EnhancedLogger } from '../../utils/enhanced-logger';
 
 export class DeviceIdManager {
     private static instance: DeviceIdManager | null = null;
-    private readonly storageService: StorageService;
+    private readonly storageService: SessionStorageService;
     private readonly logger: EnhancedLogger;
     private readonly DEVICE_ID_KEY = 'app_device_identifier';
     private deviceId: string | null = null;
@@ -13,7 +13,7 @@ export class DeviceIdManager {
     private readonly BROWSER_SESSION_KEY = 'browser_session_key';
     private sessionKey: string | null = null;
 
-    private constructor(storageService: StorageService, parentLogger: EnhancedLogger) {
+    private constructor(storageService: SessionStorageService, parentLogger: EnhancedLogger) {
         this.storageService = storageService;
         this.logger = parentLogger.createChild('DeviceIdManager');
         this.logger.info('DeviceIdManager instance initializing...');
@@ -63,7 +63,7 @@ export class DeviceIdManager {
         }
     }
 
-    public static getInstance(storageService?: StorageService, parentLogger?: EnhancedLogger): DeviceIdManager {
+    public static getInstance(storageService?: SessionStorageService, parentLogger?: EnhancedLogger): DeviceIdManager {
         if (!DeviceIdManager.instance) {
             if (!storageService || !parentLogger) {
                 throw new Error("DeviceIdManager requires StorageService and Logger for first initialization.");

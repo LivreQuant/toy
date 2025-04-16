@@ -1,6 +1,6 @@
 // src/api/session.ts
 import { WebSocketManager } from '../services/websocket/websocket-manager';
-import { DeviceIdManager } from '../utils/device-id-manager';
+import { DeviceIdManager } from '../services/auth/device-id-manager';
 
 export interface SessionResponse {
   success: boolean;

@@ -12,6 +12,7 @@ import ProtectedRoute from './components/Common/ProtectedRoute'; // Component fo
 // --- Service Instantiation (Move to a bootstrapper file if complex) ---
 import { TokenManager } from './services/auth/token-manager';
 import { LocalStorageService } from './services/storage/local-storage-service';
+import { SessionStorageService } from './services/storage/session-storage-service';
 import { HttpClient } from './api/http-client';
 import { AuthApi } from './api/auth';
 import { WebSocketManager } from './services/websocket/websocket-manager';
@@ -23,23 +24,24 @@ import { initializeLogging, getLogger } from './boot/logging'; // Import logging
 import { AppErrorHandler } from './utils/app-error-handler';
 import { toastService } from './services/notification/toast-service';
 import { ErrorHandler } from './utils/error-handler'; // Import ErrorHandler
-import { DeviceIdManager } from './utils/device-id-manager'; // Import DeviceIdManager
+import { DeviceIdManager } from './services/auth/device-id-manager'; // Import DeviceIdManager
 
 // Initialize Logging First
 initializeLogging();
 const logger = getLogger('App'); // Get logger instance
 
 // Instantiate Core Services (Singleton or Scoped)
-const storageService = new LocalStorageService();
+const localStorageService = new LocalStorageService();
+const sessionStorageService = new SessionStorageService();
 const baseLogger = getLogger('ServiceCore'); // Use base logger for service instantiation
 const errorHandler = new ErrorHandler(baseLogger.createChild('ErrorHandler'), toastService); // Use base logger
 
 // Initialize Singletons that need setup
 AppErrorHandler.initialize(baseLogger.createChild('AppErrorHandler'), toastService);
-DeviceIdManager.getInstance(storageService, baseLogger.createChild('DeviceIdManager')); // Initialize DeviceIdManager
+DeviceIdManager.getInstance(sessionStorageService, baseLogger.createChild('DeviceIdManager')); // Initialize DeviceIdManager
 
 // Instantiate remaining services
-const tokenManager = new TokenManager(storageService, errorHandler); // Pass errorHandler instance
+const tokenManager = new TokenManager(localStorageService, errorHandler); // Pass errorHandler instance
 const httpClient = new HttpClient(tokenManager); // HttpClient uses TokenManager
 const authApi = new AuthApi(httpClient);
 tokenManager.setAuthApi(authApi); // Important: Set AuthApi dependency in TokenManager

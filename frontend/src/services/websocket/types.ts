@@ -4,7 +4,7 @@
 import { TypedEventEmitter } from '../../utils/typed-event-emitter';
 import { TokenManager } from '../auth/token-manager';
 // Correct path assuming device-id-manager.ts is in src/utils/
-import { DeviceIdManager } from '../../utils/device-id-manager';
+import { DeviceIdManager } from '../auth/device-id-manager';
 // Use EnhancedLogger consistently
 import { EnhancedLogger } from '../../utils/enhanced-logger';
 // Assuming WebSocketEvents definition might live elsewhere or be passed generically

@@ -185,12 +185,9 @@ export interface BaseWebSocketMessage {
  
 export interface ServerConnectionReplacedMessage extends BaseWebSocketMessage {
    type: 'connection_replaced';
-   message: string;
+   deviceId: string;
+   reason: 'new_login' | 'multiple_tabs';
    timestamp: number;
-   newDeviceInfo?: {
-     newDeviceId: string;
-     timestamp: number;
-   };
  }
 
  // --- Union Type for All Possible Messages ---

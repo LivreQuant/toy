@@ -7,7 +7,7 @@ import LoadingSpinner from '../components/Common/LoadingSpinner'; // Assuming co
 // --->>> ADD THIS IMPORT <<<---
 import { appState } from '../services/state/app-state.service'; // Adjust path as needed
 import { getLogger } from '../boot/logging'; // Adjust path as needed
-import { DeviceIdManager } from '../utils/device-id-manager';
+import { DeviceIdManager } from '../services/auth/device-id-manager';
 import { ConnectionManager } from '../services/connection/connection-manager';
 
 const logger = getLogger('AuthContext'); // Initialize logger for this context

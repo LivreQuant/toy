@@ -1,6 +1,6 @@
 // src/services/auth/token-manager.ts
 import { AuthApi } from '../../api/auth';
-import { StorageService } from '../storage/storage-service'; // Import your interface
+import { LocalStorageService } from '../storage/local-storage-service'; // Import your interface
 import { ErrorHandler, ErrorSeverity } from '../../utils/error-handler'; // Import error handler
 
 export interface TokenData {
@@ -19,7 +19,7 @@ export class TokenManager {
 
     // Inject StorageService and ErrorHandler
     constructor(
-        private storageService: StorageService,
+        private storageService: LocalStorageService,
         private errorHandler: ErrorHandler
     ) {}
 

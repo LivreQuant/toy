@@ -185,7 +185,7 @@ export class ConnectionManager extends TypedEventEmitter<ConnectionManagerEvents
       this.disconnect('device_id_invalidated');
       
       // Clear auth tokens to force logout
-      this.tokenManager.clearTokens();
+      //this.tokenManager.clearTokens();
       
       // Update app state to reflect logout
       appState.updateAuthState({
@@ -215,7 +215,7 @@ export class ConnectionManager extends TypedEventEmitter<ConnectionManagerEvents
             this.emit('auth_failed', { reason: `Session invalidated by server` });
             
             // Clear tokens
-            this.tokenManager.clearTokens();
+            //this.tokenManager.clearTokens();
             
             // Update auth state
             appState.updateAuthState({

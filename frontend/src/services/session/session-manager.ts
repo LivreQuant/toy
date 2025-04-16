@@ -1,6 +1,6 @@
 // src/services/session/session-manager.ts
-import { DeviceIdManager } from '../../utils/device-id-manager';
-import { StorageService } from '../storage/storage-service';
+import { DeviceIdManager } from '../auth/device-id-manager';
+import { SessionStorageService } from '../storage/session-storage-service';
 import { EnhancedLogger } from '../../utils/enhanced-logger';
 
 export interface UserPreferences {
@@ -27,14 +27,14 @@ export interface SessionData {
 
 
 export class SessionManager {
-  private readonly storageService: StorageService;
+  private readonly sessionStorageService: SessionStorageService;
   private readonly logger: EnhancedLogger;
   private readonly SESSION_KEY = 'trading_app_session';
   private readonly ACTIVITY_UPDATE_THROTTLE = 60 * 1000;
   private lastActivityUpdateTimestamp = 0;
 
-  constructor(storageService: StorageService, parentLogger: EnhancedLogger) {
-    this.storageService = storageService;
+  constructor(sessionStorageService: SessionStorageService, parentLogger: EnhancedLogger) {
+    this.sessionStorageService = sessionStorageService;
     this.logger = parentLogger.createChild('SessionManager');
     this.logger.info('SessionManager Initialized');
   }
@@ -64,7 +64,7 @@ export class SessionManager {
        };
 
        try {
-           this.storageService.setItem(this.SESSION_KEY, JSON.stringify(updatedData));
+           this.sessionStorageService.setItem(this.SESSION_KEY, JSON.stringify(updatedData));
            this.logger.debug('Session data saved successfully.');
        } catch (e: any) {
            this.logger.error('Failed to save session data', { error: e.message });
@@ -79,7 +79,7 @@ export class SessionManager {
 
    private getSessionDataInternal(): SessionData {
        try {
-           const sessionStr = this.storageService.getItem(this.SESSION_KEY);
+           const sessionStr = this.sessionStorageService.getItem(this.SESSION_KEY);
            const defaultSession: SessionData = { userId: null, lastActive: 0, deviceId: '', userPreferences: this.getDefaultUserPreferences(), accountSettings: this.getDefaultAccountSettings() };
 
            if (!sessionStr) {
@@ -133,7 +133,7 @@ export class SessionManager {
 
   public clearSessionData(): void {
     try {
-      this.storageService.removeItem(this.SESSION_KEY);
+      this.sessionStorageService.removeItem(this.SESSION_KEY);
       this.lastActivityUpdateTimestamp = 0;
       this.logger.info('Session data cleared from storage.');
     } catch (e: any) {
