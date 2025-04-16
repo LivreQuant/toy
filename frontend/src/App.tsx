@@ -3,10 +3,12 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { ConnectionProvider } from './contexts/ConnectionContext';
+import { TokenManagerProvider } from './contexts/TokenManagerContext';
 import { ToastProvider } from './contexts/ToastContext';
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import SimulatorPage from './pages/SimulatorPage';
+import SessionDeactivatedPage from './pages/SessionDeactivatedPage';
 import ProtectedRoute from './components/Common/ProtectedRoute'; // Component for protected routes
 
 // --- Service Instantiation (Move to a bootstrapper file if complex) ---
@@ -41,7 +43,7 @@ AppErrorHandler.initialize(baseLogger.createChild('AppErrorHandler'), toastServi
 DeviceIdManager.getInstance(sessionStorageService, baseLogger.createChild('DeviceIdManager')); // Initialize DeviceIdManager
 
 // Instantiate remaining services
-const tokenManager = new TokenManager(localStorageService, errorHandler); // Pass errorHandler instance
+const tokenManager = new TokenManager(localStorageService, errorHandler, DeviceIdManager.getInstance(sessionStorageService, logger)); // Pass errorHandler instance
 const httpClient = new HttpClient(tokenManager); // HttpClient uses TokenManager
 const authApi = new AuthApi(httpClient);
 tokenManager.setAuthApi(authApi); // Important: Set AuthApi dependency in TokenManager
@@ -76,30 +78,34 @@ function App() {
     // Order matters: Toast > Auth > Connection
     <ToastProvider>
        <AuthProvider tokenManager={tokenManager} authApi={authApi} connectionManager={connectionManager}>
-         <ConnectionProvider connectionManager={connectionManager}>
-            <Router>
-              <Routes>
-                <Route path="/login" element={<LoginPage />} />
+        <TokenManagerProvider tokenManager={tokenManager}>
+          <ConnectionProvider connectionManager={connectionManager}>
+              <Router>
+                <Routes>
+                  <Route path="/login" element={<LoginPage />} />
 
-                {/* Protected Routes */}
-                <Route path="/home" element={
-                    <ProtectedRoute>
-                       <HomePage />
-                    </ProtectedRoute>
-                } />
-                 <Route path="/simulator" element={
-                    <ProtectedRoute>
-                       <SimulatorPage />
-                    </ProtectedRoute>
-                } />
+                  {/* Protected Routes */}
+                  <Route path="/home" element={
+                      <ProtectedRoute>
+                        <HomePage />
+                      </ProtectedRoute>
+                  } />
+                  <Route path="/simulator" element={
+                      <ProtectedRoute>
+                        <SimulatorPage />
+                      </ProtectedRoute>
+                  } />
 
-                {/* Default route */}
-                <Route path="/" element={<Navigate to="/home" replace />} />
+                  <Route path="/session-deactivated" element={<SessionDeactivatedPage />} />
 
-                {/* Add other routes here */}
-              </Routes>
-            </Router>
-         </ConnectionProvider>
+                  {/* Default route */}
+                  <Route path="/" element={<Navigate to="/home" replace />} />
+
+                  {/* Add other routes here */}
+                </Routes>
+              </Router>
+          </ConnectionProvider>
+         </TokenManagerProvider>
        </AuthProvider>
     </ToastProvider>
   );

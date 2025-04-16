@@ -173,4 +173,10 @@ export class DeviceIdManager {
             return false;
         }
     }
+
+    // Add a public method to wrap the private method
+    public regenerateDeviceId(): string {
+        this.loadOrGenerateDeviceId();
+        return this.getDeviceId();
+    }
 }

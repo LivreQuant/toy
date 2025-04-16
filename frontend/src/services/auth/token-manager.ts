@@ -1,6 +1,7 @@
 // src/services/auth/token-manager.ts
 import { AuthApi } from '../../api/auth';
 import { LocalStorageService } from '../storage/local-storage-service'; // Import your interface
+import { DeviceIdManager } from './device-id-manager'; // Import your interface
 import { ErrorHandler, ErrorSeverity } from '../../utils/error-handler'; // Import error handler
 
 export interface TokenData {
@@ -20,7 +21,8 @@ export class TokenManager {
     // Inject StorageService and ErrorHandler
     constructor(
         private storageService: LocalStorageService,
-        private errorHandler: ErrorHandler
+        private errorHandler: ErrorHandler,
+        private deviceIdManager: DeviceIdManager // Add this
     ) {}
 
     // Keep this method to break the circular dependency during setup
@@ -195,5 +197,12 @@ export class TokenManager {
                 );
             }
         });
+    }
+
+    public isSessionDeactivated(): boolean {
+      const tokens = this.getTokens();
+      
+      // Check if tokens exist but device ID is missing
+      return tokens !== null && !this.deviceIdManager.hasStoredDeviceId();
     }
 }
