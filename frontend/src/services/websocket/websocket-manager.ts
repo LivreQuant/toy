@@ -62,7 +62,7 @@ export interface WebSocketEvents {
   order_submitted: ServerOrderSubmittedResponse;
   order_cancelled: ServerOrderCancelledResponse;
   connection_replaced: ServerConnectionReplacedMessage;
-  device_id_invalidated: { 
+  device_id_invalidated: {
     deviceId: string, 
     reason?: string,
     currentValidDeviceId?: string // Add this property
