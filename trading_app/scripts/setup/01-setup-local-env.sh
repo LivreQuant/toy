@@ -28,6 +28,24 @@ if ! command -v curl >/dev/null 2>&1; then
     sudo apt-get update && sudo apt-get install -y curl
 fi
 
+# Check if Docker is installed, install if missing
+if ! command -v docker >/dev/null 2>&1; then
+    echo "Docker not found. Installing..."
+    sudo apt-get update
+    sudo apt-get install -y \
+        ca-certificates \
+        curl \
+        gnupg \
+        lsb-release
+    sudo mkdir -p /etc/apt/keyrings
+    curl -fsSL https://download.docker.com/linux/debian/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+    sudo apt-get update
+    sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    sudo usermod -aG docker "$USER"
+    echo "Docker installed. Please log out and log back in for group changes to take effect if this is your first install."
+fi
+
 # Check if minikube is installed, install if missing
 if ! command -v minikube >/dev/null 2>&1; then
     echo "Minikube not found. Installing..."
