@@ -79,12 +79,21 @@ function DeviceIdInvalidationHandler({ children }: { children: React.ReactNode }
   const navigate = useNavigate();
   const { connectionManager } = useConnection(); // Destructure to get connectionManager
   
+  
   useEffect(() => {
     if (!connectionManager) return;
     
+    console.log("Setting up device_id_invalidated listener");
+    
     // Subscribe to device_id_invalidated events
-    const subscription = connectionManager.on('device_id_invalidated').subscribe(() => {
-      // Redirect to session deactivated page
+    const subscription = connectionManager.on('device_id_invalidated').subscribe((eventData) => {
+      console.error("🚨 DEVICE ID INVALIDATED - REDIRECTING TO SESSION DEACTIVATED PAGE", {
+        eventData,
+        currentPath: window.location.pathname,
+        timestamp: new Date().toISOString()
+      });
+      
+      // Force immediate redirect to session deactivated page
       navigate('/session-deactivated', { replace: true });
     });
     

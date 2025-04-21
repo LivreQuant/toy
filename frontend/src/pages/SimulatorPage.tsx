@@ -44,6 +44,15 @@ const SimulatorPage: React.FC = () => {
        return success; // Return success status
    }, [connectionManager, isSimulatorBusy, isSimulatorRunning, addToast]);
 
+    useEffect(() => {
+        console.log("Simulator status changed:", {
+        simulatorStatus,
+        isSimulatorRunning,
+        isSimulatorBusy,
+        isConnected
+        });
+    }, [simulatorStatus, isSimulatorRunning, isSimulatorBusy, isConnected]);
+
    // --- NEW: Handler to Stop Simulator and Go Home ---
    const handleShutdownAndGoHome = useCallback(async () => {
         // Prevent action if already busy or not running

@@ -429,7 +429,7 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
       // Emit event for the device ID invalidation
       this.emit('device_id_invalidated', { 
         deviceId: DeviceIdManager.getInstance().getDeviceId(), 
-        reason: message.reason 
+        reason: message.reason || 'Unknown reason'
       });
       
       // Disconnect WebSocket

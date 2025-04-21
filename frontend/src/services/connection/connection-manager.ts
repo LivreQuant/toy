@@ -145,10 +145,19 @@ export class ConnectionManager extends TypedEventEmitter<ConnectionManagerEvents
   
         // Add explicit logging for each condition
         if (status === ConnectionStatus.DISCONNECTED && this.desiredState.connected) {
-          console.error('💥 UNEXPECTED DISCONNECT - ATTEMPTING RECOVERY', {
-            reason: 'WebSocket disconnected unexpectedly',
-            stackTrace: new Error().stack?.split('\n').slice(1, 10).join('\n')
-          });
+          // Get the disconnection reason
+          const lastError = appState.getState().connection.lastConnectionError;
+          
+          // Don't attempt recovery for device ID invalidation
+          if (lastError === 'device_id_invalidated') {
+            this.logger.warn('Not attempting recovery for device_id_invalidated disconnection');
+            // Instead, simply update state and don't recovery
+            appState.updateConnectionState({ isRecovering: false });
+            return;
+          }
+          
+          // For other disconnection reasons, proceed with recovery
+          this.logger.warn(`WebSocket disconnected unexpectedly: ${lastError}`);
           this.attemptRecovery('ws_unexpected_disconnect');
         } else if (status === ConnectionStatus.CONNECTED) {
               this.logger.info('[Listener] WebSocket connected. Resetting resilience.');
@@ -182,8 +191,10 @@ export class ConnectionManager extends TypedEventEmitter<ConnectionManagerEvents
         if (!data.deviceIdValid) {
             this.logger.error(`[Listener] Devicce ID invalidated by heartbeat response. Forcing disconnect and logout.`);
             AppErrorHandler.handleAuthError(`Devicce ID invalidated by server`, ErrorSeverity.HIGH, 'HeartbeatSessionInvalid');
+                  
+            // Clear desired state to prevent auto-reconnect attempts
             this.setDesiredState({ connected: false });
-                    
+                  
             this.logger.warn(`[Listener] Device ID invalidated: ${data.deviceId}. Reason: ${data.reason}`);
             
             // Clear the device ID in DeviceIdManager
@@ -208,6 +219,13 @@ export class ConnectionManager extends TypedEventEmitter<ConnectionManagerEvents
         }
     });
 
+    // Also subscribe directly to device_id_invalidated events from WebSocketManager
+    this.wsManager.subscribe('device_id_invalidated', (data) => {
+      this.logger.warn(`Device ID invalidated event received from WebSocketManager`, data);
+      // Re-emit at ConnectionManager level for DeviceIdInvalidationHandler to catch
+      this.emit('device_id_invalidated', data);
+    });
+    
     // --- ConnectionResilienceManager Listeners ---
     this.resilienceManager.subscribe('reconnect_scheduled', (data: any) => {
         if (this.isDisposed) return;
