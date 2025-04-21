@@ -1,14 +1,10 @@
 // In src/pages/SessionDeactivatedPage.tsx
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../hooks/useAuth';
-import { DeviceIdManager } from '../services/auth/device-id-manager';
 import { appState } from '../services/state/app-state.service';
 
 const SessionDeactivatedPage: React.FC = () => {
   const navigate = useNavigate();
-  const { logout } = useAuth();
-  const deviceIdManager = DeviceIdManager.getInstance();
 
   // Check if the user should be here
   useEffect(() => {
@@ -19,18 +15,17 @@ const SessionDeactivatedPage: React.FC = () => {
     }
   }, [navigate]);
 
-  const handleReactivate = () => {
-    // Regenerate device ID
-    deviceIdManager.regenerateDeviceId();
+  // Added function to close the window
+  const handleCloseWindow = () => {
+    // Close the current window/tab
+    window.close();
     
-    // Redirect to home
-    navigate('/home');
-  };
-
-  const handleClose = () => {
-    // Logout completely
-    logout();
-    // Navigation handled by auth context after logout
+    // Fallback if window.close() doesn't work (due to browser restrictions)
+    // Some browsers only allow window.close() for windows opened by JavaScript
+    setTimeout(() => {
+      // Show message if window didn't close
+      alert('Please close this tab manually. This session has been deactivated.');
+    }, 300);
   };
 
   return (
@@ -45,16 +40,10 @@ const SessionDeactivatedPage: React.FC = () => {
 
       <div className="session-actions">
         <button 
-          onClick={handleReactivate} 
-          className="reactivate-button"
+          onClick={handleCloseWindow} 
+          className="close-window-button"
         >
-          Reactivate Session
-        </button>
-        <button 
-          onClick={handleClose} 
-          className="close-button"
-        >
-          Log Out
+          Close Window
         </button>
       </div>
     </div>

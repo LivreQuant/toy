@@ -17,10 +17,10 @@ import {
   ClientReconnectMessage,
   ServerHeartbeatAckMessage,
   ServerReconnectResultMessage,
-  ServerExchangeDataStatusMessage,
+  ServerExchangeDataMessage,
   isServerHeartbeatAckMessage,
   isServerReconnectResultMessage,
-  isServerExchangeDataStatusMessage,
+  isServerExchangeDataMessage,
   isServerConnectionReplacedMessage,
   ClientStartSimulatorMessage,
   ClientStopSimulatorMessage,
@@ -49,7 +49,7 @@ export interface WebSocketEvents {
   message: WebSocketMessage;
   heartbeat_ack: ServerHeartbeatAckMessage;
   reconnect_result: ServerReconnectResultMessage;
-  exchange_data_status: ServerExchangeDataStatusMessage;
+  exchange_data: ServerExchangeDataMessage;
   message_error: { error: Error; rawData: any };
   session_info: ServerSessionInfoResponse;
   session_stopped: ServerStopSessionResponse;
@@ -256,8 +256,8 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
         this.handleSimulatorStatusUpdateMessage(message);
       } else if (isServerReconnectResultMessage(message)) {
         this.handleReconnectResultMessage(message);
-      } else if (isServerExchangeDataStatusMessage(message)) {
-        this.handleExchangeDataStatusMessage(message);
+      } else if (isServerExchangeDataMessage(message)) {
+        this.handleExchangeDataMessage(message);
       } else if (isServerConnectionReplacedMessage(message)) {
         this.handleConnectionReplacedMessage(message);
         this.emit('connection_replaced', message);
@@ -538,10 +538,10 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
     }
   }
 
-  private handleExchangeDataStatusMessage(message: ServerExchangeDataStatusMessage): void {
+  private handleExchangeDataMessage(message: ServerExchangeDataMessage): void {
     if (this.isDisposed) return;
     
-    this.emit('exchange_data_status', message);
+    this.emit('exchange_data', message);
     
     // Convert the symbols format to match what appState expects
     if (message.symbols) {

@@ -77,8 +77,8 @@ export interface BaseWebSocketMessage {
     simulatorStatus: 'running' | 'stopped' | 'starting' | 'stopping';
  }
  
- export interface ServerExchangeDataStatusMessage extends BaseWebSocketMessage {
-    type: 'exchange_data_status';
+ export interface ServerExchangeDataMessage extends BaseWebSocketMessage {
+    type: 'exchange_data';
     timestamp: number;
     symbols: Record<string, {
         price: number;
@@ -165,7 +165,7 @@ export interface ServerConnectionReplacedMessage extends BaseWebSocketMessage {
     | ClientStopSessionRequest
     | ServerHeartbeatAckMessage
     | ServerReconnectResultMessage
-    | ServerExchangeDataStatusMessage
+    | ServerExchangeDataMessage
     | ServerSessionInfoResponse
     | ServerStopSessionResponse
     | ServerSimulatorStartedResponse
@@ -183,8 +183,8 @@ export interface ServerConnectionReplacedMessage extends BaseWebSocketMessage {
     return msg.type === 'reconnect_result';
  }
  
- export function isServerExchangeDataStatusMessage(msg: WebSocketMessage): msg is ServerExchangeDataStatusMessage {
-    return msg.type === 'exchange_data_status';
+ export function isServerExchangeDataMessage(msg: WebSocketMessage): msg is ServerExchangeDataMessage {
+    return msg.type === 'exchange_data';
  }
  
  export function isServerSessionInfoResponse(msg: WebSocketMessage): msg is ServerSessionInfoResponse {
