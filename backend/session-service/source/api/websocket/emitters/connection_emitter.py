@@ -54,10 +54,10 @@ async def send_timeout(ws: web.WebSocketResponse):
         if not ws.closed:
             await ws.send_json(payload)
             track_websocket_message("sent", "timeout")
-            logger.debug(f"Sent 'timeout' to {ws.remote_address}")  # Use address if client_id unknown here
+            logger.debug(f"Sent 'timeout'")  # Use address if client_id unknown here
     except Exception as e:
         # Log error, but likely the connection is already broken
-        logger.warning(f"Failed to send 'timeout' message to {ws.remote_address}: {e}")
+        logger.warning(f"Failed to send 'timeout' message: {e}")
 
 
 async def send_shutdown(ws: web.WebSocketResponse, reason: str):
@@ -71,9 +71,9 @@ async def send_shutdown(ws: web.WebSocketResponse, reason: str):
         if not ws.closed:
             await ws.send_json(payload)
             track_websocket_message("sent", "shutdown")
-            logger.debug(f"Sent 'shutdown' to {ws.remote_address}")
+            logger.debug(f"Sent 'shutdown'")
     except Exception as e:
-        logger.warning(f"Failed to send 'shutdown' message to {ws.remote_address}: {e}")
+        logger.warning(f"Failed to send 'shutdown' message: {e}")
 
 
 async def send_connection_replaced(ws: web.WebSocketResponse, new_device_info: Dict[str, Any] = None):
@@ -92,9 +92,9 @@ async def send_connection_replaced(ws: web.WebSocketResponse, new_device_info: D
         if not ws.closed:
             await ws.send_json(payload)
             track_websocket_message("sent", "connection_replaced")
-            logger.debug(f"Sent 'connection_replaced' to {ws.remote_address}")
+            logger.debug(f"Sent 'connection_replaced'")
     except Exception as e:
-        logger.warning(f"Failed to send 'connection_replaced' message to {ws.remote_address}: {e}")
+        logger.warning(f"Failed to send 'connection_replaced' message: {e}")
 
 
 async def send_device_id_invalidated(
@@ -114,6 +114,6 @@ async def send_device_id_invalidated(
         if not ws.closed:
             await ws.send_json(payload)
             track_websocket_message("sent", "device_id_invalidated")
-            logger.debug(f"Sent 'device_id_invalidated' to {ws.remote_address}")
+            logger.debug(f"Sent 'device_id_invalidated'")
     except Exception as e:
-        logger.warning(f"Failed to send 'device_id_invalidated' message to {ws.remote_address}: {e}")
+        logger.warning(f"Failed to send 'device_id_invalidated' message: {e}")
