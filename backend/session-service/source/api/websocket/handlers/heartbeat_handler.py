@@ -49,6 +49,30 @@ async def handle_heartbeat(
             device_id_valid = False
             reason = "Session not found"
 
+            # Prepare response
+            response = {
+                'type': 'heartbeat_ack',
+                'timestamp': int(time.time() * 1000),
+                'clientTimestamp': client_timestamp,
+                'deviceId': device_id,
+                'deviceIdValid': device_id_valid,
+                'reason': reason,
+                'simulatorStatus': "NONE",
+            }
+
+            try:
+                if not ws.closed:
+                    await ws.send_json(response)
+                    track_websocket_message("sent", "heartbeat_ack")
+
+            except Exception as e:
+                logger.error(f"Failed to send heartbeat_ack for client {client_id}: {e}")
+
+            if not device_id_valid:
+                await session_manager.state_manager.close(keep_simulator=True)
+
+            return
+
         # Check if the session is still active
         if session.status != SessionStatus.ACTIVE:
             logger.info(f"Session {session.session_id} is no longer active (status: {session.status.value})")

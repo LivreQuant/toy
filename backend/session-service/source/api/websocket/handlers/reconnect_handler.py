@@ -71,7 +71,7 @@ async def handle_reconnect(
             logger.error(f"Failed to update details during reconnect: {e}")
 
         response = {
-            'type': 'reconnect_result',
+            'type': 'reconnect_ack',
             'requestId': request_id,
             'deviceId': device_id,
             'deviceIdValid': device_id_valid,  # Always valid in singleton mode

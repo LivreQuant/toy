@@ -96,7 +96,7 @@ class WebSocketDispatcher:
             'reconnect': reconnect_handler.handle_reconnect,
             
             # Session handlers
-            'request_session_info': session_handler.handle_session_info,
+            'request_session': session_handler.handle_session_info,
             'stop_session': session_handler.handle_stop_session,
             
             # Simulator handlers

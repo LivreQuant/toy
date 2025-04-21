@@ -165,32 +165,7 @@ export class ConnectionManager extends TypedEventEmitter<ConnectionManagerEvents
           }
       })
     );
-    
-    // Listen for device ID invalidation events
-    this.wsManager.on('device_id_invalidated').subscribe(data => {
-      if (this.isDisposed) return;
-      this.logger.warn(`[Listener] Device ID invalidated: ${data.deviceId}. Reason: ${data.reason}`);
-      
-      // Clear the device ID in DeviceIdManager
-      DeviceIdManager.getInstance().clearDeviceId();
-      
-      // Force disconnect
-      this.disconnect('device_id_invalidated');
-      
-      // Emit event for other components
-      this.emit('device_id_invalidated', {
-        deviceId: data.deviceId,
-        reason: data.reason
-      });
-      
-      // Update app state with a special flag to trigger redirect
-      appState.updateAuthState({
-        isAuthenticated: true, // Keep authenticated but with invalid device
-        isAuthLoading: false,
-        lastAuthError: `Device ID invalidated: ${data.reason}`
-      });
-    });
-    
+        
     // Listen for session invalidation messages from the server via WebSocket
     this.wsManager.subscribe('heartbeat_ack', (data) => {
         if (this.isDisposed) return;
@@ -203,21 +178,33 @@ export class ConnectionManager extends TypedEventEmitter<ConnectionManagerEvents
         }
         
         // If session is invalid according to server, handle logout
-          this.logger.error(`[Listener] Session invalidated by heartbeat response. Forcing disconnect and logout.`);
-          AppErrorHandler.handleAuthError(`Session invalidated by server`, ErrorSeverity.HIGH, 'HeartbeatSessionInvalid');
-          this.setDesiredState({ connected: false });
-          this.emit('auth_failed', { reason: `Session invalidated by server` });
-          
-          // Clear tokens
-          //this.tokenManager.clearTokens();
-          
-          // Update auth state
-          appState.updateAuthState({
-              isAuthenticated: false,
-              isAuthLoading: false,
-              userId: null,
-              lastAuthError: 'Session invalidated by server'
-          });
+        if (!data.deviceIdValid) {
+            this.logger.error(`[Listener] Devicce ID invalidated by heartbeat response. Forcing disconnect and logout.`);
+            AppErrorHandler.handleAuthError(`Devicce ID invalidated by server`, ErrorSeverity.HIGH, 'HeartbeatSessionInvalid');
+            this.setDesiredState({ connected: false });
+                    
+            this.logger.warn(`[Listener] Device ID invalidated: ${data.deviceId}. Reason: ${data.reason}`);
+            
+            // Clear the device ID in DeviceIdManager
+            DeviceIdManager.getInstance().clearDeviceId();
+            
+            // Force disconnect
+            this.disconnect('device_id_invalidated');
+            
+            // Emit event for other components
+            this.emit('device_id_invalidated', {
+              deviceId: data.deviceId,
+              reason: data.reason
+            });
+            
+            // Update auth state
+            appState.updateAuthState({
+                isAuthenticated: true, // Keep authenticated but with invalid device
+                isAuthLoading: false,
+                userId: null,
+                lastAuthError: `Device ID invalidated: ${data.reason}`
+            });
+        }
     });
 
     // --- ConnectionResilienceManager Listeners ---

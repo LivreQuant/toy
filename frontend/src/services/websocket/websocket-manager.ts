@@ -679,7 +679,7 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
     });
     
     const message: ClientSessionInfoRequest = {
-      type: 'request_session_info',
+      type: 'request_session',
       requestId,
       timestamp: Date.now(),
       deviceId: DeviceIdManager.getInstance().getDeviceId()

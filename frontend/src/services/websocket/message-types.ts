@@ -36,7 +36,7 @@ export interface BaseWebSocketMessage {
  }
  
  export interface ClientSessionInfoRequest extends BaseWebSocketMessage {
-    type: 'request_session_info';
+    type: 'request_session';
     requestId: string;
     timestamp: number;
     deviceId: string;

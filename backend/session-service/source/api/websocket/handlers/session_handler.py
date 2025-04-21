@@ -128,14 +128,9 @@ async def handle_session_info(
         response = {
             'type': 'session_info',
             'requestId': request_id,
-            'sessionId': session_id,
-            'userId': user_id,
-            'status': session.status.value,
             'deviceId': details.get('device_id', 'unknown'),
-            'createdAt': session.created_at,
             'expiresAt': session.expires_at,
-            'simulatorStatus': details.get('simulator_status', 'NONE'),
-            'simulatorId': details.get('simulator_id')
+            'simulatorStatus': details.get('simulator_status', 'NONE')
         }
 
         try:
@@ -238,7 +233,7 @@ async def handle_stop_session(
                 'requestId': request_id,
                 'success': True,
                 'message': 'Session resources cleaned up',
-                'simulatorStopped': simulator_running
+                'simulatorStatus': simulator_running
             }
 
             logger.info(f"Stopping session 6")
