@@ -31,7 +31,17 @@ fi
 # Check if minikube is installed, install if missing
 if ! command -v minikube >/dev/null 2>&1; then
     echo "Minikube not found. Installing..."
-    curl -Lo minikube https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+    ARCH=$(uname -m)
+    if [ "$ARCH" = "x86_64" ]; then
+        MINIKUBE_ARCH="amd64"
+    elif [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
+        MINIKUBE_ARCH="arm64"
+    else
+        echo "Unsupported architecture: $ARCH"
+        exit 1
+    fi
+    echo "Detected architecture: $ARCH ($MINIKUBE_ARCH)"
+    curl -Lo minikube "https://storage.googleapis.com/minikube/releases/latest/minikube-linux-$MINIKUBE_ARCH"
     chmod +x minikube
     sudo mv minikube /usr/local/bin/
 fi
@@ -39,7 +49,17 @@ fi
 # Check if kubectl is installed, install if missing
 if ! command -v kubectl >/dev/null 2>&1; then
     echo "kubectl not found. Installing..."
-    curl -LO "https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl"
+    ARCH=$(uname -m)
+    if [ "$ARCH" = "x86_64" ]; then
+        KUBECTL_ARCH="amd64"
+    elif [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
+        KUBECTL_ARCH="arm64"
+    else
+        echo "Unsupported architecture: $ARCH"
+        exit 1
+    fi
+    echo "Detected architecture: $ARCH ($KUBECTL_ARCH)"
+    curl -LO "https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/$KUBECTL_ARCH/kubectl"
     chmod +x kubectl
     sudo mv kubectl /usr/local/bin/
 fi
