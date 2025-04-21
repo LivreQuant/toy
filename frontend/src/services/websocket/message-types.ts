@@ -24,31 +24,7 @@ export interface BaseWebSocketMessage {
     sessionToken: string;
     requestId: string;
  }
- 
- export interface ClientSubmitOrderMessage extends BaseWebSocketMessage {
-    type: 'submit_order';
-    requestId: string;
-    timestamp: number;
-    deviceId: string;
-    data: {
-        symbol: string;
-        side: 'BUY' | 'SELL';
-        quantity: number;
-        price?: number;
-        orderType: 'MARKET' | 'LIMIT';
-    };
- }
- 
- export interface ClientCancelOrderMessage extends BaseWebSocketMessage {
-    type: 'cancel_order';
-    requestId: string;
-    timestamp: number;
-    deviceId: string;
-    data: {
-        orderId: string;
-    };
- }
- 
+  
  export interface ClientStartSimulatorMessage extends BaseWebSocketMessage {
     type: 'start_simulator';
     requestId: string;
@@ -120,24 +96,6 @@ export interface BaseWebSocketMessage {
         value: number;
     }>;
  }
- 
- export interface ServerOrderSubmittedResponse extends BaseWebSocketMessage {
-    type: 'order_submitted';
-    requestId: string;
-    success: boolean;
-    orderId: string;
-    errorMessage?: string;
-    timestamp: number;
- }
- 
- export interface ServerOrderCancelledResponse extends BaseWebSocketMessage {
-    type: 'order_cancelled';
-    requestId: string;
-    success: boolean;
-    orderId: string;
-    errorMessage?: string;
-    timestamp: number;
- }
 
  export interface ServerSimulatorStatusUpdateMessage extends BaseWebSocketMessage {
    type: 'simulator_status_update';
@@ -201,8 +159,6 @@ export interface ServerConnectionReplacedMessage extends BaseWebSocketMessage {
  export type WebSocketMessage =
     | ClientHeartbeatMessage
     | ClientReconnectMessage
-    | ClientSubmitOrderMessage
-    | ClientCancelOrderMessage
     | ClientStartSimulatorMessage
     | ClientStopSimulatorMessage
     | ClientSessionInfoRequest
@@ -210,8 +166,6 @@ export interface ServerConnectionReplacedMessage extends BaseWebSocketMessage {
     | ServerHeartbeatAckMessage
     | ServerReconnectResultMessage
     | ServerExchangeDataStatusMessage
-    | ServerOrderSubmittedResponse
-    | ServerOrderCancelledResponse
     | ServerSessionInfoResponse
     | ServerStopSessionResponse
     | ServerSimulatorStartedResponse

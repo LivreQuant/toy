@@ -22,8 +22,6 @@ import {
   isServerReconnectResultMessage,
   isServerExchangeDataStatusMessage,
   isServerConnectionReplacedMessage,
-  ClientSubmitOrderMessage,
-  ClientCancelOrderMessage,
   ClientStartSimulatorMessage,
   ClientStopSimulatorMessage,
   ClientSessionInfoRequest,
@@ -32,8 +30,6 @@ import {
   ServerStopSessionResponse,
   ServerSimulatorStartedResponse,
   ServerSimulatorStoppedResponse,
-  ServerOrderSubmittedResponse,
-  ServerOrderCancelledResponse,
   ServerConnectionReplacedMessage,
   DeviceIdInvalidatedMessage,
 
@@ -59,8 +55,6 @@ export interface WebSocketEvents {
   session_stopped: ServerStopSessionResponse;
   simulator_started: ServerSimulatorStartedResponse;
   simulator_stopped: ServerSimulatorStoppedResponse;
-  order_submitted: ServerOrderSubmittedResponse;
-  order_cancelled: ServerOrderCancelledResponse;
   connection_replaced: ServerConnectionReplacedMessage;
   device_id_invalidated: {
     deviceId: string, 
@@ -693,72 +687,6 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
         resolve(false);
       }
     });
-  }
-
-  // Method to submit an order via WebSocket
-  public async submitOrder(params: {
-    symbol: string;
-    side: 'BUY' | 'SELL';
-    quantity: number;
-    price?: number;
-    orderType: 'MARKET' | 'LIMIT';
-  }): Promise<ServerOrderSubmittedResponse> {
-    if (!this.webSocket || this.webSocket.readyState !== WebSocket.OPEN) {
-      throw new Error('Cannot submit order: WebSocket not connected');
-    }
-
-    const requestId = `order-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
-    const message: ClientSubmitOrderMessage = {
-      type: 'submit_order',
-      requestId,
-      timestamp: Date.now(),
-      deviceId: DeviceIdManager.getInstance().getDeviceId(),
-      data: {
-        symbol: params.symbol,
-        side: params.side,
-        quantity: params.quantity,
-        price: params.price,
-        orderType: params.orderType
-      }
-    };
-    
-    try {
-      this.webSocket.send(JSON.stringify(message));
-      this.logger.debug(`Order submission request sent: ${requestId}`);
-    } catch (error: any) {
-      this.logger.error('Failed to send order submit message', { error: error.message });
-      throw error;
-    }
-
-    return this.createResponsePromise<ServerOrderSubmittedResponse>(requestId, 'order_submitted');
-  }
-
-  // Method to cancel an order via WebSocket
-  public async cancelOrder(orderId: string): Promise<ServerOrderCancelledResponse> {
-    if (!this.webSocket || this.webSocket.readyState !== WebSocket.OPEN) {
-      throw new Error('Cannot cancel order: WebSocket not connected');
-    }
-
-    const requestId = `cancel-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
-    const message: ClientCancelOrderMessage = {
-      type: 'cancel_order',
-      requestId,
-      timestamp: Date.now(),
-      deviceId: DeviceIdManager.getInstance().getDeviceId(),
-      data: {
-        orderId
-      }
-    };
-
-    try {
-      this.webSocket.send(JSON.stringify(message));
-      this.logger.debug(`Order cancellation request sent: ${requestId}`);
-    } catch (error: any) {
-      this.logger.error('Failed to send order cancel message', { error: error.message });
-      throw error;
-    }
-
-    return this.createResponsePromise<ServerOrderCancelledResponse>(requestId, 'order_cancelled');
   }
 
   /**

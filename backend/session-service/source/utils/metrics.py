@@ -31,13 +31,13 @@ ACTIVE_SESSIONS = Gauge(
 SESSION_LIFETIME = Histogram(
     'session_lifetime_seconds',
     'Session lifetime in seconds',
-    ['status']  # 'completed', 'expired', 'error'
+    ['status']  # 'COMPLETED', 'EXPIRED', 'ERROR'
 )
 
 SESSION_OPERATIONS = Counter(
     'session_operations_total',
     'Number of session operations',
-    ['operation']  # 'create', 'reconnect', 'end', etc.
+    ['operation']  # 'CREATE', 'RECONNECT', 'END', etc.
 )
 
 # WebSocket Metrics
@@ -259,8 +259,8 @@ def track_connection_quality(quality, pod_name=None):
     if pod_name is None:
         pod_name = config.kubernetes.pod_name
 
-    # Convert quality to number: poor=0, degraded=1, good=2
-    quality_map = {"poor": 0, "degraded": 1, "good": 2}
+    # Convert quality to number: POOR=0, DEGRADED=1, GOOD=2
+    quality_map = {"POOR": 0, "DEGRADED": 1, "GOOD": 2}
     quality_num = quality_map.get(quality, 0)
     CLIENT_CONNECTION_QUALITY.labels(pod_name=pod_name).set(quality_num)
 

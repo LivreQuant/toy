@@ -76,27 +76,6 @@ async def send_shutdown(ws: web.WebSocketResponse, reason: str):
         logger.warning(f"Failed to send 'shutdown' message: {e}")
 
 
-async def send_connection_replaced(ws: web.WebSocketResponse, new_device_info: Dict[str, Any] = None):
-    """Sends the 'connection_replaced' message when a new device connects with the same user."""
-    payload = {
-        'type': 'connection_replaced',
-        'message': 'Your connection has been replaced by a new connection from the same device',
-        'timestamp': int(time.time() * 1000)
-    }
-
-    # Add optional device info
-    if new_device_info:
-        payload['newDeviceInfo'] = new_device_info
-
-    try:
-        if not ws.closed:
-            await ws.send_json(payload)
-            track_websocket_message("sent", "connection_replaced")
-            logger.debug(f"Sent 'connection_replaced'")
-    except Exception as e:
-        logger.warning(f"Failed to send 'connection_replaced' message: {e}")
-
-
 async def send_device_id_invalidated(
         ws: web.WebSocketResponse,
         *,
