@@ -372,11 +372,23 @@ class SessionManager:
 
         return success, error
 
-    async def cleanup_session(self):
-        """Clean up the session resources - important for graceful shutdown"""
-        # Stop simulator if active
-        if self.simulator_active:
-            await self.stop_simulator(force=True)
+    async def cleanup_session(self, keep_simulator=False):
+        """
+        Clean up the session resources - important for graceful shutdown.
+
+        Args:
+            keep_simulator: If True, don't stop the simulator
+        """
+        # Stop simulator if active and not keeping it
+        if self.simulator_active and not keep_simulator:
+            simulator_id = None
+            if hasattr(self.simulator_manager, 'current_simulator_id'):
+                simulator_id = self.simulator_manager.current_simulator_id
+
+            if simulator_id:
+                await self.stop_simulator(simulator_id, force=True)
+            else:
+                logger.warning("Simulator is active but no ID available")
 
         session_id = self.state_manager.get_active_session_id()
 
@@ -384,7 +396,7 @@ class SessionManager:
         if self.stream_manager:
             await self.stream_manager.stop_stream(session_id)
 
-        logger.info(f"Cleaned up session {session_id}")
+        logger.info(f"Cleaned up session {session_id}, keep_simulator={keep_simulator}")
         return True
         
     async def validate_device(self, device_id: str) -> tuple[bool, str, str]:

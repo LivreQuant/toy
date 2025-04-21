@@ -75,6 +75,7 @@ async def send_shutdown(ws: web.WebSocketResponse, reason: str):
     except Exception as e:
         logger.warning(f"Failed to send 'shutdown' message to {ws.remote_address}: {e}")
 
+
 async def send_connection_replaced(ws: web.WebSocketResponse, new_device_info: Dict[str, Any] = None):
     """Sends the 'connection_replaced' message when a new device connects with the same user."""
     payload = {
@@ -82,11 +83,11 @@ async def send_connection_replaced(ws: web.WebSocketResponse, new_device_info: D
         'message': 'Your connection has been replaced by a new connection from the same device',
         'timestamp': int(time.time() * 1000)
     }
-    
+
     # Add optional device info
     if new_device_info:
         payload['newDeviceInfo'] = new_device_info
-        
+
     try:
         if not ws.closed:
             await ws.send_json(payload)
@@ -94,3 +95,25 @@ async def send_connection_replaced(ws: web.WebSocketResponse, new_device_info: D
             logger.debug(f"Sent 'connection_replaced' to {ws.remote_address}")
     except Exception as e:
         logger.warning(f"Failed to send 'connection_replaced' message to {ws.remote_address}: {e}")
+
+
+async def send_device_id_invalidated(
+        ws: web.WebSocketResponse,
+        *,
+        device_id: str,
+        reason: str = "Another device has connected with this account",
+):
+    """Sends the 'device_id_invalidated' message when a device ID is no longer valid."""
+    payload = {
+        'type': 'device_id_invalidated',
+        'deviceId': device_id,
+        'reason': reason,
+        'timestamp': int(time.time() * 1000)
+    }
+    try:
+        if not ws.closed:
+            await ws.send_json(payload)
+            track_websocket_message("sent", "device_id_invalidated")
+            logger.debug(f"Sent 'device_id_invalidated' to {ws.remote_address}")
+    except Exception as e:
+        logger.warning(f"Failed to send 'device_id_invalidated' message to {ws.remote_address}: {e}")

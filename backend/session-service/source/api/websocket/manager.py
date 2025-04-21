@@ -45,14 +45,28 @@ class WebSocketManager:
             # Authenticate user and check for device conflicts
             try:
                 self.logger.info(f"WebSocket connection request received from {request.remote}")
-                self.logger.info(f"Headers: {dict(request.headers)}")
-                self.logger.info(f"Query params: {dict(request.query)}")
 
                 user_id, device_id = await authenticate_websocket_request(request, self.session_manager)
                 client_id = f"{device_id}-{time.time_ns()}"
 
-                # Check if previous_device_id was flagged by authentication process
-                previous_device_id = request.get('previous_device_id')
+                # Check if the user already has an active session
+                session = await self.session_manager.get_session()
+                if session:
+                    # Get existing device ID
+                    session_details = await self.session_manager.get_session_details()
+                    existing_device_id = session_details.get('device_id') if session_details else None
+
+                    # If different device ID, mark this as the new active device
+                    if existing_device_id and existing_device_id != device_id:
+                        self.logger.info(
+                            f"User {user_id} connecting with new device {device_id}, replacing {existing_device_id}")
+                        request['previous_device_id'] = existing_device_id
+
+                        # Update session details with the new device ID
+                        await self.session_manager.update_session_details({
+                            'device_id': device_id,
+                            'last_device_update': time.time()
+                        })
 
             except Exception as auth_error:
                 self.logger.warning(f"WebSocket authentication failed: {auth_error}")
@@ -63,7 +77,8 @@ class WebSocketManager:
             await ws.prepare(request)
 
             # Handle device replacement if needed
-            if previous_device_id:
+            if request.get('previous_device_id'):
+                previous_device_id = request['previous_device_id']
                 self.logger.warning(f"Device {device_id} is replacing existing device {previous_device_id}")
 
                 # Find the old connection for this device
@@ -72,16 +87,17 @@ class WebSocketManager:
                     self.logger.info(f"Closing connection for replaced device {previous_device_id}")
                     # Send notification to the old device before closing it
                     try:
-                        await connection_emitter.send_connection_replaced(old_ws, {
-                            'newDeviceId': device_id,
-                            'timestamp': time.time() * 1000
-                        })
+                        await connection_emitter.send_device_id_invalidated(
+                            old_ws,
+                            device_id=device_id,
+                            reason="Another device has connected with this account"
+                        )
                     except Exception as e:
-                        self.logger.error(f"Error sending replacement notice: {e}")
+                        self.logger.error(f"Error sending invalidation notice: {e}")
 
                     # Force close the old connection
                     try:
-                        await old_ws.close(code=1000, message=b"Connection replaced by new device connection")
+                        await old_ws.close(code=1000, message=b"Connection replaced by new device")
                     except Exception as e:
                         self.logger.error(f"Error closing old connection: {e}")
 
@@ -109,7 +125,7 @@ class WebSocketManager:
                     device_id=device_id
                 )
 
-                # Process messages
+                # Process messages - use the existing method name from your codebase
                 await self._connection_loop(ws, user_id, device_id, client_id)
             except Exception as e:
                 self.logger.error(f"WebSocket connection error: {e}")
@@ -127,21 +143,34 @@ class WebSocketManager:
 
             return ws
 
-    async def _connection_loop(self, ws: web.WebSocketResponse, user_id: str, device_id: str, client_id: str):
-        """Main WebSocket message processing loop"""
-        try:
-            async for msg in ws:
-                if msg.type == WSMsgType.TEXT:
-                    # Update last activity time
-                    if device_id in self.connection_metadata:
-                        self.connection_metadata[device_id]['last_activity'] = time.time()
+    async def _cleanup(self, ws: web.WebSocketResponse, device_id: str):
+        """Cleanup resources when connection closes"""
+        if device_id in self.active_connections and self.active_connections[device_id] is ws:
+            del self.active_connections[device_id]
+            if device_id in self.connection_metadata:
+                del self.connection_metadata[device_id]
 
-                    # Use the dispatcher to handle the message
-                    await self.dispatcher.dispatch_message(ws, user_id, client_id, device_id, msg.data)
-                elif msg.type in (WSMsgType.CLOSING, WSMsgType.CLOSED):
-                    break
-        finally:
-            await self._cleanup(ws, device_id)
+        self.logger.info(
+            f"WebSocket connection for device {device_id} closed, remaining connections: {len(self.active_connections)}")
+
+        # If all connections are closed, reset the session state
+        if len(self.active_connections) == 0:
+            self.logger.info("All connections closed, resetting session state to ready")
+            try:
+                # First stop any active streams
+                if self.session_manager.stream_manager:
+                    try:
+                        session_id = self.session_manager.state_manager.get_active_session_id()
+                        if session_id:
+                            await self.session_manager.stream_manager.stop_stream(session_id)
+                    except Exception as e:
+                        self.logger.error(f"Error stopping streams during cleanup: {e}")
+
+                # Reset session state but preserve simulators
+                await self.session_manager.state_manager.close(keep_simulator=True)
+                await self.session_manager.cleanup_session(keep_simulator=True)
+            except Exception as e:
+                self.logger.error(f"Error resetting session state during connection cleanup: {e}")
 
     async def broadcast_exchange_data(self, data):
         """Broadcast exchange data to all active WebSocket clients"""

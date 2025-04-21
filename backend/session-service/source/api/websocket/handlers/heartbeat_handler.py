@@ -10,10 +10,11 @@ from typing import Dict, Any
 from opentelemetry import trace
 from aiohttp import web
 
-from source.core.state.manager import StateManager
+from source.api.websocket.emitters.connection_emitter import send_device_id_invalidated
 from source.core.session.manager import SessionManager
 from source.utils.metrics import track_websocket_message
 from source.utils.tracing import optional_trace_span
+from source.models.session import SessionStatus
 
 logger = logging.getLogger('websocket_handler_heartbeat')
 
@@ -21,55 +22,83 @@ logger = logging.getLogger('websocket_handler_heartbeat')
 async def handle_heartbeat(
         *,
         ws: web.WebSocketResponse,
+        user_id: str,
         client_id: str,
         device_id: str,
         message: Dict[str, Any],
         session_manager: SessionManager,
         tracer: trace.Tracer,
-        **kwargs  # Accept additional parameters for compatibility
+        **kwargs
 ):
-    """
-    Process a heartbeat message from the client.
-
-    Args:
-        ws: The WebSocket connection.
-        client_id: Client ID.
-        message: The parsed heartbeat message dictionary.
-        session_manager: Direct access to SessionManager.
-        tracer: OpenTelemetry Tracer instance.
-    """
+    """Process a heartbeat message from the client."""
     with optional_trace_span(tracer, "handle_heartbeat_message") as span:
         span.set_attribute("client_id", client_id)
 
-        # Extract data from message (provide defaults or handle missing keys)
+        # Extract data from message
         client_timestamp = message.get('timestamp', int(time.time() * 1000))
-        device_id = message.get('deviceId')
-        # Optional fields
+        device_id_from_message = message.get('deviceId', device_id)
         connection_quality = message.get('connectionQuality', 'unknown')
-        session_status_client = message.get('sessionStatus', 'unknown')
-        simulator_status_client = message.get('simulatorStatus', 'unknown')
 
-        span.set_attribute("client_timestamp", client_timestamp)
-        span.set_attribute("device_id_from_client", str(device_id))
-        span.set_attribute("connection_quality_client", connection_quality)
+        # Get session data to check if session is active and if device ID matches
+        session = await session_manager.get_session()
 
-        # Update session activity timestamp
+        if not session:
+            logger.warning(f"Session not found for heartbeat from device {device_id}")
+            await send_device_id_invalidated(
+                ws,
+                device_id=device_id,
+                reason="Session not found"
+            )
+            # Reset session state BUT don't stop simulators
+            await session_manager.state_manager.close(keep_simulator=True)
+            return
+
+        # Check if the session is still active
+        if session.status != SessionStatus.ACTIVE:
+            logger.info(f"Session {session.session_id} is no longer active (status: {session.status.value})")
+            await send_device_id_invalidated(
+                ws,
+                device_id=device_id,
+                reason="Another device has connected with this account"
+            )
+
+            # Reset session state BUT don't stop simulators
+            await session_manager.state_manager.close(keep_simulator=True)
+            return
+
+        # Get session details
+        session_details = await session_manager.get_session_details()
+
+        # Check if this device ID is still the active one for this session
+        active_device_id = session_details.get('device_id') if session_details else None
+
+        if active_device_id and active_device_id != device_id:
+            logger.info(f"Device {device_id} is no longer active. Active device is {active_device_id}")
+            # Send invalidation message
+            await send_device_id_invalidated(
+                ws,
+                device_id=active_device_id,
+                reason="Another device has connected with this account"
+            )
+
+            # Reset session state BUT don't stop simulators
+            await session_manager.state_manager.close(keep_simulator=True)
+            return
+
+        # Device is still active - update session activity timestamp
         await session_manager.update_session_activity()
 
-        # Get latest session data
-        session_details = await session_manager.get_session_details()
-        logger.info(f"Heartbeat: simulator status from database: {session_details}")
+        # Get simulator status from database
         simulator_status_server = session_details.get('simulator_status', 'NONE') if session_details else 'NONE'
-        current_device_id = session_details.get('device_id') if session_details else None
 
-        # Prepare response - in singleton mode, session is always valid
+        # Prepare response
         response = {
             'type': 'heartbeat_ack',
             'timestamp': int(time.time() * 1000),
             'clientTimestamp': client_timestamp,
-            'deviceId': current_device_id,
-            'deviceIdValid': True,  # Always valid in singleton mode
-            'sessionStatus': 'valid',  # Always valid in singleton mode
+            'deviceId': device_id,
+            'deviceIdValid': True,
+            'sessionStatus': 'valid',
             'simulatorStatus': simulator_status_server,
             'connectionQualityUpdate': connection_quality,
         }
@@ -80,4 +109,3 @@ async def handle_heartbeat(
                 track_websocket_message("sent", "heartbeat_ack")
         except Exception as e:
             logger.error(f"Failed to send heartbeat_ack for client {client_id}: {e}")
-            

@@ -11,7 +11,6 @@ from pydantic import BaseModel, Field
 
 class SessionStatus(str, Enum):
     """Session status enum"""
-    CREATING = "CREATING"
     ACTIVE = "ACTIVE"
     RECONNECTING = "RECONNECTING"
     INACTIVE = "INACTIVE"
@@ -21,19 +20,19 @@ class SessionStatus(str, Enum):
 
 class ConnectionQuality(str, Enum):
     """Connection quality enum"""
-    GOOD = "good"
-    DEGRADED = "degraded"
-    POOR = "poor"
+    GOOD = "GOOD"
+    DEGRADED = "DEGRADED"
+    POOR = "POOR"
 
 
 class Session(BaseModel):
     """Core Session model - essential session properties only"""
     session_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     user_id: str
-    status: SessionStatus = SessionStatus.CREATING
+    status: SessionStatus = SessionStatus.INACTIVE
     created_at: float = Field(default_factory=time.time)
     last_active: float = Field(default_factory=time.time)
-    expires_at: float = Field(default_factory=lambda: time.time() + 3600)
+    expires_at: float = Field(default_factory=lambda: time.time() + 3600 * 12)
     token: Optional[str] = None
 
     def update_activity(self, extension_seconds: int = 3600):
@@ -54,6 +53,7 @@ class SessionDetails(BaseModel):
     Stored in a dedicated table rather than as JSON
     """
     session_id: str
+    user_id: str
 
     # Device and connection information
     device_id: Optional[str] = None
@@ -67,15 +67,7 @@ class SessionDetails(BaseModel):
     missed_heartbeats: int = 0
     reconnect_count: int = 0
 
-    # Simulator information
-    simulator_id: Optional[str] = None
-    simulator_status: Optional[str] = None
-    simulator_endpoint: Optional[str] = None
-    simulator_error: Optional[str] = None
-
     # Timestamps
-    created_at: float = Field(default_factory=time.time)
-    updated_at: float = Field(default_factory=time.time)
     last_reconnect: Optional[float] = None
     last_device_update: Optional[float] = None
     last_quality_update: Optional[float] = None
@@ -141,20 +133,11 @@ class SessionWithDetails(BaseModel):
     def device_id(self) -> Optional[str]:
         return self.details.device_id
 
-    @property
-    def simulator_id(self) -> Optional[str]:
-        return self.details.simulator_id
-
-    @property
-    def simulator_status(self) -> Optional[str]:
-        return self.details.simulator_status
-
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization"""
         return {
             # Session core data
             "session_id": self.session.session_id,
-            "user_id": self.session.user_id,
             "status": self.session.status.value,
             "created_at": self.session.created_at,
             "last_active": self.session.last_active,
@@ -163,6 +146,7 @@ class SessionWithDetails(BaseModel):
             # Session details
 
             # Device and connection information
+            "user_id": self.session.user_id,
             "device_id": self.details.device_id,
             "user_agent": self.details.user_agent,
             "ip_address": self.details.ip_address,
@@ -174,14 +158,7 @@ class SessionWithDetails(BaseModel):
             "missed_heartbeats": self.details.missed_heartbeats,
             "reconnect_count": self.details.reconnect_count,
 
-            # Simulator information
-            "simulator_id": self.details.simulator_id,
-            "simulator_status": self.details.simulator_status,
-            "simulator_endpoint": self.details.simulator_endpoint,
-
             # Timestamps
-            #"created_at": self.details.created_at,
-            "updated_at": self.details.updated_at,
             "last_reconnect": self.details.last_reconnect,
             "last_device_update": self.details.last_device_update,
             "last_quality_update": self.details.last_quality_update,

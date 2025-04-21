@@ -7,7 +7,7 @@ import time
 from enum import Enum
 
 import asyncpg
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Any, Optional, List
 
 from source.config import config
 from source.models.session import Session, SessionDetails, SessionWithDetails, SessionStatus, ConnectionQuality
@@ -289,6 +289,51 @@ class PostgresSessionStore(PostgresRepository[Session]):
                 track_db_error("pg_update_session_activity")
                 return False
 
+    async def find_user_active_sessions(self, user_id: str) -> List[Dict[str, Any]]:
+        """
+        Find active sessions for a specific user.
+
+        Args:
+            user_id: The user ID to search for
+
+        Returns:
+            List of session records
+        """
+        with optional_trace_span(self.tracer, "pg_store_find_user_active_sessions") as span:
+            span.set_attribute("user_id", user_id)
+
+            pool = await self._get_pool()
+            try:
+                with TimedOperation(track_db_operation, "pg_find_user_active_sessions"):
+                    async with pool.acquire() as conn:
+                        # Find active sessions for this user
+                        rows = await conn.fetch('''
+                            SELECT session_id, user_id, status, created_at, last_active, expires_at
+                            FROM session.active_sessions
+                            WHERE user_id = $1
+                            AND status = $2
+                            AND expires_at > NOW()
+                        ''', user_id, SessionStatus.ACTIVE.value)
+
+                        # Convert to list of dictionaries
+                        sessions = []
+                        for row in rows:
+                            sessions.append({
+                                'session_id': row['session_id'],
+                                'user_id': row['user_id'],
+                                'status': row['status'],
+                                'created_at': row['created_at'].timestamp() if row['created_at'] else None,
+                                'last_active': row['last_active'].timestamp() if row['last_active'] else None,
+                                'expires_at': row['expires_at'].timestamp() if row['expires_at'] else None
+                            })
+
+                        return sessions
+            except Exception as e:
+                logger.error(f"Error finding active sessions for user {user_id} in PostgreSQL: {e}", exc_info=True)
+                span.record_exception(e)
+                track_db_error("pg_find_user_active_sessions")
+                return []
+
     async def update_session_status(self, session_id: str, status: SessionStatus) -> bool:
         """
         Update the status of a session.
@@ -342,7 +387,6 @@ class PostgresSessionStore(PostgresRepository[Session]):
             created_at=session_row['created_at'].timestamp(),
             last_active=session_row['last_active'].timestamp(),
             expires_at=session_row['expires_at'].timestamp(),
-            token=session_row.get('token')
         )
 
         # Create the SessionDetails object
@@ -399,7 +443,6 @@ class PostgresSessionStore(PostgresRepository[Session]):
             created_at=session_row['created_at'].timestamp(),
             last_active=session_row['last_active'].timestamp(),
             expires_at=session_row['expires_at'].timestamp(),
-            token=session_row.get('token')
         )
 
         # Create default details

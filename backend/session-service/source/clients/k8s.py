@@ -64,7 +64,6 @@ class KubernetesClient(BaseClient):
     async def create_simulator_deployment(
             self,
             simulator_id: str,
-            session_id: str,
             user_id: str,
     ) -> str:
         """
@@ -72,7 +71,6 @@ class KubernetesClient(BaseClient):
         
         Args:
             simulator_id: Unique ID for the simulator
-            session_id: Session ID
             user_id: User ID
             
         Returns:
@@ -84,14 +82,13 @@ class KubernetesClient(BaseClient):
         """
         with optional_trace_span(self.tracer, "create_simulator_deployment") as span:
             span.set_attribute("simulator_id", simulator_id)
-            span.set_attribute("session_id", session_id)
             span.set_attribute("user_id", user_id)
 
             try:
                 # Use circuit breaker for the kubernetes operation
                 return await self.execute_with_cb(
                     self._create_simulator_deployment_impl,
-                    simulator_id, session_id, user_id
+                    simulator_id, user_id
                 )
             except CircuitOpenError:
                 logger.warning(f"Circuit open for Kubernetes API.")
@@ -106,7 +103,6 @@ class KubernetesClient(BaseClient):
     async def _create_simulator_deployment_impl(
             self,
             simulator_id: str,
-            session_id: str,
             user_id: str,
     ) -> str:
         """
@@ -114,7 +110,6 @@ class KubernetesClient(BaseClient):
         
         Args:
             simulator_id: Unique ID for the simulator
-            session_id: Session ID
             user_id: User ID
             
         Returns:
@@ -131,7 +126,6 @@ class KubernetesClient(BaseClient):
         # Define container env vars
         env_vars = [
             client.V1EnvVar(name="SIMULATOR_ID", value=simulator_id),
-            client.V1EnvVar(name="SESSION_ID", value=session_id),
             client.V1EnvVar(name="USER_ID", value=user_id),
             client.V1EnvVar(name="DESK_ID", value="test"),
 
@@ -169,7 +163,6 @@ class KubernetesClient(BaseClient):
                 labels={
                     "app": "exchange-simulator",
                     "simulator_id": simulator_id,
-                    "session_id": session_id,
                     "user_id": user_id,
                     "managed-by": "session-service"
                 }
@@ -184,7 +177,6 @@ class KubernetesClient(BaseClient):
                         labels={
                             "app": "exchange-simulator",
                             "simulator_id": simulator_id,
-                            "session_id": session_id,
                             "user_id": user_id
                         }
                     ),
@@ -489,11 +481,9 @@ class KubernetesClient(BaseClient):
             simulators = []
             for deployment in deployment_list.items:
                 simulator_id = deployment.metadata.labels.get("simulator_id")
-                session_id = deployment.metadata.labels.get("session_id")
 
                 simulators.append({
                     "simulator_id": simulator_id,
-                    "session_id": session_id,
                     "user_id": user_id,
                     "status": "RUNNING" if deployment.status.available_replicas == 1 else "PENDING",
                     "created_at": deployment.metadata.creation_timestamp.timestamp()
