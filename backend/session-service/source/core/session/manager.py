@@ -195,13 +195,6 @@ class SessionManager:
         simulator, error = await self.simulator_manager.create_or_reuse_simulator(session_id, user_id)
 
         if simulator and not error:
-            # Update session details with simulator info
-            await self.update_session_details({
-                'simulator_id': simulator.simulator_id,
-                'simulator_status': simulator.status.value,
-                'simulator_endpoint': simulator.endpoint
-            })
-
             # Set flag for active simulator
             self.simulator_active = True
 
@@ -264,10 +257,7 @@ class SessionManager:
 
             if not connected:
                 logger.error(f"Failed to connect to simulator {simulator_id} after {max_attempts} attempts")
-                await self.update_session_details({
-                    'simulator_status': 'ERROR',
-                    'simulator_error': 'Failed to connect to simulator after multiple attempts'
-                })
+
                 self.simulator_active = False
                 return
 
@@ -302,10 +292,6 @@ class SessionManager:
                 logger.error(f"Error in simulator data stream: {stream_error}")
                 # Attempt to recover
                 self.simulator_active = False
-                await self.update_session_details({
-                    'simulator_status': 'ERROR',
-                    'simulator_error': f"Stream error: {str(stream_error)}"
-                })
 
                 # Try to gracefully close the stream
                 try:
@@ -317,12 +303,6 @@ class SessionManager:
             logger.error(f"Error in simulator data streaming: {e}")
             self.simulator_active = False
 
-            # Update session details to reflect error
-            await self.update_session_details({
-                'simulator_status': 'ERROR',
-                'simulator_error': str(e)
-            })
-
     async def update_simulator_status(self, simulator_id: str, status: str):
         """
         Update simulator status and notify websocket clients
@@ -331,11 +311,6 @@ class SessionManager:
             simulator_id: The simulator ID
             status: The new status
         """
-        # Update session details
-        await self.update_session_details({
-            'simulator_status': status,
-        })
-
         # Log the status change
         logger.info(f"Updated simulator {simulator_id} status to {status}")
 

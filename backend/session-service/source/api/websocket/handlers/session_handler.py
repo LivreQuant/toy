@@ -4,6 +4,7 @@ WebSocket handlers for session operations.
 """
 import logging
 import time
+import asyncio
 from typing import Dict, Any
 
 from opentelemetry import trace
@@ -42,6 +43,8 @@ async def handle_session_info(
         # Set service to active state
         await session_manager.state_manager.set_active(user_id=user_id)
         session_id = session_manager.state_manager.get_active_session_id()
+
+        simulator_status_server = "NONE"
 
         # Track any simulator we might need to reassign
         simulator_to_reassign = None
@@ -95,18 +98,30 @@ async def handle_session_info(
                     session_id
                 )
 
-                # Update session details to reference the simulator
-                await session_manager.update_session_details({
-                    'simulator_id': simulator_to_reassign.simulator_id,
-                    'simulator_status': simulator_to_reassign.status.value,
-                    'simulator_endpoint': simulator_to_reassign.endpoint
-                })
-
                 # Update the simulator manager's tracking
                 session_manager.simulator_manager.current_simulator_id = simulator_to_reassign.simulator_id
                 session_manager.simulator_manager.current_endpoint = simulator_to_reassign.endpoint
+
+                simulator_status_server = "RUNNING"
         else:
             logger.error("Failed to create user session in database")
+
+        # Start the exchange data stream for this simulator
+        try:
+            if simulator_to_reassign.endpoint:
+                logger.info(
+                    f"Automatically starting exchange data stream for reassigned simulator {simulator_to_reassign.simulator_id}")
+                stream_task = asyncio.create_task(
+                    session_manager._stream_simulator_data(simulator_to_reassign.endpoint,
+                                                           simulator_to_reassign.simulator_id)
+                )
+                stream_task.set_name(f"stream-{simulator_to_reassign.simulator_id}")
+
+                # Register with stream manager
+                if stream_task and session_manager.stream_manager:
+                    session_manager.stream_manager.register_stream(session_id, stream_task)
+        except Exception as e:
+            logger.error(f"Error starting exchange stream for reassigned simulator: {e}")
 
         session = await session_manager.get_session()
         if not session:
@@ -130,7 +145,7 @@ async def handle_session_info(
             'requestId': request_id,
             'deviceId': details.get('device_id', 'unknown'),
             'expiresAt': session.expires_at,
-            'simulatorStatus': details.get('simulator_status', 'NONE')
+            'simulatorStatus': simulator_status_server
         }
 
         try:
@@ -220,9 +235,6 @@ async def handle_stop_session(
             # Update session state but don't actually end it in singleton mode
             await session_manager.update_session_details({
                 'device_id': None,
-                'simulator_id': None,
-                'simulator_status': SimulatorStatus.NONE.value,
-                'simulator_endpoint': None
             })
 
             logger.info(f"Stopping session 5")

@@ -97,7 +97,14 @@ async def handle_heartbeat(
         await session_manager.update_session_activity()
 
         # Get simulator status from database
-        simulator_status_server = session_details.get('simulator_status', 'NONE') if session_details else 'NONE'
+        simulator_status_server = "NONE"
+        if session_manager.simulator_manager.current_simulator_id:
+            # Directly query the simulator status from the store
+            simulator = await session_manager.store_manager.simulator_store.get_simulator(
+                session_manager.simulator_manager.current_simulator_id)
+            if simulator and simulator.status:
+                # Use the actual simulator status from the database
+                simulator_status_server = simulator.status.value
 
         # Prepare response
         response = {

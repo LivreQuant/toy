@@ -220,18 +220,6 @@ class SimulatorManager:
                 await self.store_manager.simulator_store.update_simulator_endpoint(simulator.simulator_id, endpoint)
                 await self.store_manager.simulator_store.update_simulator_status(simulator.simulator_id, SimulatorStatus.STARTING)
 
-                # Add explicit update in session details
-                try:
-                    # Update session details too to ensure everything is in sync
-                    await self.store_manager.session_store.update_session_details(session_id, {
-                        'simulator_id': simulator.simulator_id,
-                        'simulator_status': SimulatorStatus.STARTING.value,
-                        'simulator_endpoint': endpoint
-                    })
-                    logger.info(f"Updated session details with simulator status: STARTING")
-                except Exception as e:
-                    logger.warning(f"Failed to update session details with simulator status: {e}")
-
                 # Calculate creation time and track metrics
                 creation_time = time.time() - start_time
                 track_simulator_creation_time(creation_time)
