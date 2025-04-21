@@ -55,7 +55,7 @@ if [ $MINIKUBE_STATUS -ne 0 ] || [ "$FORCE_RECREATE" = true ]; then
     fi
     
     echo "Starting Minikube..."
-    minikube start --driver=kvm2 --cpus=4 --memory=8g --disk-size=20g
+    minikube start --driver=docker --cpus=4 --memory=8g --disk-size=20g
     
     # Check if minikube started successfully
     if [ $? -ne 0 ]; then
