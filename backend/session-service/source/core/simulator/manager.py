@@ -208,7 +208,6 @@ class SimulatorManager:
                 # Create Kubernetes deployment
                 endpoint = await self.k8s_client.create_simulator_deployment(
                     simulator.simulator_id,
-                    session_id,
                     user_id
                 )
 

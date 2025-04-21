@@ -142,7 +142,40 @@ class WebSocketManager:
                         del self.connection_metadata[device_id]
 
             return ws
-
+        
+    async def _connection_loop(self, ws: web.WebSocketResponse, user_id: str, device_id: str, client_id: str):
+        """Handle incoming WebSocket messages until connection closes"""
+        try:
+            self.logger.info(f"Starting message processing loop for client {client_id}")
+            
+            # Process messages until connection is closed
+            async for msg in ws:
+                if msg.type == WSMsgType.TEXT:
+                    # Update last activity timestamp
+                    if device_id in self.connection_metadata:
+                        self.connection_metadata[device_id]['last_activity'] = time.time()
+                    
+                    # Process the message
+                    await self.dispatcher.dispatch_message(
+                        ws=ws,
+                        user_id=user_id,
+                        client_id=client_id,
+                        device_id=device_id,
+                        raw_data=msg.data
+                    )
+                elif msg.type == WSMsgType.ERROR:
+                    self.logger.error(f"WebSocket connection closed with error: {ws.exception()}")
+                    break
+                elif msg.type == WSMsgType.CLOSE:
+                    self.logger.info(f"WebSocket connection closing: {msg.data}")
+                    break
+        except Exception as e:
+            self.logger.error(f"Error in WebSocket message loop for client {client_id}: {e}")
+        finally:
+            # Cleanup resources when connection ends
+            await self._cleanup(ws, device_id)
+            self.logger.info(f"WebSocket connection closed for client {client_id}")
+            
     async def _cleanup(self, ws: web.WebSocketResponse, device_id: str):
         """Cleanup resources when connection closes"""
         if device_id in self.active_connections and self.active_connections[device_id] is ws:
@@ -199,7 +232,6 @@ class WebSocketManager:
             # Wait for all sends to complete
             await asyncio.gather(*send_tasks, return_exceptions=True)
             self.logger.debug(f"Completed sending exchange data [ID: {data_id}] to {len(send_tasks)} clients")
-
 
         # Track this message
         track_websocket_message("sent_broadcast", "exchange_data")

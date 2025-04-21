@@ -239,7 +239,7 @@ class SessionManager:
             while attempt < max_attempts and not connected:
                 try:
                     # Try to send a heartbeat to check readiness
-                    heartbeat_result = await self.exchange_client.heartbeat(
+                    heartbeat_result = await self.exchange_client.send_heartbeat(
                         endpoint,
                         session_id,
                         f"readiness-check-{session_id}"

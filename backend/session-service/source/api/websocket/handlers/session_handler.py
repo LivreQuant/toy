@@ -9,7 +9,6 @@ from typing import Dict, Any
 from opentelemetry import trace
 from aiohttp import web
 
-from source.core.state.manager import StateManager
 from source.core.session.manager import SessionManager
 from source.utils.metrics import track_websocket_message, track_session_operation
 from source.utils.tracing import optional_trace_span
@@ -41,7 +40,7 @@ async def handle_session_info(
         logger.info(f"Processing session info request for user {user_id} with device {device_id}")
 
         # Set service to active state
-        await session_manager.state_manager.set_active()
+        await session_manager.state_manager.set_active(user_id=user_id)
         session_id = session_manager.state_manager.get_active_session_id()
 
         # Track any simulator we might need to reassign

@@ -3,7 +3,6 @@
 Shared API utility functions for both REST and WebSocket APIs.
 """
 import logging
-import json
 import aiohttp
 from typing import Dict, Any
 from source.config import config

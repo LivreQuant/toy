@@ -52,9 +52,6 @@ class SessionDetails(BaseModel):
     Session details model - separate from core session
     Stored in a dedicated table rather than as JSON
     """
-    session_id: str
-    user_id: str
-
     # Device and connection information
     device_id: Optional[str] = None
     user_agent: Optional[str] = None

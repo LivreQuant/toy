@@ -367,7 +367,8 @@ class PostgresSessionStore(PostgresRepository[Session]):
                 track_db_error("pg_update_session_status")
                 return False
 
-    def _create_session_with_details(self, session_row: asyncpg.Record,
+    def _create_session_with_details(self,
+                                     session_row: asyncpg.Record,
                                      details_row: asyncpg.Record) -> SessionWithDetails:
         """
         Create a SessionWithDetails object from database rows.
@@ -400,21 +401,19 @@ class PostgresSessionStore(PostgresRepository[Session]):
             connection_quality = ConnectionQuality.GOOD
 
         details = SessionDetails(
-            session_id=details_row['session_id'],
+            # Device and connection information
             device_id=details_row.get('device_id'),
             user_agent=details_row.get('user_agent'),
             ip_address=details_row.get('ip_address'),
             pod_name=details_row.get('pod_name'),
+
+            # Connection quality metrics
             connection_quality=connection_quality,
             heartbeat_latency=details_row.get('heartbeat_latency'),
             missed_heartbeats=details_row.get('missed_heartbeats', 0),
             reconnect_count=details_row.get('reconnect_count', 0),
-            simulator_id=details_row.get('simulator_id'),
-            simulator_status=details_row.get('simulator_status'),
-            simulator_endpoint=details_row.get('simulator_endpoint'),
-            simulator_error=details_row.get('simulator_error'),
-            created_at=details_row['created_at'].timestamp() if details_row.get('created_at') else session.created_at,
-            updated_at=details_row['updated_at'].timestamp() if details_row.get('updated_at') else session.last_active,
+
+            # Timestamps
             last_reconnect=details_row['last_reconnect'].timestamp() if details_row.get('last_reconnect') else None,
             last_device_update=details_row['last_device_update'].timestamp() if details_row.get(
                 'last_device_update') else None,
@@ -447,7 +446,6 @@ class PostgresSessionStore(PostgresRepository[Session]):
 
         # Create default details
         details = SessionDetails(
-            session_id=session.session_id,
             pod_name=config.kubernetes.pod_name,
             created_at=session.created_at,
             updated_at=session.last_active

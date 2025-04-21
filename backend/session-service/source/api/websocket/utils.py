@@ -14,8 +14,6 @@ from source.api.utils import validate_token_with_auth_service
 from source.api.websocket.exceptions import (
     WebSocketClientError,
     AuthenticationError,
-    DeviceMismatchError,
-    ConnectionLimitError
 )
 
 logger = logging.getLogger('websocket_utils')

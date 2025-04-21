@@ -5,12 +5,11 @@ Simplified for singleton session mode.
 """
 import logging
 import time
-from typing import Dict, Any, TYPE_CHECKING
+from typing import Dict, Any
 
 from opentelemetry import trace
 from aiohttp import web
 
-from source.core.state.manager import StateManager
 from source.core.session.manager import SessionManager
 from source.utils.metrics import track_websocket_message
 from source.utils.tracing import optional_trace_span
