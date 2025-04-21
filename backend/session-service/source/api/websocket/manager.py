@@ -85,16 +85,6 @@ class WebSocketManager:
                 old_ws = self.active_connections.get(previous_device_id)
                 if old_ws and not old_ws.closed:
                     self.logger.info(f"Closing connection for replaced device {previous_device_id}")
-                    # Send notification to the old device before closing it
-                    try:
-                        await connection_emitter.send_device_id_invalidated(
-                            old_ws,
-                            device_id=device_id,
-                            reason="Another device has connected with this account"
-                        )
-                    except Exception as e:
-                        self.logger.error(f"Error sending invalidation notice: {e}")
-
                     # Force close the old connection
                     try:
                         await old_ws.close(code=1000, message=b"Connection replaced by new device")

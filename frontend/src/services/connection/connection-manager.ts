@@ -203,23 +203,21 @@ export class ConnectionManager extends TypedEventEmitter<ConnectionManagerEvents
         }
         
         // If session is invalid according to server, handle logout
-        if (data.sessionStatus === 'invalid') {
-            this.logger.error(`[Listener] Session invalidated by heartbeat response. Forcing disconnect and logout.`);
-            AppErrorHandler.handleAuthError(`Session invalidated by server`, ErrorSeverity.HIGH, 'HeartbeatSessionInvalid');
-            this.setDesiredState({ connected: false });
-            this.emit('auth_failed', { reason: `Session invalidated by server` });
-            
-            // Clear tokens
-            //this.tokenManager.clearTokens();
-            
-            // Update auth state
-            appState.updateAuthState({
-                isAuthenticated: false,
-                isAuthLoading: false,
-                userId: null,
-                lastAuthError: 'Session invalidated by server'
-            });
-        }
+          this.logger.error(`[Listener] Session invalidated by heartbeat response. Forcing disconnect and logout.`);
+          AppErrorHandler.handleAuthError(`Session invalidated by server`, ErrorSeverity.HIGH, 'HeartbeatSessionInvalid');
+          this.setDesiredState({ connected: false });
+          this.emit('auth_failed', { reason: `Session invalidated by server` });
+          
+          // Clear tokens
+          //this.tokenManager.clearTokens();
+          
+          // Update auth state
+          appState.updateAuthState({
+              isAuthenticated: false,
+              isAuthLoading: false,
+              userId: null,
+              lastAuthError: 'Session invalidated by server'
+          });
     });
 
     // --- ConnectionResilienceManager Listeners ---

@@ -31,7 +31,6 @@ import {
   ServerSimulatorStartedResponse,
   ServerSimulatorStoppedResponse,
   ServerConnectionReplacedMessage,
-  DeviceIdInvalidatedMessage,
 
   isServerSimulatorStatusUpdateMessage,
   ServerSimulatorStatusUpdateMessage,
@@ -239,12 +238,7 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
         });
       }
         
-      // Add a check for device ID invalidation message
-      if (message.type === 'device_id_invalidated') {
-        this.handleDeviceIdInvalidatedMessage(message as DeviceIdInvalidatedMessage);
-        this.emit('device_id_invalidated', message);
-        return;
-      }
+      // this.emit('device_id_invalidated', message);
 
       // Emit generic message event
       this.emit('message', message);
@@ -313,21 +307,6 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
     }
   }
 
-  // Add a new method to handle device ID invalidation
-  private handleDeviceIdInvalidatedMessage(message: DeviceIdInvalidatedMessage): void {
-    if (this.isDisposed) return;
-    
-    this.logger.warn(`Device ID invalidated: ${message.deviceId}. Reason: ${message.reason || 'unknown'}`);
-    
-    // Notify observers - use properties that match the interface
-    this.emit('device_id_invalidated', {
-      deviceId: DeviceIdManager.getInstance().getDeviceId(),
-      reason: message.reason
-    });
-    
-    // Disconnect WebSocket
-    this.disconnect('device_id_invalidated');
-  }
 
   private handleConnectionClose(event: CloseEvent): void {
     console.error('🔌 WebSocket Close Event DETAILS', {
@@ -444,7 +423,6 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
       
     this.logger.debug('Detailed Heartbeat Ack Received', {
       deviceIdValid: message.deviceIdValid,
-      sessionStatus: message.sessionStatus,
       simulatorStatus: message.simulatorStatus,
       clientTimestamp: message.clientTimestamp,
       serverTimestamp: Date.now(),
@@ -454,10 +432,6 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
     // Check for specific conditions that might trigger reconnection
     if (!message.deviceIdValid) {
       this.logger.error('Device ID invalidated - forcing reconnection');
-    }
-
-    if (message.sessionStatus !== 'valid') {
-      this.logger.error(`Session status invalid: ${message.sessionStatus} - potential reconnection trigger`);
     }
     
     // Check if device ID is still valid
@@ -522,20 +496,20 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
       return;
     }
     
-    if (message.success) {
-      this.logger.info('Reconnection successful');
-      appState.updateConnectionState({
-        webSocketStatus: ConnectionStatus.CONNECTED,
-        lastConnectionError: null,
-        simulatorStatus: message.simulatorStatus
-      });
-    } else {
-      this.logger.error(`Reconnection failed: ${message.message || 'Unknown error'}`);
-      appState.updateConnectionState({
-        webSocketStatus: ConnectionStatus.DISCONNECTED,
-        lastConnectionError: message.message || 'Reconnection failed'
-      });
-    }
+    this.logger.info('Reconnection successful');
+    appState.updateConnectionState({
+      webSocketStatus: ConnectionStatus.CONNECTED,
+      lastConnectionError: null,
+      simulatorStatus: message.simulatorStatus
+    });
+
+    /*
+    this.logger.error(`Reconnection failed: ${message.message || 'Unknown error'}`);
+    appState.updateConnectionState({
+      webSocketStatus: ConnectionStatus.DISCONNECTED,
+      lastConnectionError: message.message || 'Reconnection failed'
+    });
+    */      
   }
 
   private handleExchangeDataMessage(message: ServerExchangeDataMessage): void {
@@ -598,29 +572,26 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
     }
     
     // Map the enum values to string values that match expected types
-    const qualityMap: Record<ConnectionQuality, "good" | "degraded" | "poor"> = {
-      [ConnectionQuality.GOOD]: "good",
-      [ConnectionQuality.DEGRADED]: "degraded",
-      [ConnectionQuality.POOR]: "poor",
-      [ConnectionQuality.UNKNOWN]: "degraded" // Default fallback
+    const qualityMap: Record<ConnectionQuality, "GOOD" | "DEGRADED" | "POOR"> = {
+      [ConnectionQuality.GOOD]: "GOOD",
+      [ConnectionQuality.DEGRADED]: "DEGRADED",
+      [ConnectionQuality.POOR]: "POOR",
+      [ConnectionQuality.UNKNOWN]: "DEGRADED" // Default fallback
     };
     
     // Map simulator status to expected values
-    const mapSimulatorStatus = (status: string): "running" | "stopped" | "starting" | "stopping" => {
-      if (status === "RUNNING") return "running";
-      if (status === "STOPPED") return "stopped";
-      if (status === "STARTING") return "starting";
-      if (status === "STOPPING") return "stopping";
-      return "stopped"; // Default fallback
+    const mapSimulatorStatus = (status: string): "RUNNING" | "STOPPED" | "STARTING" | "STOPPING" => {
+      if (status === "RUNNING") return "RUNNING";
+      if (status === "STOPPED") return "STOPPED";
+      if (status === "STARTING") return "STARTING";
+      if (status === "STOPPING") return "STOPPING";
+      return "STOPPED"; // Default fallback
     };
     
     const heartbeatMsg: ClientHeartbeatMessage = {
       type: 'heartbeat',
       timestamp: Date.now(),
       deviceId: DeviceIdManager.getInstance().getDeviceId(),
-      connectionQuality: qualityMap[appState.getState().connection.quality] || "degraded",
-      sessionStatus: 'active',
-      simulatorStatus: mapSimulatorStatus(appState.getState().connection.simulatorStatus)
     };
     
     try {
@@ -649,7 +620,6 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
     const reconnectMsg: ClientReconnectMessage = {
       type: 'reconnect',
       deviceId: DeviceIdManager.getInstance().getDeviceId(),
-      sessionToken: token,
       requestId
     };
     
@@ -657,7 +627,7 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
       // Listen for the reconnect result
       const subscription = this.once('reconnect_result', (result: ServerReconnectResultMessage) => {
         if (result.requestId === requestId) {
-          resolve(result.success);
+          resolve(true); // SUCCESS 
         } else {
           this.logger.warn('Received reconnect_result with mismatched requestId', { 
             expected: requestId, received: result.requestId 

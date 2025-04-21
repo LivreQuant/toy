@@ -50,10 +50,10 @@ async def handle_reconnect(
         span.set_attribute("device_id_from_client", str(device_id))
         span.set_attribute("request_id", request_id)
         
-        # In singleton mode, prepare successful response
-        success = True
-        response_message = "Session reconnected successfully"
-        
+        # Session is valid
+        device_id_valid = True
+        reason = ""
+
         # Get session details
         session_details = await session_manager.get_session_details()
         simulator_status = session_details.get('simulator_status', 'NONE') if session_details else 'NONE'
@@ -73,11 +73,9 @@ async def handle_reconnect(
         response = {
             'type': 'reconnect_result',
             'requestId': request_id,
-            'success': success,
-            'message': response_message,
             'deviceId': device_id,
-            'deviceIdValid': True,  # Always valid in singleton mode
-            'sessionStatus': 'valid',  # Always valid in singleton mode
+            'deviceIdValid': device_id_valid,  # Always valid in singleton mode
+            'reason': reason,
             'simulatorStatus': simulator_status
         }
 

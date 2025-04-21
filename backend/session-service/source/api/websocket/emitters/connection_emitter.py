@@ -74,25 +74,3 @@ async def send_shutdown(ws: web.WebSocketResponse, reason: str):
             logger.debug(f"Sent 'shutdown'")
     except Exception as e:
         logger.warning(f"Failed to send 'shutdown' message: {e}")
-
-
-async def send_device_id_invalidated(
-        ws: web.WebSocketResponse,
-        *,
-        device_id: str,
-        reason: str = "Another device has connected with this account",
-):
-    """Sends the 'device_id_invalidated' message when a device ID is no longer valid."""
-    payload = {
-        'type': 'device_id_invalidated',
-        'deviceId': device_id,
-        'reason': reason,
-        'timestamp': int(time.time() * 1000)
-    }
-    try:
-        if not ws.closed:
-            await ws.send_json(payload)
-            track_websocket_message("sent", "device_id_invalidated")
-            logger.debug(f"Sent 'device_id_invalidated'")
-    except Exception as e:
-        logger.warning(f"Failed to send 'device_id_invalidated' message: {e}")

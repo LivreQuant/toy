@@ -13,15 +13,11 @@ export interface BaseWebSocketMessage {
     type: 'heartbeat';
     timestamp: number;
     deviceId: string;
-    connectionQuality: 'good' | 'degraded' | 'poor';
-    sessionStatus: 'active' | 'expired' | 'pending';
-    simulatorStatus: 'running' | 'stopped' | 'starting' | 'stopping';
  }
  
  export interface ClientReconnectMessage extends BaseWebSocketMessage {
     type: 'reconnect';
     deviceId: string;
-    sessionToken: string;
     requestId: string;
  }
   
@@ -61,20 +57,17 @@ export interface BaseWebSocketMessage {
     clientTimestamp: number;
     deviceId: string;
     deviceIdValid: boolean;
-    connectionQualityUpdate: 'good' | 'degraded' | 'poor';
-    sessionStatus: 'valid' | 'invalid' | 'pending';
-    simulatorStatus: 'running' | 'stopped' | 'starting' | 'stopping';
+    reason: string;
+    simulatorStatus: 'RUNNING' | 'STOPPED' | 'STARTING' | 'STOPPING';
  }
  
  export interface ServerReconnectResultMessage extends BaseWebSocketMessage {
     type: 'reconnect_result';
     requestId: string;
-    success: boolean;
     deviceId: string;
     deviceIdValid: boolean;
-    message?: string;
-    sessionStatus: 'valid' | 'invalid' | 'pending';
-    simulatorStatus: 'running' | 'stopped' | 'starting' | 'stopping';
+    reason: string;
+    simulatorStatus: 'RUNNING' | 'STOPPED' | 'STARTING' | 'STOPPING';
  }
  
  export interface ServerExchangeDataMessage extends BaseWebSocketMessage {
@@ -148,13 +141,6 @@ export interface ServerConnectionReplacedMessage extends BaseWebSocketMessage {
    timestamp: number;
  }
 
- export interface DeviceIdInvalidatedMessage extends BaseWebSocketMessage {
-   type: 'device_id_invalidated';
-   deviceId: string;
-   reason?: string;
-   timestamp: number;
- }
-
  // --- Union Type for All Possible Messages ---
  export type WebSocketMessage =
     | ClientHeartbeatMessage
@@ -171,8 +157,7 @@ export interface ServerConnectionReplacedMessage extends BaseWebSocketMessage {
     | ServerSimulatorStartedResponse
     | ServerSimulatorStoppedResponse
     | ServerConnectionReplacedMessage
-    | ServerSimulatorStatusUpdateMessage
-    | DeviceIdInvalidatedMessage;
+    | ServerSimulatorStatusUpdateMessage;
  
  // --- Type Guard Functions ---
  export function isServerHeartbeatAckMessage(msg: WebSocketMessage): msg is ServerHeartbeatAckMessage {
@@ -209,8 +194,4 @@ export interface ServerConnectionReplacedMessage extends BaseWebSocketMessage {
 
  export function isServerSimulatorStatusUpdateMessage(msg: WebSocketMessage): msg is ServerSimulatorStatusUpdateMessage {
    return msg.type === 'simulator_status_update';
- }
- 
- export function isDeviceIdInvalidatedMessage(msg: WebSocketMessage): msg is DeviceIdInvalidatedMessage {
-   return msg.type === 'device_id_invalidated';
  }

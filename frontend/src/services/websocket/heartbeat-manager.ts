@@ -119,7 +119,6 @@ export class HeartbeatManager implements Disposable {
     
     this.logger.debug('Heartbeat Response Analysis', {
       deviceIdValid: message.deviceIdValid,
-      sessionStatus: message.sessionStatus,
       simulatorStatus: message.simulatorStatus,
       clientTimestamp: message.clientTimestamp,
       serverTimestamp: Date.now(),
