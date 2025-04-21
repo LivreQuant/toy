@@ -22,6 +22,28 @@ if [ "$(id -u)" -eq 0 ]; then
     exit 1
 fi
 
+# Check if curl is installed, install if missing
+if ! command -v curl >/dev/null 2>&1; then
+    echo "curl not found. Installing..."
+    sudo apt-get update && sudo apt-get install -y curl
+fi
+
+# Check if minikube is installed, install if missing
+if ! command -v minikube >/dev/null 2>&1; then
+    echo "Minikube not found. Installing..."
+    curl -Lo minikube https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+    chmod +x minikube
+    sudo mv minikube /usr/local/bin/
+fi
+
+# Check if kubectl is installed, install if missing
+if ! command -v kubectl >/dev/null 2>&1; then
+    echo "kubectl not found. Installing..."
+    curl -LO "https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl"
+    chmod +x kubectl
+    sudo mv kubectl /usr/local/bin/
+fi
+
 # Check if Minikube is running, if not start it
 minikube status >/dev/null 2>&1
 MINIKUBE_STATUS=$?
