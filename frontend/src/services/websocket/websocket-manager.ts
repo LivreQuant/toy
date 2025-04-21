@@ -21,7 +21,6 @@ import {
   isServerHeartbeatAckMessage,
   isServerReconnectResultMessage,
   isServerExchangeDataMessage,
-  isServerConnectionReplacedMessage,
   ClientStartSimulatorMessage,
   ClientStopSimulatorMessage,
   ClientSessionInfoRequest,
@@ -31,9 +30,6 @@ import {
   ServerSimulatorStartedResponse,
   ServerSimulatorStoppedResponse,
   ServerConnectionReplacedMessage,
-
-  isServerSimulatorStatusUpdateMessage,
-  ServerSimulatorStatusUpdateMessage,
 
 } from './message-types';
 import {
@@ -54,7 +50,6 @@ export interface WebSocketEvents {
   session_stopped: ServerStopSessionResponse;
   simulator_started: ServerSimulatorStartedResponse;
   simulator_stopped: ServerSimulatorStoppedResponse;
-  connection_replaced: ServerConnectionReplacedMessage;
   device_id_invalidated: {
     deviceId: string, 
     reason?: string,
@@ -93,8 +88,8 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
 
     this.tokenManager = tokenManager;
     const defaultOptions: Required<WebSocketOptions> = {
-        heartbeatInterval: 30000,
-        heartbeatTimeout: 10000,
+        heartbeatInterval: 10000,
+        heartbeatTimeout: 7000,
         reconnectMaxAttempts: 5,
         preventAutoConnect: true
     };
@@ -246,15 +241,10 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
       // Handle specific message types
       if (isServerHeartbeatAckMessage(message)) {
         this.handleHeartbeatAckMessage(message);
-      } else if (isServerSimulatorStatusUpdateMessage(message)) {
-        this.handleSimulatorStatusUpdateMessage(message);
       } else if (isServerReconnectResultMessage(message)) {
         this.handleReconnectResultMessage(message);
       } else if (isServerExchangeDataMessage(message)) {
         this.handleExchangeDataMessage(message);
-      } else if (isServerConnectionReplacedMessage(message)) {
-        this.handleConnectionReplacedMessage(message);
-        this.emit('connection_replaced', message);
       } else {
         // For other message types we're not specifically handling
         this.logger.debug(`Received message of type: ${message.type}`);
@@ -431,17 +421,18 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
       
     // Check for specific conditions that might trigger reconnection
     if (!message.deviceIdValid) {
-      this.logger.error('Device ID invalidated - forcing reconnection');
-    }
-    
-    // Check if device ID is still valid
-    if (!message.deviceIdValid) {
-      this.logger.warn(`Device ID invalidated. Current valid device ID: ${message.deviceId}`);
+      this.logger.warn(`Device ID invalidated in heartbeat. Reason: ${message.reason}`);
+      
+      // Clear the device ID in DeviceIdManager
+      DeviceIdManager.getInstance().clearDeviceId();
+      
+      // Emit event for the device ID invalidation
       this.emit('device_id_invalidated', { 
         deviceId: DeviceIdManager.getInstance().getDeviceId(), 
-        currentValidDeviceId: message.deviceId 
+        reason: message.reason 
       });
-      // You might want to trigger a disconnect or logout here
+      
+      // Disconnect WebSocket
       this.disconnect('device_id_invalidated');
       return;
     }
@@ -460,22 +451,6 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
       lastHeartbeatTime: now,
       heartbeatLatency: latency >= 0 ? latency : null,
       quality: quality,
-      simulatorStatus: message.simulatorStatus
-    });
-  }
-
-  // Add a new method to handle the simulator status update
-  private handleSimulatorStatusUpdateMessage(message: ServerSimulatorStatusUpdateMessage): void {
-    if (this.isDisposed) return;
-
-    this.logger.info('Simulator Status Update Received', {
-      simulatorId: message.simulatorId,
-      status: message.simulatorStatus,
-      timestamp: message.timestamp
-    });
-
-    // Update the app state with the new simulator status
-    appState.updateConnectionState({
       simulatorStatus: message.simulatorStatus
     });
   }
@@ -577,15 +552,6 @@ export class WebSocketManager extends TypedEventEmitter<WebSocketEvents> impleme
       [ConnectionQuality.DEGRADED]: "DEGRADED",
       [ConnectionQuality.POOR]: "POOR",
       [ConnectionQuality.UNKNOWN]: "DEGRADED" // Default fallback
-    };
-    
-    // Map simulator status to expected values
-    const mapSimulatorStatus = (status: string): "RUNNING" | "STOPPED" | "STARTING" | "STOPPING" => {
-      if (status === "RUNNING") return "RUNNING";
-      if (status === "STOPPED") return "STOPPED";
-      if (status === "STARTING") return "STARTING";
-      if (status === "STOPPING") return "STOPPING";
-      return "STOPPED"; // Default fallback
     };
     
     const heartbeatMsg: ClientHeartbeatMessage = {

@@ -3,7 +3,7 @@ import json
 import logging
 import time
 import asyncio
-from typing import Dict, Any, Set
+from typing import Dict, Any
 from aiohttp import web, WSMsgType
 from opentelemetry import trace
 
@@ -11,7 +11,7 @@ from source.api.websocket.utils import authenticate_websocket_request
 from source.utils.tracing import optional_trace_span
 from source.utils.metrics import track_websocket_message
 from source.api.websocket.dispatcher import WebSocketDispatcher
-from source.api.websocket.emitters import error_emitter, connection_emitter, session_emitter
+from source.api.websocket.emitters import error_emitter, connection_emitter
 
 
 class WebSocketManager:
@@ -29,9 +29,6 @@ class WebSocketManager:
 
         # Register for exchange data
         self.session_manager.register_exchange_data_callback(self.broadcast_exchange_data)
-
-        # Register for simulator status updates - look for special type
-        self.session_manager.register_exchange_data_callback(self.handle_simulator_status_update)
 
     async def handle_connection(self, request: web.Request) -> web.WebSocketResponse:
         """
@@ -225,37 +222,6 @@ class WebSocketManager:
 
         # Track this message
         track_websocket_message("sent_broadcast", "exchange_data")
-
-    # Add this new method
-    async def handle_simulator_status_update(self, data):
-        """Handle simulator status update events"""
-        if data.get('type') == 'simulator_status_changed':
-            simulator_id = data.get('simulator_id')
-            status = data.get('status')
-
-            if simulator_id and status:
-                await self.broadcast_simulator_status(simulator_id, status)
-
-    async def broadcast_simulator_status(self, simulator_id: str, status: str):
-        """
-        Broadcast simulator status update to all connections
-        """
-        if not self.active_connections:
-            return
-
-        self.logger.info(f"Broadcasting simulator status update: {status} for simulator {simulator_id}")
-
-        for device_id, ws in list(self.active_connections.items()):
-            if not ws.closed:
-                try:
-                    await session_emitter.send_simulator_status_update(
-                        ws,
-                        simulator_id=simulator_id,
-                        status=status,
-                        client_id=self.connection_metadata.get(device_id, {}).get('client_id')
-                    )
-                except Exception as e:
-                    self.logger.error(f"Error sending simulator status update to device {device_id}: {e}")
 
     async def broadcast_to_session(self, payload: Dict[str, Any]) -> int:
         """

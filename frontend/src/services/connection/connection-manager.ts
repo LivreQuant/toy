@@ -165,16 +165,17 @@ export class ConnectionManager extends TypedEventEmitter<ConnectionManagerEvents
           }
       })
     );
-        
+    
     // Listen for session invalidation messages from the server via WebSocket
     this.wsManager.subscribe('heartbeat_ack', (data) => {
         if (this.isDisposed) return;
         
         // Update simulator status if provided
         if (data.simulatorStatus) {
-            appState.updateConnectionState({ 
-                simulatorStatus: data.simulatorStatus 
-            });
+          this.logger.debug(`[Heartbeat] Simulator status update: ${data.simulatorStatus}`);
+          appState.updateConnectionState({ 
+            simulatorStatus: data.simulatorStatus 
+          });
         }
         
         // If session is invalid according to server, handle logout
