@@ -1,8 +1,6 @@
 // src/api/http-client.ts
 import { TokenManager } from '../services/auth/token-manager';
 import { config } from '../config';
-import { AppErrorHandler } from '../utils/app-error-handler';
-import { ErrorSeverity } from '../utils/error-handler';
 import { getLogger } from '../boot/logging';
 import { EnhancedLogger } from '../utils/enhanced-logger';
 
@@ -14,6 +12,12 @@ export interface RequestOptions extends RequestInit {
   context?: string; // Optional context string for logging/error reporting
 }
 
+enum ErrorSeverity {
+  LOW = 'low',
+  MEDIUM = 'medium',
+  HIGH = 'high',
+  FATAL = 'fatal'
+}
 
 export class HttpClient {
   private readonly baseUrl: string;
@@ -138,33 +142,27 @@ export class HttpClient {
            return this.request<T>(method, endpoint, data, options, retryCount + 1);
         } else {
             this.logger.error('Token refresh failed after 401.', { endpoint });
-             errorMessage = options.customErrorMessage || 'Session expired or invalid. Please log in again.';
-             errorSeverity = ErrorSeverity.HIGH;
-             AppErrorHandler.handleAuthError(errorMessage, errorSeverity, errorContext + '.RefreshFailed', { details: errorDetails });
-             throw new Error(errorMessage); // Throw after handling
+            errorMessage = options.customErrorMessage || 'Session expired or invalid. Please log in again.';
+            this.logger.error(`[TokenManager.RefreshFailed] ${errorMessage}`);
+            throw new Error(errorMessage); // Throw after handling
         }
       } catch (refreshError: any) {
         this.logger.error('Error during token refresh attempt', { endpoint, error: refreshError.message });
-         errorMessage = options.customErrorMessage || 'Session refresh failed. Please log in again.';
-         errorSeverity = ErrorSeverity.HIGH;
-         AppErrorHandler.handleAuthError(errorMessage, errorSeverity, errorContext + '.RefreshException', { originalError: refreshError });
-         throw new Error(errorMessage); // Throw after handling
+        errorMessage = options.customErrorMessage || 'Session refresh failed. Please log in again.';
+        this.logger.error(`[TokenManager.RefreshException] ${errorMessage}`);
+        throw new Error(errorMessage); // Throw after handling
       }
     } else if (response.status === 403) { // Forbidden
-        errorSeverity = ErrorSeverity.HIGH;
         errorMessage = options.customErrorMessage || errorDetails?.message || 'Permission denied.';
-        AppErrorHandler.handleAuthError(errorMessage, errorSeverity, errorContext + '.Forbidden', { details: errorDetails });
+        this.logger.error(`[Forbidden] ${errorMessage}`);
     } else if (response.status === 404) { // Not Found
-        errorSeverity = ErrorSeverity.LOW; // Often not a critical error
         errorMessage = options.customErrorMessage || errorDetails?.message || 'Resource not found.';
+        this.logger.error(`[NotFound] ${errorMessage}`);
         // Use generic handler, maybe suppress toast?
-        AppErrorHandler.handleGenericError(errorMessage, errorSeverity, errorContext + '.NotFound', { details: errorDetails, suppressToast: options.suppressErrorToast });
     } else if (response.status >= 400 && response.status < 500) { // Other Client Errors (e.g., 400 Bad Request, 409 Conflict)
-        errorSeverity = ErrorSeverity.MEDIUM;
         errorMessage = options.customErrorMessage || errorDetails?.message || `Client error ${response.status}.`;
-        AppErrorHandler.handleDataError(errorMessage, errorSeverity, errorContext + `.ClientError${response.status}`, { details: errorDetails, suppressToast: options.suppressErrorToast });
+        this.logger.error(`.ClientError${response.status} ${errorMessage}`);
     } else if (response.status >= 500) { // Server Errors (500, 502, 503, 504)
-        errorSeverity = ErrorSeverity.HIGH;
         errorMessage = options.customErrorMessage || `Server error (${response.status}). Please try again later.`;
          // Retry mechanism for server errors (simple example)
          const maxRetriesForServerError = options.retries ?? this.maxRetries; // Use option or default
@@ -176,14 +174,14 @@ export class HttpClient {
             return this.request<T>(method, endpoint, data, options, retryCount + 1);
          } else {
              this.logger.error(`Server error ${response.status} persisted after ${maxRetriesForServerError} retries.`, { endpoint, details: errorDetails });
-             AppErrorHandler.handleConnectionError(errorMessage, errorSeverity, errorContext + `.ServerError${response.status}.Final`, { details: errorDetails, suppressToast: options.suppressErrorToast });
+             this.logger.error(`.ServerError${response.status} ${errorMessage}`);
          }
     }
 
     // --- Default Error Handling for unhandled status codes ---
     if (response.status >= 400) { // Ensure only errors are thrown
         // Use generic error for anything not specifically handled above
-        AppErrorHandler.handleGenericError(errorMessage, errorSeverity, errorContext + `.Unhandled${response.status}`, { details: errorDetails, suppressToast: options.suppressErrorToast });
+        this.logger.error(`.Unhandled${response.status} ${errorMessage}`);
         throw new Error(errorMessage);
     }
 
@@ -206,7 +204,6 @@ export class HttpClient {
         // It might include retries similar to the 5xx handling.
         const errorMessage = options.customErrorMessage || `Network error: ${error.message}`;
         const errorContext = options.context || `HttpClient.${method}.${endpoint.replace('/', '')}`;
-        const errorSeverity = ErrorSeverity.HIGH; // Network errors are usually high severity
 
         this.logger.error('Network or fetch error occurred', { endpoint, error: error.message, retryCount });
 
@@ -220,7 +217,7 @@ export class HttpClient {
             return this.request<T>(method, endpoint, data, options, retryCount + 1);
         } else {
             this.logger.error(`Network error persisted after ${maxRetriesForNetworkError} retries.`, { endpoint });
-            AppErrorHandler.handleConnectionError(errorMessage, errorSeverity, errorContext + '.NetworkError.Final', { originalError: error, suppressToast: options.suppressErrorToast });
+            this.logger.error(`.NetworkError.Final ${errorMessage}`);
             throw new Error(errorMessage); // Throw final error
         }
         // --- END OF MISSING IMPLEMENTATION PLACEHOLDER ---

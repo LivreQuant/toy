@@ -1,13 +1,21 @@
 // src/components/Common/ConnectionStatusIndicator.tsx
 import React from 'react';
 // Import Enums from AppStateService (or a dedicated types file)
-import { ConnectionStatus, ConnectionQuality } from '../../state/connection-state';
+import { ConnectionStatus, ConnectionQuality, connectionState } from '../../state/connection-state';
 import './ConnectionStatus.css'; // Import styles
 
 interface ConnectionStatusIndicatorProps {
-  // Expect the 'connection' slice of the AppState
-  state: AppState['connection'];
-  onManualReconnect?: () => void; // Callback to trigger manual reconnect
+  // Define the state type explicitly without using ReturnType
+  state: {
+    overallStatus: ConnectionStatus;
+    quality: ConnectionQuality;
+    isRecovering: boolean;
+    recoveryAttempt: number;
+    heartbeatLatency?: number | null;
+    simulatorStatus: string;
+    lastConnectionError: string | null;
+  };
+  onManualReconnect?: () => void;
 }
 
 const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps> = ({ state, onManualReconnect }) => {

@@ -10,19 +10,30 @@ import React, {
 import { ConnectionManager } from '../services/connection/connection-manager';
 // Fix the import to use the correct type
 import {
-  connectionState,
+  connectionState as globalConnectionState,
   ConnectionStatus,
-  initialConnectionState as appInitialState
+  initialConnectionState
 } from '../state/connection-state';
 import { Subscription } from 'rxjs';
 import { getLogger } from '../boot/logging';
 import LoadingSpinner from '../components/Common/LoadingSpinner';
 import { useAuth } from '../hooks/useAuth';
 
+type ConnectionStateType = {
+  overallStatus: ConnectionStatus;
+  webSocketStatus: ConnectionStatus;
+  quality: any; // Use the actual type from your code
+  isRecovering: boolean;
+  recoveryAttempt: number;
+  heartbeatLatency?: number | null;
+  simulatorStatus: string;
+  lastConnectionError: string | null;
+};
+
 // Define the shape of your context data
 interface ConnectionContextValue {
   connectionManager: ConnectionManager;
-  connectionState: typeof appInitialState.connection;
+  connectionState: ConnectionStateType;
   isConnected: boolean;
   isConnecting: boolean;
   isRecovering: boolean;
@@ -47,9 +58,13 @@ export const ConnectionProvider: React.FC<ConnectionProviderProps> = ({
   // Use Auth State
   const { isAuthenticated, isAuthLoading } = useAuth();
 
-  // Local state holds the connection slice from AppState
+  // Replace appState usage with connectionState
   const [connectionState, setConnectionState] = useState(
-    () => appState.getState().connection
+    () => connectionState.getState()
+  );
+
+  const [localConnectionState, setLocalConnectionState] = useState<ConnectionStateType>(
+    () => globalConnectionState.getState()
   );
 
   // Subscribe to Connection State Changes
@@ -57,17 +72,16 @@ export const ConnectionProvider: React.FC<ConnectionProviderProps> = ({
     logger.info(
       'ConnectionProvider subscribing to AppState connection changes.'
     );
-    const stateSubscription: Subscription = connectionState
+    const stateSubscription: Subscription = globalConnectionState
       .getState$()
       .subscribe({
-        next: (connState) => {
-          setConnectionState(connState);
+        next: (connState: ConnectionStateType) => {
+          setLocalConnectionState(connState);
         },
-        // Add type annotations for parameters
         error: (err: any) => {
           logger.error('Error subscribing to connection state', { error: err });
         },
-    });
+      });
 
     return () => {
       logger.info('ConnectionProvider unsubscribing from connection state.');
@@ -86,7 +100,7 @@ export const ConnectionProvider: React.FC<ConnectionProviderProps> = ({
 
   // Memoize the context value
   const contextValue = useMemo(() => {
-    const currentConnState = connectionState ?? appInitialState.connection;
+    const currentConnState = connectionState ?? initialConnectionState;
     const isConnected =
       currentConnState.overallStatus === ConnectionStatus.CONNECTED;
     const isConnecting =
@@ -104,12 +118,12 @@ export const ConnectionProvider: React.FC<ConnectionProviderProps> = ({
     
     return {
       connectionManager,
-      connectionState: currentConnState,
+      connectionState: localConnectionState,
       isConnected,
       isConnecting,
       isRecovering,
     };
-  }, [connectionManager, connectionState]);
+  }, [connectionManager, localConnectionState]);
 
   // Conditional rendering
   if (isAuthLoading) {

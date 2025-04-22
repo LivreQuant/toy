@@ -1,5 +1,5 @@
 // src/api/session.ts
-import { WebSocketManager } from '../services/websocket/websocket-manager';
+import { ConnectionManager } from '../services/connection/connection-manager';'
 import { DeviceIdManager } from '../services/auth/device-id-manager';
 
 export interface SessionResponse {
@@ -18,10 +18,10 @@ export interface SessionStateResponse {
  * API client for interacting with the backend session endpoints via WebSocket.
  */
 export class SessionApi {
-  private wsManager: WebSocketManager;
+  private connectionManager: ConnectionManager;
 
-  constructor(wsManager: WebSocketManager) {
-    this.wsManager = wsManager;
+  constructor(connectionManager: ConnectionManager) {
+    this.connectionManager = connectionManager;
   }
 
   /**
@@ -30,7 +30,7 @@ export class SessionApi {
    */
   async createSession(): Promise<SessionResponse> {
     try {
-      const response = await this.wsManager.requestSessionInfo();
+      const response = await this.connectionManager.requestSessionInfo();
       console.log("CRITICAL DEBUG: Session validation response:", response);
       
       // Explicitly check for valid session conditions

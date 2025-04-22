@@ -54,7 +54,10 @@ tokenManager.setAuthApi(authApi); // Important: Set AuthApi dependency in TokenM
 const ordersApi = new OrdersApi(httpClient);
 
 // Instantiate ConnectionManager with both WebSocketManager and HttpClient
-const connectionManager = new ConnectionManager(tokenManager);
+const connectionManager = new ConnectionManager(
+  tokenManager,
+  httpClient
+);
 
 logger.info('Application services instantiated.');
 // --- End Service Instantiation ---

@@ -1,5 +1,5 @@
 // src/api/simulator.ts
-import { WebSocketManager } from '../services/websocket/websocket-manager';
+import { ConnectionManager } from '../services/connection/connection-manager';
 
 export interface SimulatorStatusResponse {
   success: boolean;
@@ -12,10 +12,9 @@ export interface SimulatorStatusResponse {
  * API client for interacting with the simulator via WebSocket.
  */
 export class SimulatorApi {
-  private wsManager: WebSocketManager;
-
-  constructor(wsManager: WebSocketManager) {
-    this.wsManager = wsManager;
+  
+  constructor(connectionManager: ConnectionManager) {
+    this.connectionManager = connectionManager;
   }
 
   /**

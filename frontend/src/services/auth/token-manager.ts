@@ -10,6 +10,14 @@ export interface TokenData {
   userId: string | number; // Add userId to the token data
 }
 
+enum ErrorLevel {
+    LOW = 'low',
+    MEDIUM = 'medium',
+    HIGH = 'high',
+    FATAL = 'fatal'
+}
+
+  
 export class TokenManager {
     private readonly storageKey = 'auth_tokens'; // Instance property
     private readonly expiryMargin = 5 * 60 * 1000; // 5 minutes in milliseconds, instance property
@@ -40,7 +48,7 @@ export class TokenManager {
         } catch (e: any) {
             console.error(
                 new Error(`Failed to store tokens: ${e.message}`),
-                ErrorSeverity.MEDIUM, // Or HIGH depending on impact
+                ErrorLevel.MEDIUM, // Or HIGH depending on impact
                 'TokenManager.storeTokens'
             );
         }
@@ -56,7 +64,7 @@ export class TokenManager {
         } catch (e: any) {
             console.error(
                 new Error(`Failed to parse stored tokens: ${e.message}`),
-                ErrorSeverity.HIGH,
+                ErrorLevel.HIGH,
                 'TokenManager.getTokens'
             );
             this.clearTokens(); // Clear invalid tokens
@@ -71,7 +79,7 @@ export class TokenManager {
         } catch (e: any) {
             console.error(
                 new Error(`Failed to clear tokens: ${e.message}`),
-                ErrorSeverity.MEDIUM,
+                ErrorLevel.MEDIUM,
                 'TokenManager.clearTokens'
             );
         }
@@ -129,7 +137,7 @@ export class TokenManager {
         const tokens = this.getTokens();
         if (!tokens?.refreshToken) {
             // Use error handler
-            console.error('No refresh token available', ErrorSeverity.HIGH, 'TokenManager.refresh');
+            console.error('No refresh token available', ErrorLevel.HIGH, 'TokenManager.refresh');
             return false;
         }
 
@@ -137,7 +145,7 @@ export class TokenManager {
         if (!this.authApi) {
             console.error(
                 'Auth API dependency not set in TokenManager',
-                ErrorSeverity.FATAL, // This is a critical configuration error
+                ErrorLevel.FATAL, // This is a critical configuration error
                 'TokenManager.refresh'
             );
             return false;
@@ -163,7 +171,7 @@ export class TokenManager {
                 // Use error handler for refresh failure
                 console.error(
                     error instanceof Error ? error : new Error('Token refresh API call failed'),
-                    ErrorSeverity.HIGH,
+                    ErrorLevel.HIGH,
                     'TokenManager.refresh'
                 );
 
@@ -190,7 +198,7 @@ export class TokenManager {
                 // Use error handler for listener errors
                 console.error(
                     new Error(`Error in token refresh listener: ${error.message}`),
-                    ErrorSeverity.MEDIUM,
+                    ErrorLevel.MEDIUM,
                     'TokenManager.notifyListeners'
                 );
             }

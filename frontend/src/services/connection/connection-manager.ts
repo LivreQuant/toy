@@ -147,9 +147,9 @@ export class ConnectionManager implements Disposable {
       if (this.isDisposed) return;
       
       // Handle device ID invalidation
-      if (message.type === 'device_id_invalidated') {
-        this.logger.warn(`Device ID invalidated: ${message.deviceId}`);
-        this.handleDeviceIdInvalidation('server_message', message.reason);
+      if ((message as any).type === 'device_id_invalidated') {
+        this.logger.warn(`Device ID invalidated: ${(message as any).deviceId}`);
+        this.handleDeviceIdInvalidation('server_message', (message as any).reason);
       }
       
       // Handle connection replaced
