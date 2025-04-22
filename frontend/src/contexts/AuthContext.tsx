@@ -5,7 +5,7 @@ import { LoginRequest, LoginResponse, AuthApi } from '../api/auth'; // Adjust pa
 import { TokenManager, TokenData } from '../services/auth/token-manager'; // Adjust path
 import LoadingSpinner from '../components/Common/LoadingSpinner'; // Assuming component exists
 // --->>> ADD THIS IMPORT <<<---
-import { appState } from '../services/state/app-state.service'; // Adjust path as needed
+import { appState } from '../state/app-state.service'; // Adjust path as needed
 import { getLogger } from '../boot/logging'; // Adjust path as needed
 import { DeviceIdManager } from '../services/auth/device-id-manager';
 import { ConnectionManager } from '../services/connection/connection-manager';

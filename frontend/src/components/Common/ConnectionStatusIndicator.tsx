@@ -1,7 +1,7 @@
 // src/components/Common/ConnectionStatusIndicator.tsx
 import React from 'react';
 // Import Enums from AppStateService (or a dedicated types file)
-import { ConnectionStatus, ConnectionQuality, AppState } from '../../services/state/app-state.service';
+import { ConnectionStatus, ConnectionQuality, AppState } from '../../state/app-state.service';
 import './ConnectionStatus.css'; // Import styles
 
 interface ConnectionStatusIndicatorProps {

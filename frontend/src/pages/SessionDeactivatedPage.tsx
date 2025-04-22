@@ -1,7 +1,7 @@
 // In src/pages/SessionDeactivatedPage.tsx
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { appState } from '../services/state/app-state.service';
+import { appState } from '../state/app-state.service';
 
 const SessionDeactivatedPage: React.FC = () => {
   const navigate = useNavigate();

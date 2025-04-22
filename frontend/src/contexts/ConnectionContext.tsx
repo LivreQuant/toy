@@ -13,7 +13,7 @@ import {
   appState,
   ConnectionStatus,
   initialState as appInitialState,
-} from '../services/state/app-state.service';
+} from '../state/app-state.service';
 import { Subscription } from 'rxjs';
 import { getLogger } from '../boot/logging';
 import LoadingSpinner from '../components/Common/LoadingSpinner';
