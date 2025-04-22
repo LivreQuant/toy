@@ -58,15 +58,15 @@ export const ConnectionProvider: React.FC<ConnectionProviderProps> = ({
   // Use Auth State
   const { isAuthenticated, isAuthLoading } = useAuth();
 
-  // Replace appState usage with connectionState
-  const [connectionState, setConnectionState] = useState(
-    () => connectionState.getState()
-  );
-
-  const [localConnectionState, setLocalConnectionState] = useState<ConnectionStateType>(
+  // Replace with explicit typing
+  const [connectionState, setConnectionState] = useState<ConnectionState>(
     () => globalConnectionState.getState()
   );
 
+  const [localConnectionState, setLocalConnectionState] = useState<ConnectionState>(
+    () => globalConnectionState.getState()
+  );
+  
   // Subscribe to Connection State Changes
   useEffect(() => {
     logger.info(

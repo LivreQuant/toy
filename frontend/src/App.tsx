@@ -1,77 +1,78 @@
 // App.tsx 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './contexts/AuthContext';
-import { ConnectionProvider } from './contexts/ConnectionContext';
-import { TokenManagerProvider } from './contexts/TokenManagerContext';
+import { useNavigate } from 'react-router-dom';
+
+// LOGGING
+import { initializeLogging } from './boot/logging'; // Import logging setup
+
+// SERVICES
+import { LocalStorageService } from './services/storage/local-storage-service';
+import { SessionStorageService } from './services/storage/session-storage-service';
+import { DeviceIdManager } from './services/auth/device-id-manager';
+import { TokenManager } from './services/auth/token-manager';
+
+// APIS
+import { AuthApi } from './api/auth';
+import { HttpClient } from './api/http-client';
+
+// SERVICES
+import { ConnectionManager } from './services/connection/connection-manager';
+
+// HOOKS
+import { useConnection } from './hooks/useConnection';
+
+// CONTEXT
 import { ToastProvider } from './contexts/ToastContext';
+import { AuthProvider } from './contexts/AuthContext';
+import { TokenManagerProvider } from './contexts/TokenManagerContext';
+import { ConnectionProvider } from './contexts/ConnectionContext';
+
+// COMPONENTS
+import ProtectedRoute from './components/Common/ProtectedRoute'; // Component for protected routes
+
+// PAGES
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import SimulatorPage from './pages/SimulatorPage';
 import SessionDeactivatedPage from './pages/SessionDeactivatedPage';
-import ProtectedRoute from './components/Common/ProtectedRoute'; // Component for protected routes
-
-// --- Service Instantiation (Move to a bootstrapper file if complex) ---
-import { TokenManager } from './services/auth/token-manager';
-import { LocalStorageService } from './services/storage/local-storage-service';
-import { SessionStorageService } from './services/storage/session-storage-service';
-import { HttpClient } from './api/http-client';
-import { AuthApi } from './api/auth';
-import { OrdersApi } from './api/order';
-import { SessionApi } from './api/session';
-import { SimulatorApi } from './api/simulator';
-import { ConnectionManager } from './services/connection/connection-manager';
-import { initializeLogging, getLogger } from './boot/logging'; // Import logging setup
-import { toastService } from './services/notification/toast-service';
-import { DeviceIdManager } from './services/auth/device-id-manager'; // Import DeviceIdManager
-
-import { useNavigate } from 'react-router-dom';
-import { useConnection } from './hooks/useConnection';
-import { useEffect } from 'react';
 
 // Initialize Logging First
-initializeLogging();
-const logger = getLogger('App'); // Get logger instance
+initializeLogging()
 
-// Instantiate Core Services (Singleton or Scoped)
+// --- Start Service Instantiation ---
+
+// Instantiate Storage
 const localStorageService = new LocalStorageService();
 const sessionStorageService = new SessionStorageService();
-const baseLogger = getLogger('ServiceCore'); // Use base logger for service instantiation
 
-// Initialize Singletons that need setup
-DeviceIdManager.getInstance(sessionStorageService, baseLogger.createChild('DeviceIdManager')); // Initialize DeviceIdManager
-
-// Instantiate remaining services
+DeviceIdManager.getInstance(sessionStorageService);
 const tokenManager = new TokenManager(
   localStorageService, 
-  DeviceIdManager.getInstance(sessionStorageService, logger)
+  DeviceIdManager.getInstance(sessionStorageService)
 );
-const httpClient = new HttpClient(tokenManager); // HttpClient uses TokenManager
+
+// Intialize Rest APIs + Websocket
+const httpClient = new HttpClient(tokenManager);
 const authApi = new AuthApi(httpClient);
-tokenManager.setAuthApi(authApi); // Important: Set AuthApi dependency in TokenManager
 
-// Keep OrdersApi using HTTP
-const ordersApi = new OrdersApi(httpClient);
+tokenManager.setAuthApi(authApi);
 
-// Instantiate ConnectionManager with both WebSocketManager and HttpClient
 const connectionManager = new ConnectionManager(
   tokenManager,
   httpClient
 );
 
-logger.info('Application services instantiated.');
 // --- End Service Instantiation ---
 
 function DeviceIdInvalidationHandler({ children }: { children: React.ReactNode }) {
+  // websocket message "device_id_invalidated" routes user to session-deactivated Page
   const navigate = useNavigate();
   const { connectionManager } = useConnection();
   
   useEffect(() => {
     if (!connectionManager) return;
     
-    console.log("Setting up device_id_invalidated listener");
-    
-    // Use the new event subscription method
     const subscription = connectionManager.on('device_id_invalidated', (data) => {
       console.error("🚨 DEVICE ID INVALIDATED - REDIRECTING TO SESSION DEACTIVATED PAGE", {
         data,
@@ -91,7 +92,6 @@ function DeviceIdInvalidationHandler({ children }: { children: React.ReactNode }
 }
 
 function App() {
-  logger.info('Rendering App component');
   return (
     // Order matters: Toast > Auth > Connection
     <ToastProvider>
@@ -101,26 +101,35 @@ function App() {
               <Router>
                 <DeviceIdInvalidationHandler>
                   <Routes>
-                    <Route path="/login" element={<LoginPage />} />
+                    {/* Simulator page */}
+                    <Route path="/login" element={
+                      <LoginPage />
+                    } />
 
-                    {/* Protected Routes */}
+                    {/* Session page */}
                     <Route path="/home" element={
                         <ProtectedRoute>
                           <HomePage />
                         </ProtectedRoute>
                     } />
+
+                    {/* Simulator page */}
                     <Route path="/simulator" element={
                         <ProtectedRoute>
                           <SimulatorPage />
                         </ProtectedRoute>
                     } />
 
-                    <Route path="/session-deactivated" element={<SessionDeactivatedPage />} />
+                    {/* Deactivate session */}
+                    <Route path="/session-deactivated" element={
+                      <SessionDeactivatedPage />
+                    } />
 
-                    {/* Default route */}
-                    <Route path="/" element={<Navigate to="/home" replace />} />
+                    {/* Default route - Unprotected 404 Page*/}
+                    <Route path="/" element={
+                      <Navigate to="/home" replace />
+                    } />
 
-                    {/* Add other routes here */}
                   </Routes>
                 </DeviceIdInvalidationHandler>
               </Router>

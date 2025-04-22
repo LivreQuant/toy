@@ -1,7 +1,8 @@
 // src/services/auth/token-manager.ts
 import { AuthApi } from '../../api/auth';
-import { LocalStorageService } from '../storage/local-storage-service'; // Import your interface
-import { DeviceIdManager } from './device-id-manager'; // Import your interface
+import { LocalStorageService } from '../storage/local-storage-service';
+import { DeviceIdManager } from './device-id-manager';
+import { getLogger } from '../../boot/logging';
 
 export interface TokenData {
   accessToken: string;
@@ -9,17 +10,11 @@ export interface TokenData {
   expiresAt: number; // timestamp in milliseconds
   userId: string | number; // Add userId to the token data
 }
-
-enum ErrorLevel {
-    LOW = 'low',
-    MEDIUM = 'medium',
-    HIGH = 'high',
-    FATAL = 'fatal'
-}
-
   
 export class TokenManager {
-    private readonly storageKey = 'auth_tokens'; // Instance property
+    private readonly logger = getLogger('TokenManager');
+    private readonly STORAGE_KEY = 'auth_tokens'; // Instance property
+
     private readonly expiryMargin = 5 * 60 * 1000; // 5 minutes in milliseconds, instance property
     private refreshPromise: Promise<boolean> | null = null;
     private refreshListeners: Set<Function> = new Set();
@@ -37,36 +32,28 @@ export class TokenManager {
          this.authApi = authApi;
       } else {
           // Optional: Log a warning if trying to set it again
-          console.warn('TokenManager: AuthApi already set.');
+          this.logger.warn('TokenManager: AuthApi already set.');
       }
     }
 
     // Store tokens using injected storage service
     public storeTokens(tokenData: TokenData): void {
         try {
-             this.storageService.setItem(this.storageKey, JSON.stringify(tokenData));
+             this.storageService.setItem(this.STORAGE_KEY, JSON.stringify(tokenData));
         } catch (e: any) {
-            console.error(
-                new Error(`Failed to store tokens: ${e.message}`),
-                ErrorLevel.MEDIUM, // Or HIGH depending on impact
-                'TokenManager.storeTokens'
-            );
+            this.logger.error(`Failed to store tokens: ${e.message}`);
         }
     }
 
     // Get stored tokens using injected storage service
     public getTokens(): TokenData | null {
-        const tokenStr = this.storageService.getItem(this.storageKey);
+        const tokenStr = this.storageService.getItem(this.STORAGE_KEY);
         if (!tokenStr) return null;
 
         try {
             return JSON.parse(tokenStr) as TokenData;
         } catch (e: any) {
-            console.error(
-                new Error(`Failed to parse stored tokens: ${e.message}`),
-                ErrorLevel.HIGH,
-                'TokenManager.getTokens'
-            );
+            this.logger.error(`Failed to parse stored tokens: ${e.message}`);
             this.clearTokens(); // Clear invalid tokens
             return null;
         }
@@ -75,13 +62,9 @@ export class TokenManager {
     // Clear tokens using injected storage service
     public clearTokens(): void {
         try {
-            this.storageService.removeItem(this.storageKey);
+            this.storageService.removeItem(this.STORAGE_KEY);
         } catch (e: any) {
-            console.error(
-                new Error(`Failed to clear tokens: ${e.message}`),
-                ErrorLevel.MEDIUM,
-                'TokenManager.clearTokens'
-            );
+            this.logger.error(`Failed to clear tokens: ${e.message}`);
         }
     }
 
@@ -137,17 +120,13 @@ export class TokenManager {
         const tokens = this.getTokens();
         if (!tokens?.refreshToken) {
             // Use error handler
-            console.error('No refresh token available', ErrorLevel.HIGH, 'TokenManager.refresh');
+            this.logger.error('No refresh token available');
             return false;
         }
 
         // Check if authApi has been set via setAuthApi
         if (!this.authApi) {
-            console.error(
-                'Auth API dependency not set in TokenManager',
-                ErrorLevel.FATAL, // This is a critical configuration error
-                'TokenManager.refresh'
-            );
+            this.logger.error('Auth API dependency not set in TokenManager');
             return false;
         }
 
@@ -169,11 +148,7 @@ export class TokenManager {
 
             } catch (error: any) {
                 // Use error handler for refresh failure
-                console.error(
-                    error instanceof Error ? error : new Error('Token refresh API call failed'),
-                    ErrorLevel.HIGH,
-                    'TokenManager.refresh'
-                );
+                this.logger.error('Token refresh API call failed');
 
                 // Notify listeners about the failed refresh
                 this.notifyRefreshListeners(false);
@@ -196,11 +171,7 @@ export class TokenManager {
                 listener(success);
             } catch (error: any) {
                 // Use error handler for listener errors
-                console.error(
-                    new Error(`Error in token refresh listener: ${error.message}`),
-                    ErrorLevel.MEDIUM,
-                    'TokenManager.notifyListeners'
-                );
+                this.logger.error(`Error in token refresh listener: ${error.message}`);
             }
         });
     }

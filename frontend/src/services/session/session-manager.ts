@@ -1,7 +1,7 @@
 // src/services/session/session-manager.ts
 import { DeviceIdManager } from '../auth/device-id-manager';
 import { SessionStorageService } from '../storage/session-storage-service';
-import { EnhancedLogger } from '../../utils/enhanced-logger';
+import { getLogger } from '../../boot/logging';
 
 export interface UserPreferences {
   theme: 'light' | 'dark' | 'system';
@@ -28,15 +28,13 @@ export interface SessionData {
 
 export class SessionManager {
   private readonly sessionStorageService: SessionStorageService;
-  private readonly logger: EnhancedLogger;
+  private readonly logger = getLogger('SessionManager');
   private readonly SESSION_KEY = 'trading_app_session';
   private readonly ACTIVITY_UPDATE_THROTTLE = 60 * 1000;
   private lastActivityUpdateTimestamp = 0;
 
-  constructor(sessionStorageService: SessionStorageService, parentLogger: EnhancedLogger) {
+  constructor(sessionStorageService: SessionStorageService) {
     this.sessionStorageService = sessionStorageService;
-    this.logger = parentLogger.createChild('SessionManager');
-    this.logger.info('SessionManager Initialized');
   }
 
   public getDeviceId(): string {

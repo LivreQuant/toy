@@ -1,9 +1,11 @@
 // src/config/index.ts
+import { LogLevel } from '../utils/enhanced-logger';
 
 interface AppConfig {
     apiBaseUrl: string;
     wsBaseUrl: string;
     environment: 'development' | 'production' | 'test';
+    logLevel?: LogLevel;
 }
 
 const getConfig = (): AppConfig => {
@@ -18,6 +20,7 @@ const getConfig = (): AppConfig => {
                 apiBaseUrl: process.env.REACT_APP_API_BASE_URL || 'https://your-prod.com/api',
                 wsBaseUrl: process.env.REACT_APP_WS_BASE_URL || 'wss://your-prod.com/ws',
                 environment: 'production',
+                logLevel: LogLevel.WARN,
             };
             break;
         // Add other environments if needed (test, staging)
@@ -26,9 +29,11 @@ const getConfig = (): AppConfig => {
                 apiBaseUrl: apiBaseUrl,
                 wsBaseUrl: wsBaseUrl,
                 environment: 'development',
+                logLevel: LogLevel.DEBUG
             };
             break;
-    }
+    }    
+    
     console.log(`Configuration loaded for env: ${config.environment}`);
     return config;
 };

@@ -2,7 +2,6 @@
 import { TokenManager } from '../services/auth/token-manager';
 import { config } from '../config';
 import { getLogger } from '../boot/logging';
-import { EnhancedLogger } from '../utils/enhanced-logger';
 
 export interface RequestOptions extends RequestInit {
   skipAuth?: boolean;
@@ -12,18 +11,11 @@ export interface RequestOptions extends RequestInit {
   context?: string; // Optional context string for logging/error reporting
 }
 
-enum ErrorSeverity {
-  LOW = 'low',
-  MEDIUM = 'medium',
-  HIGH = 'high',
-  FATAL = 'fatal'
-}
-
 export class HttpClient {
   private readonly baseUrl: string;
   private readonly tokenManager: TokenManager;
   private readonly maxRetries: number = 2; // Max retries for 5xx errors
-  private readonly logger: EnhancedLogger = getLogger('HttpClient');
+  private readonly logger = getLogger('HttpClient');
 
   constructor(tokenManager: TokenManager) {
     this.baseUrl = config.apiBaseUrl;
@@ -43,7 +35,6 @@ export class HttpClient {
   public async delete<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
     return this.request<T>('DELETE', endpoint, undefined, options);
   }
-
 
   // FIX: Define expected parameters based on internal calls
   private async request<T>(
@@ -113,7 +104,6 @@ export class HttpClient {
     retryCount: number
   ): Promise<T> {
     let errorMessage = options.customErrorMessage || `HTTP Error ${response.status}: ${response.statusText}`;
-    let errorSeverity = ErrorSeverity.MEDIUM; // Default severity
     let errorDetails: any = null;
     try {
         // Attempt to parse error details from the response body
@@ -128,8 +118,6 @@ export class HttpClient {
         // Ignore if body isn't valid JSON or empty
         this.logger.debug('Could not parse error response body as JSON', { status: response.status, endpoint });
     }
-
-    const errorContext = options.context || `HttpClient.${method}.${endpoint.replace('/', '')}`;
 
     // --- Specific Status Code Handling ---
     if (response.status === 401 && !options.skipAuth && retryCount < 1) { // Only retry 401 once
@@ -220,6 +208,5 @@ export class HttpClient {
             this.logger.error(`.NetworkError.Final ${errorMessage}`);
             throw new Error(errorMessage); // Throw final error
         }
-        // --- END OF MISSING IMPLEMENTATION PLACEHOLDER ---
    }
 }

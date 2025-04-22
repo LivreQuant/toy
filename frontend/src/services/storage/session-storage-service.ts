@@ -1,5 +1,4 @@
 // src/services/storage/session-storage-service.ts
-import { StorageService } from './storage-service';
 import { getLogger } from '../../boot/logging';
 
 const logger = getLogger('SessionStorageService');
@@ -8,7 +7,7 @@ const logger = getLogger('SessionStorageService');
  * Implements the StorageService interface using browser sessionStorage.
  * Provides a consistent interface with error handling for session-specific storage.
  */
-export class SessionStorageService implements StorageService {
+export class SessionStorageService {
   /**
    * Retrieves an item from sessionStorage.
    * @param key - The key of the item to retrieve.
