@@ -11,7 +11,7 @@ from source.api.websocket.utils import authenticate_websocket_request
 from source.utils.tracing import optional_trace_span
 from source.utils.metrics import track_websocket_message
 from source.api.websocket.dispatcher import WebSocketDispatcher
-from source.api.websocket.emitters import error_emitter, connection_emitter
+from source.api.websocket.emitters import error_emitter
 
 
 class WebSocketManager:
@@ -38,7 +38,7 @@ class WebSocketManager:
         self.logger.info(f"Headers: {dict(request.headers)}")
         self.logger.info(f"Query params: {dict(request.query)}")
 
-        with optional_trace_span(self.tracer, "websocket_connection") as span:
+        with (optional_trace_span(self.tracer, "websocket_connection") as span):
             # Authenticate user and check for device conflicts
             try:
                 self.logger.info(f"WebSocket connection request received from {request.remote}")
@@ -106,11 +106,13 @@ class WebSocketManager:
             # Connection handler
             try:
                 # Send connected message
+                """
                 await connection_emitter.send_connected(
                     ws,
                     client_id=client_id,
                     device_id=device_id
                 )
+                """
 
                 # Process messages - use the existing method name from your codebase
                 await self._connection_loop(ws, user_id, device_id, client_id)
@@ -331,10 +333,12 @@ class WebSocketManager:
         for device_id, ws in list(self.active_connections.items()):
             if not ws.closed:
                 # Send shutdown message
+                """
                 try:
                     await connection_emitter.send_shutdown(ws, reason)
                 except Exception:
                     pass
+                """
 
                 # Add close task
                 close_tasks.append(ws.close(code=1000, message=reason.encode('utf-8')))

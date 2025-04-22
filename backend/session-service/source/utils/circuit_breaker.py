@@ -43,7 +43,7 @@ class CircuitBreaker:
     ):
         """
         Initialize circuit breaker
-        
+
         Args:
             name: Name to identify this circuit breaker
             failure_threshold: Number of consecutive failures before opening circuit
@@ -71,7 +71,7 @@ class CircuitBreaker:
     def on_state_change(self, callback: Callable[[str, CircuitState, CircuitState, Dict], None]):
         """
         Register a callback for state change events
-        
+
         Args:
             callback: Function to call when state changes.
                      Receives (circuit_name, old_state, new_state, info_dict)
@@ -81,14 +81,14 @@ class CircuitBreaker:
     async def execute(self, func: Callable, *args, **kwargs) -> Any:
         """
         Execute a function with circuit breaker protection
-        
+
         Args:
             func: The async function to execute
             *args, **kwargs: Arguments to pass to the function
-            
+
         Returns:
             The result of the function call
-            
+
         Raises:
             CircuitOpenError: If the circuit is open
             The original exception if the call fails
