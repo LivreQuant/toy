@@ -11,12 +11,6 @@ export class DataHandlers {
   
   constructor(httpClient: HttpClient) {
     this.ordersApi = new OrdersApi(httpClient);
-    private logger = getLogger('DataHandlers');
-  private ordersApi: OrdersApi;
-  private exchangeData: Record<string, any> = {}; // Internal cache for data if needed
-  
-  constructor(httpClient: HttpClient) {
-    this.ordersApi = new OrdersApi(httpClient);
     this.logger.info('DataHandlers initialized');
   }
 

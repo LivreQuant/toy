@@ -17,15 +17,12 @@ import { LocalStorageService } from './services/storage/local-storage-service';
 import { SessionStorageService } from './services/storage/session-storage-service';
 import { HttpClient } from './api/http-client';
 import { AuthApi } from './api/auth';
-import { WebSocketManager } from './services/websocket/websocket-manager';
 import { OrdersApi } from './api/order';
 import { SessionApi } from './api/session';
 import { SimulatorApi } from './api/simulator';
 import { ConnectionManager } from './services/connection/connection-manager';
 import { initializeLogging, getLogger } from './boot/logging'; // Import logging setup
-import { AppErrorHandler } from './utils/app-error-handler';
 import { toastService } from './services/notification/toast-service';
-import { ErrorHandler } from './utils/error-handler'; // Import ErrorHandler
 import { DeviceIdManager } from './services/auth/device-id-manager'; // Import DeviceIdManager
 
 import { useNavigate } from 'react-router-dom';
@@ -40,60 +37,45 @@ const logger = getLogger('App'); // Get logger instance
 const localStorageService = new LocalStorageService();
 const sessionStorageService = new SessionStorageService();
 const baseLogger = getLogger('ServiceCore'); // Use base logger for service instantiation
-const errorHandler = new ErrorHandler(baseLogger.createChild('ErrorHandler'), toastService); // Use base logger
 
 // Initialize Singletons that need setup
-AppErrorHandler.initialize(baseLogger.createChild('AppErrorHandler'), toastService);
 DeviceIdManager.getInstance(sessionStorageService, baseLogger.createChild('DeviceIdManager')); // Initialize DeviceIdManager
 
 // Instantiate remaining services
-const tokenManager = new TokenManager(localStorageService, errorHandler, DeviceIdManager.getInstance(sessionStorageService, logger)); // Pass errorHandler instance
+const tokenManager = new TokenManager(
+  localStorageService, 
+  DeviceIdManager.getInstance(sessionStorageService, logger)
+);
 const httpClient = new HttpClient(tokenManager); // HttpClient uses TokenManager
 const authApi = new AuthApi(httpClient);
 tokenManager.setAuthApi(authApi); // Important: Set AuthApi dependency in TokenManager
 
-// Instantiate WebSocketManager for session/simulator
-const wsManager = new WebSocketManager(tokenManager, {
-  // Add any specific wsOptions here if needed
-  preventAutoConnect: true // This is important for connection control
-});
-
 // Keep OrdersApi using HTTP
 const ordersApi = new OrdersApi(httpClient);
 
-// Now instantiate the updated APIs that use WebSocket
-const sessionApi = new SessionApi(wsManager);
-const simulatorApi = new SimulatorApi(wsManager);
-
 // Instantiate ConnectionManager with both WebSocketManager and HttpClient
-const connectionManager = new ConnectionManager(tokenManager, {
-  // Use the wsManager we created
-  wsManager: wsManager,
-  // Add any specific resilience options here if needed
-});
+const connectionManager = new ConnectionManager(tokenManager);
 
 logger.info('Application services instantiated.');
 // --- End Service Instantiation ---
 
 function DeviceIdInvalidationHandler({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
-  const { connectionManager } = useConnection(); // Destructure to get connectionManager
-  
+  const { connectionManager } = useConnection();
   
   useEffect(() => {
     if (!connectionManager) return;
     
     console.log("Setting up device_id_invalidated listener");
     
-    // Subscribe to device_id_invalidated events
-    const subscription = connectionManager.on('device_id_invalidated').subscribe((eventData) => {
+    // Use the new event subscription method
+    const subscription = connectionManager.on('device_id_invalidated', (data) => {
       console.error("🚨 DEVICE ID INVALIDATED - REDIRECTING TO SESSION DEACTIVATED PAGE", {
-        eventData,
+        data,
         currentPath: window.location.pathname,
         timestamp: new Date().toISOString()
       });
       
-      // Force immediate redirect to session deactivated page
       navigate('/session-deactivated', { replace: true });
     });
     

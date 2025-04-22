@@ -10,10 +10,10 @@ import React, {
 import { ConnectionManager } from '../services/connection/connection-manager';
 // Fix the import to use the correct type
 import {
-  appState,
+  connectionState,
   ConnectionStatus,
-  initialState as appInitialState,
-} from '../state/app-state.service';
+  initialConnectionState as appInitialState
+} from '../state/connection-state';
 import { Subscription } from 'rxjs';
 import { getLogger } from '../boot/logging';
 import LoadingSpinner from '../components/Common/LoadingSpinner';
@@ -57,16 +57,17 @@ export const ConnectionProvider: React.FC<ConnectionProviderProps> = ({
     logger.info(
       'ConnectionProvider subscribing to AppState connection changes.'
     );
-    const stateSubscription: Subscription = appState
-      .select((s) => s.connection)
+    const stateSubscription: Subscription = connectionState
+      .getState$()
       .subscribe({
         next: (connState) => {
           setConnectionState(connState);
         },
-        error: (err) => {
+        // Add type annotations for parameters
+        error: (err: any) => {
           logger.error('Error subscribing to connection state', { error: err });
         },
-      });
+    });
 
     return () => {
       logger.info('ConnectionProvider unsubscribing from connection state.');

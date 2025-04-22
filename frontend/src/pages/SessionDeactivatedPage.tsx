@@ -1,16 +1,16 @@
 // In src/pages/SessionDeactivatedPage.tsx
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { appState } from '../state/app-state.service';
+import { authState } from '../state/auth-state';
 
 const SessionDeactivatedPage: React.FC = () => {
   const navigate = useNavigate();
 
   // Check if the user should be here
   useEffect(() => {
-    const authState = appState.getState().auth;
+    const state = authState.getState();
     // If not authenticated at all, redirect to login
-    if (!authState.isAuthenticated) {
+    if (!state.isAuthenticated) {
       navigate('/login', { replace: true });
     }
   }, [navigate]);

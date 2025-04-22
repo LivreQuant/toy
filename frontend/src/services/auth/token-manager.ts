@@ -2,7 +2,6 @@
 import { AuthApi } from '../../api/auth';
 import { LocalStorageService } from '../storage/local-storage-service'; // Import your interface
 import { DeviceIdManager } from './device-id-manager'; // Import your interface
-import { ErrorHandler, ErrorSeverity } from '../../utils/error-handler'; // Import error handler
 
 export interface TokenData {
   accessToken: string;
@@ -21,8 +20,7 @@ export class TokenManager {
     // Inject StorageService and ErrorHandler
     constructor(
         private storageService: LocalStorageService,
-        private errorHandler: ErrorHandler,
-        private deviceIdManager: DeviceIdManager // Add this
+        private deviceIdManager: DeviceIdManager
     ) {}
 
     // Keep this method to break the circular dependency during setup
@@ -40,7 +38,7 @@ export class TokenManager {
         try {
              this.storageService.setItem(this.storageKey, JSON.stringify(tokenData));
         } catch (e: any) {
-            this.errorHandler.handleGenericError(
+            console.error(
                 new Error(`Failed to store tokens: ${e.message}`),
                 ErrorSeverity.MEDIUM, // Or HIGH depending on impact
                 'TokenManager.storeTokens'
@@ -56,7 +54,7 @@ export class TokenManager {
         try {
             return JSON.parse(tokenStr) as TokenData;
         } catch (e: any) {
-            this.errorHandler.handleGenericError(
+            console.error(
                 new Error(`Failed to parse stored tokens: ${e.message}`),
                 ErrorSeverity.HIGH,
                 'TokenManager.getTokens'
@@ -71,7 +69,7 @@ export class TokenManager {
         try {
             this.storageService.removeItem(this.storageKey);
         } catch (e: any) {
-             this.errorHandler.handleGenericError(
+            console.error(
                 new Error(`Failed to clear tokens: ${e.message}`),
                 ErrorSeverity.MEDIUM,
                 'TokenManager.clearTokens'
@@ -131,13 +129,13 @@ export class TokenManager {
         const tokens = this.getTokens();
         if (!tokens?.refreshToken) {
             // Use error handler
-            this.errorHandler.handleAuthError('No refresh token available', ErrorSeverity.HIGH, 'TokenManager.refresh');
+            console.error('No refresh token available', ErrorSeverity.HIGH, 'TokenManager.refresh');
             return false;
         }
 
         // Check if authApi has been set via setAuthApi
         if (!this.authApi) {
-            this.errorHandler.handleGenericError(
+            console.error(
                 'Auth API dependency not set in TokenManager',
                 ErrorSeverity.FATAL, // This is a critical configuration error
                 'TokenManager.refresh'
@@ -163,11 +161,11 @@ export class TokenManager {
 
             } catch (error: any) {
                 // Use error handler for refresh failure
-                 this.errorHandler.handleAuthError(
+                console.error(
                     error instanceof Error ? error : new Error('Token refresh API call failed'),
                     ErrorSeverity.HIGH,
                     'TokenManager.refresh'
-                 );
+                );
 
                 // Notify listeners about the failed refresh
                 this.notifyRefreshListeners(false);
@@ -190,7 +188,7 @@ export class TokenManager {
                 listener(success);
             } catch (error: any) {
                 // Use error handler for listener errors
-                 this.errorHandler.handleGenericError(
+                console.error(
                     new Error(`Error in token refresh listener: ${error.message}`),
                     ErrorSeverity.MEDIUM,
                     'TokenManager.notifyListeners'

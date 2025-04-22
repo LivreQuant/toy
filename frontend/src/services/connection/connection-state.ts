@@ -1,7 +1,7 @@
 // src/state/connection-state.ts
 import { BehaviorSubject, Observable } from 'rxjs';
 import { map, distinctUntilChanged } from 'rxjs/operators';
-import { getLogger } from '../boot/logging';
+import { getLogger } from '../../boot/logging';
 
 // Define enums for connection status
 export enum ConnectionStatus {

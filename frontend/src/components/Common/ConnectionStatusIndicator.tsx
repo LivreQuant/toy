@@ -1,7 +1,7 @@
 // src/components/Common/ConnectionStatusIndicator.tsx
 import React from 'react';
 // Import Enums from AppStateService (or a dedicated types file)
-import { ConnectionStatus, ConnectionQuality, AppState } from '../../state/app-state.service';
+import { ConnectionStatus, ConnectionQuality } from '../../state/connection-state';
 import './ConnectionStatus.css'; // Import styles
 
 interface ConnectionStatusIndicatorProps {
@@ -35,7 +35,6 @@ const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps> = ({ s
          // Show error message if available and disconnected
          return `Disconnected${lastConnectionError ? `: ${lastConnectionError.substring(0, 50)}` : ''}${lastConnectionError && lastConnectionError.length > 50 ? '...' : ''}`; // Truncate long errors
       default:
-        const exhaustiveCheck: never = overallStatus;
         return 'Unknown';
     }
   };
