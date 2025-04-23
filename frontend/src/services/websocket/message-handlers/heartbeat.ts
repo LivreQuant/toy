@@ -1,9 +1,14 @@
 // src/services/websocket/message-handlers/heartbeat.ts
 import { getLogger } from '../../../boot/logging';
+
 import { connectionState } from '../../../state/connection-state';
+
 import { ServerHeartbeatAckMessage } from '../message-types';
+
 import { DeviceIdManager } from '../../auth/device-id-manager';
+
 import { SocketClient } from '../../connection/socket-client';
+
 import { EventEmitter } from '../../../utils/events';
 
 export interface HeartbeatOptions {
@@ -13,6 +18,7 @@ export interface HeartbeatOptions {
 
 export class HeartbeatHandler {
   private logger = getLogger('HeartbeatHandler');
+
   private client: SocketClient;
   private options: HeartbeatOptions;
   private intervalId: number | null = null;

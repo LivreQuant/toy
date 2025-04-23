@@ -1,6 +1,5 @@
 // src/api/session.ts
 import { ConnectionManager } from '../services/connection/connection-manager';
-import { DeviceIdManager } from '../services/auth/device-id-manager';
 
 export interface SessionResponse {
   success: boolean;

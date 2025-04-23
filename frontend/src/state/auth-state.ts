@@ -1,6 +1,7 @@
 // src/state/auth-state.ts
 import { BehaviorSubject, Observable } from 'rxjs';
 import { map, distinctUntilChanged } from 'rxjs/operators';
+
 import { getLogger } from '../boot/logging';
 
 // Define the auth state interface
@@ -21,8 +22,9 @@ export const initialAuthState: AuthState = {
 
 // Auth state service
 export class AuthStateService {
-  private state$ = new BehaviorSubject<AuthState>(initialAuthState);
   private logger = getLogger('AuthStateService');
+  
+  private state$ = new BehaviorSubject<AuthState>(initialAuthState);
 
   // Select a slice of the auth state
   select<T>(selector: (state: AuthState) => T): Observable<T> {

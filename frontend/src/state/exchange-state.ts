@@ -1,6 +1,7 @@
 // src/state/exchange-state.ts
 import { BehaviorSubject, Observable } from 'rxjs';
 import { map, distinctUntilChanged } from 'rxjs/operators';
+
 import { getLogger } from '../boot/logging';
 
 // Define market data structure
@@ -27,8 +28,9 @@ export const initialExchangeState: ExchangeState = {
 
 // Exchange state service
 export class ExchangeStateService {
-  private state$ = new BehaviorSubject<ExchangeState>(initialExchangeState);
   private logger = getLogger('ExchangeStateService');
+  
+  private state$ = new BehaviorSubject<ExchangeState>(initialExchangeState);
 
   // Select a slice of the exchange state
   select<T>(selector: (state: ExchangeState) => T): Observable<T> {

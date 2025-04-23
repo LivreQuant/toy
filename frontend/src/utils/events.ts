@@ -7,7 +7,6 @@ export class EventEmitter<T extends Record<string, any>> {
   private logger = getLogger('EventEmitter');
 
   constructor() {
-    // This is just to make TypeScript happy with the generic type
     this.events = {} as T;
   }
 

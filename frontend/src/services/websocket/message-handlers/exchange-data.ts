@@ -1,9 +1,12 @@
 // src/services/websocket/message-handlers/exchange-data.ts
 import { getLogger } from '../../../boot/logging';
+
 import { SocketClient } from '../../connection/socket-client';
+
+import { ServerExchangeDataMessage } from '../message-types';
+
 import { exchangeState } from '../../../state/exchange-state';
 import { portfolioState } from '../../../state/portfolio-state';
-import { ServerExchangeDataMessage } from '../message-types';
 
 export class ExchangeDataHandler {
   private logger = getLogger('ExchangeDataHandler');

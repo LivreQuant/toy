@@ -1,6 +1,7 @@
 // src/state/simulator-state.ts
 import { BehaviorSubject, Observable } from 'rxjs';
 import { map, distinctUntilChanged } from 'rxjs/operators';
+
 import { getLogger } from '../boot/logging';
 
 export type SimulatorStatus = 'RUNNING' | 'STOPPED' | 'STARTING' | 'STOPPING' | 'ERROR' | 'UNKNOWN';
@@ -23,8 +24,9 @@ export const initialSimulatorState: SimulatorState = {
 
 // Simulator state service
 export class SimulatorStateService {
-  private state$ = new BehaviorSubject<SimulatorState>(initialSimulatorState);
   private logger = getLogger('SimulatorStateService');
+  
+  private state$ = new BehaviorSubject<SimulatorState>(initialSimulatorState);
 
   // Select a slice of the simulator state
   select<T>(selector: (state: SimulatorState) => T): Observable<T> {

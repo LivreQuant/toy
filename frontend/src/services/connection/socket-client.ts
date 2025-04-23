@@ -1,12 +1,18 @@
 // src/services/websocket/socket-client.ts
 import { BehaviorSubject, Observable } from 'rxjs';
+
+import { getLogger } from '../../boot/logging';
+
+import { config } from '../../config';
+
 import { TokenManager } from '../auth/token-manager';
 import { DeviceIdManager } from '../auth/device-id-manager';
-import { getLogger } from '../../boot/logging';
-import { ConnectionStatus } from '../../state/connection-state';
-import { config } from '../../config';
-import { Disposable } from '../../utils/disposable';
+
 import { WebSocketMessage } from '../websocket/message-types';
+
+import { ConnectionStatus } from '../../state/connection-state';
+
+import { Disposable } from '../../utils/disposable';
 import { EventEmitter } from '../../utils/events';
 
 export interface SocketClientOptions {
@@ -15,10 +21,11 @@ export interface SocketClientOptions {
 }
 
 export class SocketClient implements Disposable {
+  private logger = getLogger('SocketClient');
+  
   private socket: WebSocket | null = null;
   private tokenManager: TokenManager;
   private status$ = new BehaviorSubject<ConnectionStatus>(ConnectionStatus.DISCONNECTED);
-  private logger = getLogger('SocketClient');
   private events = new EventEmitter<{
     message: WebSocketMessage;
     error: Error;

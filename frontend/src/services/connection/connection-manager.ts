@@ -1,19 +1,23 @@
 // src/services/connection/connection-manager.ts
 import { getLogger } from '../../boot/logging';
+
 import { TokenManager } from '../auth/token-manager';
 import { DeviceIdManager } from '../auth/device-id-manager';
-import { Disposable } from '../../utils/disposable';
+
+import { Resilience, ResilienceState } from './resilience';
+import { SimulatorClient } from './simulator-client';
+import { ExchangeDataCache } from './exchange-data-cache';
 import { SocketClient } from './socket-client';
 import { Heartbeat } from './heartbeat';
-import { Resilience, ResilienceState } from './resilience';
-import { DataHandlers } from './data-handlers';
-import { SimulatorClient } from './simulator-client';
-import { EventEmitter } from '../../utils/events';
+
+import { SessionHandler } from '../websocket/message-handlers/session';
+
 import { connectionState, ConnectionStatus } from '../../state/connection-state';
 import { authState } from '../../state/auth-state';
+
 import { handleError } from '../../utils/error-handling';
-import { SessionHandler } from '../websocket/message-handlers/session';
-import { HttpClient } from '../../api/http-client';
+import { Disposable } from '../../utils/disposable';
+import { EventEmitter } from '../../utils/events';
 
 export interface ConnectionManagerOptions {
   heartbeatInterval?: number;
@@ -35,12 +39,11 @@ export interface ConnectionDesiredState {
 
 export class ConnectionManager implements Disposable {
   private logger = getLogger('ConnectionManager');
-  private tokenManager: TokenManager;
   private socketClient: SocketClient;
   private heartbeat: Heartbeat;
   private resilience: Resilience;
   private sessionHandler: SessionHandler;
-  private dataHandlers: DataHandlers;
+  private exchangeDataCache: ExchangeDataCache;
   private simulatorClient: SimulatorClient;
   private isDisposed = false;
   
@@ -57,11 +60,9 @@ export class ConnectionManager implements Disposable {
 
   constructor(
     tokenManager: TokenManager,
-    httpClient: HttpClient,
     options: ConnectionManagerOptions = {}
   ) {
     this.logger.info('Initializing ConnectionManager');
-    this.tokenManager = tokenManager;
     
     // Initialize socket client
     this.socketClient = new SocketClient(tokenManager);
@@ -74,7 +75,7 @@ export class ConnectionManager implements Disposable {
     
     this.resilience = new Resilience(tokenManager, options.resilience);
     this.sessionHandler = new SessionHandler(this.socketClient);
-    this.dataHandlers = new DataHandlers(httpClient);
+    this.exchangeDataCache = new ExchangeDataCache();
     this.simulatorClient = new SimulatorClient(this.socketClient);
     
     // Setup event listeners
@@ -150,12 +151,6 @@ export class ConnectionManager implements Disposable {
       if ((message as any).type === 'device_id_invalidated') {
         this.logger.warn(`Device ID invalidated: ${(message as any).deviceId}`);
         this.handleDeviceIdInvalidation('server_message', (message as any).reason);
-      }
-      
-      // Handle connection replaced
-      if (message.type === 'connection_replaced') {
-        this.logger.warn(`Connection replaced: ${message.reason}`);
-        this.handleConnectionReplaced(message.reason);
       }
     });
   }
@@ -497,73 +492,6 @@ export class ConnectionManager implements Disposable {
     authState.updateState({
       lastAuthError: `Device ID invalidated: ${reason || 'Unknown reason'}`
     });
-  }
-
-  /**
-   * Handles connection replaced event.
-   */
-  private handleConnectionReplaced(reason: string): void {
-    if (this.isDisposed) return;
-    
-    this.logger.warn(`Connection replaced. Reason: ${reason}`);
-    
-    // Disconnect
-    this.disconnect('connection_replaced');
-    
-    // Update auth state
-    authState.updateState({
-      lastAuthError: `Session opened elsewhere: ${reason}`
-    });
-  }
-
-  /**
-   * Submits a trading order.
-   */
-  public async submitOrder(order: {
-    symbol: string;
-    side: 'BUY' | 'SELL';
-    quantity: number;
-    price?: number;
-    type: 'MARKET' | 'LIMIT';
-  }): Promise<{ success: boolean; orderId?: string; error?: string }> {
-    if (this.isDisposed) {
-      return { success: false, error: 'ConnectionManager disposed' };
-    }
-    
-    // Check connection and simulator status
-    const connState = connectionState.getState();
-    
-    if (connState.webSocketStatus !== ConnectionStatus.CONNECTED) {
-      return { success: false, error: 'Not connected' };
-    }
-    
-    if (connState.simulatorStatus !== 'RUNNING') {
-      return { success: false, error: 'Simulator not running' };
-    }
-    
-    return this.dataHandlers.submitOrder(order);
-  }
-
-  /**
-   * Cancels a trading order.
-   */
-  public async cancelOrder(orderId: string): Promise<{ success: boolean; error?: string }> {
-    if (this.isDisposed) {
-      return { success: false, error: 'ConnectionManager disposed' };
-    }
-    
-    // Check connection and simulator status
-    const connState = connectionState.getState();
-    
-    if (connState.webSocketStatus !== ConnectionStatus.CONNECTED) {
-      return { success: false, error: 'Not connected' };
-    }
-    
-    if (connState.simulatorStatus !== 'RUNNING') {
-      return { success: false, error: 'Simulator not running' };
-    }
-    
-    return this.dataHandlers.cancelOrder(orderId);
   }
 
   /**

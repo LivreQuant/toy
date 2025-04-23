@@ -1,7 +1,10 @@
 // src/services/websocket/message-handlers/simulator.ts
 import { getLogger } from '../../../boot/logging';
+
 import { SocketClient } from '../../connection/socket-client';
+
 import { DeviceIdManager } from '../../auth/device-id-manager';
+
 import { 
   ClientStartSimulatorMessage,
   ClientStopSimulatorMessage,

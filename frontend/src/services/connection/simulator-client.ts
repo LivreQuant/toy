@@ -1,8 +1,12 @@
 // src/services/connection/simulator-client.ts
 import { getLogger } from '../../boot/logging';
+
 import { SocketClient } from './socket-client';
+
 import { SimulatorHandler } from '../websocket/message-handlers/simulator';
+
 import { simulatorState } from '../../state/simulator-state';
+
 import { handleError } from '../../utils/error-handling';
 
 export class SimulatorClient {

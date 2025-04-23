@@ -13,11 +13,13 @@ import { DeviceIdManager } from './services/auth/device-id-manager';
 import { TokenManager } from './services/auth/token-manager';
 
 // APIS
-import { AuthApi } from './api/auth';
 import { HttpClient } from './api/http-client';
+import { AuthApi } from './api/auth';
+import { OrdersApi } from './api/order';
 
 // SERVICES
 import { ConnectionManager } from './services/connection/connection-manager';
+import { OrderService } from './services/orders/order-service';
 
 // HOOKS
 import { useConnection } from './hooks/useConnection';
@@ -55,12 +57,18 @@ const tokenManager = new TokenManager(
 // Intialize Rest APIs + Websocket
 const httpClient = new HttpClient(tokenManager);
 const authApi = new AuthApi(httpClient);
+const ordersApi = new OrdersApi(httpClient);
 
 tokenManager.setAuthApi(authApi);
 
 const connectionManager = new ConnectionManager(
   tokenManager,
   httpClient
+);
+
+const orderService = new OrderService(
+  ordersApi, 
+  tokenManager
 );
 
 // --- End Service Instantiation ---

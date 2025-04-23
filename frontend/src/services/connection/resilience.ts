@@ -1,6 +1,8 @@
 // src/services/connection/resilience.ts
 import { getLogger } from '../../boot/logging';
+
 import { TokenManager } from '../auth/token-manager';
+
 import { Disposable } from '../../utils/disposable';
 import { EventEmitter } from '../../utils/events';
 
@@ -23,6 +25,7 @@ export interface ResilienceOptions {
 
 export class Resilience implements Disposable {
   private logger = getLogger('Resilience');
+  
   private tokenManager: TokenManager;
   private state: ResilienceState = ResilienceState.STABLE;
   private reconnectAttempt: number = 0;

@@ -1,55 +1,43 @@
-// src/services/connection/data-handlers.ts
-import { HttpClient } from '../../api/http-client';
-import { OrdersApi, OrderSide, OrderType } from '../../api/order';
+// src/services/orders/order-service.ts
+import { TokenManager } from '../auth/token-manager';
+import { OrdersApi, OrderSide, OrderType, SubmitOrderRequest } from '../../api/order';
 import { getLogger } from '../../boot/logging';
 import { handleError } from '../../utils/error-handling';
 
-export class DataHandlers {
-  private logger = getLogger('DataHandlers');
+export class OrderService {
+  private logger = getLogger('OrderService');
   private ordersApi: OrdersApi;
-  private exchangeData: Record<string, any> = {}; // Internal cache for data if needed
-  
-  constructor(httpClient: HttpClient) {
-    this.ordersApi = new OrdersApi(httpClient);
-    this.logger.info('DataHandlers initialized');
+  private tokenManager: TokenManager;
+
+  constructor(ordersApi: OrdersApi, tokenManager: TokenManager) {
+    this.ordersApi = ordersApi;
+    this.tokenManager = tokenManager;
+    this.logger.info('OrderService initialized');
   }
 
-  /**
-   * Updates the internal cache of exchange data.
-   * @param data - The new exchange data.
-   */
-  public updateExchangeData(data: Record<string, any>): void {
-    this.exchangeData = { ...this.exchangeData, ...data };
-    this.logger.debug('Internal exchange data cache updated');
-  }
-
-  /**
-   * Retrieves a copy of the cached exchange data.
-   * @returns A copy of the exchange data object.
-   */
-  public getExchangeData(): Record<string, any> {
-    return { ...this.exchangeData };
-  }
-
-  /**
-   * Submits a trading order via the OrdersApi.
-   * @param order - The order details.
-   * @returns A promise resolving to the submission result.
-   */
-  public async submitOrder(order: {
+  async submitOrder(order: {
     symbol: string;
     side: OrderSide;
     quantity: number;
     price?: number;
     type: OrderType;
   }): Promise<{ success: boolean; orderId?: string; error?: string }> {
+    // Check authentication
+    if (!this.tokenManager.isAuthenticated()) {
+      this.logger.warn('Order submission attempted without authentication');
+      return { 
+        success: false, 
+        error: 'Not authenticated' 
+      };
+    }
+
     const logContext = {
       symbol: order.symbol,
       side: order.side,
       type: order.type,
       quantity: order.quantity
     };
-    
+
     this.logger.info('Attempting to submit order', logContext);
 
     // Basic client-side validation
@@ -67,10 +55,12 @@ export class DataHandlers {
       // Add idempotency key
       const requestId = `order-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
       
-      const response = await this.ordersApi.submitOrder({
+      const submitRequest: SubmitOrderRequest = {
         ...order,
         requestId
-      });
+      };
+
+      const response = await this.ordersApi.submitOrder(submitRequest);
 
       if (response.success) {
         this.logger.info(`Order submitted successfully`, {
@@ -78,7 +68,6 @@ export class DataHandlers {
           orderId: response.orderId
         });
       } else {
-        // Log API-reported failure
         this.logger.warn(`Order submission failed via API`, {
           ...logContext,
           error: response.errorMessage
@@ -98,7 +87,6 @@ export class DataHandlers {
         error: response.errorMessage
       };
     } catch (error: any) {
-      // Handle exceptions during the API call
       this.logger.error(`Exception during order submission`, {
         ...logContext,
         error: error.message
@@ -113,12 +101,16 @@ export class DataHandlers {
     }
   }
 
-  /**
-   * Cancels a trading order via the OrdersApi.
-   * @param orderId - The ID of the order to cancel.
-   * @returns A promise resolving to the cancellation result.
-   */
-  public async cancelOrder(orderId: string): Promise<{ success: boolean; error?: string }> {
+  async cancelOrder(orderId: string): Promise<{ success: boolean; error?: string }> {
+    // Check authentication
+    if (!this.tokenManager.isAuthenticated()) {
+      this.logger.warn('Order cancellation attempted without authentication');
+      return { 
+        success: false, 
+        error: 'Not authenticated' 
+      };
+    }
+
     this.logger.info(`Attempting to cancel order: ${orderId}`);
 
     if (!orderId) {
@@ -140,7 +132,6 @@ export class DataHandlers {
 
       return { success: true };
     } catch (error: any) {
-      // Handle exceptions during the API call
       this.logger.error(`Exception during order cancellation for ID: ${orderId}`, {
         error: error.message
       });

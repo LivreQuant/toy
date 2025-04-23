@@ -1,6 +1,7 @@
 // src/state/connection-state.ts
 import { BehaviorSubject, Observable } from 'rxjs';
 import { map, distinctUntilChanged } from 'rxjs/operators';
+
 import { getLogger } from '../boot/logging';
 
 // Define enums for connection status
@@ -44,8 +45,9 @@ export const initialConnectionState: ConnectionState = {
 
 // Connection state service
 export class ConnectionStateService {
-  private state$ = new BehaviorSubject<ConnectionState>(initialConnectionState);
   private logger = getLogger('ConnectionStateService');
+  
+  private state$ = new BehaviorSubject<ConnectionState>(initialConnectionState);
 
   // Select a slice of the connection state
   select<T>(selector: (state: ConnectionState) => T): Observable<T> {

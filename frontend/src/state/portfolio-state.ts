@@ -1,6 +1,7 @@
 // src/state/portfolio-state.ts
 import { BehaviorSubject, Observable } from 'rxjs';
 import { map, distinctUntilChanged } from 'rxjs/operators';
+
 import { getLogger } from '../boot/logging';
 
 // Define position and order structures

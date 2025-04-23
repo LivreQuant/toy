@@ -1,8 +1,12 @@
 // src/services/connection/heartbeat.ts
 import { getLogger } from '../../boot/logging';
-import { connectionState, ConnectionStatus } from '../../state/connection-state';
+
+import { ConnectionStatus } from '../../state/connection-state';
+
 import { SocketClient } from './socket-client';
+
 import { DeviceIdManager } from '../auth/device-id-manager';
+
 import { Disposable } from '../../utils/disposable';
 import { EventEmitter } from '../../utils/events';
 
