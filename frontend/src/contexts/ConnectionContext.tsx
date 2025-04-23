@@ -102,7 +102,7 @@ export const ConnectionProvider: React.FC<ConnectionProviderProps> = ({
 
   // Memoize the context value
   const contextValue = useMemo(() => {
-    const currentConnState = connectionState ?? initialConnectionState;
+    const currentConnState = localConnectionState ?? initialConnectionState;
     const isConnected =
       currentConnState.overallStatus === ConnectionStatus.CONNECTED;
     const isConnecting =

@@ -46,7 +46,7 @@ export const initialConnectionState: ConnectionState = {
 // Connection state service
 export class ConnectionStateService {
   private logger = getLogger('ConnectionStateService');
-  
+
   private state$ = new BehaviorSubject<ConnectionState>(initialConnectionState);
 
   // Select a slice of the connection state
@@ -75,24 +75,29 @@ export class ConnectionStateService {
     let newOverallStatus = changes.overallStatus ?? currentState.overallStatus;
 
     if (changes.webSocketStatus || changes.isRecovering !== undefined) {
-      const wsStatus = changes.webSocketStatus ?? currentState.webSocketStatus;
-      const isRecovering = changes.isRecovering ?? currentState.isRecovering;
+        const wsStatus = changes.webSocketStatus ?? currentState.webSocketStatus;
+        const isRecovering = changes.isRecovering ?? currentState.isRecovering;
 
-      if (isRecovering) {
-        newOverallStatus = ConnectionStatus.RECOVERING;
-      } else {
-        newOverallStatus = wsStatus;
-      }
+        if (isRecovering) {
+            newOverallStatus = ConnectionStatus.RECOVERING;
+        } else {
+            newOverallStatus = wsStatus;
+        }
     }
 
     // Update the state with computed overall status
     const newState: ConnectionState = {
-      ...currentState,
-      ...changes,
-      overallStatus: newOverallStatus
+        ...currentState,
+        ...changes,
+        overallStatus: newOverallStatus
     };
 
-    this.logger.debug('Updating connection state', changes);
+    this.logger.debug('Updating connection state', {
+        changes,
+        newOverallStatus,
+        currentOverallStatus: currentState.overallStatus
+    });
+    
     this.state$.next(newState);
   }
 

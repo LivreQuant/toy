@@ -82,28 +82,30 @@ export class ConnectionManager implements Disposable {
   private setupListeners(): void {
     // Listen for socket client status changes
     this.socketClient.getStatus().subscribe(status => {
-      if (this.isDisposed) return;
-      
-      // Update connection state
-      connectionState.updateState({
-        webSocketStatus: status
-      });
-      
-      // Handle status changes
-      if (status === ConnectionStatus.CONNECTED) {
-        this.logger.info('WebSocket connected. Starting heartbeat and handling potential reconnection.');
-        this.heartbeat.start();
-        this.resilience.reset();
-        this.syncSimulatorState();
-      } else if (status === ConnectionStatus.DISCONNECTED) {
-        this.logger.info('WebSocket disconnected. Stopping heartbeat.');
-        this.heartbeat.stop();
+        if (this.isDisposed) return;
         
-        // Attempt recovery if needed
-        if (this.desiredState.connected && authState.getState().isAuthenticated) {
-          this.attemptRecovery('ws_disconnect');
+        // Update connection state
+        connectionState.updateState({
+            webSocketStatus: status
+        });
+        
+        // Handle status changes
+        if (status === ConnectionStatus.CONNECTED) {
+            this.logger.info('WebSocket connected. Not starting heartbeat automatically.');
+            
+            // DO NOT start heartbeat here - we'll start it after session validation
+            
+            this.resilience.reset();
+            this.syncSimulatorState();
+        } else if (status === ConnectionStatus.DISCONNECTED) {
+            this.logger.info('WebSocket disconnected. Stopping heartbeat.');
+            this.heartbeat.stop();
+            
+            // Attempt recovery if needed
+            if (this.desiredState.connected && authState.getState().isAuthenticated) {
+                this.attemptRecovery('ws_disconnect');
+            }
         }
-      }
     });
     
     // Listen for auth state changes
@@ -271,8 +273,8 @@ export class ConnectionManager implements Disposable {
     
     // Check authentication
     if (!authState.getState().isAuthenticated) {
-      this.logger.error('Connect failed: Not authenticated');
-      return false;
+        this.logger.error('Connect failed: Not authenticated');
+        return false;
     }
     
     // Check if already connected/connecting/recovering
@@ -280,63 +282,100 @@ export class ConnectionManager implements Disposable {
     if (connState.webSocketStatus === ConnectionStatus.CONNECTED || 
         connState.webSocketStatus === ConnectionStatus.CONNECTING || 
         connState.isRecovering) {
-      this.logger.warn(`Connect ignored: Status=${connState.webSocketStatus}, Recovering=${connState.isRecovering}`);
-      return connState.webSocketStatus === ConnectionStatus.CONNECTED;
+        this.logger.warn(`Connect ignored: Status=${connState.webSocketStatus}, Recovering=${connState.isRecovering}`);
+        return connState.webSocketStatus === ConnectionStatus.CONNECTED;
     }
     
     this.logger.info('Initiating connection process');
     
     // Update state to connecting
     connectionState.updateState({
-      webSocketStatus: ConnectionStatus.CONNECTING,
-      lastConnectionError: null
+        webSocketStatus: ConnectionStatus.CONNECTING,
+        lastConnectionError: null
     });
     
     try {
-      // Connect WebSocket
-      const wsConnected = await this.socketClient.connect();
-      
-      if (!wsConnected) {
-        throw new Error('WebSocket connection failed');
-      }
-      
-      // Validate session
-      this.logger.info('WebSocket connected, validating session');
-      const sessionResponse = await this.sessionHandler.requestSessionInfo();
-      
-      if (!sessionResponse.success) {
-        throw new Error(`Session validation failed: ${sessionResponse.error || 'Unknown error'}`);
-      }
-      
-      this.logger.info('Session validated successfully');
-      
-      // Update connection state with simulator status from session
-      connectionState.updateState({
-        simulatorStatus: sessionResponse.simulatorStatus
-      });
-      
-      return true;
+        // 1. Connect WebSocket
+        const wsConnected = await this.socketClient.connect();
+        
+        if (!wsConnected) {
+            throw new Error('WebSocket connection failed');
+        }
+        
+        this.logger.info('WebSocket connected, now requesting session info');
+        
+        // 2. Request session info first and wait for response
+        let sessionResponse;
+        try {
+            // Important: Wait for this response before proceeding
+            sessionResponse = await this.sessionHandler.requestSessionInfo();
+            
+            this.logger.info('Session info response received', { 
+                success: sessionResponse.success,
+                type: sessionResponse.type,
+                deviceId: sessionResponse.deviceId,
+                expiresAt: sessionResponse.expiresAt,
+                simulatorStatus: sessionResponse.simulatorStatus
+            });
+            
+            // Determine success based on response contents, not just success flag
+            const sessionSuccess = sessionResponse.type === 'session_info' && sessionResponse.deviceId;
+            
+            if (!sessionSuccess) {
+                throw new Error(`Session validation failed: ${sessionResponse.error || 'Unknown error'}`);
+            }
+        } catch (sessionError) {
+            this.logger.error('Session request failed', { 
+                error: sessionError instanceof Error ? sessionError.message : String(sessionError)
+            });
+            throw sessionError; // Propagate error
+        }
+        
+        // Update connection state to CONNECTED since session is validated
+        connectionState.updateState({
+            webSocketStatus: ConnectionStatus.CONNECTED,
+            overallStatus: ConnectionStatus.CONNECTED,
+            simulatorStatus: sessionResponse.simulatorStatus || 'NONE'
+        });
+        
+        // Log immediately after to verify the update happened
+        const updatedState = connectionState.getState();
+        this.logger.info('Connection state after explicit update', {
+            webSocketStatus: updatedState.webSocketStatus,
+            overallStatus: updatedState.overallStatus,
+            isConnected: updatedState.overallStatus === ConnectionStatus.CONNECTED,
+        });
+
+        // 3. Only start sending heartbeats AFTER successful session response
+        this.logger.info('Session validated successfully, starting heartbeats');
+        this.heartbeat.start();
+        
+        // Log current state for debugging
+        this.logConnectionState();
+        
+        return true;
     } catch (error: any) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      this.logger.error(`Connection process failed: ${errorMessage}`);
-      
-      // Update connection state
-      connectionState.updateState({
-        webSocketStatus: ConnectionStatus.DISCONNECTED,
-        lastConnectionError: errorMessage
-      });
-      
-      // Record failure and attempt recovery
-      this.resilience.recordFailure(`Connection process error: ${errorMessage}`);
-      this.attemptRecovery('connect_error');
-      
-      return handleError(
-        errorMessage,
-        'ConnectionProcess',
-        'high'
-      ).success;
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        this.logger.error(`Connection process failed: ${errorMessage}`);
+        
+        // Update connection state
+        connectionState.updateState({
+            webSocketStatus: ConnectionStatus.DISCONNECTED,
+            lastConnectionError: errorMessage
+        });
+        
+        // Record failure and attempt recovery
+        this.resilience.recordFailure(`Connection process error: ${errorMessage}`);
+        this.attemptRecovery('connect_error');
+        
+        return handleError(
+            errorMessage,
+            'ConnectionProcess',
+            'high'
+        ).success;
     }
   }
+
 
   /**
    * Disconnects the WebSocket and cleans up resources.
@@ -403,8 +442,8 @@ export class ConnectionManager implements Disposable {
     
     // Check auth state
     if (!authState.getState().isAuthenticated) {
-      this.logger.warn('Recovery ignored: Not authenticated');
-      return false;
+        this.logger.warn('Recovery ignored: Not authenticated');
+        return false;
     }
     
     // Check if already recovering or resilience prevents recovery
@@ -414,32 +453,101 @@ export class ConnectionManager implements Disposable {
     if (connState.isRecovering || 
         resilienceState.state === ResilienceState.SUSPENDED || 
         resilienceState.state === ResilienceState.FAILED) {
-      this.logger.warn(`Recovery ignored: Already recovering or resilience prevents (${resilienceState.state})`);
-      return false;
+        this.logger.warn(`Recovery ignored: Already recovering or resilience prevents (${resilienceState.state})`);
+        return false;
     }
     
     this.logger.info(`Attempting recovery. Reason: ${reason}`);
     
     // Update state to show recovery starting
     connectionState.updateState({
-      isRecovering: true,
-      recoveryAttempt: resilienceState.attempt + 1
+        isRecovering: true,
+        recoveryAttempt: resilienceState.attempt + 1
+    });
+    
+    // Register a one-time listener for reconnection success
+    const successSubscription = this.resilience.on('reconnect_success', async (data) => {
+        // Cleanup the listener to avoid memory leaks
+        successSubscription.unsubscribe();
+        
+        try {
+            // Request session info after a successful reconnect
+            this.logger.info('Reconnection successful, requesting session info');
+            const sessionResponse = await this.sessionHandler.requestSessionInfo();
+            
+            if (sessionResponse.type === 'session_info' && sessionResponse.deviceId) {
+                this.logger.info('Session validated after reconnect, starting heartbeats');
+                
+                // Update connection state to CONNECTED
+                connectionState.updateState({
+                    webSocketStatus: ConnectionStatus.CONNECTED,
+                    overallStatus: ConnectionStatus.CONNECTED,
+                    simulatorStatus: sessionResponse.simulatorStatus || 'NONE',
+                    isRecovering: false,
+                    recoveryAttempt: 0
+                });
+                
+                // Start heartbeats
+                this.heartbeat.start();
+                
+                // Log current state for debugging
+                this.logConnectionState();
+            } else {
+                this.logger.error('Session validation failed after reconnect');
+                // Handle session validation failure
+                this.disconnect('session_validation_failed');
+            }
+        } catch (error: any) {
+            this.logger.error('Error validating session after reconnect', {
+                error: error instanceof Error ? error.message : String(error)
+            });
+            // Handle error
+            this.disconnect('session_validation_error');
+        }
+    });
+    
+    // Register a one-time listener for reconnection failure
+    const failureSubscription = this.resilience.on('reconnect_failure', () => {
+        // Cleanup the listener to avoid memory leaks
+        failureSubscription.unsubscribe();
+        
+        // Don't need to do anything special here as resilience will handle 
+        // further reconnection attempts if appropriate
+        this.logger.warn('Reconnection attempt failed');
     });
     
     // Attempt reconnection via resilience manager
     const initiated = await this.resilience.attemptReconnection(() => this.connect());
     
     if (!initiated) {
-      this.logger.warn('Recovery could not be initiated');
-      connectionState.updateState({
-        isRecovering: false,
-        recoveryAttempt: 0
-      });
+        this.logger.warn('Recovery could not be initiated');
+        connectionState.updateState({
+            isRecovering: false,
+            recoveryAttempt: 0
+        });
+        
+        // Cleanup listeners if we couldn't even initiate recovery
+        successSubscription.unsubscribe();
+        failureSubscription.unsubscribe();
     } else {
-      this.logger.info('Recovery process initiated');
+        this.logger.info('Recovery process initiated');
     }
     
     return initiated;
+  }
+
+  // Add this helper method for state debugging
+  private logConnectionState(): void {
+    const state = connectionState.getState();
+    this.logger.info('Current connection state', {
+        overallStatus: state.overallStatus,
+        webSocketStatus: state.webSocketStatus,
+        isConnected: state.overallStatus === ConnectionStatus.CONNECTED,
+        isConnecting: state.overallStatus === ConnectionStatus.CONNECTING,
+        isRecovering: state.isRecovering,
+        simulatorStatus: state.simulatorStatus,
+        heartbeatActive: this.heartbeat.isActive() // Call the method instead of accessing the property
+    });
   }
 
   /**
