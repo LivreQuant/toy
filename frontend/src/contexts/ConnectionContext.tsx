@@ -15,6 +15,7 @@ import { ConnectionManager } from '../services/connection/connection-manager';
 import {
   connectionState as globalConnectionState,
   ConnectionStatus,
+  ConnectionState,
   initialConnectionState
 } from '../state/connection-state';
 

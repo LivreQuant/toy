@@ -29,19 +29,14 @@ export class SessionApi {
    */
   async createSession(): Promise<SessionResponse> {
     try {
-      const response = await this.connectionManager.createSession();
-      console.log("CRITICAL DEBUG: Session validation response:", response);
+      const connected = await this.connectionManager.connect();
       
-      // Explicitly check for valid session conditions
-      const isSessionValid = 
-        response.sessionId && 
-        response.userId && 
-        response.status === "ACTIVE" && 
-        response.expiresAt > (Date.now() / 1000);
-  
+      // You can maintain your logging
+      console.log("CRITICAL DEBUG: Session validation response:", connected);
+      
       return {
-        success: true,
-        errorMessage: isSessionValid ? undefined : 'Invalid session'
+        success: connected,
+        errorMessage: connected ? undefined : 'Failed to establish connection and validate session'
       };
     } catch (error: any) {
       console.log("CRITICAL DEBUG: Session validation error:", error);
