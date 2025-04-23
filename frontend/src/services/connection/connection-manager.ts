@@ -6,7 +6,6 @@ import { DeviceIdManager } from '../auth/device-id-manager';
 
 import { Resilience, ResilienceState } from './resilience';
 import { SimulatorClient } from './simulator-client';
-import { ExchangeDataCache } from './exchange-data-cache';
 import { SocketClient } from './socket-client';
 import { Heartbeat } from './heartbeat';
 
@@ -43,7 +42,6 @@ export class ConnectionManager implements Disposable {
   private heartbeat: Heartbeat;
   private resilience: Resilience;
   private sessionHandler: SessionHandler;
-  private exchangeDataCache: ExchangeDataCache;
   private simulatorClient: SimulatorClient;
   private isDisposed = false;
   
@@ -75,7 +73,6 @@ export class ConnectionManager implements Disposable {
     
     this.resilience = new Resilience(tokenManager, options.resilience);
     this.sessionHandler = new SessionHandler(this.socketClient);
-    this.exchangeDataCache = new ExchangeDataCache();
     this.simulatorClient = new SimulatorClient(this.socketClient);
     
     // Setup event listeners

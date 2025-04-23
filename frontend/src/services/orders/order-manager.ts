@@ -1,18 +1,18 @@
-// src/services/orders/order-service.ts
+// src/services/orders/order-manager.ts
 import { TokenManager } from '../auth/token-manager';
 import { OrdersApi, OrderSide, OrderType, SubmitOrderRequest } from '../../api/order';
 import { getLogger } from '../../boot/logging';
 import { handleError } from '../../utils/error-handling';
 
-export class OrderService {
-  private logger = getLogger('OrderService');
+export class OrderManager {
+  private logger = getLogger('OrderManager');
   private ordersApi: OrdersApi;
   private tokenManager: TokenManager;
 
   constructor(ordersApi: OrdersApi, tokenManager: TokenManager) {
     this.ordersApi = ordersApi;
     this.tokenManager = tokenManager;
-    this.logger.info('OrderService initialized');
+    this.logger.info('OrderManager initialized');
   }
 
   async submitOrder(order: {
