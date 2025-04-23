@@ -7,16 +7,17 @@ import React, {
   useState,
   useContext,
 } from 'react';
+import { Subscription } from 'rxjs';
+
+import { getLogger } from '../boot/logging';
+
 import { ConnectionManager } from '../services/connection/connection-manager';
-// Fix the import to use the correct type
 import {
   connectionState as globalConnectionState,
   ConnectionStatus,
   initialConnectionState
 } from '../state/connection-state';
-import { Subscription } from 'rxjs';
-import { getLogger } from '../boot/logging';
-import LoadingSpinner from '../components/Common/LoadingSpinner';
+
 import { useAuth } from '../hooks/useAuth';
 
 type ConnectionStateType = {

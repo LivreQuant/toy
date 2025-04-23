@@ -1,7 +1,9 @@
 // src/contexts/ExchangeStateContext.tsx
 import React, { createContext, useContext, ReactNode } from 'react';
-import { useObservable } from '../hooks/useObservable';
+
 import { exchangeState, ExchangeState, initialExchangeState } from '../state/exchange-state';
+
+import { useObservable } from '../hooks/useObservable';
 
 // Create context with default value
 const ExchangeStateContext = createContext<ExchangeState>(initialExchangeState);

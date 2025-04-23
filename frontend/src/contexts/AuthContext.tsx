@@ -1,13 +1,17 @@
 // Likely inside src/contexts/AuthContext.tsx
-
 import React, { createContext, useState, useEffect, useCallback, ReactNode, useMemo } from 'react';
-import { LoginRequest, LoginResponse, AuthApi } from '../api/auth'; // Adjust path as needed
-import { TokenManager, TokenData } from '../services/auth/token-manager'; // Adjust path
-import LoadingSpinner from '../components/Common/LoadingSpinner'; // Assuming component exists
-// --->>> ADD THIS IMPORT <<<---
-import { authState } from '../state/auth-state';
+
 import { getLogger } from '../boot/logging'; // Adjust path as needed
+
+import { LoginRequest, LoginResponse, AuthApi } from '../api/auth'; // Adjust path as needed
+
+import LoadingSpinner from '../components/Common/LoadingSpinner'; // Assuming component exists
+
+import { authState } from '../state/auth-state';
+
+import { TokenManager, TokenData } from '../services/auth/token-manager'; // Adjust path
 import { DeviceIdManager } from '../services/auth/device-id-manager';
+
 import { ConnectionManager } from '../services/connection/connection-manager';
 
 const logger = getLogger('AuthContext'); // Initialize logger for this context

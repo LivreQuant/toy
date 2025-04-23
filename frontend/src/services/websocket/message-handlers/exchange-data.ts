@@ -10,6 +10,7 @@ import { portfolioState } from '../../../state/portfolio-state';
 
 export class ExchangeDataHandler {
   private logger = getLogger('ExchangeDataHandler');
+  
   private client: SocketClient;
   
   constructor(client: SocketClient) {

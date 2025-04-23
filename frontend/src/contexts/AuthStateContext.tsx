@@ -1,7 +1,9 @@
 // src/contexts/AuthStateContext.tsx
 import React, { createContext, useContext, ReactNode } from 'react';
-import { useObservable } from '../hooks/useObservable';
+
 import { authState, AuthState, initialAuthState } from '../state/auth-state';
+
+import { useObservable } from '../hooks/useObservable';
 
 // Create context with default value
 const AuthStateContext = createContext<AuthState>(initialAuthState);

@@ -1,7 +1,9 @@
 // src/contexts/SimulatorStateContext.tsx
 import React, { createContext, useContext, ReactNode } from 'react';
-import { useObservable } from '../hooks/useObservable';
+
 import { simulatorState, SimulatorState, initialSimulatorState } from '../state/simulator-state';
+
+import { useObservable } from '../hooks/useObservable';
 
 // Create context with default value
 const SimulatorStateContext = createContext<SimulatorState>(initialSimulatorState);
