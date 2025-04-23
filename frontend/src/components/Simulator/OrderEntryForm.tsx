@@ -4,7 +4,7 @@ import { useConnection } from '../../hooks/useConnection';
 import { useToast } from '../../hooks/useToast';
 import { OrderSide, OrderType } from '../../api/order';
 // Import ConnectionStatus if needed for comparison
-import { ConnectionStatus } from '../../services/state/app-state.service';
+import { ConnectionStatus } from '../../state/connection-state';
 // Add specific CSS for this form if needed: import './OrderEntryForm.css';
 
 const OrderEntryForm: React.FC = () => {

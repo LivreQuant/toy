@@ -195,13 +195,6 @@ class SessionManager:
         simulator, error = await self.simulator_manager.create_or_reuse_simulator(session_id, user_id)
 
         if simulator and not error:
-            # Update session details with simulator info
-            await self.update_session_details({
-                'simulator_id': simulator.simulator_id,
-                'simulator_status': simulator.status.value,
-                'simulator_endpoint': simulator.endpoint
-            })
-
             # Set flag for active simulator
             self.simulator_active = True
 
@@ -239,7 +232,7 @@ class SessionManager:
             while attempt < max_attempts and not connected:
                 try:
                     # Try to send a heartbeat to check readiness
-                    heartbeat_result = await self.exchange_client.heartbeat(
+                    heartbeat_result = await self.exchange_client.send_heartbeat(
                         endpoint,
                         session_id,
                         f"readiness-check-{session_id}"
@@ -264,10 +257,7 @@ class SessionManager:
 
             if not connected:
                 logger.error(f"Failed to connect to simulator {simulator_id} after {max_attempts} attempts")
-                await self.update_session_details({
-                    'simulator_status': 'ERROR',
-                    'simulator_error': 'Failed to connect to simulator after multiple attempts'
-                })
+
                 self.simulator_active = False
                 return
 
@@ -302,10 +292,6 @@ class SessionManager:
                 logger.error(f"Error in simulator data stream: {stream_error}")
                 # Attempt to recover
                 self.simulator_active = False
-                await self.update_session_details({
-                    'simulator_status': 'ERROR',
-                    'simulator_error': f"Stream error: {str(stream_error)}"
-                })
 
                 # Try to gracefully close the stream
                 try:
@@ -317,12 +303,6 @@ class SessionManager:
             logger.error(f"Error in simulator data streaming: {e}")
             self.simulator_active = False
 
-            # Update session details to reflect error
-            await self.update_session_details({
-                'simulator_status': 'ERROR',
-                'simulator_error': str(e)
-            })
-
     async def update_simulator_status(self, simulator_id: str, status: str):
         """
         Update simulator status and notify websocket clients
@@ -331,11 +311,6 @@ class SessionManager:
             simulator_id: The simulator ID
             status: The new status
         """
-        # Update session details
-        await self.update_session_details({
-            'simulator_status': status,
-        })
-
         # Log the status change
         logger.info(f"Updated simulator {simulator_id} status to {status}")
 
@@ -372,11 +347,23 @@ class SessionManager:
 
         return success, error
 
-    async def cleanup_session(self):
-        """Clean up the session resources - important for graceful shutdown"""
-        # Stop simulator if active
-        if self.simulator_active:
-            await self.stop_simulator(force=True)
+    async def cleanup_session(self, keep_simulator=False):
+        """
+        Clean up the session resources - important for graceful shutdown.
+
+        Args:
+            keep_simulator: If True, don't stop the simulator
+        """
+        # Stop simulator if active and not keeping it
+        if self.simulator_active and not keep_simulator:
+            simulator_id = None
+            if hasattr(self.simulator_manager, 'current_simulator_id'):
+                simulator_id = self.simulator_manager.current_simulator_id
+
+            if simulator_id:
+                await self.stop_simulator(simulator_id, force=True)
+            else:
+                logger.warning("Simulator is active but no ID available")
 
         session_id = self.state_manager.get_active_session_id()
 
@@ -384,7 +371,7 @@ class SessionManager:
         if self.stream_manager:
             await self.stream_manager.stop_stream(session_id)
 
-        logger.info(f"Cleaned up session {session_id}")
+        logger.info(f"Cleaned up session {session_id}, keep_simulator={keep_simulator}")
         return True
         
     async def validate_device(self, device_id: str) -> tuple[bool, str, str]:

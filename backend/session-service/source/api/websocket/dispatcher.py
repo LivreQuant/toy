@@ -1,22 +1,19 @@
 # source/api/websocket/dispatcher.py
 """
-WebSocket message dispatcher for single-user mode.
-Parses incoming messages and routes them to appropriate handlers.
+Streamlined WebSocket message dispatcher for session service.
 """
 import json
 import logging
-from typing import Dict, Any, Optional, Tuple, Callable, Awaitable
+from typing import Dict, Callable, Awaitable
 
-from opentelemetry import trace
 from aiohttp import web
 
 from source.core.session.manager import SessionManager
-from source.api.websocket.exceptions import (
-    WebSocketError,
-    WebSocketClientError,
-    InvalidMessageFormatError
-)
+from source.api.websocket.exceptions import WebSocketError, ClientError
+from source.api.websocket.emitters import error_emitter
+from source.utils.metrics import track_websocket_message
 
+# Import handlers
 from source.api.websocket.handlers import (
     heartbeat_handler,
     reconnect_handler,
@@ -24,81 +21,27 @@ from source.api.websocket.handlers import (
     simulator_handler
 )
 
-from source.api.websocket.emitters import error_emitter
-
-from source.utils.metrics import track_websocket_message
-from source.utils.tracing import optional_trace_span
-
 logger = logging.getLogger('websocket_dispatcher')
 
 # Type definition for handler functions
 HandlerFunc = Callable[..., Awaitable[None]]
 
 
-async def _parse_message(raw_data: str) -> Tuple[Dict[str, Any], str, Optional[str]]:
-    """
-    Parse and validate the raw message data.
-    
-    Args:
-        raw_data: The raw message string
-        
-    Returns:
-        Tuple of (parsed_message, message_type, request_id)
-        
-    Raises:
-        InvalidMessageFormatError: If JSON parsing fails
-        WebSocketClientError: If message validation fails
-    """
-    try:
-        # Parse JSON
-        message = json.loads(raw_data)
-    except json.JSONDecodeError as e:
-        # Specific custom exception for invalid JSON
-        raise InvalidMessageFormatError(f"Invalid JSON received: {e}") from e
-
-    # Get request ID if available
-    request_id = message.get('requestId') if isinstance(message, dict) else None
-
-    # Extract and validate message type
-    if not isinstance(message, dict):
-        raise WebSocketClientError(
-            message="Message must be a JSON object.",
-            error_code="INVALID_MESSAGE_FORMAT"
-        )
-
-    message_type = message.get('type')
-    if not isinstance(message_type, str) or not message_type:
-        raise WebSocketClientError(
-            message="Message 'type' field is missing or not a string.",
-            error_code="INVALID_MESSAGE_TYPE_FIELD"
-        )
-
-    return message, message_type, request_id
-
-
 class WebSocketDispatcher:
     """Parses and dispatches WebSocket messages to registered handlers."""
 
     def __init__(self, session_manager: SessionManager):
-        """
-        Initialize the dispatcher.
-
-        Args:
-            session_manager: The session manager instance.
-        """
+        """Initialize the dispatcher with a session manager."""
         self.session_manager = session_manager
-        self.tracer = trace.get_tracer("websocket_dispatcher")
 
-        # Register message handlers: message_type -> handler_function
+        # Register message handlers
         self.message_handlers: Dict[str, HandlerFunc] = {
-            # Original handlers
+            # Session handlers
             'heartbeat': heartbeat_handler.handle_heartbeat,
             'reconnect': reconnect_handler.handle_reconnect,
-            
-            # Session handlers
-            'request_session_info': session_handler.handle_session_info,
+            'request_session': session_handler.handle_session_info,
             'stop_session': session_handler.handle_stop_session,
-            
+
             # Simulator handlers
             'start_simulator': simulator_handler.handle_start_simulator,
             'stop_simulator': simulator_handler.handle_stop_simulator,
@@ -108,92 +51,71 @@ class WebSocketDispatcher:
     async def dispatch_message(self, ws: web.WebSocketResponse, user_id: str,
                                client_id: str, device_id: str, raw_data: str) -> None:
         """
-        Parse and dispatch a single incoming WebSocket message.
+        Parse and dispatch an incoming WebSocket message.
 
         Args:
-            ws: The WebSocket connection instance.
-            user_id: The user ID associated with the connection.
-            client_id: The client ID for this specific connection.
-            device_id: The device ID for this specific connection.
-            raw_data: The raw message data string received.
+            ws: WebSocket connection
+            user_id: User ID
+            client_id: Client ID
+            device_id: Device ID
+            raw_data: Raw message data
         """
         message_type = "unknown"
         request_id = None
 
-        with optional_trace_span(self.tracer, "dispatch_websocket_message") as span:
-            span.set_attribute("client_id", client_id)
-            span.set_attribute("device_id", device_id)
-            span.set_attribute("raw_message_preview", raw_data[:100])
-
+        try:
+            # Parse JSON
             try:
-                # Parse the message
-                message, message_type, request_id = await _parse_message(raw_data)
-                span.set_attribute("message_type", message_type)
-                span.set_attribute("request_id", request_id)
+                message = json.loads(raw_data)
+            except json.JSONDecodeError:
+                raise ClientError("Invalid JSON format", "INVALID_FORMAT")
 
-                # Log received message
-                track_websocket_message("received", message_type)
+            # Basic message validation
+            if not isinstance(message, dict):
+                raise ClientError("Message must be a JSON object", "INVALID_FORMAT")
 
-                # Execute the appropriate handler
-                await self._execute_handler(ws, user_id, client_id, device_id, message, message_type)
+            # Extract message type
+            message_type = message.get('type')
+            if not message_type:
+                raise ClientError("Missing 'type' field", "INVALID_TYPE")
 
-            except WebSocketError as e:
-                # Log the error
-                log_level = logging.WARNING if isinstance(e, WebSocketClientError) else logging.ERROR
-                logger.log(log_level,
-                           f"WebSocket Error dispatching message (type: {message_type}, client: {client_id}): "
-                           f"{e.error_code} - {e.message}")
+            # Extract request ID if present
+            request_id = message.get('requestId')
 
-                # Send error to client
-                await error_emitter.send_error(
-                    ws=ws,
-                    error_code=e.error_code,
-                    message=e.message,
-                    details=getattr(e, 'details', None),
-                    request_id=request_id,
-                    span=span,
-                    exception=e
-                )
+            # Track received message
+            track_websocket_message("received", message_type)
 
-            except Exception as e:
-                # Log the unexpected error
-                logger.error(
-                    f"Unexpected error dispatching WebSocket message (type: {message_type}, client: {client_id}): {e}",
-                    exc_info=True
-                )
+            # Find and execute handler
+            handler = self.message_handlers.get(message_type)
+            if not handler:
+                raise ClientError(f"Unknown message type: '{message_type}'", "UNKNOWN_TYPE")
 
-                # Send generic error message to client
-                await error_emitter.send_error(
-                    ws=ws,
-                    error_code="INTERNAL_SERVER_ERROR",
-                    message="An internal server error occurred while processing your request.",
-                    request_id=request_id,
-                    span=span,
-                    exception=e
-                )
-
-    async def _execute_handler(self, ws: web.WebSocketResponse, user_id: Any,
-                               client_id: str, device_id: str, message: Dict[str, Any],
-                               message_type: str) -> None:
-        """
-        Find and execute the appropriate message handler.
-        """
-        # Find handler
-        handler = self.message_handlers.get(message_type)
-        if not handler:
-            raise WebSocketClientError(
-                message=f"Unknown message type received: '{message_type}'",
-                error_code="UNKNOWN_MESSAGE_TYPE"
+            # Execute handler
+            await handler(
+                ws=ws,
+                user_id=user_id,
+                client_id=client_id,
+                device_id=device_id,
+                message=message,
+                session_manager=self.session_manager
             )
 
-        # Execute handler with direct access to session_manager
-        await handler(
-            ws=ws,
-            user_id=user_id,
-            client_id=client_id,
-            device_id=device_id,
-            message=message,
-            session_manager=self.session_manager,
-            tracer=self.tracer
-        )
-        
+        except WebSocketError as e:
+            # Handle known error types
+            logger.warning(f"WebSocket error ({message_type}): {e.error_code} - {e.message}")
+            await error_emitter.send_error(
+                ws=ws,
+                error_code=e.error_code,
+                message=e.message,
+                request_id=request_id
+            )
+
+        except Exception as e:
+            # Handle unexpected errors
+            logger.error(f"Unexpected error processing message ({message_type}): {e}", exc_info=True)
+            await error_emitter.send_error(
+                ws=ws,
+                error_code="SERVER_ERROR",
+                message="An internal server error occurred",
+                request_id=request_id
+            )

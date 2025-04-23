@@ -1,10 +1,7 @@
 // src/api/http-client.ts
 import { TokenManager } from '../services/auth/token-manager';
 import { config } from '../config';
-import { AppErrorHandler } from '../utils/app-error-handler';
-import { ErrorSeverity } from '../utils/error-handler';
 import { getLogger } from '../boot/logging';
-import { EnhancedLogger } from '../utils/enhanced-logger';
 
 export interface RequestOptions extends RequestInit {
   skipAuth?: boolean;
@@ -14,12 +11,12 @@ export interface RequestOptions extends RequestInit {
   context?: string; // Optional context string for logging/error reporting
 }
 
-
 export class HttpClient {
+  private readonly logger = getLogger('HttpClient');
+
   private readonly baseUrl: string;
   private readonly tokenManager: TokenManager;
   private readonly maxRetries: number = 2; // Max retries for 5xx errors
-  private readonly logger: EnhancedLogger = getLogger('HttpClient');
 
   constructor(tokenManager: TokenManager) {
     this.baseUrl = config.apiBaseUrl;
@@ -40,8 +37,6 @@ export class HttpClient {
     return this.request<T>('DELETE', endpoint, undefined, options);
   }
 
-
-  // FIX: Define expected parameters based on internal calls
   private async request<T>(
     method: string,
     endpoint: string,
@@ -95,11 +90,9 @@ export class HttpClient {
           // Delegate network errors (fetch failure) to the other handler
           return await this.handleNetworkOrFetchError<T>(networkError, method, endpoint, data, options, retryCount);
       }
-
-      // --- END OF MISSING IMPLEMENTATION PLACEHOLDER ---
   }
 
-
+  /* SERVER | REQUEST ISSUES */
   private async handleHttpErrorResponse<T>(
     response: Response,
     method: string,
@@ -109,7 +102,6 @@ export class HttpClient {
     retryCount: number
   ): Promise<T> {
     let errorMessage = options.customErrorMessage || `HTTP Error ${response.status}: ${response.statusText}`;
-    let errorSeverity = ErrorSeverity.MEDIUM; // Default severity
     let errorDetails: any = null;
     try {
         // Attempt to parse error details from the response body
@@ -125,65 +117,51 @@ export class HttpClient {
         this.logger.debug('Could not parse error response body as JSON', { status: response.status, endpoint });
     }
 
-    const errorContext = options.context || `HttpClient.${method}.${endpoint.replace('/', '')}`;
-
     // --- Specific Status Code Handling ---
     if (response.status === 401 && !options.skipAuth && retryCount < 1) { // Only retry 401 once
        this.logger.warn('Received 401 Unauthorized, attempting token refresh...', { endpoint });
       try {
         const refreshed = await this.tokenManager.refreshAccessToken();
         if (refreshed) {
-           this.logger.info('Token refresh successful, retrying original request.', { endpoint });
-           // FIX: Pass 5 arguments to request
-           return this.request<T>(method, endpoint, data, options, retryCount + 1);
+          this.logger.info('Token refresh successful, retrying original request.', { endpoint });
+          return this.request<T>(method, endpoint, data, options, retryCount + 1);
         } else {
-            this.logger.error('Token refresh failed after 401.', { endpoint });
-             errorMessage = options.customErrorMessage || 'Session expired or invalid. Please log in again.';
-             errorSeverity = ErrorSeverity.HIGH;
-             AppErrorHandler.handleAuthError(errorMessage, errorSeverity, errorContext + '.RefreshFailed', { details: errorDetails });
-             throw new Error(errorMessage); // Throw after handling
+          errorMessage = options.customErrorMessage || 'Session expired or invalid. Please log in again.';
+          this.logger.error(`Token refresh failed after 401. ${errorMessage}`);
+          throw new Error(errorMessage); // Throw after handling
         }
       } catch (refreshError: any) {
-        this.logger.error('Error during token refresh attempt', { endpoint, error: refreshError.message });
-         errorMessage = options.customErrorMessage || 'Session refresh failed. Please log in again.';
-         errorSeverity = ErrorSeverity.HIGH;
-         AppErrorHandler.handleAuthError(errorMessage, errorSeverity, errorContext + '.RefreshException', { originalError: refreshError });
-         throw new Error(errorMessage); // Throw after handling
+        errorMessage = options.customErrorMessage || 'Session refresh failed. Please log in again.';
+        this.logger.error(`Error during token refresh attempt. ${errorMessage}`);
+        throw new Error(errorMessage); // Throw after handling
       }
     } else if (response.status === 403) { // Forbidden
-        errorSeverity = ErrorSeverity.HIGH;
         errorMessage = options.customErrorMessage || errorDetails?.message || 'Permission denied.';
-        AppErrorHandler.handleAuthError(errorMessage, errorSeverity, errorContext + '.Forbidden', { details: errorDetails });
+        this.logger.error(`[Forbidden] ${errorMessage}`);
     } else if (response.status === 404) { // Not Found
-        errorSeverity = ErrorSeverity.LOW; // Often not a critical error
         errorMessage = options.customErrorMessage || errorDetails?.message || 'Resource not found.';
-        // Use generic handler, maybe suppress toast?
-        AppErrorHandler.handleGenericError(errorMessage, errorSeverity, errorContext + '.NotFound', { details: errorDetails, suppressToast: options.suppressErrorToast });
+        this.logger.error(`[NotFound] ${errorMessage}`);
     } else if (response.status >= 400 && response.status < 500) { // Other Client Errors (e.g., 400 Bad Request, 409 Conflict)
-        errorSeverity = ErrorSeverity.MEDIUM;
         errorMessage = options.customErrorMessage || errorDetails?.message || `Client error ${response.status}.`;
-        AppErrorHandler.handleDataError(errorMessage, errorSeverity, errorContext + `.ClientError${response.status}`, { details: errorDetails, suppressToast: options.suppressErrorToast });
+        this.logger.error(`.ClientError${response.status} ${errorMessage}`);
     } else if (response.status >= 500) { // Server Errors (500, 502, 503, 504)
-        errorSeverity = ErrorSeverity.HIGH;
         errorMessage = options.customErrorMessage || `Server error (${response.status}). Please try again later.`;
-         // Retry mechanism for server errors (simple example)
-         const maxRetriesForServerError = options.retries ?? this.maxRetries; // Use option or default
-         if (retryCount < maxRetriesForServerError) {
-            const delay = Math.pow(2, retryCount) * 500 + (Math.random() * 500); // Exponential backoff + jitter
-            this.logger.warn(`Server error ${response.status}. Retrying request in ${delay.toFixed(0)}ms (attempt ${retryCount + 1}/${maxRetriesForServerError})`, { endpoint });
-            await new Promise(resolve => setTimeout(resolve, delay));
-             // FIX: Pass 5 arguments to request
-            return this.request<T>(method, endpoint, data, options, retryCount + 1);
-         } else {
-             this.logger.error(`Server error ${response.status} persisted after ${maxRetriesForServerError} retries.`, { endpoint, details: errorDetails });
-             AppErrorHandler.handleConnectionError(errorMessage, errorSeverity, errorContext + `.ServerError${response.status}.Final`, { details: errorDetails, suppressToast: options.suppressErrorToast });
-         }
+        // Retry mechanism for server errors (simple example)
+        const maxRetriesForServerError = options.retries ?? this.maxRetries; // Use option or default
+        if (retryCount < maxRetriesForServerError) {
+          const delay = Math.pow(2, retryCount) * 500 + (Math.random() * 500); // Exponential backoff + jitter
+          this.logger.warn(`Server error ${response.status}. Retrying request in ${delay.toFixed(0)}ms (attempt ${retryCount + 1}/${maxRetriesForServerError})`, { endpoint });
+          await new Promise(resolve => setTimeout(resolve, delay));
+          return this.request<T>(method, endpoint, data, options, retryCount + 1);
+        } else {
+          this.logger.error(`Server error ${response.status} persisted after ${maxRetriesForServerError} retries.`, { endpoint, details: errorDetails });
+        }
     }
 
     // --- Default Error Handling for unhandled status codes ---
     if (response.status >= 400) { // Ensure only errors are thrown
         // Use generic error for anything not specifically handled above
-        AppErrorHandler.handleGenericError(errorMessage, errorSeverity, errorContext + `.Unhandled${response.status}`, { details: errorDetails, suppressToast: options.suppressErrorToast });
+        this.logger.error(`.Unhandled${response.status} ${errorMessage}`);
         throw new Error(errorMessage);
     }
 
@@ -192,37 +170,33 @@ export class HttpClient {
     throw new Error("Unexpected non-error response in error handler");
   }
 
-  // FIX: Add expected parameters and return type
-   private async handleNetworkOrFetchError<T>(
-        error: Error,
-        method: string,
-        endpoint: string,
-        data: any,
-        options: RequestOptions,
-        retryCount: number
-    ): Promise<T> {
-        /* --- FULL IMPLEMENTATION IS MISSING --- */
-        // This should contain logic for handling fetch exceptions (e.g., network down, DNS error).
-        // It might include retries similar to the 5xx handling.
-        const errorMessage = options.customErrorMessage || `Network error: ${error.message}`;
-        const errorContext = options.context || `HttpClient.${method}.${endpoint.replace('/', '')}`;
-        const errorSeverity = ErrorSeverity.HIGH; // Network errors are usually high severity
+  /* NETWORK ISSUES */
+  private async handleNetworkOrFetchError<T>(
+      error: Error,
+      method: string,
+      endpoint: string,
+      data: any,
+      options: RequestOptions,
+      retryCount: number
+  ): Promise<T> {
+      /* --- FULL IMPLEMENTATION IS MISSING --- */
+      // This should contain logic for handling fetch exceptions (e.g., network down, DNS error).
+      // It might include retries similar to the 5xx handling.
+      const errorMessage = options.customErrorMessage || `Network error: ${error.message}`;
 
-        this.logger.error('Network or fetch error occurred', { endpoint, error: error.message, retryCount });
+      this.logger.error('Network or fetch error occurred', { endpoint, error: error.message, retryCount });
 
-        // Example: Simple retry logic (adjust as needed)
-        const maxRetriesForNetworkError = options.retries ?? this.maxRetries;
-        if (retryCount < maxRetriesForNetworkError) {
-            const delay = Math.pow(2, retryCount) * 1000 + (Math.random() * 1000); // Exponential backoff + jitter
-            this.logger.warn(`Network error. Retrying request in ${delay.toFixed(0)}ms (attempt ${retryCount + 1}/${maxRetriesForNetworkError})`, { endpoint });
-            await new Promise(resolve => setTimeout(resolve, delay));
-            // FIX: Pass 5 arguments to request
-            return this.request<T>(method, endpoint, data, options, retryCount + 1);
-        } else {
-            this.logger.error(`Network error persisted after ${maxRetriesForNetworkError} retries.`, { endpoint });
-            AppErrorHandler.handleConnectionError(errorMessage, errorSeverity, errorContext + '.NetworkError.Final', { originalError: error, suppressToast: options.suppressErrorToast });
-            throw new Error(errorMessage); // Throw final error
-        }
-        // --- END OF MISSING IMPLEMENTATION PLACEHOLDER ---
-   }
+      // Example: Simple retry logic (adjust as needed)
+      const maxRetriesForNetworkError = options.retries ?? this.maxRetries;
+      if (retryCount < maxRetriesForNetworkError) {
+          const delay = Math.pow(2, retryCount) * 1000 + (Math.random() * 1000); // Exponential backoff + jitter
+          this.logger.warn(`Network error. Retrying request in ${delay.toFixed(0)}ms (attempt ${retryCount + 1}/${maxRetriesForNetworkError})`, { endpoint });
+          await new Promise(resolve => setTimeout(resolve, delay));
+          // FIX: Pass 5 arguments to request
+          return this.request<T>(method, endpoint, data, options, retryCount + 1);
+      } else {
+          this.logger.error(`Network error persisted after. ${errorMessage}`);
+          throw new Error(errorMessage); // Throw final error
+      }
+  }
 }

@@ -4,12 +4,12 @@ WebSocket handlers for session operations.
 """
 import logging
 import time
+import asyncio
 from typing import Dict, Any
 
 from opentelemetry import trace
 from aiohttp import web
 
-from source.core.state.manager import StateManager
 from source.core.session.manager import SessionManager
 from source.utils.metrics import track_websocket_message, track_session_operation
 from source.utils.tracing import optional_trace_span
@@ -31,39 +31,97 @@ async def handle_session_info(
         tracer: trace.Tracer,
         **kwargs
 ):
-    """
-    Process a session info request.
-    
-    Args:
-        ws: The WebSocket connection.
-        user_id: User ID.
-        client_id: Client ID.
-        device_id: Device ID.
-        message: The parsed message dictionary.
-        session_manager: Direct access to SessionManager.
-        tracer: OpenTelemetry Tracer instance.
-    """
+    """Process a session info request."""
     with optional_trace_span(tracer, "handle_session_info_message") as span:
         span.set_attribute("client_id", client_id)
-        
+
         request_id = message.get('requestId', f'session-info-{time.time_ns()}')
         span.set_attribute("request_id", request_id)
 
-        logger.warning(f"Request session!!!")
+        logger.info(f"Processing session info request for user {user_id} with device {device_id}")
 
-        await session_manager.state_manager.set_active()
-
+        # Set service to active state
+        await session_manager.state_manager.set_active(user_id=user_id)
         session_id = session_manager.state_manager.get_active_session_id()
 
-        # CREATE A SESSION
+        simulator_status_server = "NONE"
+
+        # Track any simulator we might need to reassign
+        simulator_to_reassign = None
+
+        # Check for existing active sessions for this user
+        try:
+            existing_sessions = await session_manager.store_manager.session_store.find_user_active_sessions(user_id)
+
+            if existing_sessions:
+                logger.info(f"Found {len(existing_sessions)} existing active sessions for user {user_id}")
+
+                # Process existing sessions
+                for existing_session in existing_sessions:
+                    existing_session_id = existing_session.get('session_id')
+
+                    if existing_session_id != session_id:  # Don't process our own session
+                        logger.info(f"Deactivating existing session {existing_session_id} for user {user_id}")
+
+                        # Check if the session has an active simulator
+                        simulator = await session_manager.store_manager.simulator_store.get_simulator_by_session(
+                            existing_session_id)
+
+                        if simulator and simulator.status in [SimulatorStatus.RUNNING, SimulatorStatus.STARTING]:
+                            logger.info(f"Found active simulator {simulator.simulator_id} to reassign")
+                            simulator_to_reassign = simulator
+
+                        # Update the status to INACTIVE
+                        await session_manager.store_manager.session_store.update_session_status(
+                            existing_session_id,
+                            SessionStatus.INACTIVE
+                        )
+        except Exception as e:
+            logger.error(f"Error checking for existing sessions: {e}")
+            # Continue with session creation even if this fails
+
+        # Create a new session
         success = await session_manager.store_manager.session_store.create_session(
             session_id, user_id, device_id, ip_address="127.0.0.1"
         )
 
         if success:
             logger.info(f"Successfully created user session {session_id} for user {user_id}")
+
+            # If we have a simulator to reassign, update its session reference
+            if simulator_to_reassign:
+                logger.info(f"Reassigning simulator {simulator_to_reassign.simulator_id} to new session {session_id}")
+
+                # Update simulator in database
+                await session_manager.store_manager.simulator_store.update_simulator_session(
+                    simulator_to_reassign.simulator_id,
+                    session_id
+                )
+
+                # Update the simulator manager's tracking
+                session_manager.simulator_manager.current_simulator_id = simulator_to_reassign.simulator_id
+                session_manager.simulator_manager.current_endpoint = simulator_to_reassign.endpoint
+
+                simulator_status_server = "RUNNING"
         else:
             logger.error("Failed to create user session in database")
+
+        # Start the exchange data stream for this simulator
+        try:
+            if simulator_to_reassign.endpoint:
+                logger.info(
+                    f"Automatically starting exchange data stream for reassigned simulator {simulator_to_reassign.simulator_id}")
+                stream_task = asyncio.create_task(
+                    session_manager._stream_simulator_data(simulator_to_reassign.endpoint,
+                                                           simulator_to_reassign.simulator_id)
+                )
+                stream_task.set_name(f"stream-{simulator_to_reassign.simulator_id}")
+
+                # Register with stream manager
+                if stream_task and session_manager.stream_manager:
+                    session_manager.stream_manager.register_stream(session_id, stream_task)
+        except Exception as e:
+            logger.error(f"Error starting exchange stream for reassigned simulator: {e}")
 
         session = await session_manager.get_session()
         if not session:
@@ -80,19 +138,14 @@ async def handle_session_info(
 
         # Get details
         details = await session_manager.get_session_details()
-        
+
         # Build response
         response = {
             'type': 'session_info',
             'requestId': request_id,
-            'sessionId': session_id,
-            'userId': user_id,
-            'status': session.status.value,
             'deviceId': details.get('device_id', 'unknown'),
-            'createdAt': session.created_at,
             'expiresAt': session.expires_at,
-            'simulatorStatus': details.get('simulator_status', 'NONE'),
-            'simulatorId': details.get('simulator_id')
+            'simulatorStatus': simulator_status_server
         }
 
         try:
@@ -182,9 +235,6 @@ async def handle_stop_session(
             # Update session state but don't actually end it in singleton mode
             await session_manager.update_session_details({
                 'device_id': None,
-                'simulator_id': None,
-                'simulator_status': SimulatorStatus.NONE.value,
-                'simulator_endpoint': None
             })
 
             logger.info(f"Stopping session 5")
@@ -195,7 +245,7 @@ async def handle_stop_session(
                 'requestId': request_id,
                 'success': True,
                 'message': 'Session resources cleaned up',
-                'simulatorStopped': simulator_running
+                'simulatorStatus': simulator_running
             }
 
             logger.info(f"Stopping session 6")

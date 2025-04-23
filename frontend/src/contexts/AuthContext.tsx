@@ -5,7 +5,7 @@ import { LoginRequest, LoginResponse, AuthApi } from '../api/auth'; // Adjust pa
 import { TokenManager, TokenData } from '../services/auth/token-manager'; // Adjust path
 import LoadingSpinner from '../components/Common/LoadingSpinner'; // Assuming component exists
 // --->>> ADD THIS IMPORT <<<---
-import { appState } from '../services/state/app-state.service'; // Adjust path as needed
+import { authState } from '../state/auth-state';
 import { getLogger } from '../boot/logging'; // Adjust path as needed
 import { DeviceIdManager } from '../services/auth/device-id-manager';
 import { ConnectionManager } from '../services/connection/connection-manager';
@@ -45,7 +45,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, tokenManag
       setIsAuthenticated(authenticated);
       setUserId(currentUserId);
       // Sync global state on initial load as well
-      appState.updateAuthState({
+      authState.updateState({
           isAuthenticated: authenticated,
           isAuthLoading: false, // Finished loading
           userId: currentUserId,
@@ -63,7 +63,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, tokenManag
       setIsAuthenticated(refreshedIsAuth);
       setUserId(refreshedUserId);
       // Also update global state on refresh
-      appState.updateAuthState({
+      authState.updateState({
           isAuthenticated: refreshedIsAuth,
           isAuthLoading: false, // Refresh doesn't mean loading the whole app
           userId: refreshedUserId,
@@ -81,7 +81,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, tokenManag
   const login = useCallback(async (credentials: LoginRequest): Promise<boolean> => {
     logger.info('Attempting login...');
     setIsAuthLoading(true);
-    appState.updateAuthState({ isAuthLoading: true, lastAuthError: null });
+    authState.updateState({ isAuthLoading: true, lastAuthError: null });
 
     try {
       // 1. Call API
@@ -103,7 +103,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, tokenManag
       logger.info(`Using device ID for this session: ${deviceId}`);
 
       // Update global app state
-      appState.updateAuthState({
+      authState.updateState({
         isAuthenticated: true,
         isAuthLoading: false,
         userId: response.userId,
@@ -122,7 +122,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, tokenManag
       tokenManager.clearTokens(); // Ensure tokens are cleared
 
       // 5. Update global state on failure
-      appState.updateAuthState({
+      authState.updateState({
         isAuthenticated: false,
         isAuthLoading: false, // Loading finished
         userId: null,
@@ -143,7 +143,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, tokenManag
   const logout = useCallback(async (): Promise<void> => {
     logger.info('Attempting logout...');
     setIsAuthLoading(true);
-    appState.updateAuthState({ isAuthLoading: true });
+    authState.updateState({ isAuthLoading: true });
 
     try {
       // First, stop the session via the ConnectionManager
@@ -178,7 +178,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, tokenManag
       logger.info('Tokens cleared');
 
       // Update global state
-      appState.updateAuthState({
+      authState.updateState({
         isAuthenticated: false,
         isAuthLoading: false,
         userId: null,
@@ -197,7 +197,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, tokenManag
       // Ensure we still clear tokens and update state even if errors occur
       tokenManager.clearTokens();
       
-      appState.updateAuthState({
+      authState.updateState({
         isAuthenticated: false,
         isAuthLoading: false,
         userId: null,

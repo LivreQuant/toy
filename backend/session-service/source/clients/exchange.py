@@ -98,31 +98,6 @@ class ExchangeClient(BaseClient):
             ('grpc.http2.min_ping_interval_without_data_ms', 12000)
         ]
 
-    async def send_heartbeat(self, endpoint: str, session_id: str, client_id: str) -> Dict[str, Any]:
-        """
-        Send heartbeat with TTL that will automatically expire simulators if not renewed.
-        
-        Args:
-            endpoint: The endpoint of the simulator
-            session_id: The session ID
-            client_id: The client ID
-            
-        Returns:
-            Dict with heartbeat results
-        """
-        try:
-            # Use the internal request method with circuit breaker
-            response = await self.execute_with_cb(
-                self._heartbeat_request, endpoint, session_id, client_id
-            )
-            return response
-        except CircuitOpenError as e:
-            logger.warning(f"Circuit open for exchange service (heartbeat): {e}")
-            return {'success': False, 'error': 'Exchange service unavailable'}
-        except Exception as e:
-            logger.error(f"Error sending heartbeat with TTL: {e}")
-            return {'success': False, 'error': str(e)}
-
     async def get_channel(self, endpoint: str) -> tuple[grpc.aio.Channel, ExchangeSimulatorStub]:
         """
         Get or create a gRPC channel to the endpoint.
@@ -177,24 +152,6 @@ class ExchangeClient(BaseClient):
 
             return channel, stub
 
-    async def _close_endpoint_channel(self, endpoint: str):
-        """
-        Close a specific endpoint channel.
-        
-        Args:
-            endpoint: The endpoint to close the channel for
-        """
-        if endpoint in self.channels:
-            try:
-                await self.channels[endpoint].close()
-                logger.debug(f"Closed channel to {endpoint}")
-            except Exception as e:
-                logger.error(f"Error closing channel to {endpoint}: {e}")
-            
-            # Remove from dicts regardless of close success
-            del self.channels[endpoint]
-            del self.stubs[endpoint]
-
     async def close(self):
         """Close all gRPC channels."""
         async with self._conn_lock:
@@ -217,7 +174,7 @@ class ExchangeClient(BaseClient):
             self.stubs.clear()
             logger.info("Finished closing gRPC channels.")
 
-    async def heartbeat(self, endpoint: str, session_id: str, client_id: str) -> Dict[str, Any]:
+    async def send_heartbeat(self, endpoint: str, session_id: str, client_id: str) -> Dict[str, Any]:
         """
         Send heartbeat to the simulator.
         
@@ -251,49 +208,6 @@ class ExchangeClient(BaseClient):
                 span.record_exception(e)
                 span.set_attribute("error.message", str(e))
                 return {'success': False, 'error': str(e)}
-
-    async def _heartbeat_request(self, endpoint: str, session_id: str, client_id: str) -> Dict[str, Any]:
-        """
-        Make the actual heartbeat request.
-
-        Args:
-            endpoint: The endpoint of the simulator
-            session_id: The session ID
-            client_id: The client ID
-
-        Returns:
-            Dict with heartbeat results
-        """
-        _, stub = await self.get_channel(endpoint)
-
-        request = HeartbeatRequest(
-            client_timestamp=int(time.time() * 1000)
-        )
-
-        try:
-            # Add wait_for_ready=True and increase timeout to 10 seconds
-            logger.info(f"Sending heartbeat to simulator at {endpoint} for session {session_id}")
-            response = await stub.Heartbeat(
-                request,
-                timeout=10,
-                wait_for_ready=True
-            )
-
-            logger.info(
-                f"Received heartbeat response from simulator: success={response.success}, timestamp={response.server_timestamp}")
-
-            return {
-                'success': response.success,
-                'server_timestamp': response.server_timestamp
-            }
-        except grpc.aio.AioRpcError as e:
-            logger.debug(f"gRPC error sending heartbeat ({e.code()}): {e.details()}")
-            track_circuit_breaker_failure("exchange_service")
-            raise
-        except Exception as e:
-            logger.warning(f"Unexpected error in _heartbeat_request: {e}")
-            track_circuit_breaker_failure("exchange_service")
-            raise
 
     async def stream_exchange_data(
             self,
@@ -357,3 +271,64 @@ class ExchangeClient(BaseClient):
                 span.record_exception(e)
                 span.set_attribute("error", str(e))
                 raise
+
+    async def _close_endpoint_channel(self, endpoint: str):
+        """
+        Close a specific endpoint channel.
+
+        Args:
+            endpoint: The endpoint to close the channel for
+        """
+        if endpoint in self.channels:
+            try:
+                await self.channels[endpoint].close()
+                logger.debug(f"Closed channel to {endpoint}")
+            except Exception as e:
+                logger.error(f"Error closing channel to {endpoint}: {e}")
+
+            # Remove from dicts regardless of close success
+            del self.channels[endpoint]
+            del self.stubs[endpoint]
+
+    async def _heartbeat_request(self, endpoint: str, session_id: str, client_id: str) -> Dict[str, Any]:
+        """
+        Make the actual heartbeat request.
+
+        Args:
+            endpoint: The endpoint of the simulator
+            session_id: The session ID
+            client_id: The client ID
+
+        Returns:
+            Dict with heartbeat results
+        """
+        _, stub = await self.get_channel(endpoint)
+
+        request = HeartbeatRequest(
+            client_timestamp=int(time.time() * 1000)
+        )
+
+        try:
+            # Add wait_for_ready=True and increase timeout to 10 seconds
+            logger.info(f"Sending heartbeat to simulator at {endpoint} for session {session_id}")
+            response = await stub.Heartbeat(
+                request,
+                timeout=10,
+                wait_for_ready=True
+            )
+
+            logger.info(
+                f"Received heartbeat response from simulator: success={response.success}, timestamp={response.server_timestamp}")
+
+            return {
+                'success': response.success,
+                'server_timestamp': response.server_timestamp
+            }
+        except grpc.aio.AioRpcError as e:
+            logger.debug(f"gRPC error sending heartbeat ({e.code()}): {e.details()}")
+            track_circuit_breaker_failure("exchange_service")
+            raise
+        except Exception as e:
+            logger.warning(f"Unexpected error in _heartbeat_request: {e}")
+            track_circuit_breaker_failure("exchange_service")
+            raise

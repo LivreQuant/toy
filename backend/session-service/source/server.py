@@ -22,7 +22,6 @@ from source.core.simulator.manager import SimulatorManager
 from source.clients.exchange import ExchangeClient
 from source.clients.k8s import KubernetesClient
 
-from source.api.rest.routes import setup_rest_routes
 from source.api.websocket.manager import WebSocketManager
 
 from source.utils.middleware import tracing_middleware, metrics_middleware, error_handling_middleware
@@ -165,9 +164,6 @@ class SessionServer:
 
     def _setup_routes(self):
         """Set up all server routes"""
-        # REST routes
-        setup_rest_routes(self.app)
-
         # WebSocket route
         self.app.router.add_get('/ws', self.app['websocket_manager'].handle_connection)
 

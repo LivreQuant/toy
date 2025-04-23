@@ -1,4 +1,4 @@
-// src/utils/enhanced-logger.ts (Corrected Export)
+// src/utils/enhanced-logger.ts
 
 // Define log levels and their priority (lower number = higher priority)
 export enum LogLevel {
@@ -258,6 +258,3 @@ export class EnhancedLogger {
         }
     }
 }
-
-// --- NO DEFAULT EXPORT ---
-// Consumers should use EnhancedLogger.getInstance() or getLogger() from boot/logging.

@@ -5,12 +5,11 @@ Simplified for singleton session mode.
 """
 import logging
 import time
-from typing import Dict, Any, TYPE_CHECKING
+from typing import Dict, Any
 
 from opentelemetry import trace
 from aiohttp import web
 
-from source.core.state.manager import StateManager
 from source.core.session.manager import SessionManager
 from source.utils.metrics import track_websocket_message
 from source.utils.tracing import optional_trace_span
@@ -51,14 +50,23 @@ async def handle_reconnect(
         span.set_attribute("device_id_from_client", str(device_id))
         span.set_attribute("request_id", request_id)
         
-        # In singleton mode, prepare successful response
-        success = True
-        response_message = "Session reconnected successfully"
-        
+        # Session is valid
+        device_id_valid = True
+        reason = ""
+
         # Get session details
         session_details = await session_manager.get_session_details()
-        simulator_status = session_details.get('simulator_status', 'NONE') if session_details else 'NONE'
-        
+
+        # Check if simulator_manager has an active simulator
+        simulator_status_server = "NONE"
+        if session_manager.simulator_manager.current_simulator_id:
+            # Directly query the simulator status from the store
+            simulator = await session_manager.store_manager.simulator_store.get_simulator(
+                session_manager.simulator_manager.current_simulator_id)
+            if simulator and simulator.status:
+                # Use the actual simulator status from the database
+                simulator_status_server = simulator.status.value
+
         # Update connection count in session details
         try:
             # Try to update details with device ID if provided
@@ -72,14 +80,12 @@ async def handle_reconnect(
             logger.error(f"Failed to update details during reconnect: {e}")
 
         response = {
-            'type': 'reconnect_result',
+            'type': 'reconnect_ack',
             'requestId': request_id,
-            'success': success,
-            'message': response_message,
             'deviceId': device_id,
-            'deviceIdValid': True,  # Always valid in singleton mode
-            'sessionStatus': 'valid',  # Always valid in singleton mode
-            'simulatorStatus': simulator_status
+            'deviceIdValid': device_id_valid,  # Always valid in singleton mode
+            'reason': reason,
+            'simulatorStatus': simulator_status_server
         }
 
         try:

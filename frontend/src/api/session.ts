@@ -1,6 +1,5 @@
 // src/api/session.ts
-import { WebSocketManager } from '../services/websocket/websocket-manager';
-import { DeviceIdManager } from '../services/auth/device-id-manager';
+import { ConnectionManager } from '../services/connection/connection-manager';
 
 export interface SessionResponse {
   success: boolean;
@@ -18,10 +17,10 @@ export interface SessionStateResponse {
  * API client for interacting with the backend session endpoints via WebSocket.
  */
 export class SessionApi {
-  private wsManager: WebSocketManager;
+  private connectionManager: ConnectionManager;
 
-  constructor(wsManager: WebSocketManager) {
-    this.wsManager = wsManager;
+  constructor(connectionManager: ConnectionManager) {
+    this.connectionManager = connectionManager;
   }
 
   /**
@@ -30,7 +29,7 @@ export class SessionApi {
    */
   async createSession(): Promise<SessionResponse> {
     try {
-      const response = await this.wsManager.requestSessionInfo();
+      const response = await this.connectionManager.createSession();
       console.log("CRITICAL DEBUG: Session validation response:", response);
       
       // Explicitly check for valid session conditions
@@ -59,16 +58,16 @@ export class SessionApi {
    */
   async deleteSession(): Promise<SessionResponse> {
     try {
-      // Using WebSocket to stop session
-      const response = await this.wsManager.stopSession();
+      // Use ConnectionManager's disconnect method
+      const result = await this.connectionManager.disconnect('user_logout');
       return {
-        success: response.success,
-        errorMessage: response.error
+        success: result,
+        errorMessage: result ? undefined : 'Failed to delete session'
       };
     } catch (error: any) {
       return {
         success: false,
-        errorMessage: error.message || 'Failed to delete session via WebSocket'
+        errorMessage: error.message || 'Failed to delete session'
       };
     }
   }

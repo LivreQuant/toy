@@ -1,151 +1,94 @@
 // src/services/websocket/message-types.ts
-
 // Base interface for common properties
 export interface BaseWebSocketMessage {
-    type: string;
-    timestamp?: number;
-    requestId?: string;
+   type: string;
+   timestamp?: number;
+   requestId?: string;
  }
  
  // --- Client-to-Server Messages ---
  
  export interface ClientHeartbeatMessage extends BaseWebSocketMessage {
-    type: 'heartbeat';
-    timestamp: number;
-    deviceId: string;
-    connectionQuality: 'good' | 'degraded' | 'poor';
-    sessionStatus: 'active' | 'expired' | 'pending';
-    simulatorStatus: 'running' | 'stopped' | 'starting' | 'stopping';
+   type: 'heartbeat';
+   timestamp: number;
+   deviceId: string;
  }
  
  export interface ClientReconnectMessage extends BaseWebSocketMessage {
-    type: 'reconnect';
-    deviceId: string;
-    sessionToken: string;
-    requestId: string;
+   type: 'reconnect';
+   deviceId: string;
+   requestId: string;
  }
- 
- export interface ClientSubmitOrderMessage extends BaseWebSocketMessage {
-    type: 'submit_order';
-    requestId: string;
-    timestamp: number;
-    deviceId: string;
-    data: {
-        symbol: string;
-        side: 'BUY' | 'SELL';
-        quantity: number;
-        price?: number;
-        orderType: 'MARKET' | 'LIMIT';
-    };
- }
- 
- export interface ClientCancelOrderMessage extends BaseWebSocketMessage {
-    type: 'cancel_order';
-    requestId: string;
-    timestamp: number;
-    deviceId: string;
-    data: {
-        orderId: string;
-    };
- }
- 
+   
  export interface ClientStartSimulatorMessage extends BaseWebSocketMessage {
-    type: 'start_simulator';
-    requestId: string;
-    timestamp: number;
-    deviceId: string;
+   type: 'start_simulator';
+   requestId: string;
+   timestamp: number;
+   deviceId: string;
  }
  
  export interface ClientStopSimulatorMessage extends BaseWebSocketMessage {
-    type: 'stop_simulator';
-    requestId: string;
-    timestamp: number;
-    deviceId: string;
+   type: 'stop_simulator';
+   requestId: string;
+   timestamp: number;
+   deviceId: string;
  }
  
  export interface ClientSessionInfoRequest extends BaseWebSocketMessage {
-    type: 'request_session_info';
-    requestId: string;
-    timestamp: number;
-    deviceId: string;
+   type: 'request_session';
+   requestId: string;
+   timestamp: number;
+   deviceId: string;
  }
  
  export interface ClientStopSessionRequest extends BaseWebSocketMessage {
-    type: 'stop_session';
-    requestId: string;
-    timestamp: number;
-    deviceId: string;
+   type: 'stop_session';
+   requestId: string;
+   timestamp: number;
+   deviceId: string;
  }
  
  // --- Server-to-Client Messages ---
  
  export interface ServerHeartbeatAckMessage extends BaseWebSocketMessage {
-    type: 'heartbeat_ack';
-    timestamp: number;
-    clientTimestamp: number;
-    deviceId: string;
-    deviceIdValid: boolean;
-    connectionQualityUpdate: 'good' | 'degraded' | 'poor';
-    sessionStatus: 'valid' | 'invalid' | 'pending';
-    simulatorStatus: 'running' | 'stopped' | 'starting' | 'stopping';
+   type: 'heartbeat_ack';
+   timestamp: number;
+   clientTimestamp: number;
+   deviceId: string;
+   deviceIdValid: boolean;
+   reason: string;
+   simulatorStatus: 'RUNNING' | 'STOPPED' | 'STARTING' | 'STOPPING';
  }
  
  export interface ServerReconnectResultMessage extends BaseWebSocketMessage {
-    type: 'reconnect_result';
-    requestId: string;
-    success: boolean;
-    deviceId: string;
-    deviceIdValid: boolean;
-    message?: string;
-    sessionStatus: 'valid' | 'invalid' | 'pending';
-    simulatorStatus: 'running' | 'stopped' | 'starting' | 'stopping';
- }
- 
- export interface ServerExchangeDataStatusMessage extends BaseWebSocketMessage {
-    type: 'exchange_data_status';
-    timestamp: number;
-    symbols: Record<string, {
-        price: number;
-        change: number;
-        volume: number;
-    }>;
-    userOrders?: Record<string, {
-        orderId: string;
-        status: string;
-        filledQty: number;
-    }>;
-    userPositions?: Record<string, {
-        symbol: string;
-        quantity: number;
-        value: number;
-    }>;
- }
- 
- export interface ServerOrderSubmittedResponse extends BaseWebSocketMessage {
-    type: 'order_submitted';
-    requestId: string;
-    success: boolean;
-    orderId: string;
-    errorMessage?: string;
-    timestamp: number;
- }
- 
- export interface ServerOrderCancelledResponse extends BaseWebSocketMessage {
-    type: 'order_cancelled';
-    requestId: string;
-    success: boolean;
-    orderId: string;
-    errorMessage?: string;
-    timestamp: number;
- }
-
- export interface ServerSimulatorStatusUpdateMessage extends BaseWebSocketMessage {
-   type: 'simulator_status_update';
-   simulatorId: string;
+   type: 'reconnect_result';
+   requestId: string;
+   deviceId: string;
+   deviceIdValid: boolean;
+   reason: string;
    simulatorStatus: 'RUNNING' | 'STOPPED' | 'STARTING' | 'STOPPING';
-   timestamp: number;
  }
-
+ 
+ export interface ServerExchangeDataMessage extends BaseWebSocketMessage {
+   type: 'exchange_data';
+   timestamp: number;
+   symbols: Record<string, {
+     price: number;
+     change: number;
+     volume: number;
+   }>;
+   userOrders?: Record<string, {
+     orderId: string;
+     status: string;
+     filledQty: number;
+   }>;
+   userPositions?: Record<string, {
+     symbol: string;
+     quantity: number;
+     value: number;
+   }>;
+ }
+ 
  export interface ServerSessionInfoResponse extends BaseWebSocketMessage {
    type: 'session_info';
    requestId: string;
@@ -157,106 +100,73 @@ export interface BaseWebSocketMessage {
    expiresAt: number;
    simulatorStatus: string;
    simulatorId: string | null;
-   success?: boolean; // Optional, as it wasn't in the original response
+   success?: boolean;
    error?: string;
  }
  
  export interface ServerStopSessionResponse extends BaseWebSocketMessage {
-    type: 'session_stopped';
-    requestId: string;
-    success: boolean;
-    error?: string;
+   type: 'session_stopped';
+   requestId: string;
+   success: boolean;
+   error?: string;
  }
  
  export interface ServerSimulatorStartedResponse extends BaseWebSocketMessage {
-    type: 'simulator_started';
-    requestId: string;
-    success: boolean;
-    status: string;
-    error?: string;
+   type: 'simulator_started';
+   requestId: string;
+   success: boolean;
+   status: string;
+   error?: string;
  }
  
  export interface ServerSimulatorStoppedResponse extends BaseWebSocketMessage {
-    type: 'simulator_stopped';
-    requestId: string;
-    success: boolean;
-    error?: string;
+   type: 'simulator_stopped';
+   requestId: string;
+   success: boolean;
+   error?: string;
  }
  
-export interface ServerConnectionReplacedMessage extends BaseWebSocketMessage {
-   type: 'connection_replaced';
-   deviceId: string;
-   reason: 'new_login' | 'multiple_tabs';
-   timestamp: number;
- }
-
- export interface DeviceIdInvalidatedMessage extends BaseWebSocketMessage {
-   type: 'device_id_invalidated';
-   deviceId: string;
-   reason?: string;
-   timestamp: number;
- }
-
- // --- Union Type for All Possible Messages ---
+ // --- Union Type for All Messages ---
  export type WebSocketMessage =
-    | ClientHeartbeatMessage
-    | ClientReconnectMessage
-    | ClientSubmitOrderMessage
-    | ClientCancelOrderMessage
-    | ClientStartSimulatorMessage
-    | ClientStopSimulatorMessage
-    | ClientSessionInfoRequest
-    | ClientStopSessionRequest
-    | ServerHeartbeatAckMessage
-    | ServerReconnectResultMessage
-    | ServerExchangeDataStatusMessage
-    | ServerOrderSubmittedResponse
-    | ServerOrderCancelledResponse
-    | ServerSessionInfoResponse
-    | ServerStopSessionResponse
-    | ServerSimulatorStartedResponse
-    | ServerSimulatorStoppedResponse
-    | ServerConnectionReplacedMessage
-    | ServerSimulatorStatusUpdateMessage
-    | DeviceIdInvalidatedMessage;
+   | ClientHeartbeatMessage
+   | ClientReconnectMessage
+   | ClientStartSimulatorMessage
+   | ClientStopSimulatorMessage
+   | ClientSessionInfoRequest
+   | ClientStopSessionRequest
+   | ServerHeartbeatAckMessage
+   | ServerReconnectResultMessage
+   | ServerExchangeDataMessage
+   | ServerSessionInfoResponse
+   | ServerStopSessionResponse
+   | ServerSimulatorStartedResponse
+   | ServerSimulatorStoppedResponse;
  
- // --- Type Guard Functions ---
- export function isServerHeartbeatAckMessage(msg: WebSocketMessage): msg is ServerHeartbeatAckMessage {
-    return msg.type === 'heartbeat_ack';
+ // --- Type Guards ---
+ export function isHeartbeatAckMessage(msg: WebSocketMessage): msg is ServerHeartbeatAckMessage {
+   return msg.type === 'heartbeat_ack';
  }
  
- export function isServerReconnectResultMessage(msg: WebSocketMessage): msg is ServerReconnectResultMessage {
-    return msg.type === 'reconnect_result';
+ export function isReconnectResultMessage(msg: WebSocketMessage): msg is ServerReconnectResultMessage {
+   return msg.type === 'reconnect_result';
  }
  
- export function isServerExchangeDataStatusMessage(msg: WebSocketMessage): msg is ServerExchangeDataStatusMessage {
-    return msg.type === 'exchange_data_status';
+ export function isExchangeDataMessage(msg: WebSocketMessage): msg is ServerExchangeDataMessage {
+   return msg.type === 'exchange_data';
  }
  
- export function isServerSessionInfoResponse(msg: WebSocketMessage): msg is ServerSessionInfoResponse {
-    return msg.type === 'session_info';
+ export function isSessionInfoResponse(msg: WebSocketMessage): msg is ServerSessionInfoResponse {
+   return msg.type === 'session_info';
  }
  
- export function isServerStopSessionResponse(msg: WebSocketMessage): msg is ServerStopSessionResponse {
-    return msg.type === 'session_stopped';
+ export function isSessionStoppedResponse(msg: WebSocketMessage): msg is ServerStopSessionResponse {
+   return msg.type === 'session_stopped';
  }
  
- export function isServerSimulatorStartedResponse(msg: WebSocketMessage): msg is ServerSimulatorStartedResponse {
-    return msg.type === 'simulator_started';
+ export function isSimulatorStartedResponse(msg: WebSocketMessage): msg is ServerSimulatorStartedResponse {
+   return msg.type === 'simulator_started';
  }
  
- export function isServerSimulatorStoppedResponse(msg: WebSocketMessage): msg is ServerSimulatorStoppedResponse {
-    return msg.type === 'simulator_stopped';
- }
- 
- export function isServerConnectionReplacedMessage(msg: WebSocketMessage): msg is ServerConnectionReplacedMessage {
-   return msg.type === 'connection_replaced';
- }
-
- export function isServerSimulatorStatusUpdateMessage(msg: WebSocketMessage): msg is ServerSimulatorStatusUpdateMessage {
-   return msg.type === 'simulator_status_update';
- }
- 
- export function isDeviceIdInvalidatedMessage(msg: WebSocketMessage): msg is DeviceIdInvalidatedMessage {
-   return msg.type === 'device_id_invalidated';
+ export function isSimulatorStoppedResponse(msg: WebSocketMessage): msg is ServerSimulatorStoppedResponse {
+   return msg.type === 'simulator_stopped';
  }

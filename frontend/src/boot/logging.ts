@@ -59,7 +59,7 @@ export function initializeLogging(): void {
   };
 
   // Get/Initialize the root logger instance using the static method
-  rootLoggerInstance = EnhancedLogger.getInstance(loggerConfig);
+  rootLoggerInstance = EnhancedLogger.getInstance(config);
 
   // Log initialization *using the instance*
   rootLoggerInstance.info(`Logging initialized for ${config.environment}`, {

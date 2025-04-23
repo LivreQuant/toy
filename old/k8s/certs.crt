@@ -1,6 +1,0 @@
-kubectl create secret generic grpc-tls-certs \
-  --from-file=ca.crt=./certs/ca.crt \
-  --from-file=server.key=./certs/server.key \
-  --from-file=server.crt=./certs/server.crt \
-  --from-file=client.key=./certs/client.key \
-  --from-file=client.crt=./certs/client.crt

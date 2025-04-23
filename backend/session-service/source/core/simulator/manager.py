@@ -154,18 +154,6 @@ class SimulatorManager:
                         # Get full simulator details from database
                         simulator = await self.store_manager.simulator_store.get_simulator(simulator_id)
 
-                        # Add explicit update in session details
-                        try:
-                            # Update session details too to ensure everything is in sync
-                            await self.store_manager.session_store.update_session_details(session_id, {
-                                'simulator_id': simulator.simulator_id,
-                                'simulator_status': simulator.simulator_status,
-                                'simulator_endpoint': simulator.endpoint
-                            })
-                            logger.info(f"Updated session details with simulator status: STARTING")
-                        except Exception as e:
-                            logger.warning(f"Failed to update session details with simulator status: {e}")
-
                         if simulator:
                             logger.info(f"Found active simulator {simulator_id} for user {user_id}")
                             return simulator, ""
@@ -220,7 +208,6 @@ class SimulatorManager:
                 # Create Kubernetes deployment
                 endpoint = await self.k8s_client.create_simulator_deployment(
                     simulator.simulator_id,
-                    session_id,
                     user_id
                 )
 
@@ -232,18 +219,6 @@ class SimulatorManager:
                 simulator.status = SimulatorStatus.STARTING
                 await self.store_manager.simulator_store.update_simulator_endpoint(simulator.simulator_id, endpoint)
                 await self.store_manager.simulator_store.update_simulator_status(simulator.simulator_id, SimulatorStatus.STARTING)
-
-                # Add explicit update in session details
-                try:
-                    # Update session details too to ensure everything is in sync
-                    await self.store_manager.session_store.update_session_details(session_id, {
-                        'simulator_id': simulator.simulator_id,
-                        'simulator_status': SimulatorStatus.STARTING.value,
-                        'simulator_endpoint': endpoint
-                    })
-                    logger.info(f"Updated session details with simulator status: STARTING")
-                except Exception as e:
-                    logger.warning(f"Failed to update session details with simulator status: {e}")
 
                 # Calculate creation time and track metrics
                 creation_time = time.time() - start_time

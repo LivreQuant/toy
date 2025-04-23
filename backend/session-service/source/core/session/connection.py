@@ -119,6 +119,15 @@ class Connection:
             logger.info(f"Session {session_id} reconnected successfully (Attempt: {attempt}, Count: {reconnect_count})")
             track_client_reconnection(min(5, reconnect_count))
 
+            simulator_status_server = "NONE"
+            if session.simulator_manager.current_simulator_id:
+                # Directly query the simulator status from the store
+                simulator = await session.store_manager.simulator_store.get_simulator(
+                    session.simulator_manager.current_simulator_id)
+                if simulator and simulator.status:
+                    # Use the actual simulator status from the database
+                    simulator_status_server = simulator.status.value
+
             # Convert session to dict for response
             session_data = {
                 'session_id': session.session_id,
@@ -126,7 +135,7 @@ class Connection:
                 'status': session.status.value,
                 'created_at': session.created_at,
                 'expires_at': session.expires_at,
-                'simulator_status': getattr(details, 'simulator_status', 'NONE'),
+                'simulator_status': simulator_status_server,
                 'connection_quality': getattr(details, 'connection_quality', 'GOOD'),
                 'device_id': device_id
             }

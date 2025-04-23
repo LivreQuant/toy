@@ -163,24 +163,9 @@ class PostgresRepository(PostgresBase, Generic[T]):
             # Convert row to dictionary
             row_dict = dict(row)
 
-            # Convert datetime objects to timestamps if needed
-            if 'created_at' in row_dict and isinstance(row_dict['created_at'], datetime.datetime):
-                row_dict['created_at'] = row_dict['created_at'].timestamp()
-
-            if 'last_active' in row_dict and isinstance(row_dict['last_active'], datetime.datetime):
-                row_dict['last_active'] = row_dict['last_active'].timestamp()
-
-            if 'last_login' in row_dict and isinstance(row_dict['last_login'], datetime.datetime):
-                row_dict['last_login'] = row_dict['last_login'].timestamp()
-
-            if 'last_modified' in row_dict and isinstance(row_dict['last_modified'], datetime.datetime):
-                row_dict['last_modified'] = row_dict['last_modified'].timestamp()
-
-            if 'expires_at' in row_dict and isinstance(row_dict['expires_at'], datetime.datetime):
-                row_dict['expires_at'] = row_dict['expires_at'].timestamp()
-
-            if 'updated_at' in row_dict and isinstance(row_dict['updated_at'], datetime.datetime):
-                row_dict['updated_at'] = row_dict['updated_at'].timestamp()
+            for key in row_dict.keys():
+                if isinstance(row_dict[key], datetime.datetime):
+                    row_dict[key] = row_dict[key].timestamp()
 
             # Create entity object
             return self.entity_class(**row_dict)

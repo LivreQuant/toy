@@ -1,5 +1,5 @@
 // src/api/simulator.ts
-import { WebSocketManager } from '../services/websocket/websocket-manager';
+import { ConnectionManager } from '../services/connection/connection-manager';
 
 export interface SimulatorStatusResponse {
   success: boolean;
@@ -12,10 +12,10 @@ export interface SimulatorStatusResponse {
  * API client for interacting with the simulator via WebSocket.
  */
 export class SimulatorApi {
-  private wsManager: WebSocketManager;
-
-  constructor(wsManager: WebSocketManager) {
-    this.wsManager = wsManager;
+  private connectionManager: ConnectionManager;
+  
+  constructor(connectionManager: ConnectionManager) {
+    this.connectionManager = connectionManager;
   }
 
   /**
@@ -25,7 +25,7 @@ export class SimulatorApi {
   async startSimulator(): Promise<SimulatorStatusResponse> {
     try {
       // Using WebSocket to start simulator
-      const response = await this.wsManager.startSimulator();
+      const response = await this.connectionManager.startSimulator();
       return {
         success: response.success,
         status: response.status || 'UNKNOWN',
@@ -47,7 +47,7 @@ export class SimulatorApi {
   async stopSimulator(): Promise<SimulatorStatusResponse> {
     try {
       // Using WebSocket to stop simulator
-      const response = await this.wsManager.stopSimulator();
+      const response = await this.connectionManager.stopSimulator();
       return {
         success: response.success,
         status: 'STOPPED', // Assume STOPPED on success

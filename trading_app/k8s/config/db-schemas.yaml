@@ -113,16 +113,8 @@ data:
         heartbeat_latency INTEGER,
         missed_heartbeats INTEGER DEFAULT 0,
         reconnect_count INTEGER DEFAULT 0,
-        
-        -- Simulator information
-        simulator_id VARCHAR(36),
-        simulator_status VARCHAR(20),
-        simulator_endpoint VARCHAR(255),
-        simulator_error TEXT,
-        
+                
         -- Timestamps
-        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
         last_reconnect TIMESTAMP WITH TIME ZONE,
         last_device_update TIMESTAMP WITH TIME ZONE,
         last_quality_update TIMESTAMP WITH TIME ZONE
@@ -130,7 +122,6 @@ data:
 
     -- Index for faster lookups
     CREATE INDEX idx_session_details_device_id ON session.session_details(device_id);
-    CREATE INDEX idx_session_details_simulator_id ON session.session_details(simulator_id);
     
     -- Create cleanup function for expired sessions
     CREATE OR REPLACE FUNCTION session.cleanup_expired_sessions() 
@@ -186,7 +177,6 @@ data:
     CREATE TABLE IF NOT EXISTS trading.orders (
         order_id UUID PRIMARY KEY,
         user_id VARCHAR(100) NOT NULL,
-        session_id VARCHAR(100) NOT NULL,
         symbol VARCHAR(20) NOT NULL,
         side VARCHAR(10) NOT NULL,
         quantity NUMERIC(18,8) NOT NULL,
@@ -195,7 +185,6 @@ data:
         status VARCHAR(20) NOT NULL,
         filled_quantity NUMERIC(18,8) NOT NULL DEFAULT 0,
         avg_price NUMERIC(18,8) NOT NULL DEFAULT 0,
-        simulator_id VARCHAR(100),
         created_at TIMESTAMP WITH TIME ZONE NOT NULL,
         updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
         request_id VARCHAR(100),
@@ -204,7 +193,6 @@ data:
     
     -- Create indexes
     CREATE INDEX IF NOT EXISTS idx_orders_user_id ON trading.orders(user_id);
-    CREATE INDEX IF NOT EXISTS idx_orders_session_id ON trading.orders(session_id);
     CREATE INDEX IF NOT EXISTS idx_orders_status ON trading.orders(status);
     CREATE INDEX IF NOT EXISTS idx_orders_created_at ON trading.orders(created_at);
     

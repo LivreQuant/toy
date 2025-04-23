@@ -7,7 +7,7 @@ import time
 from enum import Enum
 
 import asyncpg
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Any, Optional, List
 
 from source.config import config
 from source.models.session import Session, SessionDetails, SessionWithDetails, SessionStatus, ConnectionQuality
@@ -289,6 +289,51 @@ class PostgresSessionStore(PostgresRepository[Session]):
                 track_db_error("pg_update_session_activity")
                 return False
 
+    async def find_user_active_sessions(self, user_id: str) -> List[Dict[str, Any]]:
+        """
+        Find active sessions for a specific user.
+
+        Args:
+            user_id: The user ID to search for
+
+        Returns:
+            List of session records
+        """
+        with optional_trace_span(self.tracer, "pg_store_find_user_active_sessions") as span:
+            span.set_attribute("user_id", user_id)
+
+            pool = await self._get_pool()
+            try:
+                with TimedOperation(track_db_operation, "pg_find_user_active_sessions"):
+                    async with pool.acquire() as conn:
+                        # Find active sessions for this user
+                        rows = await conn.fetch('''
+                            SELECT session_id, user_id, status, created_at, last_active, expires_at
+                            FROM session.active_sessions
+                            WHERE user_id = $1
+                            AND status = $2
+                            AND expires_at > NOW()
+                        ''', user_id, SessionStatus.ACTIVE.value)
+
+                        # Convert to list of dictionaries
+                        sessions = []
+                        for row in rows:
+                            sessions.append({
+                                'session_id': row['session_id'],
+                                'user_id': row['user_id'],
+                                'status': row['status'],
+                                'created_at': row['created_at'].timestamp() if row['created_at'] else None,
+                                'last_active': row['last_active'].timestamp() if row['last_active'] else None,
+                                'expires_at': row['expires_at'].timestamp() if row['expires_at'] else None
+                            })
+
+                        return sessions
+            except Exception as e:
+                logger.error(f"Error finding active sessions for user {user_id} in PostgreSQL: {e}", exc_info=True)
+                span.record_exception(e)
+                track_db_error("pg_find_user_active_sessions")
+                return []
+
     async def update_session_status(self, session_id: str, status: SessionStatus) -> bool:
         """
         Update the status of a session.
@@ -322,7 +367,8 @@ class PostgresSessionStore(PostgresRepository[Session]):
                 track_db_error("pg_update_session_status")
                 return False
 
-    def _create_session_with_details(self, session_row: asyncpg.Record,
+    def _create_session_with_details(self,
+                                     session_row: asyncpg.Record,
                                      details_row: asyncpg.Record) -> SessionWithDetails:
         """
         Create a SessionWithDetails object from database rows.
@@ -342,7 +388,6 @@ class PostgresSessionStore(PostgresRepository[Session]):
             created_at=session_row['created_at'].timestamp(),
             last_active=session_row['last_active'].timestamp(),
             expires_at=session_row['expires_at'].timestamp(),
-            token=session_row.get('token')
         )
 
         # Create the SessionDetails object
@@ -356,21 +401,19 @@ class PostgresSessionStore(PostgresRepository[Session]):
             connection_quality = ConnectionQuality.GOOD
 
         details = SessionDetails(
-            session_id=details_row['session_id'],
+            # Device and connection information
             device_id=details_row.get('device_id'),
             user_agent=details_row.get('user_agent'),
             ip_address=details_row.get('ip_address'),
             pod_name=details_row.get('pod_name'),
+
+            # Connection quality metrics
             connection_quality=connection_quality,
             heartbeat_latency=details_row.get('heartbeat_latency'),
             missed_heartbeats=details_row.get('missed_heartbeats', 0),
             reconnect_count=details_row.get('reconnect_count', 0),
-            simulator_id=details_row.get('simulator_id'),
-            simulator_status=details_row.get('simulator_status'),
-            simulator_endpoint=details_row.get('simulator_endpoint'),
-            simulator_error=details_row.get('simulator_error'),
-            created_at=details_row['created_at'].timestamp() if details_row.get('created_at') else session.created_at,
-            updated_at=details_row['updated_at'].timestamp() if details_row.get('updated_at') else session.last_active,
+
+            # Timestamps
             last_reconnect=details_row['last_reconnect'].timestamp() if details_row.get('last_reconnect') else None,
             last_device_update=details_row['last_device_update'].timestamp() if details_row.get(
                 'last_device_update') else None,
@@ -399,12 +442,10 @@ class PostgresSessionStore(PostgresRepository[Session]):
             created_at=session_row['created_at'].timestamp(),
             last_active=session_row['last_active'].timestamp(),
             expires_at=session_row['expires_at'].timestamp(),
-            token=session_row.get('token')
         )
 
         # Create default details
         details = SessionDetails(
-            session_id=session.session_id,
             pod_name=config.kubernetes.pod_name,
             created_at=session.created_at,
             updated_at=session.last_active

@@ -71,8 +71,7 @@ async def handle_start_simulator(
             'type': 'simulator_started',
             'requestId': request_id,
             'success': True,
-            'simulatorId': simulator_id,
-            'status': 'STARTING',
+            'simulatorStatus': 'STARTING',
         }
 
         try:
