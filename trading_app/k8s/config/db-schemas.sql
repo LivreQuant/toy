@@ -127,6 +127,7 @@ CREATE TABLE IF NOT EXISTS simulator.instances (
     user_id TEXT NOT NULL,
     status TEXT NOT NULL,
     endpoint TEXT,
+    exhange_type VARCHAR(20),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     last_active TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );

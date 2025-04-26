@@ -8,6 +8,8 @@ from enum import Enum
 from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any
 
+from source.models.exchange_data import ExchangeType
+
 
 class SimulatorStatus(str, Enum):
     """Simulator status enum"""
@@ -26,6 +28,7 @@ class Simulator(BaseModel):
     session_id: str
     status: SimulatorStatus = SimulatorStatus.CREATING
     endpoint: Optional[str] = None
+    exchange_type: ExchangeType = ExchangeType.EQUITIES  # Default to equities
     created_at: float = Field(default_factory=time.time)
     last_active: float = Field(default_factory=time.time)
 
@@ -40,6 +43,7 @@ class Simulator(BaseModel):
             "session_id": self.session_id,
             "status": self.status.value,
             "endpoint": self.endpoint,
+            "exchange_type": self.exchange_type,
             "created_at": self.created_at,
             "last_active": self.last_active,
         }

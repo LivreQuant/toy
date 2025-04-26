@@ -14,6 +14,8 @@ from source.config import config
 from source.utils.tracing import optional_trace_span
 from source.utils.metrics import track_db_error
 
+from source.models.exchange_data import ExchangeType
+
 logger = logging.getLogger(__name__)
 
 T = TypeVar('T')
@@ -166,6 +168,13 @@ class PostgresRepository(PostgresBase, Generic[T]):
             for key in row_dict.keys():
                 if isinstance(row_dict[key], datetime.datetime):
                     row_dict[key] = row_dict[key].timestamp()
+
+            # Convert exchange_type string to enum
+            if 'exchange_type' in row_dict:
+                try:
+                    row_dict['exchange_type'] = ExchangeType(row_dict['exchange_type'])
+                except ValueError:
+                    row_dict['exchange_type'] = ExchangeType.EQUITIES  # Default
 
             # Create entity object
             return self.entity_class(**row_dict)

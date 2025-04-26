@@ -15,67 +15,17 @@ from source.utils.metrics import track_circuit_breaker_failure
 from source.utils.tracing import optional_trace_span
 from source.clients.base import BaseClient
 
-from source.api.grpc.exchange_simulator_pb2 import (
+from source.models.exchange_data import ExchangeType, ExchangeDataUpdate
+from source.core.exchange.factory import ExchangeAdapterFactory
+
+from source.api.grpc.session_exchange_simulator_pb2 import (
     StreamRequest,
     ExchangeDataUpdate,
     HeartbeatRequest,
-    HeartbeatResponse,
 )
-from source.api.grpc.exchange_simulator_pb2_grpc import ExchangeSimulatorStub
+from source.api.grpc.session_exchange_simulator_pb2_grpc import ExchangeSimulatorStub
 
 logger = logging.getLogger('exchange_client')
-
-
-def _convert_stream_data(data: ExchangeDataUpdate) -> Dict[str, Any]:
-    """Convert ExchangeDataUpdate protobuf message to dictionary."""
-    result = {
-        'timestamp': data.timestamp,
-        'marketData': [],
-        'orderUpdates': [],
-        'portfolio': None
-    }
-
-    # Convert market data
-    for item in data.market_data:
-        result['marketData'].append({
-            'symbol': item.symbol,
-            'bid': item.bid,
-            'ask': item.ask,
-            'bidSize': item.bid_size,
-            'askSize': item.ask_size,
-            'lastPrice': item.last_price,
-            'lastSize': item.last_size
-        })
-
-    # Convert order updates
-    for item in data.orders_data:
-        result['orderUpdates'].append({
-            'orderId': item.order_id,
-            'symbol': item.symbol,
-            'status': item.status,
-            'filledQuantity': item.filled_quantity,
-            'averagePrice': item.average_price
-        })
-
-    # Convert portfolio if present
-    if data.HasField('portfolio'):
-        portfolio = data.portfolio
-        positions_list = []
-        for pos in portfolio.positions:
-            positions_list.append({
-                'symbol': pos.symbol,
-                'quantity': pos.quantity,
-                'averageCost': pos.average_cost,
-                'marketValue': pos.market_value
-            })
-
-        result['portfolio'] = {
-            'positions': positions_list,
-            'cashBalance': portfolio.cash_balance,
-            'totalValue': portfolio.total_value
-        }
-
-    return result
 
 
 class ExchangeClient(BaseClient):
@@ -84,8 +34,8 @@ class ExchangeClient(BaseClient):
     def __init__(self):
         """Initialize the exchange client."""
         super().__init__(service_name="exchange_service")
-        self.channels: Dict[str, grpc.aio.Channel] = {}
-        self.stubs: Dict[str, ExchangeSimulatorStub] = {}
+        self.channels = {}
+        self.stubs = {}
         self._conn_lock = asyncio.Lock()
         
         # Default gRPC channel options
@@ -97,6 +47,9 @@ class ExchangeClient(BaseClient):
             ('grpc.http2.min_time_between_pings_ms', 60000),
             ('grpc.http2.min_ping_interval_without_data_ms', 12000)
         ]
+
+        # Default exchange type
+        self.default_exchange_type = ExchangeType.EQUITIES
 
     async def get_channel(self, endpoint: str) -> tuple[grpc.aio.Channel, ExchangeSimulatorStub]:
         """
@@ -214,30 +167,36 @@ class ExchangeClient(BaseClient):
             endpoint: str,
             session_id: str,
             client_id: str,
-    ) -> AsyncGenerator[Dict[str, Any], None]:
+            exchange_type: ExchangeType = None,
+    ) -> AsyncGenerator[ExchangeDataUpdate, None]:
         """
-        Stream exchange data (market, portfolio, orders) from the exchange simulator.
+        Stream exchange data (market, portfolio, orders) with adapter conversion
         
         Args:
             endpoint: The endpoint of the simulator
             session_id: The session ID
             client_id: The client ID
+            exchange_type: Type of exchange to use adapter for
             
         Yields:
-            Dict with comprehensive exchange data updates
+            Standardized ExchangeDataUpdate objects
         """
         with optional_trace_span(self.tracer, "stream_exchange_data_rpc") as span:
             span.set_attribute("session_id", session_id)
             span.set_attribute("client_id", client_id)
             span.set_attribute("endpoint", endpoint)
-
-            logger.info(f"Attempting to create exchange data stream: endpoint={endpoint}, session={session_id}")
             
+            # Use the specified exchange type or default
+            exchange_type = exchange_type or self.default_exchange_type
+            span.set_attribute("exchange_type", exchange_type.value)
+            
+            # Get the appropriate adapter
+            adapter = ExchangeAdapterFactory.get_adapter(exchange_type)
+
             try:
                 # Get channel and stub
                 channel, stub = await self.get_channel(endpoint)
-                logger.info("Successfully obtained gRPC channel and stub")
-
+                
                 # Create stream request
                 request = StreamRequest(
                     session_id=session_id,
@@ -253,14 +212,20 @@ class ExchangeClient(BaseClient):
                     span.record_exception(rpc_init_error)
                     raise
 
-                # Stream processing
+                # Stream processing with direct adapter conversion
                 try:
                     async for data in stream:
                         logger.debug(f"Received raw exchange data update")
                         
-                        # Convert and yield data
-                        converted_data = _convert_stream_data(data)
-                        yield converted_data
+                        # Direct conversion in one step
+                        standardized_data = await adapter.convert_from_protobuf(data)
+                        
+                        # Set exchange type explicitly if needed
+                        standardized_data.exchange_type = exchange_type
+                        
+                        # Yield the standardized data
+                        yield standardized_data
+                        
                 except Exception as stream_error:
                     logger.error(f"Error in stream processing: {stream_error}")
                     span.record_exception(stream_error)

@@ -14,6 +14,9 @@ from source.utils.metrics import track_simulator_operation, track_simulator_coun
 from source.utils.retry import retry_with_backoff_generator
 from source.models.simulator import Simulator, SimulatorStatus
 
+from source.models.exchange_data import ExchangeType
+from source.core.exchange.factory import ExchangeAdapterFactory
+
 logger = logging.getLogger('simulator_manager')
 
 
@@ -249,22 +252,27 @@ class SimulatorManager:
             self,
             endpoint: str,
             session_id: str,
-            client_id: str
-    ) -> AsyncGenerator[Dict[str, Any], None]:
+            client_id: str,
+            exchange_type: ExchangeType = None
+    ):
         """
-        Stream exchange data with retry mechanism.
+        Stream exchange data with retry mechanism and adapter support.
 
         Args:
             endpoint: The simulator endpoint
             session_id: The session ID
             client_id: The client ID
+            exchange_type: Type of exchange to use adapter for
 
         Yields:
-            Dict with exchange data
+            Standardized ExchangeDataUpdate objects
         """
         if not self.exchange_client:
             logger.error("Exchange client not available")
             raise ValueError("Exchange client not available")
+
+        # Use the specified exchange type or default to EQUITIES for existing simulator
+        exchange_type = exchange_type or ExchangeType.EQUITIES
 
         # Update simulator status to RUNNING when streaming begins
         if self.current_simulator_id:
@@ -278,26 +286,27 @@ class SimulatorManager:
                 # Continue despite the error - this is non-critical
 
         async def _stream_data():
-            async for data in self.exchange_client.stream_exchange_data(
-                    endpoint, session_id, client_id
+            # Pass the exchange type to the exchange client
+            async for standardized_data in self.exchange_client.stream_exchange_data(
+                    endpoint, session_id, client_id, exchange_type
             ):
                 # Add a unique identifier to each raw data response
-                data_id = f"{data.get('timestamp', time.time())}-{hash(str(data))}"
+                data_id = f"{standardized_data.timestamp}-{standardized_data.update_id}"
                 logger.info(f"Received exchange data [ID: {data_id}] from simulator at {endpoint}")
 
-                # Call the callback function if set
+                # Call the callback function if set - pass standardized data directly
                 if self.data_callback:
                     try:
                         # Check if callback is a coroutine function and await it properly
                         if asyncio.iscoroutinefunction(self.data_callback):
-                            await self.data_callback(data)
+                            await self.data_callback(standardized_data)
                         else:
-                            self.data_callback(data)
+                            self.data_callback(standardized_data)
                     except Exception as e:
                         logger.error(f"Error in data callback: {e}", exc_info=True)
 
-                # Always yield the data regardless of callback
-                yield data
+                # Always yield the standardized data
+                yield standardized_data
 
         # Use retry generator to handle connection issues
         try:

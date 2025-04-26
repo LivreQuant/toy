@@ -66,6 +66,22 @@ class ExchangeSimulatorService(ExchangeSimulatorServicer):
             context.set_details(str(e))
             return HeartbeatResponse(success=False)
 
+    async def receive_market_data(self, market_data_list):
+        """
+        Process received market data from distributor
+        
+        Args:
+            market_data_list: List of market data updates
+        """
+        try:
+            # Update the exchange manager with the new market data
+            self.exchange_manager.update_market_data(market_data_list)
+            logger.info(f"Received market data for {len(market_data_list)} symbols")
+            return True
+        except Exception as e:
+            logger.error(f"Error processing market data: {e}")
+            return False
+        
     async def StreamExchangeData(
             self,
             request: StreamRequest,
@@ -75,9 +91,20 @@ class ExchangeSimulatorService(ExchangeSimulatorServicer):
         try:
             symbols = request.symbols
             client_id = request.client_id  # For logging which client connected
+        
+            # Check if this is a distributor push or a client subscription
+            if client_id == "market_data_distributor":
+                # This is a push from the market data distributor
+                # Return a single response to acknowledge receipt
+                update = ExchangeDataUpdate(
+                    timestamp=int(time.time() * 1000)
+                )
+                yield update
+                return
 
+            # Original subscription logic for client connections
             logger.info(f"Client {client_id} subscribed to exchange data stream for symbols: {symbols}")
-
+            
             update_count = 0
             while True:
                 # Generate market data

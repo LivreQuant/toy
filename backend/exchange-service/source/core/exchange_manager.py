@@ -78,6 +78,27 @@ class ExchangeManager:
         except Exception as e:
             logger.error(f"Exchange cleanup failed: {e}")
 
+    def update_market_data(self, market_data_list):
+        """
+        Update market data with values from the distributor
+        
+        Args:
+            market_data_list: List of market data updates
+        """
+        try:
+            # Update the market data in the market data generator
+            for market_data in market_data_list:
+                symbol = market_data.get('symbol')
+                price = market_data.get('last_price')
+                
+                if symbol and price:
+                    self.market_data_generator.prices[symbol] = price
+            
+            return True
+        except Exception as e:
+            logger.error(f"Failed to update market data: {e}")
+            return False
+        
     def generate_periodic_data(
             self,
             symbols: Optional[List[str]] = None
