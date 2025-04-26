@@ -1,34 +1,28 @@
-FROM node:18-alpine as build
+# Use an official Node runtime as the base image
+FROM node:22-alpine
 
+# Set the working directory in the container
 WORKDIR /app
 
-# Add build-time environment variable
-ARG REACT_APP_AUTH_API_ENDPOINT=http://auth-service:50551
-ENV REACT_APP_AUTH_API_ENDPOINT=$REACT_APP_AUTH_API_ENDPOINT
+# Copy package.json and package-lock.json
+COPY package*.json ./
 
-# Install dependencies
-COPY package*.json .npmrc ./
-RUN npm ci
+# Install dependencies with legacy peer deps and force resolution
+RUN npm install -g npm@latest
+RUN npm install --legacy-peer-deps
 
-# Copy source files (use .dockerignore to exclude node_modules, etc.)
+# Copy the rest of the application code
 COPY . .
 
 # Build the app
 RUN npm run build
 
-# Production stage
-FROM nginx:alpine
-COPY --from=build /app/build /usr/share/nginx/html
+# Install serve to run the production build
+RUN npm install -g serve
 
-# Copy nginx configuration
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Expose the port the app runs on
+EXPOSE 8080
 
-# Create a basic health check endpoint
-RUN mkdir -p /usr/share/nginx/html/health && \
-    echo "OK" > /usr/share/nginx/html/health/index.html
+# Define the command to run the app
+CMD ["serve", "-s", "build", "-l", "8080"]
 
-# Add a healthcheck directive
-HEALTHCHECK --interval=30s --timeout=3s CMD wget -q -O - http://localhost/health/ || exit 1
-
-EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]

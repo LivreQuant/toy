@@ -1,0 +1,32 @@
+# k8s/deployments/session-service-rbac.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: session-service-account
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: session-service-role
+rules:
+- apiGroups: ["apps"]
+  resources: ["deployments"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: [""]
+  resources: ["services"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: session-service-role-binding
+subjects:
+- kind: ServiceAccount
+  name: session-service-account
+roleRef:
+  kind: Role
+  name: session-service-role
+  apiGroup: rbac.authorization.k8s.io

@@ -1,0 +1,100 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-service
+spec:
+  replicas: 1  
+  selector:
+    matchLabels:
+      app: auth-service
+  template:
+    metadata:
+      labels:
+        app: auth-service
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+      - name: auth-service
+        image: registry.digitalocean.com/ff-frontend/auth-service:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8001  # REST service
+        - containerPort: 9090  # Prometheus metrics
+        env:
+        - name: DB_HOST
+          value: pgbouncer
+        - name: DB_PORT
+          value: "5432"
+        - name: DB_NAME
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: database
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: username
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: password
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: auth-jwt-secret
+              key: JWT_SECRET
+        - name: JWT_REFRESH_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: auth-jwt-secret
+              key: JWT_REFRESH_SECRET
+        - name: OTEL_EXPORTER_JAEGER_ENDPOINT
+          value: "http://jaeger-collector:14268/api/traces"
+        - name: OTEL_EXPORTER_JAEGER_AGENT_HOST
+          value: "jaeger-agent"
+        - name: OTEL_EXPORTER_JAEGER_AGENT_PORT
+          value: "6831"
+        - name: OTEL_SERVICE_NAME
+          value: "auth-service"
+        - name: ENABLE_TRACING
+          value: "false"
+        resources:  
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        readinessProbe:  
+          httpGet:
+            path: /health
+            port: 8001  # Change this to 8001
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        livenessProbe:  
+          httpGet:
+            path: /health
+            port: 8001  # Change this to 8001
+          initialDelaySeconds: 15
+          periodSeconds: 20
+      initContainers:
+      - name: wait-for-db
+        image: postgres:13
+        command: ['sh', '-c', 'until pg_isready -h pgbouncer -p 5432; do echo waiting for database; sleep 2; done;']
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: auth-service
+spec:
+  selector:
+    app: auth-service
+  ports:
+  - port: 8000  # This is the port other services use to connect
+    targetPort: 8001  # This should match your application's port
+  type: ClusterIP

@@ -1,6 +1,8 @@
 // src/services/connection/connection-manager.ts
 import { getLogger } from '../../boot/logging';
 
+import { config } from '../../config';
+
 import { TokenManager } from '../auth/token-manager';
 import { DeviceIdManager } from '../auth/device-id-manager';
 
@@ -62,6 +64,20 @@ export class ConnectionManager implements Disposable {
   ) {
     this.logger.info('Initializing ConnectionManager');
     
+    // Use config for reconnection defaults, with option to override
+    const reconnectionConfig = config.reconnection;
+    const mergedOptions: ConnectionManagerOptions = {
+        heartbeatInterval: options.heartbeatInterval || 15000,
+        heartbeatTimeout: options.heartbeatTimeout || 5000,
+        resilience: {
+            initialDelayMs: options.resilience?.initialDelayMs || reconnectionConfig.initialDelayMs,
+            maxDelayMs: options.resilience?.maxDelayMs || reconnectionConfig.maxDelayMs,
+            maxAttempts: options.resilience?.maxAttempts || reconnectionConfig.maxAttempts,
+            jitterFactor: options.resilience?.jitterFactor || reconnectionConfig.jitterFactor,
+            suspensionTimeoutMs: options.resilience?.suspensionTimeoutMs || 60000, // Default if not provided
+        }
+    };
+
     // Initialize socket client
     this.socketClient = new SocketClient(tokenManager);
     
