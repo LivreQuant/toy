@@ -94,15 +94,13 @@ class PostgresSessionStore(PostgresRepository[Session]):
                             # Insert session details
                             await conn.execute('''
                                 INSERT INTO session.session_details
-                                (session_id, device_id, ip_address, pod_name, created_at, updated_at)
-                                VALUES ($1, $2, $3, $4, to_timestamp($5), to_timestamp($6))
+                                (session_id, device_id, ip_address, pod_name)
+                                VALUES ($1, $2, $3, $4)
                             ''',
                                                session_id,
                                                device_id,
                                                ip_address,
                                                config.kubernetes.pod_name,
-                                               current_time,
-                                               current_time
                                                )
 
                         return True
@@ -457,14 +455,12 @@ class PostgresSessionStore(PostgresRepository[Session]):
             async with pool.acquire() as conn:
                 await conn.execute('''
                     INSERT INTO session.session_details
-                    (session_id, pod_name, created_at, updated_at)
-                    VALUES ($1, $2, to_timestamp($3), to_timestamp($4))
+                    (session_id, pod_name)
+                    VALUES ($1, $2)
                     ON CONFLICT (session_id) DO NOTHING
                 ''',
                                    session.session_id,
                                    config.kubernetes.pod_name,
-                                   session.created_at,
-                                   session.last_active
                                    )
         except Exception as e:
             logger.warning(f"Failed to create missing session details for {session.session_id}: {e}")

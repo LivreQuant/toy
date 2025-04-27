@@ -173,3 +173,13 @@ frontend/
 ## Conclusion
 
 The Trading Simulator frontend is a well-structured React application with sophisticated state management and network resilience features. It handles the complex requirements of a real-time trading application while providing a responsive user experience across different network conditions.
+
+
+# docker build -t trading-platform-frontend .
+# sudo apt-get update
+#  sudo apt-get install pass
+#  gpg --full-generate-key
+#  pass init sergio.daniel.marques.amaral@gmail.com
+# sudo docker login registry.digitalocean.com
+# docker tag trading-platform-frontend registry.digitalocean.com/ff-frontend/trading-platform-frontend:latest
+# docker push registry.digitalocean.com/ff-frontend/trading-platform-frontend:latest

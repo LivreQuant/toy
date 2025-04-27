@@ -19,7 +19,7 @@ import { OrdersApi } from './api/order';
 
 // SERVICES
 import { ConnectionManager } from './services/connection/connection-manager';
-import { OrderService } from './services/orders/order-service';
+import { OrderManager } from './services/orders/order-manager';
 
 // HOOKS
 import { useConnection } from './hooks/useConnection';
@@ -29,6 +29,7 @@ import { ToastProvider } from './contexts/ToastContext';
 import { AuthProvider } from './contexts/AuthContext';
 import { TokenManagerProvider } from './contexts/TokenManagerContext';
 import { ConnectionProvider } from './contexts/ConnectionContext';
+import { OrderProvider } from './contexts/OrderContext';
 
 // COMPONENTS
 import ProtectedRoute from './components/Common/ProtectedRoute'; // Component for protected routes
@@ -63,10 +64,9 @@ tokenManager.setAuthApi(authApi);
 
 const connectionManager = new ConnectionManager(
   tokenManager,
-  httpClient
 );
 
-const orderService = new OrderService(
+const orderManager = new OrderManager(
   ordersApi, 
   tokenManager
 );
@@ -105,44 +105,46 @@ function App() {
     <ToastProvider>
        <AuthProvider tokenManager={tokenManager} authApi={authApi} connectionManager={connectionManager}>
         <TokenManagerProvider tokenManager={tokenManager}>
-          <ConnectionProvider connectionManager={connectionManager}>
-              <Router>
-                <DeviceIdInvalidationHandler>
-                  <Routes>
-                    {/* Simulator page */}
-                    <Route path="/login" element={
-                      <LoginPage />
-                    } />
+          <OrderProvider orderManager={orderManager}>
+            <ConnectionProvider connectionManager={connectionManager}>
+                <Router>
+                  <DeviceIdInvalidationHandler>
+                    <Routes>
+                      {/* Simulator page */}
+                      <Route path="/login" element={
+                        <LoginPage />
+                      } />
 
-                    {/* Session page */}
-                    <Route path="/home" element={
-                        <ProtectedRoute>
-                          <HomePage />
-                        </ProtectedRoute>
-                    } />
+                      {/* Session page */}
+                      <Route path="/home" element={
+                          <ProtectedRoute>
+                            <HomePage />
+                          </ProtectedRoute>
+                      } />
 
-                    {/* Simulator page */}
-                    <Route path="/simulator" element={
-                        <ProtectedRoute>
-                          <SimulatorPage />
-                        </ProtectedRoute>
-                    } />
+                      {/* Simulator page */}
+                      <Route path="/simulator" element={
+                          <ProtectedRoute>
+                            <SimulatorPage />
+                          </ProtectedRoute>
+                      } />
 
-                    {/* Deactivate session */}
-                    <Route path="/session-deactivated" element={
-                      <SessionDeactivatedPage />
-                    } />
+                      {/* Deactivate session */}
+                      <Route path="/session-deactivated" element={
+                        <SessionDeactivatedPage />
+                      } />
 
-                    {/* Default route - Unprotected 404 Page*/}
-                    <Route path="/" element={
-                      <Navigate to="/home" replace />
-                    } />
+                      {/* Default route - Unprotected 404 Page*/}
+                      <Route path="/" element={
+                        <Navigate to="/home" replace />
+                      } />
 
-                  </Routes>
-                </DeviceIdInvalidationHandler>
-              </Router>
-          </ConnectionProvider>
-         </TokenManagerProvider>
+                    </Routes>
+                  </DeviceIdInvalidationHandler>
+                </Router>
+            </ConnectionProvider>
+          </OrderProvider>
+        </TokenManagerProvider>
        </AuthProvider>
     </ToastProvider>
   );

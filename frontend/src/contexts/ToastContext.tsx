@@ -1,7 +1,8 @@
 // src/contexts/ToastContext.tsx (Corrected)
 import React, { createContext, useState, useCallback, ReactNode, useMemo } from 'react';
-// Import ToastConfig type
-import { ToastService, toastService, ToastConfig } from '../services/notification/toast-service';
+
+import { toastService, ToastConfig } from '../services/notification/toast-service';
+
 import ToastNotificationsContainer from '../components/Common/ToastNotifications';
 
 // ... (Keep ToastMessage interface) ...

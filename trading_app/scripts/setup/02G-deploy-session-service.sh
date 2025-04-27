@@ -1,5 +1,5 @@
 #!/bin/bash
-echo "Deploying session manager service..."
+echo "Deploying session service..."
 
 # Get the correct path to the directories
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -21,32 +21,32 @@ done
 eval $(minikube docker-env)
 
 # Check if image exists or rebuild is requested
-if [[ "$REBUILD" == "true" ]] || ! docker images opentp/session-manager:latest --format "{{.Repository}}:{{.Tag}}" | grep -q "opentp/session-manager:latest"; then
-    echo "Building session-manager Docker image..."
+if [[ "$REBUILD" == "true" ]] || ! docker images opentp/session-service:latest --format "{{.Repository}}:{{.Tag}}" | grep -q "opentp/session-service:latest"; then
+    echo "Building session-service Docker image..."
     cd "$BACKEND_DIR/session-service"
     if [[ "$REBUILD" == "true" ]]; then
         echo "Rebuilding without cache..."
-        docker build --no-cache -t opentp/session-manager:latest .
+        docker build --no-cache -t opentp/session-service:latest .
     else
-        docker build -t opentp/session-manager:latest .
+        docker build -t opentp/session-service:latest .
     fi
     
     if [ $? -ne 0 ]; then
-        echo "Error: Failed to build session-manager image"
+        echo "Error: Failed to build session-service image"
         exit 1
     fi
     
-    echo "Session manager image built successfully"
+    echo "Session service image built successfully"
     cd - > /dev/null
 else
-    echo "Using existing session-manager image"
+    echo "Using existing session-service image"
 fi
 
 # Apply RBAC resources first
-kubectl apply -f "$K8S_DIR/deployments/session-manager-rbac.yaml"
+kubectl apply -f "$K8S_DIR/deployments/session-service-rbac.yaml"
 
 # Apply the service
-kubectl apply -f "$K8S_DIR/deployments/session-manager.yaml"
+kubectl apply -f "$K8S_DIR/deployments/session-service.yaml"
 
 # Function to check pod status
 check_pod_status() {
@@ -101,13 +101,13 @@ check_pod_status() {
     return 1
 }
 
-# Check session manager pod status
-if ! check_pod_status "session-manager"; then
-    echo "Failed to deploy session-manager"
+# Check session service pod status
+if ! check_pod_status "session-service"; then
+    echo "Failed to deploy session-service"
     exit 1
 fi
 
-echo "Session manager deployment completed successfully"
+echo "Session service deployment completed successfully"
 
 # Check status
 echo "Waiting for session-service pods to start..."

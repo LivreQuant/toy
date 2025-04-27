@@ -43,14 +43,14 @@ spec:
         pathType: ImplementationSpecific
         backend:
           service:
-            name: session-manager
+            name: session-service
             port:
               number: 8080
       - path: /api/simulators(/|$)(.*)
         pathType: ImplementationSpecific
         backend:
           service:
-            name: session-manager
+            name: session-service
             port:
               number: 8080
       - path: /api/orders/(.*)
@@ -64,14 +64,14 @@ spec:
         pathType: ImplementationSpecific
         backend:
           service:
-            name: session-manager
+            name: session-service
             port:
               number: 8080
       - path: /stream/?(.*)
         pathType: ImplementationSpecific
         backend:
           service:
-            name: session-manager
+            name: session-service
             port:
               number: 8080
       # Admin dashboard and monitoring paths

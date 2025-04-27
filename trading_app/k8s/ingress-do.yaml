@@ -1,0 +1,126 @@
+# k8s/ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: trading-platform-ingress
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    # CORS
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "http://localhost:3000, https://urchin-app-k5eft.ondigitalocean.app"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, PUT, POST, DELETE, PATCH, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-headers: "DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Authorization,Origin,Accept"
+    nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+    nginx.ingress.kubernetes.io/cors-max-age: "1728000"
+    # OTHER?
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    # Session affinity for WebSockets
+    nginx.ingress.kubernetes.io/affinity: "cookie"
+    nginx.ingress.kubernetes.io/session-cookie-name: "trading_session"
+    nginx.ingress.kubernetes.io/session-cookie-max-age: "172800"
+    nginx.ingress.kubernetes.io/session-cookie-path: "/"
+    nginx.ingress.kubernetes.io/session-cookie-samesite: "Lax"
+    nginx.ingress.kubernetes.io/session-cookie-secure: "true"
+    nginx.ingress.kubernetes.io/session-cookie-hash: "sha1"
+    # WebSocket settings
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-body-size: "8m"
+    # WebSocket headers (replacing configuration-snippet)
+    nginx.ingress.kubernetes.io/enable-websocket: "true"
+spec:
+  tls:
+  - hosts:
+    - 129-212-144-54.nip.io
+    secretName: tls-secret
+  rules:
+  - host: 129-212-144-54.nip.io
+    http:
+      paths:
+      - path: /api/auth/(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: auth-service
+            port:
+              number: 8000
+      - path: /api/sessions(/|$)(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: session-service
+            port:
+              number: 8080
+      - path: /api/simulators(/|$)(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: session-service
+            port:
+              number: 8080
+      - path: /api/orders/(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: order-service
+            port:
+              number: 8001
+      - path: /ws/?(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: session-service
+            port:
+              number: 8080
+      - path: /stream/?(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: session-service
+            port:
+              number: 8080
+      # Admin dashboard and monitoring paths
+      - path: /admin/?(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: admin-dashboard
+            port:
+              number: 80
+      - path: /prometheus/?(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: prometheus
+            port:
+              number: 9090
+      - path: /grafana/?(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: grafana
+            port:
+              number: 3000
+      # Create a dedicated path for Jaeger static assets
+      - path: /jaeger/static/(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: jaeger-query
+            port:
+              number: 16686
+      # Then the regular Jaeger path
+      - path: /jaeger/?(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: jaeger-query
+            port:
+              number: 16686
+      - path: /minio/?(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: minio
+            port:
+              number: 9000

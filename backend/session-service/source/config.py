@@ -4,7 +4,7 @@ Loads configuration from environment variables with sensible defaults.
 """
 import os
 import logging
-from typing import List
+from typing import List, Optional
 from pydantic import BaseModel, Field
 
 # Log level mapping
@@ -69,6 +69,9 @@ class SessionConfig(BaseModel):
 class WebSocketConfig(BaseModel):
     """WebSocket configuration"""
     heartbeat_interval: int = Field(default=10)  # 10 seconds
+    secure: bool = Field(default=False)  # New field for secure WebSocket
+    ssl_cert_path: Optional[str] = Field(default=None)
+    ssl_key_path: Optional[str] = Field(default=None)
 
 
 class SimulatorConfig(BaseModel):
@@ -83,6 +86,7 @@ class KubernetesConfig(BaseModel):
     namespace: str = Field(default="default")
     pod_name: str = Field(default=os.getenv('HOSTNAME', 'unknown'))
     in_cluster: bool = Field(default=True)
+    registry_secret_name: str = Field(default=os.getenv('KUBERNETES_REGISTRY_SECRET', 'do-registry-credentials'))
 
 
 class TracingConfig(BaseModel):
@@ -146,7 +150,10 @@ class Config(BaseModel):
                 extension_threshold=int(os.getenv('SESSION_EXTENSION_THRESHOLD', '1800'))
             ),
             websocket=WebSocketConfig(
-                heartbeat_interval=int(os.getenv('WEBSOCKET_HEARTBEAT_INTERVAL', '10'))
+                heartbeat_interval=int(os.getenv('WS_HEARTBEAT_INTERVAL', '10')),
+                secure=os.getenv('WS_SECURE', 'false').lower() == 'true',
+                ssl_cert_path=os.getenv('WS_SSL_CERT_PATH'),
+                ssl_key_path=os.getenv('WS_SSL_KEY_PATH')
             ),
             simulator=SimulatorConfig(
                 max_per_user=int(os.getenv('MAX_SIMULATORS_PER_USER', '1')),
@@ -155,7 +162,8 @@ class Config(BaseModel):
             kubernetes=KubernetesConfig(
                 namespace=os.getenv('KUBERNETES_NAMESPACE', 'default'),
                 pod_name=os.getenv('POD_NAME', os.getenv('HOSTNAME', 'unknown')),
-                in_cluster=os.getenv('K8S_IN_CLUSTER', 'true').lower() == 'true'
+                in_cluster=os.getenv('K8S_IN_CLUSTER', 'true').lower() == 'true',
+                registry_secret_name=os.getenv('KUBERNETES_REGISTRY_SECRET', 'do-registry-credentials'),
             ),
             tracing=TracingConfig(
                 enabled=os.getenv('ENABLE_TRACING', 'false').lower() == 'true',

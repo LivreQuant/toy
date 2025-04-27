@@ -13,6 +13,8 @@ from source.utils.metrics import track_websocket_message
 from source.api.websocket.dispatcher import WebSocketDispatcher
 from source.api.websocket.emitters import error_emitter
 
+from source.models.exchange_data import ExchangeDataUpdate
+
 
 class WebSocketManager:
     def __init__(self, session_manager):
@@ -194,21 +196,22 @@ class WebSocketManager:
             except Exception as e:
                 self.logger.error(f"Error resetting session state during connection cleanup: {e}")
 
-    async def broadcast_exchange_data(self, data):
-        """Broadcast exchange data to all active WebSocket clients"""
+    async def broadcast_exchange_data(self, data: ExchangeDataUpdate):
+        """Broadcast exchange data to all active WebSocket clients using standardized format"""
         if not self.active_connections:
             return
 
         # Create a unique ID for this broadcast
-        data_id = f"{data.get('timestamp', time.time())}-{hash(str(data))}"
+        data_id = f"{data.timestamp}-{data.update_id}"
         self.logger.info(
-            f"WebSocketManager broadcasting exchange data [ID: {data_id}] to {len(self.active_connections)} clients")
+            f"WebSocketManager broadcasting exchange data [ID: {data_id}] to {len(self.active_connections)} clients"
+        )
 
         # Create message payload
         payload = {
             'type': 'exchange_data',
             'timestamp': int(time.time() * 1000),
-            'data': data
+            'data': data.to_dict()  # Use the standardized to_dict method
         }
 
         # Send to all active connections

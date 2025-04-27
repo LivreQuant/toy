@@ -36,6 +36,7 @@ class PostgresSimulatorStore(PostgresRepository[Simulator]):
         with optional_trace_span(self.tracer, "pg_store_create_simulator") as span:
             span.set_attribute("simulator_id", simulator.simulator_id)
             span.set_attribute("session_id", simulator.session_id)
+            span.set_attribute("exchange_type", simulator.exchange_type.value)
 
             try:
                 pool = await self._get_pool()
@@ -44,14 +45,15 @@ class PostgresSimulatorStore(PostgresRepository[Simulator]):
                         await conn.execute('''
                             INSERT INTO simulator.instances (
                                 simulator_id, session_id, user_id, status, 
-                                endpoint, created_at, last_active
-                            ) VALUES ($1, $2, $3, $4, $5, to_timestamp($6), to_timestamp($7))
+                                endpoint, exchange_type, created_at, last_active
+                            ) VALUES ($1, $2, $3, $4, $5, $6, to_timestamp($7), to_timestamp($8))
                         ''',
                                            simulator.simulator_id,
                                            simulator.session_id,
-                                           'rmv',
+                                           'rmv',  # This seems to be a placeholder value
                                            simulator.status.value,
                                            simulator.endpoint,
+                                           simulator.exchange_type.value,
                                            simulator.created_at,
                                            simulator.last_active
                                            )

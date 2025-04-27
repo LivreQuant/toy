@@ -1,0 +1,114 @@
+# k8s/deployments/session-service.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: session-service
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: session-service
+  template:
+    metadata:
+      labels:
+        app: session-service
+    spec:
+      # Add grace period for WebSocket connections to close properly
+      terminationGracePeriodSeconds: 60
+      serviceAccountName: session-service-account
+      containers:
+      - name: session-service
+        image: opentp/session-service:latest
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 8080  # REST API
+        env:
+        - name: DB_HOST
+          value: pgbouncer
+        - name: DB_PORT
+          value: "5432"
+        - name: DB_NAME
+          value: opentp
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: username
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: password
+        - name: DB_DISABLE_PREPARED_STATEMENTS
+          value: "true"
+        - name: REDIS_HOST
+          value: redis
+        - name: REDIS_PORT
+          value: "6379"
+        - name: AUTH_SERVICE_URL
+          value: http://auth-service:8000
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: KUBERNETES_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: ENVIRONMENT
+          value: "development"
+        - name: LOG_LEVEL
+          value: "DEBUG"
+        - name: WEBSOCKET_HEARTBEAT_INTERVAL
+          value: "10"
+        - name: SESSION_TIMEOUT_SECONDS
+          value: "3600"
+        - name: OTEL_EXPORTER_JAEGER_ENDPOINT
+          value: "http://jaeger-collector:14268/api/traces"
+        - name: OTEL_EXPORTER_JAEGER_AGENT_HOST
+          value: "jaeger-agent"
+        - name: OTEL_EXPORTER_JAEGER_AGENT_PORT
+          value: "6831"
+        - name: OTEL_SERVICE_NAME
+          value: "session-service"
+        - name: ENABLE_TRACING
+          value: "true"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        readinessProbe:
+          httpGet:
+            path: /readiness
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          failureThreshold: 3
+          successThreshold: 1
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 20
+          periodSeconds: 15
+          timeoutSeconds: 3
+        lifecycle:
+          preStop:
+            exec:
+              command: ["/bin/sh", "-c", "sleep 10"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: session-service
+spec:
+  selector:
+    app: session-service
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+  type: ClusterIP

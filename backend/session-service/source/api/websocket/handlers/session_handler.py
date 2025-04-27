@@ -108,7 +108,7 @@ async def handle_session_info(
 
         # Start the exchange data stream for this simulator
         try:
-            if simulator_to_reassign.endpoint:
+            if simulator_to_reassign and hasattr(simulator_to_reassign, 'endpoint') and simulator_to_reassign.endpoint:
                 logger.info(
                     f"Automatically starting exchange data stream for reassigned simulator {simulator_to_reassign.simulator_id}")
                 stream_task = asyncio.create_task(

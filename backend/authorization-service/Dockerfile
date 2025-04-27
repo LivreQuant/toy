@@ -15,11 +15,11 @@ RUN apt-get -o Acquire::Check-Valid-Until=false \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first to leverage Docker cache
+# Copy requirements and install dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir --prefer-binary -r requirements.txt
 
-# Copy the source code
+# Copy source code
 COPY . .
 
 # Set comprehensive default environment variables
@@ -49,15 +49,12 @@ RUN mkdir -p /app/logs && \
 # Switch to non-root user
 USER appuser
 
-# Expose REST port
-EXPOSE 8001
+# Expose REST & METRIC port
+EXPOSE 8001 9090
 
-# Expose METRIC port
-EXPOSE 9090
-
-# Health check using our HTTP health endpoint
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+# Health check
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD curl -f http://localhost:8001/health || exit 1
 
-# Run the service
+# Run the application
 CMD ["python", "source/main.py"]

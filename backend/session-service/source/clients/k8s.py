@@ -123,6 +123,16 @@ class KubernetesClient(BaseClient):
         deployment_name = f"simulator-{simulator_id}"
         service_name = f"simulator-{simulator_id}"
 
+        # Define image and pull policy based on environment
+        if app_config.environment == "production":
+            image = "registry.digitalocean.com/ff-frontend/exchange-simulator:latest"
+            image_pull_policy = "Always"
+            image_pull_secrets = [client.V1LocalObjectReference(name=app_config.kubernetes.registry_secret_name)]
+        else:
+            image = "opentp/exchange-simulator:latest"
+            image_pull_policy = "Never"
+            image_pull_secrets = None
+        
         # Define container env vars
         env_vars = [
             client.V1EnvVar(name="SIMULATOR_ID", value=simulator_id),
@@ -130,9 +140,17 @@ class KubernetesClient(BaseClient):
             client.V1EnvVar(name="DESK_ID", value="test"),
 
             # Database connection variables
-            client.V1EnvVar(name="DB_HOST", value="postgres"),
+            client.V1EnvVar(name="DB_HOST", value="pgbouncer"),
             client.V1EnvVar(name="DB_PORT", value="5432"),
-            client.V1EnvVar(name="DB_NAME", value="opentp"),
+            client.V1EnvVar(
+                name="DB_NAME",
+                value_from=client.V1EnvVarSource(
+                    secret_key_ref=client.V1SecretKeySelector(
+                        name="db-credentials",
+                        key="database"  # Make sure this matches the secret
+                    )
+                )
+            ),
             client.V1EnvVar(
                 name="DB_USER",
                 value_from=client.V1EnvVarSource(
@@ -153,6 +171,43 @@ class KubernetesClient(BaseClient):
             ),
         ]
 
+        pod_spec = client.V1PodSpec(
+            containers=[
+                client.V1Container(
+                    name="exchange-simulator",
+                    image=image,
+                    image_pull_policy=image_pull_policy,
+                    ports=[
+                        client.V1ContainerPort(container_port=50055, name="grpc"),
+                        client.V1ContainerPort(container_port=50056, name="http")
+                    ],
+                    env=env_vars,
+                    resources=client.V1ResourceRequirements(
+                        requests={"cpu": "100m", "memory": "128Mi"},
+                        limits={"cpu": "500m", "memory": "512Mi"}
+                    ),
+                    readiness_probe=client.V1Probe(
+                        http_get=client.V1HTTPGetAction(
+                            path="/readiness",
+                            port=50056
+                        ),
+                        initial_delay_seconds=5,
+                        period_seconds=10
+                    ),
+                    liveness_probe=client.V1Probe(
+                        http_get=client.V1HTTPGetAction(
+                            path="/health",
+                            port=50056
+                        ),
+                        initial_delay_seconds=15,
+                        period_seconds=20
+                    )
+                )
+            ],
+            termination_grace_period_seconds=30,
+            image_pull_secrets=image_pull_secrets if image_pull_secrets else None
+        )
+        
         # Create deployment
         deployment = client.V1Deployment(
             api_version="apps/v1",
@@ -180,41 +235,7 @@ class KubernetesClient(BaseClient):
                             "user_id": user_id
                         }
                     ),
-                    spec=client.V1PodSpec(
-                        containers=[
-                            client.V1Container(
-                                name="exchange-simulator",
-                                image="opentp/exchange-simulator:latest",
-                                image_pull_policy="Never",
-                                ports=[
-                                    client.V1ContainerPort(container_port=50055, name="grpc"),
-                                    client.V1ContainerPort(container_port=50056, name="http")
-                                ],
-                                env=env_vars,
-                                resources=client.V1ResourceRequirements(
-                                    requests={"cpu": "100m", "memory": "128Mi"},
-                                    limits={"cpu": "500m", "memory": "512Mi"}
-                                ),
-                                readiness_probe=client.V1Probe(
-                                    http_get=client.V1HTTPGetAction(
-                                        path="/readiness",
-                                        port=50056
-                                    ),
-                                    initial_delay_seconds=5,
-                                    period_seconds=10
-                                ),
-                                liveness_probe=client.V1Probe(
-                                    http_get=client.V1HTTPGetAction(
-                                        path="/health",
-                                        port=50056
-                                    ),
-                                    initial_delay_seconds=15,
-                                    period_seconds=20
-                                )
-                            )
-                        ],
-                        termination_grace_period_seconds=30
-                    )
+                    spec=pod_spec
                 )
             )
         )
@@ -320,8 +341,10 @@ class KubernetesClient(BaseClient):
         deployment_name = f"simulator-{simulator_id}"
         service_name = f"simulator-{simulator_id}"
 
+        environment_tag = f"Environment: {app_config.environment}"
         logger.info(
-            f"Attempting to delete deployment {deployment_name} and service {service_name} in namespace {self.namespace}")
+            f"Attempting to delete deployment {deployment_name} and service {service_name} "
+            f"in namespace {self.namespace} ({environment_tag})")
 
         try:
             # Delete deployment
@@ -344,7 +367,7 @@ class KubernetesClient(BaseClient):
 
             return True
         except Exception as e:
-            logger.error(f"Error deleting simulator deployment: {e}")
+            logger.error(f"Error deleting simulator deployment in {app_config.environment}: {e}")
             # Track external request metrics for failure
             duration = time.time() - start_time
             track_external_request("kubernetes_api", "delete_simulator", 500, duration)

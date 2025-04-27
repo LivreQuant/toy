@@ -1,9 +1,11 @@
+# source/core/exchange_manager.py
 import logging
 import uuid
 from typing import Dict, List, Any, Optional, Tuple
 
 from source.models.enums import OrderSide
-from source.core.market_data_manager import MarketDataGenerator
+from source.core.market_data_client import MarketDataClient
+from source.core.order_manager import OrderManager
 from source.db.database import DatabaseManager
 
 logger = logging.getLogger('exchange_manager')
@@ -19,8 +21,12 @@ class ExchangeManager:
         self.default_symbols = ['AAPL', 'GOOGL', 'MSFT', 'AMZN']
 
         # Core components
-        self.market_data_generator = MarketDataGenerator(self.default_symbols)
+        self.market_data_client = MarketDataClient(self, self.default_symbols)
+        self.order_manager = OrderManager(self)
         self.database_manager = DatabaseManager()
+
+        # Market data storage
+        self.current_market_data = {}  # symbol -> market data
 
         # Exchange state
         self.cash_balance = initial_cash
@@ -32,6 +38,7 @@ class ExchangeManager:
         Initialize the exchange state
         - Load historical positions
         - Restore previous state if applicable
+        - Connect to market data service
         """
         try:
             try:
@@ -59,6 +66,12 @@ class ExchangeManager:
                 self.cash_balance = historical_data.get('cash_balance', self.initial_cash)
                 self.positions = historical_data.get('positions', {})
 
+            # Initialize order manager after database connection
+            await self.order_manager.initialize()
+
+            # Start the market data client
+            await self.market_data_client.start()
+
             logger.info(f"Exchange initialized for User {self.user_id}")
         except Exception as e:
             logger.error(f"Exchange initialization failed: {e}")
@@ -69,8 +82,15 @@ class ExchangeManager:
         Perform cleanup operations
         - Save final state
         - Close database connections
+        - Stop market data client
         """
         try:
+            # Clean up order manager
+            await self.order_manager.cleanup()
+
+            # Stop the market data client
+            await self.market_data_client.stop()
+                        
             # Close database connection
             await self.database_manager.close()
 
@@ -78,12 +98,32 @@ class ExchangeManager:
         except Exception as e:
             logger.error(f"Exchange cleanup failed: {e}")
 
+    def update_market_data(self, market_data_list):
+        """
+        Update market data with values from the market data service
+        
+        Args:
+            market_data_list: List of market data updates
+        """
+        try:
+            # Update the internal market data cache
+            for market_data in market_data_list:
+                symbol = market_data.get('symbol')
+                if symbol:
+                    self.current_market_data[symbol] = market_data
+            
+            return True
+        except Exception as e:
+            logger.error(f"Failed to update market data: {e}")
+            return False
+        
     def generate_periodic_data(
             self,
             symbols: Optional[List[str]] = None
     ) -> Tuple[List[Dict], Dict, List[Dict]]:
         """
         Generate periodic market, portfolio, and order data
+        Now using stored market data from the market data service
 
         Returns:
         - Market data
@@ -91,9 +131,18 @@ class ExchangeManager:
         - Order updates
         """
         symbols = symbols or self.default_symbols
-
-        # Generate market data
-        market_data = self.market_data_generator.get_market_data(symbols)
+        
+        # Use the current market data
+        market_data = []
+        for symbol in symbols:
+            if symbol in self.current_market_data:
+                market_data.append(self.current_market_data[symbol])
+        
+        # If we don't have market data yet, return empty data
+        if not market_data:
+            logger.warning("No market data available yet")
+            # Create minimal placeholder data
+            market_data = [{'symbol': s, 'bid': 0, 'ask': 0, 'bid_size': 0, 'ask_size': 0, 'last_price': 0, 'last_size': 0} for s in symbols]
 
         # Generate portfolio data
         portfolio_data = {
@@ -124,7 +173,7 @@ class ExchangeManager:
 
         return market_data, portfolio_data, order_updates
 
-    def submit_order(
+    async def submit_order(
             self,
             symbol: str,
             side: str,
@@ -133,69 +182,147 @@ class ExchangeManager:
             price: Optional[float] = None,
             request_id: Optional[str] = None
     ) -> Dict[str, Any]:
-        """Submit a trading order"""
+        """Submit a trading order through the order manager"""
         try:
-            # Validate order parameters
-            if quantity <= 0:
-                return {'success': False, 'error_message': 'Invalid quantity'}
-
-            # Get current market price
-            current_price = self._get_current_price(symbol)
-            order_price = price or current_price
-
-            # Order ID generation
-            order_id = str(uuid.uuid4())
-
-            # Buying power and position checks
-            if side == OrderSide.BUY:
-                total_cost = order_price * quantity
-                if total_cost > self.cash_balance:
-                    return {'success': False, 'error_message': 'Insufficient funds'}
-
-            elif side == OrderSide.SELL:
-                current_position = self.positions.get(symbol, {})
-                if current_position.get('quantity', 0) < quantity:
-                    return {'success': False, 'error_message': 'Insufficient position'}
-
-            # Execute order logic
-            self._process_order(
-                order_id=order_id,
+            # Convert string enums to proper enum types
+            side_enum = OrderSide.BUY if side == "BUY" else OrderSide.SELL
+            order_type_enum = OrderType.MARKET if order_type == "MARKET" else OrderType.LIMIT
+            
+            # Submit through order manager
+            order = await self.order_manager.submit_order(
+                session_id=self.user_id,  # Use user_id as session_id
                 symbol=symbol,
-                side=side,
+                side=side_enum,
                 quantity=quantity,
-                order_type=order_type,
-                price=order_price
+                order_type=order_type_enum,
+                price=price
             )
-
+            
+            if order.status == OrderStatus.REJECTED:
+                return {
+                    'success': False,
+                    'error_message': order.error_message or 'Order rejected'
+                }
+                
+            # Update our portfolio if the order was successful
+            if order.status in [OrderStatus.FILLED, OrderStatus.PARTIALLY_FILLED]:
+                self._update_portfolio_from_order(order)
+            
             return {
                 'success': True,
-                'order_id': order_id
+                'order_id': order.order_id
             }
 
         except Exception as e:
             logger.error(f"Order submission error: {e}")
             return {'success': False, 'error_message': str(e)}
-
+    
     def _process_order(self, **kwargs):
         """Internal method to process order details"""
         # Implement order processing logic
-        pass
+        order_id = kwargs.get('order_id')
+        symbol = kwargs.get('symbol')
+        side = kwargs.get('side')
+        quantity = kwargs.get('quantity')
+        price = kwargs.get('price')
+        
+        # Store the order
+        self.orders[order_id] = {
+            'symbol': symbol,
+            'side': side,
+            'quantity': quantity,
+            'price': price,
+            'status': 'FILLED',  # Simplified - assuming immediate fill
+            'filled_quantity': quantity,
+            'average_price': price
+        }
+        
+        # Update positions and cash
+        if side == OrderSide.BUY:
+            # Deduct cash
+            self.cash_balance -= quantity * price
+            
+            # Update position
+            if symbol not in self.positions:
+                self.positions[symbol] = {
+                    'quantity': 0,
+                    'average_cost': 0
+                }
+                
+            position = self.positions[symbol]
+            total_cost = position['average_cost'] * position['quantity']
+            new_quantity = position['quantity'] + quantity
+            new_total_cost = total_cost + (quantity * price)
+            
+            position['quantity'] = new_quantity
+            position['average_cost'] = new_total_cost / new_quantity if new_quantity > 0 else 0
+            
+        elif side == OrderSide.SELL:
+            # Add cash
+            self.cash_balance += quantity * price
+            
+            # Update position
+            if symbol in self.positions:
+                position = self.positions[symbol]
+                position['quantity'] -= quantity
+                
+                # Remove position if quantity is zero or negative
+                if position['quantity'] <= 0:
+                    del self.positions[symbol]
 
-    def cancel_order(self, order_id: str, session_id: Optional[str] = None) -> Dict[str, Any]:
-        """Cancel an existing order"""
+    
+    # Update cancel_order to use the order manager
+    async def cancel_order(self, order_id: str, session_id: Optional[str] = None) -> Dict[str, Any]:
+        """Cancel an existing order through the order manager"""
         try:
-            if order_id not in self.orders:
-                return {'success': False, 'error_message': 'Order not found'}
-
-            # Mark order as cancelled
-            self.orders[order_id]['status'] = 'CANCELLED'
-
-            return {'success': True}
+            # Use the user_id if session_id is not provided
+            session_id = session_id or self.user_id
+            
+            success = await self.order_manager.cancel_order(session_id, order_id)
+            
+            if success:
+                return {'success': True}
+            else:
+                return {'success': False, 'error_message': 'Order cancellation failed'}
 
         except Exception as e:
             logger.error(f"Order cancellation error: {e}")
             return {'success': False, 'error_message': str(e)}
-
+        
+    def _update_portfolio_from_order(self, order):
+            """Update portfolio based on order execution"""
+            if order.side == OrderSide.BUY:
+                # Deduct cash
+                self.cash_balance -= order.filled_quantity * order.average_price
+                
+                # Update position
+                if order.symbol not in self.positions:
+                    self.positions[order.symbol] = {
+                        'quantity': 0,
+                        'average_cost': 0
+                    }
+                    
+                position = self.positions[order.symbol]
+                total_cost = position['average_cost'] * position['quantity']
+                new_quantity = position['quantity'] + order.filled_quantity
+                new_total_cost = total_cost + (order.filled_quantity * order.average_price)
+                
+                position['quantity'] = new_quantity
+                position['average_cost'] = new_total_cost / new_quantity if new_quantity > 0 else 0
+                
+            elif order.side == OrderSide.SELL:
+                # Add cash
+                self.cash_balance += order.filled_quantity * order.average_price
+                
+                # Update position
+                if order.symbol in self.positions:
+                    position = self.positions[order.symbol]
+                    position['quantity'] -= order.filled_quantity
+                    
+                    # Remove position if quantity is zero or negative
+                    if position['quantity'] <= 0:
+                        del self.positions[order.symbol]
+                        
     def _calculate_total_portfolio_value(self, market_data: List[Dict]) -> float:
         """Calculate total portfolio value"""
         portfolio_value = self.cash_balance
@@ -216,4 +343,9 @@ class ExchangeManager:
             price = next((md['last_price'] for md in market_data if md['symbol'] == symbol), 0)
             return price
 
-        return self.market_data_generator.get_current_price(symbol)
+        # Use cached market data if available
+        if symbol in self.current_market_data:
+            return self.current_market_data[symbol].get('last_price', 0)
+            
+        return 0  # No price data available
+    

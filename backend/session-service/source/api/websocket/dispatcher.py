@@ -12,6 +12,7 @@ from source.core.session.manager import SessionManager
 from source.api.websocket.exceptions import WebSocketError, ClientError
 from source.api.websocket.emitters import error_emitter
 from source.utils.metrics import track_websocket_message
+from source.utils.tracing import trace
 
 # Import handlers
 from source.api.websocket.handlers import (
@@ -33,6 +34,8 @@ class WebSocketDispatcher:
     def __init__(self, session_manager: SessionManager):
         """Initialize the dispatcher with a session manager."""
         self.session_manager = session_manager
+
+        self.tracer = trace.get_tracer("websocket_dispatcher")
 
         # Register message handlers
         self.message_handlers: Dict[str, HandlerFunc] = {
@@ -97,7 +100,8 @@ class WebSocketDispatcher:
                 client_id=client_id,
                 device_id=device_id,
                 message=message,
-                session_manager=self.session_manager
+                session_manager=self.session_manager,
+                tracer=self.tracer
             )
 
         except WebSocketError as e:

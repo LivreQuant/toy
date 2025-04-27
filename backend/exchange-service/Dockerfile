@@ -1,9 +1,9 @@
+# Updated Dockerfile
 FROM python:3.11-slim
 
 WORKDIR /app
 
 # Install system dependencies
-# Added options to ignore validation date issues sometimes seen in build environments
 RUN apt-get -o Acquire::Check-Valid-Until=false \
     -o Acquire::Check-Date=false update \
     && apt-get -y --no-install-recommends install \
@@ -13,14 +13,11 @@ RUN apt-get -o Acquire::Check-Valid-Until=false \
     && rm -rf /var/lib/apt/lists/*
 
 # --- Added Step ---
-# Upgrade pip and install wheel/setuptools BEFORE installing requirements
-# This fixes build issues for packages like 'thrift' that need build tools
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel
-# --- End Added Step ---
 
-# Copy requirements and install dependencies
+# Copy requirements first to leverage Docker cache
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --prefer-binary -r requirements.txt
 
 # Copy source code
 COPY . .
@@ -28,9 +25,10 @@ COPY . .
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
     LOG_LEVEL=INFO \
-    PYTHONPATH=/app
+    PYTHONPATH=/app \
+    MARKET_DATA_SERVICE_URL=market-data-service:50060
 
-# Expose ports
+# Expose REST & METRIC port
 EXPOSE 50055 9090
 
 # Health check

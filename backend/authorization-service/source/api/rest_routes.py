@@ -23,6 +23,17 @@ def setup_rest_app(auth_manager):
     app.router.add_post('/api/auth/logout', handle_logout(auth_manager))
     app.router.add_post('/api/auth/refresh', handle_refresh_token(auth_manager))
     app.router.add_post('/api/auth/validate', handle_validate_token(auth_manager))
+    
+    app.router.add_post('/api/auth/signup', handle_signup(auth_manager))
+    app.router.add_post('/api/auth/verify-email', handle_verify_email(auth_manager))
+    app.router.add_post('/api/auth/resend-verification', handle_resend_verification(auth_manager))
+    app.router.add_post('/api/auth/forgot-username', handle_forgot_username(auth_manager))
+    app.router.add_post('/api/auth/forgot-password', handle_forgot_password(auth_manager))
+    app.router.add_post('/api/auth/reset-password', handle_reset_password(auth_manager))
+    app.router.add_put('/api/auth/profile', handle_update_profile(auth_manager))
+    app.router.add_post('/api/auth/feedback', handle_feedback(auth_manager))
+    
+    
     app.router.add_get('/health', handle_health_check)
     app.router.add_get('/readiness', handle_readiness_check(auth_manager))
 

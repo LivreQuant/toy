@@ -15,14 +15,15 @@ import { ConnectionStatus } from '../../state/connection-state';
 import { Disposable } from '../../utils/disposable';
 import { EventEmitter } from '../../utils/events';
 
-export interface SocketClientOptions {
+interface SocketClientOptions {
   autoReconnect?: boolean;
   connectTimeout?: number;
+  secureConnection?: boolean;
 }
 
 export class SocketClient implements Disposable {
   private logger = getLogger('SocketClient');
-  
+
   private socket: WebSocket | null = null;
   private tokenManager: TokenManager;
   private status$ = new BehaviorSubject<ConnectionStatus>(ConnectionStatus.DISCONNECTED);
@@ -35,7 +36,8 @@ export class SocketClient implements Disposable {
 
   private options: Required<SocketClientOptions> = {
     autoReconnect: false,
-    connectTimeout: 10000
+    connectTimeout: 10000,
+    secureConnection: config.secureSockets // Default from config
   };
 
   constructor(tokenManager: TokenManager, options?: Partial<SocketClientOptions>) {
@@ -85,6 +87,7 @@ export class SocketClient implements Disposable {
 
       const deviceId = DeviceIdManager.getInstance().getDeviceId();
       const params = new URLSearchParams({ token, deviceId });
+
       const wsUrl = `${config.wsBaseUrl}?${params.toString()}`;
 
       this.socket = new WebSocket(wsUrl);

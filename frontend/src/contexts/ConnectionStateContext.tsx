@@ -1,7 +1,9 @@
 // src/contexts/ConnectionStateContext.tsx
 import React, { createContext, useContext, ReactNode } from 'react';
-import { useObservable } from '../hooks/useObservable';
+
 import { connectionState, ConnectionState, initialConnectionState } from '../state/connection-state';
+
+import { useObservable } from '../hooks/useObservable';
 
 // Create context with default value
 const ConnectionStateContext = createContext<ConnectionState>(initialConnectionState);

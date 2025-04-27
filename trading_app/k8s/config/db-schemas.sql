@@ -1,0 +1,164 @@
+-- PostgreSQL Extensions
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+-- Users Schema
+CREATE SCHEMA IF NOT EXISTS auth;
+
+CREATE TABLE IF NOT EXISTS auth.users (
+    id SERIAL PRIMARY KEY,
+    username VARCHAR(50) UNIQUE NOT NULL,
+    email VARCHAR(100) UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+    first_name VARCHAR(50),
+    last_name VARCHAR(50),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    last_login TIMESTAMP WITH TIME ZONE,
+    is_active BOOLEAN DEFAULT TRUE,
+    user_role VARCHAR(20) DEFAULT 'user' CHECK (user_role IN ('admin', 'user', 'demo'))
+);
+
+-- Add indexes
+CREATE INDEX IF NOT EXISTS idx_users_username ON auth.users(username);
+CREATE INDEX IF NOT EXISTS idx_users_email ON auth.users(email);
+CREATE INDEX IF NOT EXISTS idx_users_role ON auth.users(user_role);
+
+-- User preferences table for app settings
+CREATE TABLE IF NOT EXISTS auth.user_preferences (
+    user_id INTEGER PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    theme VARCHAR(20) DEFAULT 'light',
+    default_simulator_config JSONB,
+    last_modified TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Function to hash passwords
+CREATE OR REPLACE FUNCTION auth.hash_password(password TEXT)
+RETURNS TEXT AS $$
+BEGIN
+    RETURN encode(digest(password || 'trading-simulator-salt', 'sha256'), 'hex');
+END;
+$$ LANGUAGE plpgsql;
+
+-- Token management
+CREATE TABLE IF NOT EXISTS auth.refresh_tokens (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  token_hash TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+  is_revoked BOOLEAN DEFAULT FALSE,
+  CONSTRAINT unique_token UNIQUE (token_hash)
+);
+
+-- Add indexes for performance
+CREATE INDEX IF NOT EXISTS idx_refresh_token_hash ON auth.refresh_tokens(token_hash);
+CREATE INDEX IF NOT EXISTS idx_refresh_token_user_id ON auth.refresh_tokens(user_id);
+
+-- Create cleanup function
+CREATE OR REPLACE FUNCTION auth.cleanup_expired_tokens()
+RETURNS void AS $$
+BEGIN
+  DELETE FROM auth.refresh_tokens 
+  WHERE expires_at < NOW() OR is_revoked = TRUE;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Session Schema
+CREATE SCHEMA IF NOT EXISTS session;
+
+CREATE TABLE IF NOT EXISTS session.active_sessions (
+    session_id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    status TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    last_active TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    token TEXT
+);
+
+-- Add indexes
+CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON session.active_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON session.active_sessions(expires_at);
+
+-- Create session metadata table
+CREATE TABLE IF NOT EXISTS session.session_details (
+    session_id VARCHAR(36) PRIMARY KEY REFERENCES session.active_sessions(session_id) ON DELETE CASCADE,
+    
+    -- Device and connection information
+    device_id VARCHAR(64),
+    user_agent TEXT,
+    ip_address VARCHAR(45),  -- Supports IPv6
+    pod_name VARCHAR(255),
+    
+    -- Status and quality metrics
+    connection_quality VARCHAR(20) CHECK (connection_quality IN ('good', 'degraded', 'poor')),
+    heartbeat_latency INTEGER,
+    missed_heartbeats INTEGER DEFAULT 0,
+    reconnect_count INTEGER DEFAULT 0,
+            
+    -- Timestamps
+    last_reconnect TIMESTAMP WITH TIME ZONE,
+    last_device_update TIMESTAMP WITH TIME ZONE,
+    last_quality_update TIMESTAMP WITH TIME ZONE
+);
+
+-- Index for faster lookups
+CREATE INDEX IF NOT EXISTS idx_session_details_device_id ON session.session_details(device_id);
+
+-- Create cleanup function for expired sessions
+CREATE OR REPLACE FUNCTION session.cleanup_expired_sessions() 
+RETURNS INTEGER AS $$
+DECLARE
+    deleted_count INTEGER;
+BEGIN
+    DELETE FROM session.active_sessions
+    WHERE expires_at < NOW();
+    
+    GET DIAGNOSTICS deleted_count = ROW_COUNT;
+    RETURN deleted_count;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Simulator Schema
+CREATE SCHEMA IF NOT EXISTS simulator;
+
+CREATE TABLE IF NOT EXISTS simulator.instances (
+    simulator_id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL REFERENCES session.active_sessions(session_id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL,
+    status TEXT NOT NULL,
+    endpoint TEXT,
+    exhange_type VARCHAR(20),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    last_active TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Indexes for performance
+CREATE INDEX IF NOT EXISTS idx_simulator_session_id ON simulator.instances(session_id);
+CREATE INDEX IF NOT EXISTS idx_simulator_user_id ON simulator.instances(user_id);
+CREATE INDEX IF NOT EXISTS idx_simulator_status ON simulator.instances(status);
+
+-- Trading Schema
+CREATE SCHEMA IF NOT EXISTS trading;
+
+-- Create orders table if not exists
+CREATE TABLE IF NOT EXISTS trading.orders (
+    order_id UUID PRIMARY KEY,
+    user_id VARCHAR(100) NOT NULL,
+    symbol VARCHAR(20) NOT NULL,
+    side VARCHAR(10) NOT NULL,
+    quantity NUMERIC(18,8) NOT NULL,
+    price NUMERIC(18,8),
+    order_type VARCHAR(20) NOT NULL,
+    status VARCHAR(20) NOT NULL,
+    filled_quantity NUMERIC(18,8) NOT NULL DEFAULT 0,
+    avg_price NUMERIC(18,8) NOT NULL DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    request_id VARCHAR(100),
+    error_message TEXT
+);
+
+-- Create indexes
+CREATE INDEX IF NOT EXISTS idx_orders_user_id ON trading.orders(user_id);
+CREATE INDEX IF NOT EXISTS idx_orders_status ON trading.orders(status);
+CREATE INDEX IF NOT EXISTS idx_orders_created_at ON trading.orders(created_at);

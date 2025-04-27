@@ -13,7 +13,8 @@ from source.core.exchange_manager import ExchangeManager
 
 from source.api.service import ExchangeSimulatorService
 
-from source.api.grpc.exchange_simulator_pb2_grpc import add_ExchangeSimulatorServicer_to_server
+from source.api.grpc.session_exchange_interface_pb2_grpc import add_SessionExchangeSimulatorServicer_to_server
+from source.api.grpc.order_exchange_interface_pb2_grpc import add_OrderExchangeSimulatorServicer_to_server
 
 logger = logging.getLogger('exchange_simulator')
 
@@ -69,7 +70,8 @@ class ExchangeSimulator:
 
         # Create and add service
         self.simulator_service = ExchangeSimulatorService(self.exchange_manager)
-        add_ExchangeSimulatorServicer_to_server(self.simulator_service, self.grpc_server)
+        add_SessionExchangeSimulatorServicer_to_server(self.simulator_service, self.grpc_server)
+        add_OrderExchangeSimulatorServicer_to_server(self.simulator_service, self.grpc_server)
 
         # Bind server to port
         listen_addr = f'{config.server.host}:{config.server.grpc_port}'

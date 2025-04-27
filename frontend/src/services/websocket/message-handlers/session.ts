@@ -18,28 +18,49 @@ export class SessionHandler {
   private responseTimeoutMs = 15000;
   
   constructor(client: SocketClient) {
-    this.client = client;
-    this.logger.info('SessionHandler initialized');
+      this.client = client;
+      this.logger.info('SessionHandler initialized');
   }
-
-  /**
-   * Requests session information from the server
-   */
+  
   public async requestSessionInfo(): Promise<ServerSessionInfoResponse> {
     this.logger.info('Requesting session information');
     
     const requestId = `session-info-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
     const message: ClientSessionInfoRequest = {
-      type: 'request_session',
-      requestId,
-      timestamp: Date.now(),
-      deviceId: DeviceIdManager.getInstance().getDeviceId()
+        type: 'request_session',
+        requestId,
+        timestamp: Date.now(),
+        deviceId: DeviceIdManager.getInstance().getDeviceId()
     };
     
-    return this.sendRequest<ServerSessionInfoResponse>(
-      message, 
-      (msg) => msg.type === 'session_info' && msg.requestId === requestId
-    );
+    try {
+        const response = await this.sendRequest<ServerSessionInfoResponse>(
+            message, 
+            (msg) => msg.type === 'session_info' && msg.requestId === requestId
+        );
+        
+        // Log the full response for debugging
+        this.logger.info('Session info response received', response);
+        
+        // Return the response as-is, with type casting if needed
+        // If we're missing properties, either add them with default values
+        // or use a type assertion to tell TypeScript it's correct
+        return {
+            ...response,
+            success: true, // Add explicit success flag if backend doesn't provide it
+            // Add any missing required properties with default values
+            sessionId: response.sessionId || 'unknown',
+            userId: response.userId || 'unknown',
+            status: response.status || 'active',
+            createdAt: response.createdAt || Date.now(),
+            simulatorId: response.simulatorId || null
+        } as ServerSessionInfoResponse;
+    } catch (error: any) {
+        this.logger.error('Error requesting session info', {
+            error: error instanceof Error ? error.message : String(error)
+        });
+        throw error;
+    }
   }
 
   /**
