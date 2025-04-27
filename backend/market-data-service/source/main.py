@@ -1,55 +1,62 @@
-# src/main.py
+# source/main.py
 import asyncio
 import logging
-import os
 import signal
+import grpc
 import sys
-from datetime import datetime
+import os
 
-from src.config import config
-from src.utils.logging_utils import setup_logging
-from src.generator.market_data_generator import MarketDataGenerator
-from src.distributor.market_data_distributor import MarketDataDistributor
-from src.api.registration_service import RegistrationService
+from source.config import config
+from source.utils.logging_utils import setup_logging
+from source.generator.market_data_generator import MarketDataGenerator
+from source.db.database import DatabaseManager
+from source.api.grpc.market_exchange_interface_pb2_grpc import add_MarketDataServiceServicer_to_server
+from source.market_data_service import MarketDataService
 
-
-async def shutdown(distributor, api_service):
+async def shutdown(service, server):
     """Gracefully shut down all services"""
-    logging.info("Shutting down market data distributor service...")
+    logging.info("Shutting down market data service...")
     
-    # Stop the API service first
-    if api_service:
-        await api_service.shutdown()
+    # Stop the service first
+    if service:
+        await service.stop()
     
-    # Then stop the distributor
-    if distributor:
-        await distributor.stop()
+    # Then stop the server
+    if server:
+        await server.stop(5)  # 5 seconds grace period
     
     logging.info("Shutdown complete")
-
 
 async def main():
     """Main entry point for the application"""
     # Setup logging
     logger = setup_logging()
-    logger.info("Starting market data distributor service")
+    logger.info("Starting market data service")
     
     try:
         # Create the market data generator with configured symbols
         generator = MarketDataGenerator(config.SYMBOLS)
         
-        # Create the distributor
-        distributor = MarketDataDistributor(
+        # Create database manager
+        db_manager = DatabaseManager()
+        
+        # Create the service
+        service = MarketDataService(
             generator=generator,
+            db_manager=db_manager,
             update_interval=config.UPDATE_INTERVAL
         )
         
-        # Create the API service
-        api_service = RegistrationService(
-            distributor=distributor,
-            host=config.API_HOST,
-            port=config.API_PORT
-        )
+        # Create gRPC server
+        server = grpc.aio.server()
+        add_MarketDataServiceServicer_to_server(service, server)
+        
+        # Start server
+        server_addr = f"{config.API_HOST}:{config.API_PORT}"
+        server.add_insecure_port(server_addr)
+        await server.start()
+        
+        logger.info(f"Server started on {server_addr}")
         
         # Set up shutdown handler
         loop = asyncio.get_running_loop()
@@ -57,31 +64,22 @@ async def main():
         for sig in (signal.SIGINT, signal.SIGTERM):
             loop.add_signal_handler(
                 sig,
-                lambda: asyncio.create_task(shutdown(distributor, api_service))
+                lambda: asyncio.create_task(shutdown(service, server))
             )
         
-        # Start the API service
-        await api_service.setup()
+        # Start the service
+        await service.start()
         
-        # Start the distributor
-        await distributor.start()
+        # Keep the server running
+        await server.wait_for_termination()
         
-        # Keep the program running
-        while True:
-            await asyncio.sleep(60)  # Check every minute if we need to stop
-            
-            # Check if we're outside operating hours
-            current_hour = datetime.now().hour
-            if current_hour < config.STARTUP_HOUR or current_hour >= config.SHUTDOWN_HOUR:
-                logger.info("Outside operating hours, service will continue running but data distribution is paused")
-    
     except KeyboardInterrupt:
         logger.info("Interrupted by user")
     except Exception as e:
         logger.error(f"Unhandled exception: {e}", exc_info=True)
     finally:
-        await shutdown(distributor, api_service)
-
+        await shutdown(service if 'service' in locals() else None, 
+                      server if 'server' in locals() else None)
 
 if __name__ == "__main__":
     asyncio.run(main())
