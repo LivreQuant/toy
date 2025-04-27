@@ -1,187 +1,150 @@
-# source/core/market_data_handler.py
-import logging
+# source/core/market_data_client.py
 import asyncio
-import aiohttp
-import socket
-import time
-import os
-from typing import Dict, List, Any, Optional
+import logging
+import grpc
+from typing import Dict, List, Any, Optional, Callable
 
-logger = logging.getLogger('market_data_handler')
+from source.api.grpc.market_exchange_interface_pb2 import SubscriptionRequest
+from source.api.grpc.market_exchange_interface_pb2_grpc import MarketDataServiceStub
+from source.config import config
 
+logger = logging.getLogger('market_data_client')
 
-class MarketDataHandler:
+class MarketDataClient:
     """
-    Handles receiving market data from the distributor
-    and registering with the distributor service.
+    Client for connecting to the market data service and receiving market data updates.
     """
     
-    def __init__(self, exchange_manager):
+    def __init__(self, exchange_manager, symbols=None):
         """
-        Initialize the market data handler.
+        Initialize the market data client
         
         Args:
-            exchange_manager: Reference to the exchange manager
+            exchange_manager: Reference to the exchange manager to receive updates
+            symbols: List of symbols to subscribe to (optional)
         """
         self.exchange_manager = exchange_manager
-        self.distributor_url = os.getenv(
-            'MARKET_DATA_DISTRIBUTOR_URL', 
-            'http://market-data-distributor:50060'
-        )
-        self.registered = False
-        self.registration_task = None
-        self.symbols = self.exchange_manager.default_symbols
+        self.symbols = symbols or config.simulator.default_symbols
+        self.market_data_service_url = config.market_data.service_url
+        self.channel = None
+        self.stub = None
+        self.subscription_stream = None
+        self.subscription_task = None
+        self.running = False
+        self.subscriber_id = f"exchange-simulator-{config.simulator.user_id}"
         
-        # Get hostname and namespace for registration
-        self.hostname = socket.gethostname()
-        self.namespace = os.getenv('POD_NAMESPACE', 'default')
-        self.service_name = os.getenv('SERVICE_NAME', 'exchange-simulator')
-        self.grpc_port = int(os.getenv('GRPC_PORT', '50055'))
-        
-        # Construct fully qualified domain name for this pod
-        self.fqdn = f"{self.hostname}.{self.service_name}.{self.namespace}.svc.cluster.local"
-        
-        logger.info(f"Market data handler initialized with distributor: {self.distributor_url}")
+        logger.info(f"Market data client initialized with service URL: {self.market_data_service_url}")
     
     async def start(self):
-        """Start the market data handler"""
-        # Start a background task to register with the distributor
-        self.registration_task = asyncio.create_task(self._registration_loop())
-        logger.info("Market data handler started")
+        """Start the market data client and subscribe to updates"""
+        if self.running:
+            logger.warning("Market data client is already running")
+            return
+            
+        logger.info("Starting market data client")
+        self.running = True
+        
+        # Start a background task to handle the subscription
+        self.subscription_task = asyncio.create_task(self._subscribe_to_market_data())
     
     async def stop(self):
-        """Stop the market data handler"""
-        if self.registration_task:
-            self.registration_task.cancel()
+        """Stop the market data client"""
+        if not self.running:
+            return
+            
+        logger.info("Stopping market data client")
+        self.running = False
+        
+        # Cancel the subscription task
+        if self.subscription_task:
+            self.subscription_task.cancel()
             try:
-                await self.registration_task
+                await self.subscription_task
             except asyncio.CancelledError:
                 pass
         
-        # Unregister from the distributor
-        if self.registered:
-            await self._unregister()
+        # Close the gRPC channel
+        if self.channel:
+            await self.channel.close()
+            self.channel = None
+            self.stub = None
         
-        logger.info("Market data handler stopped")
+        logger.info("Market data client stopped")
     
-    async def _registration_loop(self):
-        """
-        Background task that periodically registers with the distributor
-        to ensure continued reception of market data.
-        """
-        try:
-            while True:
-                if not self.registered:
-                    registered = await self._register()
-                    if registered:
-                        self.registered = True
-                        logger.info("Successfully registered with market data distributor")
-                    else:
-                        logger.warning("Failed to register with market data distributor, will retry")
+    async def _subscribe_to_market_data(self):
+        """Subscribe to market data updates from the service"""
+        retry_count = 0
+        max_retries = 10
+        retry_delay = 1.0
+        
+        while self.running:
+            try:
+                logger.info(f"Connecting to market data service at {self.market_data_service_url}")
                 
-                # Re-register every 5 minutes to ensure we're still known to the distributor
-                await asyncio.sleep(300)  # 5 minutes
+                # Create a gRPC channel
+                self.channel = grpc.aio.insecure_channel(self.market_data_service_url)
+                self.stub = MarketDataServiceStub(self.channel)
                 
-                # Ping the distributor to check if we're still registered
-                health_check = await self._check_distributor_health()
-                if not health_check:
-                    self.registered = False
-                    logger.warning("Lost connection to market data distributor, will re-register")
+                # Create a subscription request
+                request = SubscriptionRequest(
+                    subscriber_id=self.subscriber_id,
+                    symbols=self.symbols
+                )
+                
+                # Start the subscription
+                subscription_stream = self.stub.SubscribeMarketData(request)
+                
+                logger.info(f"Subscribed to market data for symbols: {self.symbols}")
+                
+                # Process incoming market data updates
+                async for update in subscription_stream:
+                    if not self.running:
+                        break
                     
-        except asyncio.CancelledError:
-            logger.info("Registration loop cancelled")
-        except Exception as e:
-            logger.error(f"Error in registration loop: {e}", exc_info=True)
-            self.registered = False
-            # Restart the loop after a delay
-            await asyncio.sleep(10)
-            self.registration_task = asyncio.create_task(self._registration_loop())
-    
-    async def _register(self) -> bool:
-        """
-        Register this exchange simulator with the market data distributor.
+                    # Convert gRPC format to internal format
+                    market_data = []
+                    for data in update.data:
+                        market_data.append({
+                            'symbol': data.symbol,
+                            'bid': data.bid,
+                            'ask': data.ask,
+                            'bid_size': data.bid_size,
+                            'ask_size': data.ask_size,
+                            'last_price': data.last_price,
+                            'last_size': data.last_size
+                        })
+                    
+                    # Forward the market data to the exchange manager
+                    self.exchange_manager.update_market_data(market_data)
+                    logger.debug(f"Received market data for {len(market_data)} symbols")
+                    
+                    # Reset retry count on successful update
+                    retry_count = 0
+                    retry_delay = 1.0
+                
+                # If we get here, the stream has ended
+                logger.warning("Market data subscription stream ended")
+                
+            except asyncio.CancelledError:
+                logger.info("Market data subscription cancelled")
+                break
+                
+            except Exception as e:
+                retry_count += 1
+                logger.error(f"Error in market data subscription (attempt {retry_count}): {e}")
+                
+                if retry_count >= max_retries:
+                    logger.error("Maximum retry attempts reached, giving up")
+                    break
+                
+                # Exponential backoff for retries
+                await asyncio.sleep(retry_delay)
+                retry_delay = min(retry_delay * 2, 60.0)  # Cap at 60 seconds
+                
+                # Close the channel before retrying
+                if self.channel:
+                    await self.channel.close()
+                    self.channel = None
+                    self.stub = None
         
-        Returns:
-            True if registration was successful, False otherwise
-        """
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    f"{self.distributor_url}/register",
-                    json={
-                        "host": self.fqdn,
-                        "port": self.grpc_port
-                    },
-                    timeout=5.0
-                ) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        logger.info(f"Registered with market data distributor: {data}")
-                        return True
-                    else:
-                        error = await response.text()
-                        logger.error(f"Failed to register with distributor: {error}")
-                        return False
-        except Exception as e:
-            logger.error(f"Error registering with distributor: {e}")
-            return False
-    
-    async def _unregister(self) -> bool:
-        """
-        Unregister this exchange simulator from the market data distributor.
-        
-        Returns:
-            True if unregistration was successful, False otherwise
-        """
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    f"{self.distributor_url}/unregister",
-                    json={"host": self.fqdn},
-                    timeout=5.0
-                ) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        logger.info(f"Unregistered from market data distributor: {data}")
-                        return True
-                    else:
-                        error = await response.text()
-                        logger.error(f"Failed to unregister from distributor: {error}")
-                        return False
-        except Exception as e:
-            logger.error(f"Error unregistering from distributor: {e}")
-            return False
-    
-    async def _check_distributor_health(self) -> bool:
-        """
-        Check if the market data distributor is healthy.
-        
-        Returns:
-            True if the distributor is healthy, False otherwise
-        """
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(
-                    f"{self.distributor_url}/health",
-                    timeout=5.0
-                ) as response:
-                    if response.status == 200:
-                        return True
-                    else:
-                        return False
-        except Exception:
-            return False
-    
-    def process_market_data(self, market_data: List[Dict[str, Any]]):
-        """
-        Process market data received from the distributor.
-        
-        Args:
-            market_data: List of market data records
-        """
-        try:
-            # Update the market data in the exchange manager
-            self.exchange_manager.market_data_generator.update_from_external(market_data)
-            logger.debug(f"Processed market data for {len(market_data)} symbols")
-        except Exception as e:
-            logger.error(f"Error processing market data: {e}")
+        logger.info("Market data subscription task ended")

@@ -1,3 +1,4 @@
+# source/api/service.py
 import logging
 import time
 import grpc
@@ -5,11 +6,10 @@ import asyncio
 from typing import AsyncGenerator
 
 from source.config import config
-
 from source.core.exchange_manager import ExchangeManager
 
 # Import generated protobuf classes
-from source.api.grpc.exchange_simulator_pb2 import (
+from source.api.grpc.session_exchange_interface_pb2 import (
     StreamRequest,
     HeartbeatRequest,
     HeartbeatResponse,
@@ -17,19 +17,22 @@ from source.api.grpc.exchange_simulator_pb2 import (
     MarketData,
     OrderData,
     Position,
-    PortfolioStatus,
+    PortfolioStatus
+)
+from source.api.grpc.session_exchange_interface_pb2_grpc import SessionExchangeSimulatorServicer
+from source.api.grpc.order_exchange_interface_pb2 import (
     SubmitOrderRequest,
     SubmitOrderResponse,
-    CancelOrderRequest,
+    CancelOrderRequest, 
     CancelOrderResponse
 )
-from source.api.grpc.exchange_simulator_pb2_grpc import ExchangeSimulatorServicer
+from source.api.grpc.order_exchange_interface_pb2_grpc import OrderExchangeSimulatorServicer
 from source.api.rest.health import HealthService
 
 logger = logging.getLogger('exchange_simulator')
 
 
-class ExchangeSimulatorService(ExchangeSimulatorServicer):
+class ExchangeSimulatorService(SessionExchangeSimulatorServicer, OrderExchangeSimulatorServicer):
     def __init__(self, exchange_manager: ExchangeManager):
         self.exchange_manager = exchange_manager
         self.last_heartbeat = time.time()
@@ -89,20 +92,9 @@ class ExchangeSimulatorService(ExchangeSimulatorServicer):
     ) -> AsyncGenerator[ExchangeDataUpdate, None]:
         """Stream market data, orders, and portfolio updates"""
         try:
+            client_id = request.client_id
             symbols = request.symbols
-            client_id = request.client_id  # For logging which client connected
         
-            # Check if this is a distributor push or a client subscription
-            if client_id == "market_data_distributor":
-                # This is a push from the market data distributor
-                # Return a single response to acknowledge receipt
-                update = ExchangeDataUpdate(
-                    timestamp=int(time.time() * 1000)
-                )
-                yield update
-                return
-
-            # Original subscription logic for client connections
             logger.info(f"Client {client_id} subscribed to exchange data stream for symbols: {symbols}")
             
             update_count = 0
@@ -159,7 +151,7 @@ class ExchangeSimulatorService(ExchangeSimulatorServicer):
                 yield update
 
                 # Sleep for 60 seconds (1 minute) before generating the next update
-                await asyncio.sleep(60)  # Update interval changed to 1 minute
+                await asyncio.sleep(60)  # Update interval
 
         except asyncio.CancelledError:
             logger.info("Stream data generation cancelled")
@@ -167,6 +159,7 @@ class ExchangeSimulatorService(ExchangeSimulatorServicer):
             logger.error(f"Stream data error: {e}")
             context.set_code(grpc.StatusCode.INTERNAL)
             context.set_details(str(e))
+
 
     async def SubmitOrder(
             self,

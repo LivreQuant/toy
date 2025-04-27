@@ -1,3 +1,4 @@
+# Updated Dockerfile
 FROM python:3.11-slim
 
 WORKDIR /app
@@ -24,7 +25,8 @@ COPY . .
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
     LOG_LEVEL=INFO \
-    PYTHONPATH=/app
+    PYTHONPATH=/app \
+    MARKET_DATA_SERVICE_URL=market-data-service:50060
 
 # Expose REST & METRIC port
 EXPOSE 50055 9090
