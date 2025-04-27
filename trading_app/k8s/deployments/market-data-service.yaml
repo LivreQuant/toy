@@ -1,0 +1,62 @@
+# kubernetes/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: market-data-distributor
+  labels:
+    app: market-data-distributor
+spec:
+  replicas: 1  # Single instance since we want centralized distribution
+  selector:
+    matchLabels:
+      app: market-data-distributor
+  template:
+    metadata:
+      labels:
+        app: market-data-distributor
+    spec:
+      containers:
+      - name: market-data-distributor
+        image: ${YOUR_REGISTRY}/market-data-distributor:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 50060
+          name: http
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "256Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+        env:
+        - name: API_HOST
+          value: "0.0.0.0"
+        - name: API_PORT
+          value: "50060"
+        - name: SYMBOLS
+          value: "AAPL,GOOGL,MSFT,AMZN,TSLA,FB,NVDA,JPM,V,DIS"
+        - name: UPDATE_INTERVAL
+          value: "60"
+        - name: STARTUP_HOUR
+          value: "3"
+        - name: SHUTDOWN_HOUR
+          value: "20"
+        - name: LOG_LEVEL
+          value: "INFO"
+        - name: EXCHANGE_SERVICE_NAME
+          value: "exchange-simulator"
+        - name: EXCHANGE_SERVICE_PORT
+          value: "50055"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 50060
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 50060
+          initialDelaySeconds: 10
+          periodSeconds: 10

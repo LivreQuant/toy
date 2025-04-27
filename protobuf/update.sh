@@ -161,6 +161,14 @@ copy_proto_files "gen/python/main/services" \
                  "Python market data service files copied to Session Service" \
                  "No Python market data service files found for Session Service" \
                  "$PY_PATH_REPLACEMENTS"
+
+# Market Manager
+copy_proto_files "gen/python/main/services" \
+                 "../backend/market-data-service/source/api/grpc" \
+                 "market*.py" \
+                 "Python market data service files copied to Session Service" \
+                 "No Python market data service files found for Session Service" \
+                 "$PY_PATH_REPLACEMENTS"
                 
 # Exchange Manager
 copy_proto_files "gen/python/main/services" \
@@ -173,6 +181,13 @@ copy_proto_files "gen/python/main/services" \
 copy_proto_files "gen/python/main/services" \
                  "../backend/exchange-service/source/api/grpc" \
                  "session*.py" \
+                 "Python market data service files copied to Exchange Manager Service" \
+                 "No Python market data service files found for Exchange Manager Service" \
+                 "$PY_PATH_REPLACEMENTS"
+
+copy_proto_files "gen/python/main/services" \
+                 "../backend/exchange-service/source/api/grpc" \
+                 "market*.py" \
                  "Python market data service files copied to Exchange Manager Service" \
                  "No Python market data service files found for Exchange Manager Service" \
                  "$PY_PATH_REPLACEMENTS"

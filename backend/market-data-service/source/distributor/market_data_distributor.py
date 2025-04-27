@@ -7,10 +7,9 @@ from datetime import datetime
 from typing import Dict, List, Set, Any
 import uuid
 
-# Import the exchange simulator protobuf classes
-# These are from your exchange simulator project
-from source.api.grpc import exchange_simulator_pb2 as pb2
-from source.api.grpc import exchange_simulator_pb2_grpc as pb2_grpc
+import grpc
+from src.distributor.market_data_service import MarketDataServicer
+from src.grpc.market_data_service_pb2_grpc import add_MarketDataServiceServicer_to_server
 
 from src.generator.market_data_generator import MarketDataGenerator
 from src.config import config
@@ -21,7 +20,7 @@ logger = logging.getLogger(__name__)
 class ExchangeSimulatorClient:
     """Client for connecting to an exchange simulator instance"""
     
-    def __init__(self, host: str, port: int):
+    def __init__(self, generator: MarketDataGenerator, update_interval: int = 60, grpc_port: int = 50061):
         """
         Initialize a connection to an exchange simulator.
         
@@ -29,14 +28,17 @@ class ExchangeSimulatorClient:
             host: Host address of the exchange simulator
             port: gRPC port of the exchange simulator
         """
-        self.host = host
-        self.port = port
-        self.address = f"{host}:{port}"
-        self.channel = None
-        self.stub = None
-        self.connected = False
-        self.last_success = 0
-        self.connection_failures = 0
+        self.generator = generator
+        self.update_interval = update_interval
+        self.grpc_port = grpc_port
+        self.clients: Dict[str, ExchangeSimulatorClient] = {}
+        self.clients_lock = asyncio.Lock()
+        self.running = False
+        self.distribution_task = None
+        
+        # gRPC server for streaming market data
+        self.grpc_server = None
+        self.market_data_servicer = MarketDataServicer()
     
     async def connect(self) -> bool:
         """
