@@ -3,7 +3,7 @@ SECTION=$1
 
 if [ -z "$SECTION" ]; then
     echo "Usage: $0 <section>"
-    echo "Sections: storage databases pgbouncer db-init auth session order simulator jaeger ingress monitor all"
+    echo "Sections: storage databases pgbouncer db-init auth session order simulator market jaeger ingress monitor all"
     exit 1
 fi
 
@@ -59,6 +59,11 @@ case $SECTION in
         # Clean up any running simulator pods (they all have simulator-* in their name)
         kubectl delete deployment -l app=exchange-simulator --ignore-not-found=true
         kubectl delete service -l app=exchange-simulator --ignore-not-found=true
+        ;;
+    market)
+        echo "Resetting market data service..."
+        kubectl delete service market-data-service
+        kubectl delete deployment market-data-service
         ;;
     ingress)
         echo "Resetting ingress..."

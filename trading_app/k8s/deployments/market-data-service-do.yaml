@@ -18,8 +18,8 @@ spec:
     spec:
       containers:
       - name: market-data-service
-        image: opentp/market-data-service:latest
-        imagePullPolicy: Never
+        image: registry.digitalocean.com/ff-frontend/market-data-service:latest
+        imagePullPolicy: Always
         ports:
         - containerPort: 50060  # gRPC service port
         - containerPort: 50061  # HTTP health check port
@@ -29,7 +29,10 @@ spec:
         - name: DB_PORT
           value: "5432"
         - name: DB_NAME
-          value: opentp
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: database
         - name: DB_USER
           valueFrom:
             secretKeyRef:

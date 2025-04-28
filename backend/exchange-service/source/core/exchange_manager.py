@@ -4,7 +4,7 @@ import uuid
 from typing import Dict, List, Any, Optional, Tuple
 
 from source.models.enums import OrderSide
-from source.core.market_data_client import MarketDataClient
+from source.core.market_data_manager import MarketDataClient
 from source.core.order_manager import OrderManager
 from source.db.database import DatabaseManager
 
