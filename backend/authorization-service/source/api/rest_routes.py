@@ -10,11 +10,11 @@ from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 
 from source.utils.tracing import optional_trace_span
 
-from source.api.handlers.auth_handlers import handle_login, handle_logout, handle_refresh_token, handle_validate_token
-from source.api.handlers.feedback_handlers import handle_feedback
-from source.api.handlers.password_handlers import handle_reset_password, handle_forgot_password, handle_forgot_username
-from source.api.handlers.profile_handlers import handle_update_profile
-from source.api.handlers.signup_handlers import handle_signup, handle_verify_email, handle_resend_verification
+from source.api.handlers.auth import handle_login, handle_logout, handle_refresh_token, handle_validate_token
+from source.api.handlers.feedback import handle_feedback
+from source.api.handlers.password import handle_reset_password, handle_forgot_password, handle_forgot_username
+from source.api.handlers.profile import handle_update_profile
+from source.api.handlers.signup import handle_signup, handle_verify_email, handle_resend_verification
 
 logger = logging.getLogger('rest_api')
 
