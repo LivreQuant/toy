@@ -41,8 +41,8 @@ case $SECTION in
         ;;
     session)
         echo "Resetting session service..."
-        kubectl delete service session-manager
-        kubectl delete deployment session-manager
+        kubectl delete service session-service
+        kubectl delete deployment session-service
         kubectl delete serviceaccount session-service-account
         kubectl delete role session-service-role
         kubectl delete rolebinding session-service-role-binding

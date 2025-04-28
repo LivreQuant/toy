@@ -23,7 +23,7 @@ from source.api.grpc.session_exchange_interface_pb2 import (
     ExchangeDataUpdate,
     HeartbeatRequest,
 )
-from source.api.grpc.session_exchange_interface_pb2_grpc import ExchangeSimulatorStub
+from source.api.grpc.session_exchange_interface_pb2_grpc import SessionExchangeSimulatorStub
 
 logger = logging.getLogger('exchange_client')
 
@@ -51,7 +51,7 @@ class ExchangeClient(BaseClient):
         # Default exchange type
         self.default_exchange_type = ExchangeType.EQUITIES
 
-    async def get_channel(self, endpoint: str) -> tuple[grpc.aio.Channel, ExchangeSimulatorStub]:
+    async def get_channel(self, endpoint: str) -> tuple[grpc.aio.Channel, SessionExchangeSimulatorStub]:
         """
         Get or create a gRPC channel to the endpoint.
 
@@ -97,7 +97,7 @@ class ExchangeClient(BaseClient):
 
             # Create channel with enhanced options
             channel = grpc.aio.insecure_channel(endpoint, options=options)
-            stub = ExchangeSimulatorStub(channel)
+            stub = SessionExchangeSimulatorStub(channel)
 
             # Store for reuse
             self.channels[endpoint] = channel
