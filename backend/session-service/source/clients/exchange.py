@@ -18,12 +18,12 @@ from source.clients.base import BaseClient
 from source.models.exchange_data import ExchangeType, ExchangeDataUpdate
 from source.core.exchange.factory import ExchangeAdapterFactory
 
-from source.api.grpc.session_exchange_simulator_pb2 import (
+from source.api.grpc.session_exchange_interface_pb2 import (
     StreamRequest,
     ExchangeDataUpdate,
     HeartbeatRequest,
 )
-from source.api.grpc.session_exchange_simulator_pb2_grpc import ExchangeSimulatorStub
+from source.api.grpc.session_exchange_interface_pb2_grpc import ExchangeSimulatorStub
 
 logger = logging.getLogger('exchange_client')
 

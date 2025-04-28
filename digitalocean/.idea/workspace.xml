@@ -5,19 +5,7 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="9d5646a8-a2da-45dc-9e4b-d1bc98db7087" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/../backend/authorization-service/source/core/base_manager.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/../backend/authorization-service/source/core/services/__init__.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/../backend/authorization-service/source/core/services/feedback.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/../backend/authorization-service/source/core/services/login.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/../backend/authorization-service/source/core/services/password.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/../backend/authorization-service/source/core/services/signup.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/../backend/authorization-service/source/core/services/token.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/authorization-service/source/api/rest_routes.py" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/authorization-service/source/api/rest_routes.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/authorization-service/source/core/auth_manager.py" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/authorization-service/source/core/auth_manager.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/authorization-service/source/core/email_manager.py" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/authorization-service/source/core/email_manager.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/authorization-service/source/core/profile_manager.py" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/authorization-service/source/core/profile_manager.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/authorization-service/source/core/token_manager.py" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/authorization-service/source/core/token_manager.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../backend/authorization-service/source/core/verification_manager.py" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/authorization-service/source/core/verification_manager.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../backend/authorization-service/source/db/db_manager.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../backend/authorization-service/source/db/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/authorization-service/source/db/__init__.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../backend/authorization-service/source/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/authorization-service/source/main.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />

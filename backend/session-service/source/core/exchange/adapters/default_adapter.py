@@ -6,7 +6,7 @@ from source.models.exchange_data import (
     ExchangeDataUpdate, ExchangeType, MarketDataItem, 
     OrderItem, PositionItem, PortfolioItem
 )
-from source.api.grpc.session_exchange_simulator_pb2 import ExchangeDataUpdate as GrpcExchangeDataUpdate
+from source.api.grpc.session_exchange_interface_pb2 import ExchangeDataUpdate as GrpcExchangeDataUpdate
 
 class DefaultExchangeAdapter(ExchangeAdapter):
     """Adapter for the default exchange simulator"""

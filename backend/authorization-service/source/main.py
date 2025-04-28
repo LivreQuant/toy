@@ -8,7 +8,7 @@ import sys
 import traceback
 from aiohttp import web
 
-from source.db import DatabaseManager
+from source.db.db_manager import DatabaseManager
 from source.core.auth_manager import AuthManager
 from source.core.email_manager import EmailManager
 from source.core.verification_manager import VerificationManager
@@ -20,32 +20,42 @@ from source.utils.metrics import setup_metrics
 
 # Logging setup function
 def setup_logging():
-    # Create logs directory if it doesn't exist
-    log_dir = '/app/logs'
-
-    os.makedirs(log_dir, exist_ok=True)
-
-    # Configure root logger
+    """Configure application logging with environment-aware paths"""
     logger = logging.getLogger()
-    logger.setLevel(getattr(logging, os.getenv('LOG_LEVEL', 'DEBUG')))  # Set default to DEBUG
+    logger.setLevel(getattr(logging, os.getenv('LOG_LEVEL', 'DEBUG')))
 
-    # Console handler
+    # Console handler (always enabled)
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setFormatter(logging.Formatter(
         '%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s'
     ))
     logger.addHandler(console_handler)
 
-    # Rotating File handler
-    file_handler = logging.handlers.RotatingFileHandler(
-        os.path.join(log_dir, 'auth_service.log'),
-        maxBytes=10 * 1024 * 1024,  # 10 MB
-        backupCount=5
-    )
-    file_handler.setFormatter(logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s'
-    ))
-    logger.addHandler(file_handler)
+    # Try to set up file logging if possible
+    try:
+        # Use an environment-appropriate directory
+        if os.getenv('KUBERNETES_SERVICE_HOST'):
+            # In Kubernetes, use /app/logs
+            log_dir = '/app/logs'
+        else:
+            # Local development - use a directory in the project
+            log_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'logs')
+
+        os.makedirs(log_dir, exist_ok=True)
+
+        # Rotating File handler
+        file_handler = logging.handlers.RotatingFileHandler(
+            os.path.join(log_dir, 'auth_service.log'),
+            maxBytes=10 * 1024 * 1024,  # 10 MB
+            backupCount=5
+        )
+        file_handler.setFormatter(logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s'
+        ))
+        logger.addHandler(file_handler)
+        logger.info(f"File logging enabled at {log_dir}")
+    except Exception as e:
+        logger.warning(f"Could not set up file logging: {e}. Continuing with console logging only.")
 
     return logging.getLogger('auth_service')
 
