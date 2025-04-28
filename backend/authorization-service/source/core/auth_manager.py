@@ -317,7 +317,6 @@ class AuthManager:
                     'valid': False,
                     'error': 'Token validation failed'
                 }
-            
 
     async def signup(self, username, email, password):
         """Handle signup request"""
@@ -375,7 +374,7 @@ class AuthManager:
                     'success': False,
                     'error': "Registration failed"
                 }
-        
+
     async def resend_verification(self, user_id):
         """Resend verification email"""
         with optional_trace_span(self.tracer, "resend_verification") as span:
@@ -633,8 +632,7 @@ class AuthManager:
         async with self.db.pool.acquire() as conn:
             query = "SELECT crypt($1, gen_salt('bf'))"
             return await conn.fetchval(query, password)
-        
-        
+
     async def verify_email(self, user_id, verification_code):
         """Handle email verification request"""
         with optional_trace_span(self.tracer, "verify_email") as span:

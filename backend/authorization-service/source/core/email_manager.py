@@ -1,15 +1,16 @@
 # source/core/email_manager.py
 import logging
+import os
 import aiosmtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-import os
 from jinja2 import Environment, FileSystemLoader
 from opentelemetry import trace
 
 from source.utils.tracing import optional_trace_span
 
 logger = logging.getLogger('email_manager')
+
 
 class EmailManager:
     def __init__(self):

@@ -1,13 +1,12 @@
 # source/core/profile_manager.py
 import logging
-import json
-from datetime import datetime
 from opentelemetry import trace
 
 from source.utils.tracing import optional_trace_span
 from source.utils.metrics import track_profile_update
 
 logger = logging.getLogger('profile_manager')
+
 
 class ProfileManager:
     def __init__(self, db_manager):

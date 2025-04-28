@@ -1,11 +1,20 @@
 # source/db/user_db.py
 import logging
-from opentelemetry import trace
 
 from source.utils.tracing import optional_trace_span
 from source.db.base_manager import BaseDatabaseManager
 
 logger = logging.getLogger('user_db')
+
+
+async def _create_default_profile(conn, user_id):
+    """Create default user profile (internal method)"""
+    query = """
+        INSERT INTO auth.user_profiles (user_id)
+        VALUES ($1)
+    """
+    await conn.execute(query, user_id)
+
 
 class UserDatabaseManager(BaseDatabaseManager):
     async def get_user_by_username(self, username):
@@ -103,7 +112,7 @@ class UserDatabaseManager(BaseDatabaseManager):
                     async with conn.transaction():
                         user_id = await conn.fetchval(query, username, email, password_hash)
                         # Create default profile
-                        await self._create_default_profile(conn, user_id)
+                        await _create_default_profile(conn, user_id)
                     
                     span.set_attribute("success", True)
                     span.set_attribute("user_id", str(user_id))
@@ -113,14 +122,6 @@ class UserDatabaseManager(BaseDatabaseManager):
                 span.set_attribute("success", False)
                 span.set_attribute("error", str(e))
                 raise
-
-    async def _create_default_profile(self, conn, user_id):
-        """Create default user profile (internal method)"""
-        query = """
-            INSERT INTO auth.user_profiles (user_id)
-            VALUES ($1)
-        """
-        await conn.execute(query, user_id)
 
     async def verify_password(self, username, password):
         """Verify user password"""

@@ -1,11 +1,11 @@
 # source/db/verification_db.py
 import logging
-from opentelemetry import trace
 
 from source.utils.tracing import optional_trace_span
 from source.db.base_manager import BaseDatabaseManager
 
 logger = logging.getLogger('verification_db')
+
 
 class VerificationDatabaseManager(BaseDatabaseManager):
     async def update_verification_code(self, user_id, code, expires_at):

@@ -1,11 +1,11 @@
 # source/db/profile_db.py
 import logging
-from opentelemetry import trace
 
 from source.utils.tracing import optional_trace_span
 from source.db.base_manager import BaseDatabaseManager
 
 logger = logging.getLogger('profile_db')
+
 
 class ProfileDatabaseManager(BaseDatabaseManager):
     async def get_user_profile(self, user_id):

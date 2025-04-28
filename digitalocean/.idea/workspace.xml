@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="9d5646a8-a2da-45dc-9e4b-d1bc98db7087" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/../backend/authorization-service/source/db/handlers/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/authorization-service/source/api/handlers/auth_handlers.py" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/authorization-service/source/api/handlers/auth.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/authorization-service/source/api/handlers/feedback_handlers.py" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/authorization-service/source/api/handlers/feedback.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/authorization-service/source/api/handlers/password_handlers.py" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/authorization-service/source/api/handlers/password.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/authorization-service/source/api/handlers/profile_handlers.py" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/authorization-service/source/api/handlers/profile.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/authorization-service/source/api/handlers/signup_handlers.py" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/authorization-service/source/api/handlers/signup.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/authorization-service/source/api/rest_routes.py" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/authorization-service/source/api/rest_routes.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/authorization-service/source/config.py" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/authorization-service/source/config.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/authorization-service/source/core/auth_manager.py" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/authorization-service/source/core/auth_manager.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/authorization-service/source/core/email_manager.py" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/authorization-service/source/core/email_manager.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/authorization-service/source/core/profile_manager.py" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/authorization-service/source/core/profile_manager.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/authorization-service/source/core/token_manager.py" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/authorization-service/source/core/token_manager.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/authorization-service/source/core/verification_manager.py" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/authorization-service/source/core/verification_manager.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/authorization-service/source/db/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/authorization-service/source/db/__init__.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/authorization-service/source/db/auth_db.py" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/authorization-service/source/db/handlers/auth.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/authorization-service/source/db/base_manager.py" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/authorization-service/source/db/base_manager.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/authorization-service/source/db/db_manager.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/authorization-service/source/db/feedback_db.py" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/authorization-service/source/db/handlers/feedback.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/authorization-service/source/db/password_reset_db.py" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/authorization-service/source/db/handlers/password_reset.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/authorization-service/source/db/profile_db.py" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/authorization-service/source/db/handlers/profile.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/authorization-service/source/db/test_schema.sql" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/authorization-service/source/db/user_db.py" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/authorization-service/source/db/handlers/user.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/authorization-service/source/db/verification_db.py" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/authorization-service/source/db/handlers/verification.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../backend/authorization-service/source/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/../backend/authorization-service/source/main.py" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/.." />
+  </component>
+  <component name="ProjectColorInfo"><![CDATA[{
+  "associatedIndex": 7
+}]]></component>
+  <component name="ProjectId" id="2w94OfZd41KNsC2e8FvSgJNL3Pz" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "Python.main.executor": "Run",
+    "RunOnceActivity.OpenProjectViewOnStart": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "git-widget-placeholder": "main",
+    "last_opened_file_path": "/home/samaral/projects/toy/20250325/digitalocean"
+  }
+}]]></component>
+  <component name="RecentsManager">
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/source" />
+    </key>
+  </component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-python-sdk-5a2391486177-d3b881c8e49f-com.jetbrains.pycharm.community.sharedIndexes.bundled-PC-233.13763.11" />
+      </set>
+    </attachedChunks>
+  </component>
+  <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="9d5646a8-a2da-45dc-9e4b-d1bc98db7087" name="Changes" comment="" />
+      <created>1745440424492</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1745440424492</updated>
+    </task>
+    <servers />
+  </component>
+</project>

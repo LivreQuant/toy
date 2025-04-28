@@ -1,11 +1,11 @@
 # source/db/password_reset_db.py
 import logging
-from opentelemetry import trace
 
 from source.utils.tracing import optional_trace_span
 from source.db.base_manager import BaseDatabaseManager
 
 logger = logging.getLogger('password_reset_db')
+
 
 class PasswordResetDatabaseManager(BaseDatabaseManager):
     async def create_password_reset_token(self, user_id, token_hash, expires_at):

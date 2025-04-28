@@ -9,6 +9,7 @@ from source.utils.security import is_strong_password, sanitize_input
 
 logger = logging.getLogger('password_handlers')
 
+
 def handle_forgot_username(auth_manager):
     """Forgot username route handler"""
     tracer = trace.get_tracer("rest_api")
@@ -61,6 +62,7 @@ def handle_forgot_username(auth_manager):
 
     return forgot_username_handler
 
+
 def handle_forgot_password(auth_manager):
     """Forgot password route handler"""
     tracer = trace.get_tracer("rest_api")
@@ -112,6 +114,7 @@ def handle_forgot_password(auth_manager):
                 }, status=500)
 
     return forgot_password_handler
+
 
 def handle_reset_password(auth_manager):
     """Reset password route handler"""

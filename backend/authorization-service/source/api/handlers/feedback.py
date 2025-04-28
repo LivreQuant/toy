@@ -9,6 +9,7 @@ from source.utils.security import sanitize_input
 
 logger = logging.getLogger('feedback_handlers')
 
+
 def handle_feedback(auth_manager):
     """Feedback submission route handler"""
     tracer = trace.get_tracer("rest_api")

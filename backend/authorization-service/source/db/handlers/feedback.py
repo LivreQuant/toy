@@ -1,11 +1,11 @@
 # source/db/feedback_db.py
 import logging
-from opentelemetry import trace
 
 from source.utils.tracing import optional_trace_span
 from source.db.base_manager import BaseDatabaseManager
 
 logger = logging.getLogger('feedback_db')
+
 
 class FeedbackDatabaseManager(BaseDatabaseManager):
     async def save_feedback(self, user_id, feedback_type, title, content):

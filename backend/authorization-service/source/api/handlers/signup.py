@@ -9,6 +9,7 @@ from source.utils.security import is_strong_password, sanitize_input
 
 logger = logging.getLogger('signup_handlers')
 
+
 def handle_signup(auth_manager):
     """Signup route handler"""
     tracer = trace.get_tracer("rest_api")
@@ -78,6 +79,7 @@ def handle_signup(auth_manager):
 
     return signup_handler
 
+
 def handle_verify_email(auth_manager):
     """Email verification route handler"""
     tracer = trace.get_tracer("rest_api")
@@ -131,6 +133,7 @@ def handle_verify_email(auth_manager):
                 }, status=500)
 
     return verify_email_handler
+
 
 def handle_resend_verification(auth_manager):
     """Resend verification code handler"""

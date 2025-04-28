@@ -3,7 +3,6 @@ import random
 import string
 import secrets
 import hashlib
-import time
 import logging
 from datetime import datetime, timedelta
 from opentelemetry import trace
@@ -11,6 +10,7 @@ from opentelemetry import trace
 from source.utils.tracing import optional_trace_span
 
 logger = logging.getLogger('verification_manager')
+
 
 class VerificationManager:
     def __init__(self, db_manager):

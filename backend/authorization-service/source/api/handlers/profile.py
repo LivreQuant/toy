@@ -9,6 +9,7 @@ from source.utils.security import sanitize_input
 
 logger = logging.getLogger('profile_handlers')
 
+
 def handle_update_profile(auth_manager):
     """Profile update route handler"""
     tracer = trace.get_tracer("rest_api")

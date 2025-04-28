@@ -8,8 +8,9 @@ import sys
 import traceback
 from aiohttp import web
 
+from source.db.base_manager import BaseDatabaseManager
+
 from source.core.auth_manager import AuthManager
-from source.db.db_manager import DatabaseManager
 from source.api.rest_routes import setup_rest_app
 from source.utils.tracing import setup_tracing
 from source.utils.metrics import setup_metrics
@@ -69,7 +70,7 @@ async def serve():
 
     try:
         # Create database manager
-        db_manager = DatabaseManager()
+        db_manager = BaseDatabaseManager()
         await db_manager.connect()
         logger.info("Database manager connected successfully")
 

@@ -2,13 +2,13 @@
 import logging
 import json
 import os
-import time
 from aiohttp import web
 from opentelemetry import trace
 
 from source.utils.tracing import optional_trace_span
 
 logger = logging.getLogger('auth_handlers')
+
 
 def handle_login(auth_manager):
     """Login route handler"""
@@ -90,6 +90,7 @@ def handle_login(auth_manager):
                 }, status=500)
 
     return login_handler
+
 
 def handle_logout(auth_manager):
     """Logout route handler"""

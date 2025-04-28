@@ -1,11 +1,11 @@
 # source/db/auth_db.py
 import logging
-from opentelemetry import trace
 
 from source.utils.tracing import optional_trace_span
 from source.db.base_manager import BaseDatabaseManager
 
 logger = logging.getLogger('auth_db')
+
 
 class AuthDatabaseManager(BaseDatabaseManager):
     async def save_refresh_token(self, user_id, token_hash, expires_at):

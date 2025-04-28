@@ -9,6 +9,7 @@ from source.utils.metrics import track_db_connection
 
 logger = logging.getLogger('database')
 
+
 class BaseDatabaseManager:
     def __init__(self):
         self.pool = None
@@ -35,7 +36,7 @@ class BaseDatabaseManager:
                 span.set_attribute("db.user", self.db_config['user'])
                 span.set_attribute("db.host", self.db_config['host'])
                 span.set_attribute("db.port", self.db_config['port'])
-                
+
                 self.pool = await asyncpg.create_pool(
                     min_size=self.min_connections,
                     max_size=self.max_connections,
