@@ -19,7 +19,7 @@ metadata:
     nginx.ingress.kubernetes.io/session-cookie-max-age: "172800"
     nginx.ingress.kubernetes.io/session-cookie-path: "/"
     nginx.ingress.kubernetes.io/session-cookie-samesite: "Lax"
-    nginx.ingress.kubernetes.io/session-cookie-secure: "true"
+    nginx.ingress.kubernetes.io/session-cookie-secure: "false"
     nginx.ingress.kubernetes.io/session-cookie-hash: "sha1"
     # WebSocket settings
     nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
