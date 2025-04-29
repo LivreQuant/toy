@@ -12,8 +12,9 @@ from source.generator.market_data_generator import MarketDataGenerator
 from source.db.database import DatabaseManager
 from source.api.grpc.market_exchange_interface_pb2_grpc import add_MarketDataServiceServicer_to_server
 from source.service.market_data_service import MarketDataService
+from source.service.health import HealthService
 
-async def shutdown(service, server):
+async def shutdown(service, server, health_service):
     """Gracefully shut down all services"""
     logging.info("Shutting down market data service...")
     
@@ -21,6 +22,10 @@ async def shutdown(service, server):
     if service:
         await service.stop()
     
+    # Stop the health service
+    if health_service:
+        await health_service.shutdown()
+
     # Then stop the server
     if server:
         await server.stop(5)  # 5 seconds grace period
@@ -46,7 +51,10 @@ async def main():
             db_manager=db_manager,
             update_interval=config.UPDATE_INTERVAL
         )
-        
+                
+        health_service = HealthService(http_port=50061)
+        await health_service.setup()
+
         # Create gRPC server
         server = grpc.aio.server()
         add_MarketDataServiceServicer_to_server(service, server)
@@ -64,7 +72,7 @@ async def main():
         for sig in (signal.SIGINT, signal.SIGTERM):
             loop.add_signal_handler(
                 sig,
-                lambda: asyncio.create_task(shutdown(service, server))
+                lambda: asyncio.create_task(shutdown(service, server, health_service))
             )
         
         # Start the service
@@ -79,7 +87,9 @@ async def main():
         logger.error(f"Unhandled exception: {e}", exc_info=True)
     finally:
         await shutdown(service if 'service' in locals() else None, 
-                      server if 'server' in locals() else None)
+                       server if 'server' in locals() else None, 
+                       health_service if 'health_service' in locals() else None,)
 
 if __name__ == "__main__":
     asyncio.run(main())
+    
