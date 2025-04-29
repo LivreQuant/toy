@@ -165,3 +165,97 @@ CREATE TABLE IF NOT EXISTS trading.orders (
 CREATE INDEX IF NOT EXISTS idx_orders_user_id ON trading.orders(user_id);
 CREATE INDEX IF NOT EXISTS idx_orders_status ON trading.orders(status);
 CREATE INDEX IF NOT EXISTS idx_orders_created_at ON trading.orders(created_at);
+
+-- Market Data Schema for Minute Bars
+CREATE SCHEMA IF NOT EXISTS marketdata;
+
+-- Create market data table for storing minute bars
+CREATE TABLE IF NOT EXISTS marketdata.market_data (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    timestamp BIGINT NOT NULL,
+    open NUMERIC(18, 8) NOT NULL,
+    high NUMERIC(18, 8) NOT NULL,
+    low NUMERIC(18, 8) NOT NULL,
+    close NUMERIC(18, 8) NOT NULL,
+    volume INTEGER NOT NULL,
+    trade_count INTEGER,
+    vwap NUMERIC(18, 8),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create indexes for efficient queries
+CREATE INDEX IF NOT EXISTS idx_market_data_symbol ON marketdata.market_data(symbol);
+CREATE INDEX IF NOT EXISTS idx_market_data_timestamp ON marketdata.market_data(timestamp);
+CREATE INDEX IF NOT EXISTS idx_market_data_symbol_timestamp ON marketdata.market_data(symbol, timestamp);
+
+-- Create time-based partitioning function (optional but recommended for production)
+CREATE OR REPLACE FUNCTION marketdata.create_partition_for_date(date_val DATE)
+RETURNS VOID AS $$
+DECLARE
+    partition_name TEXT;
+BEGIN
+    partition_name := 'market_data_' || to_char(date_val, 'YYYY_MM_DD');
+    
+    EXECUTE format('
+        CREATE TABLE IF NOT EXISTS marketdata.%I
+        (
+            CONSTRAINT %I_pkey PRIMARY KEY (id),
+            CONSTRAINT %I_date_check CHECK (timestamp >= %s AND timestamp < %s)
+        ) INHERITS (marketdata.market_data);
+    ', 
+    partition_name, 
+    partition_name, 
+    partition_name,
+    quote_literal(extract(epoch from date_val) * 1000),
+    quote_literal(extract(epoch from (date_val + interval '1 day')) * 1000));
+    
+    -- Create indexes on the partition
+    EXECUTE format('
+        CREATE INDEX IF NOT EXISTS idx_%I_symbol ON marketdata.%I(symbol);
+        CREATE INDEX IF NOT EXISTS idx_%I_timestamp ON marketdata.%I(timestamp);
+    ', 
+    partition_name, partition_name,
+    partition_name, partition_name);
+END;
+$$ LANGUAGE plpgsql;
+
+-- Create function to ensure the right partition exists for a given timestamp
+CREATE OR REPLACE FUNCTION marketdata.insert_market_data_trigger()
+RETURNS TRIGGER AS $$
+DECLARE
+    partition_date DATE;
+    partition_name TEXT;
+BEGIN
+    -- Convert timestamp (in milliseconds) to date
+    partition_date := to_timestamp(NEW.timestamp / 1000)::date;
+    partition_name := 'market_data_' || to_char(partition_date, 'YYYY_MM_DD');
+    
+    -- Create partition if it doesn't exist
+    PERFORM marketdata.create_partition_for_date(partition_date);
+    
+    -- Insert into the partition
+    EXECUTE format('
+        INSERT INTO marketdata.%I (
+            symbol, timestamp, open, high, low, close, 
+            volume, trade_count, vwap, created_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+    ', partition_name)
+    USING NEW.symbol, NEW.timestamp, NEW.open, NEW.high, NEW.low, NEW.close,
+          NEW.volume, NEW.trade_count, NEW.vwap, NEW.created_at;
+    
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Create the trigger
+CREATE TRIGGER insert_market_data_trigger
+    BEFORE INSERT ON marketdata.market_data
+    FOR EACH ROW EXECUTE FUNCTION marketdata.insert_market_data_trigger();
+
+-- Grant permissions
+GRANT USAGE ON SCHEMA marketdata TO opentp;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA marketdata TO opentp;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA marketdata TO opentp;
+ALTER DEFAULT PRIVILEGES IN SCHEMA marketdata GRANT ALL ON TABLES TO opentp;
+ALTER DEFAULT PRIVILEGES IN SCHEMA marketdata GRANT ALL ON SEQUENCES TO opentp;

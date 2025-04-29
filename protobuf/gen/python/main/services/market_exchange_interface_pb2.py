@@ -13,7 +13,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n-main/services/market_exchange_interface.proto\x12\x0bmarket_data\"T\n\x13SubscriptionRequest\x12#\n\rsubscriber_id\x18\x01 \x01(\tR\x0csubscriberId\x12\x18\n\x07symbols\x18\x02 \x03(\tR\x07symbols\"]\n\x10MarketDataUpdate\x12\x1c\n\ttimestamp\x18\x01 \x01(\x03R\ttimestamp\x12+\n\x04\x64\x61ta\x18\x02 \x03(\x0b\x32\x17.market_data.SymbolDataR\x04\x64\x61ta\"\xba\x01\n\nSymbolData\x12\x16\n\x06symbol\x18\x01 \x01(\tR\x06symbol\x12\x10\n\x03\x62id\x18\x02 \x01(\x01R\x03\x62id\x12\x10\n\x03\x61sk\x18\x03 \x01(\x01R\x03\x61sk\x12\x19\n\x08\x62id_size\x18\x04 \x01(\x05R\x07\x62idSize\x12\x19\n\x08\x61sk_size\x18\x05 \x01(\x05R\x07\x61skSize\x12\x1d\n\nlast_price\x18\x06 \x01(\x01R\tlastPrice\x12\x1b\n\tlast_size\x18\x07 \x01(\x05R\x08lastSize2m\n\x11MarketDataService\x12X\n\x13SubscribeMarketData\x12 .market_data.SubscriptionRequest\x1a\x1d.market_data.MarketDataUpdate0\x01\x42w\n\x0f\x63om.market_dataB\x1cMarketExchangeInterfaceProtoP\x01\xa2\x02\x03MXX\xaa\x02\nMarketData\xca\x02\nMarketData\xe2\x02\x16MarketData\\GPBMetadata\xea\x02\nMarketDatab\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n-main/services/market_exchange_interface.proto\x12\x0bmarket_data\"T\n\x13SubscriptionRequest\x12#\n\rsubscriber_id\x18\x01 \x01(\tR\x0csubscriberId\x12\x18\n\x07symbols\x18\x02 \x03(\tR\x07symbols\"]\n\x10MarketDataUpdate\x12\x1c\n\ttimestamp\x18\x01 \x01(\x03R\ttimestamp\x12+\n\x04\x64\x61ta\x18\x02 \x03(\x0b\x32\x17.market_data.SymbolDataR\x04\x64\x61ta\"\xc1\x01\n\nSymbolData\x12\x16\n\x06symbol\x18\x01 \x01(\tR\x06symbol\x12\x12\n\x04open\x18\x02 \x01(\x01R\x04open\x12\x12\n\x04high\x18\x03 \x01(\x01R\x04high\x12\x10\n\x03low\x18\x04 \x01(\x01R\x03low\x12\x14\n\x05\x63lose\x18\x05 \x01(\x01R\x05\x63lose\x12\x16\n\x06volume\x18\x06 \x01(\x05R\x06volume\x12\x1f\n\x0btrade_count\x18\x07 \x01(\x05R\ntradeCount\x12\x12\n\x04vwap\x18\x08 \x01(\x01R\x04vwap2m\n\x11MarketDataService\x12X\n\x13SubscribeMarketData\x12 .market_data.SubscriptionRequest\x1a\x1d.market_data.MarketDataUpdate0\x01\x42w\n\x0f\x63om.market_dataB\x1cMarketExchangeInterfaceProtoP\x01\xa2\x02\x03MXX\xaa\x02\nMarketData\xca\x02\nMarketData\xe2\x02\x16MarketData\\GPBMetadata\xea\x02\nMarketDatab\x06proto3')
 
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, globals())
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'main.services.market_exchange_interface_pb2', globals())
@@ -26,7 +26,7 @@ if _descriptor._USE_C_DESCRIPTORS == False:
   _MARKETDATAUPDATE._serialized_start=148
   _MARKETDATAUPDATE._serialized_end=241
   _SYMBOLDATA._serialized_start=244
-  _SYMBOLDATA._serialized_end=430
-  _MARKETDATASERVICE._serialized_start=432
-  _MARKETDATASERVICE._serialized_end=541
+  _SYMBOLDATA._serialized_end=437
+  _MARKETDATASERVICE._serialized_start=439
+  _MARKETDATASERVICE._serialized_end=548
 # @@protoc_insertion_point(module_scope)

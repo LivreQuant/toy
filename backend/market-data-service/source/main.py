@@ -11,7 +11,7 @@ from source.utils.logging_utils import setup_logging
 from source.generator.market_data_generator import MarketDataGenerator
 from source.db.database import DatabaseManager
 from source.api.grpc.market_exchange_interface_pb2_grpc import add_MarketDataServiceServicer_to_server
-from source.market_data_service import MarketDataService
+from source.service.market_data_service import MarketDataService
 
 async def shutdown(service, server):
     """Gracefully shut down all services"""

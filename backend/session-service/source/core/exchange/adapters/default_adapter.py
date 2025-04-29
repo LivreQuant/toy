@@ -25,12 +25,13 @@ class DefaultExchangeAdapter(ExchangeAdapter):
             exchange_data.market_data.append(
                 MarketDataItem(
                     symbol=item.symbol,
-                    bid=item.bid,
-                    ask=item.ask,
-                    bid_size=item.bid_size,
-                    ask_size=item.ask_size,
-                    last_price=item.last_price,
-                    last_size=item.last_size,
+                    open=item.open,
+                    high=item.high,
+                    low=item.low,
+                    close=item.close,
+                    volume=item.volume,
+                    trade_count=item.trade_count,
+                    vwap=item.vwap,
                 )
             )
         

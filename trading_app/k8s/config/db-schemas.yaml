@@ -83,6 +83,37 @@ data:
 
     -- Grant permissions on the refresh_tokens table
     GRANT ALL PRIVILEGES ON TABLE auth.refresh_tokens TO opentp;
+      
+  market_data.sql: |
+      -- Market Data Schema for Minute Bars
+      CREATE SCHEMA IF NOT EXISTS marketdata;
+      
+      -- Create market data table for storing minute bars
+      CREATE TABLE IF NOT EXISTS marketdata.market_data (
+          id SERIAL PRIMARY KEY,
+          symbol VARCHAR(20) NOT NULL,
+          timestamp BIGINT NOT NULL,
+          open NUMERIC(18, 8) NOT NULL,
+          high NUMERIC(18, 8) NOT NULL,
+          low NUMERIC(18, 8) NOT NULL,
+          close NUMERIC(18, 8) NOT NULL,
+          volume INTEGER NOT NULL,
+          trade_count INTEGER,
+          vwap NUMERIC(18, 8),
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+      
+      -- Create indexes for efficient queries
+      CREATE INDEX IF NOT EXISTS idx_market_data_symbol ON marketdata.market_data(symbol);
+      CREATE INDEX IF NOT EXISTS idx_market_data_timestamp ON marketdata.market_data(timestamp);
+      CREATE INDEX IF NOT EXISTS idx_market_data_symbol_timestamp ON marketdata.market_data(symbol, timestamp);
+      
+      -- Grant permissions
+      GRANT USAGE ON SCHEMA marketdata TO opentp;
+      GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA marketdata TO opentp;
+      GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA marketdata TO opentp;
+      ALTER DEFAULT PRIVILEGES IN SCHEMA marketdata GRANT ALL ON TABLES TO opentp;
+      ALTER DEFAULT PRIVILEGES IN SCHEMA marketdata GRANT ALL ON SEQUENCES TO opentp;
 
   sessions.sql: |
     CREATE SCHEMA IF NOT EXISTS session;

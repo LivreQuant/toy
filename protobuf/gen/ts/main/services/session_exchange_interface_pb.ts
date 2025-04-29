@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file main/services/session_exchange_interface.proto.
  */
 export const file_main_services_session_exchange_interface: GenFile = /*@__PURE__*/
-  fileDesc("Ci5tYWluL3NlcnZpY2VzL3Nlc3Npb25fZXhjaGFuZ2VfaW50ZXJmYWNlLnByb3RvEhBzZXNzaW9uX2V4Y2hhbmdlIkcKDVN0cmVhbVJlcXVlc3QSEgoKc2Vzc2lvbl9pZBgBIAEoCRIRCgljbGllbnRfaWQYAiABKAkSDwoHc3ltYm9scxgDIAMoCSLCAQoSRXhjaGFuZ2VEYXRhVXBkYXRlEhEKCXRpbWVzdGFtcBgBIAEoAxIxCgttYXJrZXRfZGF0YRgCIAMoCzIcLnNlc3Npb25fZXhjaGFuZ2UuTWFya2V0RGF0YRIwCgtvcmRlcnNfZGF0YRgDIAMoCzIbLnNlc3Npb25fZXhjaGFuZ2UuT3JkZXJEYXRhEjQKCXBvcnRmb2xpbxgEIAEoCzIhLnNlc3Npb25fZXhjaGFuZ2UuUG9ydGZvbGlvU3RhdHVzIoEBCgpNYXJrZXREYXRhEg4KBnN5bWJvbBgBIAEoCRILCgNiaWQYAiABKAESCwoDYXNrGAMgASgBEhAKCGJpZF9zaXplGAQgASgFEhAKCGFza19zaXplGAUgASgFEhIKCmxhc3RfcHJpY2UYBiABKAESEQoJbGFzdF9zaXplGAcgASgFIm0KCU9yZGVyRGF0YRIQCghvcmRlcl9pZBgBIAEoCRIOCgZzeW1ib2wYAiABKAkSDgoGc3RhdHVzGAMgASgJEhcKD2ZpbGxlZF9xdWFudGl0eRgEIAEoBRIVCg1hdmVyYWdlX3ByaWNlGAUgASgBImsKD1BvcnRmb2xpb1N0YXR1cxItCglwb3NpdGlvbnMYASADKAsyGi5zZXNzaW9uX2V4Y2hhbmdlLlBvc2l0aW9uEhQKDGNhc2hfYmFsYW5jZRgCIAEoARITCgt0b3RhbF92YWx1ZRgDIAEoASJYCghQb3NpdGlvbhIOCgZzeW1ib2wYASABKAkSEAoIcXVhbnRpdHkYAiABKAUSFAoMYXZlcmFnZV9jb3N0GAMgASgBEhQKDG1hcmtldF92YWx1ZRgEIAEoASIsChBIZWFydGJlYXRSZXF1ZXN0EhgKEGNsaWVudF90aW1lc3RhbXAYAyABKAMiPgoRSGVhcnRiZWF0UmVzcG9uc2USDwoHc3VjY2VzcxgBIAEoCBIYChBzZXJ2ZXJfdGltZXN0YW1wGAIgASgDMs8BChhTZXNzaW9uRXhjaGFuZ2VTaW11bGF0b3ISXQoSU3RyZWFtRXhjaGFuZ2VEYXRhEh8uc2Vzc2lvbl9leGNoYW5nZS5TdHJlYW1SZXF1ZXN0GiQuc2Vzc2lvbl9leGNoYW5nZS5FeGNoYW5nZURhdGFVcGRhdGUwARJUCglIZWFydGJlYXQSIi5zZXNzaW9uX2V4Y2hhbmdlLkhlYXJ0YmVhdFJlcXVlc3QaIy5zZXNzaW9uX2V4Y2hhbmdlLkhlYXJ0YmVhdFJlc3BvbnNlQpEBChRjb20uc2Vzc2lvbl9leGNoYW5nZUIdU2Vzc2lvbkV4Y2hhbmdlSW50ZXJmYWNlUHJvdG9QAaICA1NYWKoCD1Nlc3Npb25FeGNoYW5nZcoCD1Nlc3Npb25FeGNoYW5nZeICG1Nlc3Npb25FeGNoYW5nZVxHUEJNZXRhZGF0YeoCD1Nlc3Npb25FeGNoYW5nZWIGcHJvdG8z");
+  fileDesc("Ci5tYWluL3NlcnZpY2VzL3Nlc3Npb25fZXhjaGFuZ2VfaW50ZXJmYWNlLnByb3RvEhBzZXNzaW9uX2V4Y2hhbmdlIkcKDVN0cmVhbVJlcXVlc3QSEgoKc2Vzc2lvbl9pZBgBIAEoCRIRCgljbGllbnRfaWQYAiABKAkSDwoHc3ltYm9scxgDIAMoCSLCAQoSRXhjaGFuZ2VEYXRhVXBkYXRlEhEKCXRpbWVzdGFtcBgBIAEoAxIxCgttYXJrZXRfZGF0YRgCIAMoCzIcLnNlc3Npb25fZXhjaGFuZ2UuTWFya2V0RGF0YRIwCgtvcmRlcnNfZGF0YRgDIAMoCzIbLnNlc3Npb25fZXhjaGFuZ2UuT3JkZXJEYXRhEjQKCXBvcnRmb2xpbxgEIAEoCzIhLnNlc3Npb25fZXhjaGFuZ2UuUG9ydGZvbGlvU3RhdHVzIocBCgpNYXJrZXREYXRhEg4KBnN5bWJvbBgBIAEoCRIMCgRvcGVuGAIgASgBEgwKBGhpZ2gYAyABKAESCwoDbG93GAQgASgBEg0KBWNsb3NlGAUgASgBEg4KBnZvbHVtZRgGIAEoBRITCgt0cmFkZV9jb3VudBgHIAEoBRIMCgR2d2FwGAggASgBIm0KCU9yZGVyRGF0YRIQCghvcmRlcl9pZBgBIAEoCRIOCgZzeW1ib2wYAiABKAkSDgoGc3RhdHVzGAMgASgJEhcKD2ZpbGxlZF9xdWFudGl0eRgEIAEoBRIVCg1hdmVyYWdlX3ByaWNlGAUgASgBImsKD1BvcnRmb2xpb1N0YXR1cxItCglwb3NpdGlvbnMYASADKAsyGi5zZXNzaW9uX2V4Y2hhbmdlLlBvc2l0aW9uEhQKDGNhc2hfYmFsYW5jZRgCIAEoARITCgt0b3RhbF92YWx1ZRgDIAEoASJYCghQb3NpdGlvbhIOCgZzeW1ib2wYASABKAkSEAoIcXVhbnRpdHkYAiABKAUSFAoMYXZlcmFnZV9jb3N0GAMgASgBEhQKDG1hcmtldF92YWx1ZRgEIAEoASIsChBIZWFydGJlYXRSZXF1ZXN0EhgKEGNsaWVudF90aW1lc3RhbXAYAyABKAMiPgoRSGVhcnRiZWF0UmVzcG9uc2USDwoHc3VjY2VzcxgBIAEoCBIYChBzZXJ2ZXJfdGltZXN0YW1wGAIgASgDMs8BChhTZXNzaW9uRXhjaGFuZ2VTaW11bGF0b3ISXQoSU3RyZWFtRXhjaGFuZ2VEYXRhEh8uc2Vzc2lvbl9leGNoYW5nZS5TdHJlYW1SZXF1ZXN0GiQuc2Vzc2lvbl9leGNoYW5nZS5FeGNoYW5nZURhdGFVcGRhdGUwARJUCglIZWFydGJlYXQSIi5zZXNzaW9uX2V4Y2hhbmdlLkhlYXJ0YmVhdFJlcXVlc3QaIy5zZXNzaW9uX2V4Y2hhbmdlLkhlYXJ0YmVhdFJlc3BvbnNlQpEBChRjb20uc2Vzc2lvbl9leGNoYW5nZUIdU2Vzc2lvbkV4Y2hhbmdlSW50ZXJmYWNlUHJvdG9QAaICA1NYWKoCD1Nlc3Npb25FeGNoYW5nZcoCD1Nlc3Npb25FeGNoYW5nZeICG1Nlc3Npb25FeGNoYW5nZVxHUEJNZXRhZGF0YeoCD1Nlc3Npb25FeGNoYW5nZWIGcHJvdG8z");
 
 /**
  * @generated from message session_exchange.StreamRequest
@@ -81,34 +81,39 @@ export type MarketData = Message<"session_exchange.MarketData"> & {
   symbol: string;
 
   /**
-   * @generated from field: double bid = 2;
+   * @generated from field: double open = 2;
    */
-  bid: number;
+  open: number;
 
   /**
-   * @generated from field: double ask = 3;
+   * @generated from field: double high = 3;
    */
-  ask: number;
+  high: number;
 
   /**
-   * @generated from field: int32 bid_size = 4;
+   * @generated from field: double low = 4;
    */
-  bidSize: number;
+  low: number;
 
   /**
-   * @generated from field: int32 ask_size = 5;
+   * @generated from field: double close = 5;
    */
-  askSize: number;
+  close: number;
 
   /**
-   * @generated from field: double last_price = 6;
+   * @generated from field: int32 volume = 6;
    */
-  lastPrice: number;
+  volume: number;
 
   /**
-   * @generated from field: int32 last_size = 7;
+   * @generated from field: int32 trade_count = 7;
    */
-  lastSize: number;
+  tradeCount: number;
+
+  /**
+   * @generated from field: double vwap = 8;
+   */
+  vwap: number;
 };
 
 /**

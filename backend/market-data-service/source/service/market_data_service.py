@@ -105,12 +105,13 @@ class MarketDataService(MarketDataServiceServicer):
         for md in market_data:
             symbol_data = SymbolData(
                 symbol=md['symbol'],
-                bid=md['bid'],
-                ask=md['ask'],
-                bid_size=md['bid_size'],
-                ask_size=md['ask_size'],
-                last_price=md['last_price'],
-                last_size=md['last_size']
+                open=md['open'],
+                high=md['high'],
+                low=md['low'],
+                close=md['close'],
+                volume=md['volume'],
+                trade_count=md.get('trade_count', 0),
+                vwap=md.get('vwap', 0.0)
             )
             symbol_data_list.append(symbol_data)
         
@@ -166,12 +167,13 @@ class MarketDataService(MarketDataServiceServicer):
         for md in market_data:
             symbol_data = SymbolData(
                 symbol=md['symbol'],
-                bid=md['bid'],
-                ask=md['ask'],
-                bid_size=md['bid_size'],
-                ask_size=md['ask_size'],
-                last_price=md['last_price'],
-                last_size=md['last_size']
+                open=md['open'],
+                high=md['high'],
+                low=md['low'],
+                close=md['close'],
+                volume=md['volume'],
+                trade_count=md.get('trade_count', 0),
+                vwap=md.get('vwap', 0.0)
             )
             symbol_data_list.append(symbol_data)
         
@@ -198,3 +200,4 @@ class MarketDataService(MarketDataServiceServicer):
                 
         # Return value is ignored for server streaming RPCs
         return None
+    

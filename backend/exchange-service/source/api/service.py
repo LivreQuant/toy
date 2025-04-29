@@ -111,16 +111,17 @@ class ExchangeSimulatorService(SessionExchangeSimulatorServicer, OrderExchangeSi
                     timestamp=int(time.time() * 1000)
                 )
 
-                # Add market data
+                # Add market data (updated for minute bars)
                 for md in market_data:
                     update.market_data.append(MarketData(
                         symbol=md['symbol'],
-                        bid=md['bid'],
-                        ask=md['ask'],
-                        bid_size=md['bid_size'],
-                        ask_size=md['ask_size'],
-                        last_price=md['last_price'],
-                        last_size=md['last_size']
+                        open=md['open'],
+                        high=md['high'],
+                        low=md['low'],
+                        close=md['close'],
+                        volume=md['volume'],
+                        trade_count=md.get('trade_count', 0),
+                        vwap=md.get('vwap', 0.0)
                     ))
 
                 # Add order data

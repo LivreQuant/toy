@@ -142,7 +142,7 @@ class ExchangeManager:
         if not market_data:
             logger.warning("No market data available yet")
             # Create minimal placeholder data
-            market_data = [{'symbol': s, 'bid': 0, 'ask': 0, 'bid_size': 0, 'ask_size': 0, 'last_price': 0, 'last_size': 0} for s in symbols]
+            market_data = [{'symbol': s, 'open': 0, 'high': 0, 'low': 0, 'close': 0, 'volume': 0, 'trade_count': 0, 'vwap': 0} for s in symbols]
 
         # Generate portfolio data
         portfolio_data = {
@@ -340,12 +340,13 @@ class ExchangeManager:
     ) -> float:
         """Get current market price for a symbol"""
         if market_data:
-            price = next((md['last_price'] for md in market_data if md['symbol'] == symbol), 0)
+            price = next((md['close'] for md in market_data if md['symbol'] == symbol), 0)
             return price
 
         # Use cached market data if available
         if symbol in self.current_market_data:
-            return self.current_market_data[symbol].get('last_price', 0)
+            return self.current_market_data[symbol].get('close', 0)
             
         return 0  # No price data available
+
     

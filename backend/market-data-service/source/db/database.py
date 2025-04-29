@@ -58,7 +58,7 @@ class DatabaseManager:
 
     async def save_market_data(self, market_data: List[Dict[str, Any]]):
         """
-        Save market data to the existing market_data table
+        Save market data to the market_data table
         
         Args:
             market_data: List of market data records
@@ -73,10 +73,10 @@ class DatabaseManager:
                 async with conn.transaction():
                     # Prepare batch insert statement
                     stmt = await conn.prepare('''
-                        INSERT INTO market_data(
-                            symbol, timestamp, bid, ask, bid_size, ask_size, 
-                            last_price, last_size, volume, open, high, low, close
-                        ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+                        INSERT INTO marketdata.market_data(
+                            symbol, timestamp, open, high, low, close, 
+                            volume, trade_count, vwap
+                        ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9)
                     ''')
                     
                     # Execute batch insert
@@ -84,17 +84,13 @@ class DatabaseManager:
                         (
                             md['symbol'],
                             md['timestamp'],
-                            md['bid'],
-                            md['ask'],
-                            md['bid_size'],
-                            md['ask_size'],
-                            md['last_price'],
-                            md['last_size'],
-                            md.get('volume', 0),
-                            md.get('open', 0.0),
-                            md.get('high', 0.0),
-                            md.get('low', 0.0),
-                            md.get('close', 0.0)
+                            md['open'],
+                            md['high'],
+                            md['low'],
+                            md['close'],
+                            md['volume'],
+                            md.get('trade_count', 0),
+                            md.get('vwap', 0.0)
                         )
                         for md in market_data
                     ]
@@ -107,3 +103,4 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Error saving market data to database: {e}")
             return False
+        

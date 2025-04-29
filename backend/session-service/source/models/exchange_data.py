@@ -39,12 +39,13 @@ class OrderStatus(str, Enum):
 class MarketDataItem(BaseModel):
     """Standardized market data item"""
     symbol: str
-    bid: float
-    ask: float
-    bid_size: int = 0
-    ask_size: int = 0
-    last_price: Optional[float] = None
-    last_size: Optional[int] = None
+    open: float
+    high: float
+    low: float
+    close: float
+    volume: int
+    trade_count: int
+    vwap: float
     exchange_type: ExchangeType = ExchangeType.GENERIC
     
     # Additional fields for different exchange types
