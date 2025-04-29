@@ -92,15 +92,28 @@ class SessionManager:
             self.exchange_data_callbacks.remove(callback)
             logger.debug(f"Unregistered exchange data callback, remaining: {len(self.exchange_data_callbacks)}")
 
-    async def _handle_exchange_data(self, data: Dict[str, Any]):
+    async def _handle_exchange_data(self, data):
         """
         Handle incoming exchange data by forwarding to all registered callbacks
 
         Args:
-            data: Exchange data dictionary
+            data: Exchange data (can be dict or ExchangeDataUpdate object)
         """
-        data_id = f"{data.get('timestamp', time.time())}-{hash(str(data))}"
-        logger.info(f"Session manager processing exchange data [ID: {data_id}] with {len(self.exchange_data_callbacks)} callbacks")
+        # Handle both dict and ExchangeDataUpdate objects
+        if hasattr(data, 'to_dict'):
+            # It's a Pydantic model
+            timestamp = getattr(data, 'timestamp', time.time())
+            update_id = getattr(data, 'update_id', '')
+            data_id = f"{timestamp}-{update_id}"
+            
+            # Convert to dict for processing if needed
+            data_dict = data.to_dict() if hasattr(data, 'to_dict') and callable(data.to_dict) else {}
+            logger.info(f"Session manager processing exchange data [ID: {data_id}] as ExchangeDataUpdate with {len(self.exchange_data_callbacks)} callbacks")
+        else:
+            # It's a dictionary
+            data_id = f"{data.get('timestamp', time.time())}-{hash(str(data))}"
+            data_dict = data
+            logger.info(f"Session manager processing exchange data [ID: {data_id}] as dict with {len(self.exchange_data_callbacks)} callbacks")
 
         # Check if this data has already been processed recently
         if data_id in self._recent_data_cache:
@@ -115,8 +128,22 @@ class SessionManager:
             oldest_key = min(self._recent_data_cache, key=self._recent_data_cache.get)
             del self._recent_data_cache[oldest_key]
 
-        tasks = []
+        # Check if there are any callbacks registered
+        if len(self.exchange_data_callbacks) == 0:
+            logger.warning("No callbacks registered for exchange data!")
+            return
 
+        # Log data details for debugging
+        if hasattr(data, 'market_data'):
+            has_market_data = len(getattr(data, 'market_data', [])) > 0
+        elif isinstance(data, dict):
+            has_market_data = 'market_data' in data_dict or 'marketData' in data_dict
+        else:
+            has_market_data = False
+            
+        logger.info(f"Data details: type={type(data)}, contains market data: {has_market_data}")
+
+        tasks = []
         for idx, callback in enumerate(list(self.exchange_data_callbacks)):
             try:
                 # Check if callback is a coroutine function
@@ -134,7 +161,7 @@ class SessionManager:
             logger.debug(f"Waiting for {len(tasks)} async callbacks to complete for data [ID: {data_id}]")
             await asyncio.gather(*tasks, return_exceptions=True)
             logger.debug(f"All async callbacks completed for data [ID: {data_id}]")
-
+            
     # ----- Public API methods -----
     async def get_session(self):
         """
@@ -257,13 +284,8 @@ class SessionManager:
 
             if not connected:
                 logger.error(f"Failed to connect to simulator {simulator_id} after {max_attempts} attempts")
-
                 self.simulator_active = False
                 return
-
-            # REMOVE the data_callback setting in SimulatorManager for this method
-            # Remove or comment out this line in the SimulatorManager
-            # self.data_callback(data)
 
             # Stream data with error handling
             try:
@@ -275,19 +297,23 @@ class SessionManager:
                         session_id,
                         f"stream-{session_id}"
                 ):
-                    # Add a unique trace ID to each data point
-                    data_id = f"{data.get('timestamp', time.time())}-{hash(str(data))}"
-                    logger.debug(f"Received data point [ID: {data_id}] from exchange stream")
-
+                    # Just log that we received data - don't try to access properties directly
+                    # This avoids the 'get' attribute error
+                    logger.debug(f"Received data from exchange stream (simulator: {simulator_id})")
+                    
                     # If we get here, we're successfully receiving data
                     # Ensure simulator_status is set to RUNNING on first data received
                     if not self.simulator_active:
                         logger.info(f"First data received from simulator {simulator_id}, ensuring status is RUNNING")
                         self.simulator_active = True
                         await self.update_simulator_status(simulator_id, 'RUNNING')
-
-                    # REMOVE this line to prevent duplicate processing
-                    # await self._handle_exchange_data(data)
+                    
+                    # Note: We don't need to call _handle_exchange_data here
+                    # The simulator_manager will take care of that through its callbacks
+            except GeneratorExit:
+                # Handle generator exit gracefully
+                logger.info(f"Exchange data stream closed for simulator {simulator_id}")
+                self.simulator_active = False
             except Exception as stream_error:
                 logger.error(f"Error in simulator data stream: {stream_error}")
                 # Attempt to recover
