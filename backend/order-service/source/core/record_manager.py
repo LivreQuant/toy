@@ -10,15 +10,16 @@ from source.utils.metrics import track_order_created, track_user_order
 
 logger = logging.getLogger('record_manager')
 
+
 class RecordManager:
     """Manager for recording orders and tracking request duplicates"""
 
     def __init__(
-        self, 
-        order_repository: OrderRepository
+            self,
+            order_repository: OrderRepository
     ):
         self.order_repository = order_repository
-        
+
         # Track request IDs to detect duplicates
         self.recently_processed = {}
         self._cache_lock = asyncio.Lock()  # For thread-safe cache operations
@@ -79,9 +80,9 @@ class RecordManager:
                 'response': response
             }
 
-    async def create_order(self, order_params: Dict[str, Any], user_id: str, 
-                        session_id: str, device_id: str, request_id: str = None, 
-                        simulator_id: str = None) -> Order:
+    async def create_order(self, order_params: Dict[str, Any], user_id: str,
+                           session_id: str, device_id: str, request_id: str = None,
+                           simulator_id: str = None) -> Order:
         """
         Create a new order object and save it to database
         

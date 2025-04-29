@@ -1,26 +1,28 @@
-#!/usr/bin/env python3
+# source/main.py
 import asyncio
 import logging
 import signal
 import sys
-import os
 
 from source.utils.logging import setup_logging
 from source.api.rest.routes import setup_app
 from source.config import config
 from source.db.connection_pool import DatabasePool
 from source.db.order_repository import OrderRepository
-from source.api.clients.auth_client import AuthClient
-from source.api.clients.exchange_client import ExchangeClient
+from source.core.state_manager import StateManager  # Import StateManager
+from source.clients.auth_client import AuthClient
+from source.clients.exchange_client import ExchangeClient
 from source.core.order_manager import OrderManager
 from source.utils.metrics import setup_metrics
 from source.utils.tracing import setup_tracing
 
 logger = logging.getLogger('order_service')
 
+
 class GracefulExit(SystemExit):
     """Special exception for graceful exit"""
     pass
+
 
 async def main():
     """Initialize and run the order service"""
@@ -45,15 +47,20 @@ async def main():
         'db_pool': None,
         'order_repository': None,
         'auth_client': None,
-        'exchange_client': None
+        'exchange_client': None,
+        'state_manager': None  # Add state manager to resources
     }
 
     try:
+        # Initialize state manager
+        state_manager = StateManager(timeout_seconds=30)  # Optional: Set timeout
+        resources['state_manager'] = state_manager
+
         # Initialize database
         db_pool = DatabasePool()
         await db_pool.get_pool()  # Ensure connection is established
         resources['db_pool'] = db_pool
-        
+
         # Initialize order repository
         order_repository = OrderRepository()
         resources['order_repository'] = order_repository
@@ -68,7 +75,8 @@ async def main():
         order_manager = OrderManager(
             order_repository,
             auth_client,
-            exchange_client
+            exchange_client,
+            state_manager  # Pass the state manager
         )
 
         # Setup and start REST API
@@ -126,6 +134,11 @@ async def cleanup_resources(resources):
         logger.info("Closing exchange client...")
         await resources['exchange_client'].close()
 
+    # Additional cleanup for state manager if needed
+    if resources.get('state_manager'):
+        logger.info("Resetting state manager...")
+        # Any additional cleanup logic for state manager
+
     logger.info("Server shutdown complete")
 
 
@@ -134,7 +147,5 @@ if __name__ == "__main__":
         exit_code = asyncio.run(main())
         sys.exit(exit_code)
     except KeyboardInterrupt:
-        # This should not be reached now that we handle signals properly
         logger.info("Received keyboard interrupt")
         sys.exit(0)
-        

@@ -8,6 +8,7 @@ from source.config import config
 
 logger = logging.getLogger('rest_routes')
 
+
 async def setup_app(order_manager: OrderManager) -> tuple:
     """
     Set up the REST API application with routes and middleware
@@ -20,16 +21,16 @@ async def setup_app(order_manager: OrderManager) -> tuple:
     """
     # Create application
     app = web.Application()
-    
+
     # Create controller
     controller = OrderController(order_manager)
-    
+
     # Add routes
     app.router.add_post('/api/orders/submit', controller.submit_order)
     app.router.add_post('/api/orders/cancel', controller.cancel_order)
-    app.router.add_get('/health', controller.health_check)
+    app.router.add_get('/health', health_check)
     app.router.add_get('/readiness', controller.readiness_check)
-    
+
     # Set up CORS
     cors = aiohttp_cors.setup(app, defaults={
         "*": aiohttp_cors.ResourceOptions(
@@ -39,18 +40,18 @@ async def setup_app(order_manager: OrderManager) -> tuple:
             allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"]
         )
     })
-    
+
     # Apply CORS to all routes
     for route in list(app.router.routes()):
         cors.add(route)
-    
+
     # Start the application
     runner = web.AppRunner(app)
     await runner.setup()
-    
+
     site = web.TCPSite(runner, config.host, config.rest_port)
     await site.start()
-    
+
     logger.info(f"REST API started on {config.host}:{config.rest_port}")
-    
+
     return app, runner, site

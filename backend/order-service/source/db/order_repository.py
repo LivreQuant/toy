@@ -9,6 +9,7 @@ from source.utils.metrics import track_db_operation
 
 logger = logging.getLogger('order_repository')
 
+
 class OrderRepository:
     """Data access layer for orders"""
 
@@ -19,7 +20,7 @@ class OrderRepository:
     async def save_order(self, order: Order) -> bool:
         """Save a new order or update existing order"""
         pool = await self.db_pool.get_pool()
-        
+
         query = """
         INSERT INTO trading.orders (
             order_id, user_id, session_id, symbol, side, quantity, price, 
@@ -73,7 +74,7 @@ class OrderRepository:
     async def get_order(self, order_id: str) -> Optional[Order]:
         """Get an order by ID"""
         pool = await self.db_pool.get_pool()
-        
+
         query = """
         SELECT 
             order_id, user_id, session_id, symbol, side, quantity, price, 
@@ -112,7 +113,7 @@ class OrderRepository:
     async def get_user_orders(self, user_id: str, limit: int = 50, offset: int = 0) -> List[Order]:
         """Get orders for a specific user"""
         pool = await self.db_pool.get_pool()
-        
+
         query = """
         SELECT 
             order_id, user_id, session_id, symbol, side, quantity, price, 
@@ -152,33 +153,33 @@ class OrderRepository:
     async def validate_device_id(self, session_id: str, device_id: str) -> bool:
         """Validate if the device ID is associated with the session directly from database"""
         pool = await self.db_pool.get_pool()
-        
+
         query = """
         SELECT 1 FROM session.session_details
         WHERE session_id = $1 AND device_id = $2
         """
-        
+
         try:
             start_time = time.time()
-            
+
             async with pool.acquire() as conn:
                 row = await conn.fetchrow(query, session_id, device_id)
-                
+
                 duration = time.time() - start_time
                 valid = row is not None
                 track_db_operation("validate_device_id", valid, duration)
-                
+
                 return valid
         except Exception as e:
             duration = time.time() - start_time
             track_db_operation("validate_device_id", False, duration)
             logger.error(f"Error validating device ID: {e}")
             return False
-            
+
     async def get_session_simulator(self, session_id: str) -> Dict[str, Any]:
         """Get simulator information for a session directly from database"""
         pool = await self.db_pool.get_pool()
-        
+
         query = """
         SELECT simulator_id, endpoint, status
         FROM simulator.instances
@@ -186,33 +187,33 @@ class OrderRepository:
         ORDER BY created_at DESC
         LIMIT 1
         """
-        
+
         try:
             start_time = time.time()
-            
+
             async with pool.acquire() as conn:
                 row = await conn.fetchrow(query, session_id)
-                
+
                 duration = time.time() - start_time
                 track_db_operation("get_session_simulator", row is not None, duration)
-                
+
                 if not row:
                     return None
-                    
+
                 return dict(row)
         except Exception as e:
             duration = time.time() - start_time
             track_db_operation("get_session_simulator", False, duration)
             logger.error(f"Error getting session simulator: {e}")
             return None
-            
+
     async def update_order_status(self, order_id: str, status: OrderStatus,
-                                 filled_quantity: Optional[float] = None,
-                                 avg_price: Optional[float] = None,
-                                 error_message: Optional[str] = None) -> bool:
+                                  filled_quantity: Optional[float] = None,
+                                  avg_price: Optional[float] = None,
+                                  error_message: Optional[str] = None) -> bool:
         """Update an order's status"""
         pool = await self.db_pool.get_pool()
-        
+
         # Build dynamic update query
         query_parts = ["UPDATE trading.orders SET status = $1"]
         params = [status.value]

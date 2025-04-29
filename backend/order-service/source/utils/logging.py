@@ -6,11 +6,12 @@ from datetime import datetime
 
 from source.config import config
 
+
 def setup_logging():
     """Set up logging with appropriate format based on environment"""
     log_level_name = config.log_level
     log_level = getattr(logging, log_level_name.upper(), logging.INFO)
-    
+
     # Determine if we're in a production environment
     if config.is_production:
         # In production, use JSON format for structured logging
@@ -18,10 +19,11 @@ def setup_logging():
     else:
         # In development, use a more readable format
         setup_dev_logging(log_level)
-    
+
     # Set log levels for some noisy libraries
     logging.getLogger('grpc').setLevel(logging.WARNING)
     logging.getLogger('asyncio').setLevel(logging.WARNING)
+
 
 def setup_dev_logging(log_level):
     """Set up developer-friendly logging"""
@@ -31,6 +33,7 @@ def setup_dev_logging(log_level):
         datefmt='%Y-%m-%d %H:%M:%S',
         stream=sys.stdout
     )
+
 
 class JsonFormatter(logging.Formatter):
     """JSON formatter for structured logging"""
@@ -57,6 +60,7 @@ class JsonFormatter(logging.Formatter):
                 log_data[key] = value
 
         return json.dumps(log_data)
+
 
 def setup_json_logging(log_level):
     """Set up JSON structured logging for production"""

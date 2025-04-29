@@ -10,14 +10,15 @@ from source.utils.metrics import track_order_submission_latency
 
 logger = logging.getLogger('operation_manager')
 
+
 class OperationManager:
     """Manager for order operations that coordinates other managers"""
 
     def __init__(
-        self, 
-        validation_manager: ValidationManager,
-        record_manager: RecordManager,
-        exchange_manager: ExchangeManager
+            self,
+            validation_manager: ValidationManager,
+            record_manager: RecordManager,
+            exchange_manager: ExchangeManager
     ):
         self.validation_manager = validation_manager
         self.record_manager = record_manager
@@ -37,15 +38,13 @@ class OperationManager:
         start_time = time.time()
 
         # Extract key fields
-        session_id = order_data.get('sessionId')
-        device_id = order_data.get('deviceId')
         request_id = order_data.get('requestId')
 
         # 1. Validate authentication
         auth_validation = await self.validation_manager.validate_user_auth(token)
         if not auth_validation.get('valid'):
             error_msg = auth_validation.get('error', 'Invalid authentication')
-            
+
             # Record submission failure
             duration = time.time() - start_time
             track_order_submission_latency(order_data.get('type', 'UNKNOWN'), False, duration)
@@ -64,20 +63,20 @@ class OperationManager:
                 return cached_response
 
         # 3. Validate session and device ID
-        session_validation = await self.validation_manager.validate_session(session_id, device_id)
+        session_validation = await self.validation_manager.validate_session(device_id)
         if not session_validation.get('valid'):
             error_msg = session_validation.get('error', 'Invalid session')
-            
+
             response = {
                 "success": False,
                 "error": error_msg
             }
             await self.record_manager.cache_request_response(user_id, request_id, response)
-            
+
             # Record submission failure
             duration = time.time() - start_time
             track_order_submission_latency(order_data.get('type', 'UNKNOWN'), False, duration)
-            
+
             return response
 
         simulator_id = session_validation.get('simulator_id')
@@ -87,44 +86,44 @@ class OperationManager:
         order_validation = await self.validation_manager.validate_order_parameters(order_data)
         if not order_validation.get('valid'):
             error_msg = order_validation.get('error', 'Invalid order parameters')
-            
+
             response = {
                 "success": False,
                 "error": error_msg
             }
             await self.record_manager.cache_request_response(user_id, request_id, response)
-            
+
             # Record submission failure
             duration = time.time() - start_time
             track_order_submission_latency(order_data.get('type', 'UNKNOWN'), False, duration)
-            
+
             return response
 
         # 5. Create and save order
         try:
             order = await self.record_manager.create_order(
-                order_validation, user_id, session_id, device_id, request_id, simulator_id
+                order_validation, user_id, request_id, simulator_id
             )
         except Exception as e:
             logger.error(f"Error creating order record: {e}")
-            
+
             response = {
                 "success": False,
                 "error": f"Database error: {str(e)}",
                 "orderId": None
             }
             await self.record_manager.cache_request_response(user_id, request_id, response)
-            
+
             # Record submission failure
             duration = time.time() - start_time
             track_order_submission_latency(order_data.get('type', 'UNKNOWN'), False, duration)
-            
+
             return response
 
         # 6. Check if we need to submit to exchange
         if not simulator_id or not simulator_endpoint:
-            logger.info(f"Order {order.order_id} recorded but no active simulator for session {session_id}")
-            
+            logger.info(f"Order {order.order_id} recorded but no active simulator for session")
+
             response = {
                 "success": True,
                 "orderId": order.order_id,
@@ -140,7 +139,7 @@ class OperationManager:
 
         # 7. Submit to exchange
         exchange_result = await self.exchange_manager.submit_order_to_exchange(order, simulator_endpoint)
-        
+
         if not exchange_result.get('success'):
             # Update order status to REJECTED
             order.status = OrderStatus.REJECTED
@@ -159,7 +158,7 @@ class OperationManager:
             track_order_submission_latency(order.order_type, False, duration)
 
             return response
-            
+
         # 8. Update order if exchange assigned a different ID
         if exchange_result.get('original_order_id'):
             old_id = order.order_id
@@ -180,13 +179,12 @@ class OperationManager:
 
         return response
 
-    async def cancel_order(self, order_id: str, session_id: str, device_id: str, token: str) -> Dict[str, Any]:
+    async def cancel_order(self, order_id: str, device_id: str, token: str) -> Dict[str, Any]:
         """
         Cancel an existing order
         
         Args:
             order_id: Order ID to cancel
-            session_id: Session ID
             device_id: Device ID
             token: Authentication token
             
@@ -205,7 +203,7 @@ class OperationManager:
         user_id = auth_validation.get('user_id')
 
         # 2. Validate session and device ID
-        session_validation = await self.validation_manager.validate_session(session_id, device_id)
+        session_validation = await self.validation_manager.validate_session(device_id)
         if not session_validation.get('valid'):
             error_msg = session_validation.get('error', 'Invalid session')
             return {
