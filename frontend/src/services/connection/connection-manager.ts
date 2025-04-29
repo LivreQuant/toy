@@ -170,6 +170,35 @@ export class ConnectionManager implements Disposable {
     });
   }
 
+  // Add a reset method that fully resets the connection state
+  public resetState(): void {
+    if (this.isDisposed) return;
+    
+    this.logger.info('Resetting connection manager state');
+    
+    // Force disconnect if connected
+    this.disconnect('reset');
+    
+    // Reset desired state
+    this.desiredState = {
+      connected: false,
+      simulatorRunning: false
+    };
+    
+    // Reset resilience
+    this.resilience.reset();
+    
+    // Update connection state
+    connectionState.updateState({
+      webSocketStatus: ConnectionStatus.DISCONNECTED,
+      overallStatus: ConnectionStatus.DISCONNECTED,
+      isRecovering: false,
+      recoveryAttempt: 0,
+      simulatorStatus: 'UNKNOWN',
+      lastConnectionError: null
+    });
+  }
+
   /**
    * Updates the desired state and triggers synchronization.
    */

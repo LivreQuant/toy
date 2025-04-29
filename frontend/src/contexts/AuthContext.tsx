@@ -155,7 +155,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, tokenManag
         try {
           // Call the ConnectionManager's stopSession method first
           const sessionStopped = await connectionManager.disconnect();
-          logger.info(`Session ${sessionStopped ? 'successfully stopped' : 'stop request failed'}`);
+          logger.info(`Session ${sessionStopped ? 'successfully stopped' : 'stop request failed'}`);          
         } catch (sessionError) {
           // Log but continue with logout process
           logger.warn('Failed to stop session via ConnectionManager:', { error: sessionError });
@@ -164,10 +164,25 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, tokenManag
 
       // Then, disconnect the connection
       if (connectionManager) {
-        connectionManager.disconnect('user_logout');
-        logger.info('ConnectionManager disconnected');
+        try {
+          // Call the ConnectionManager's disconnect method first
+          await connectionManager.disconnect('user_logout');
+          logger.info('ConnectionManager disconnected');
+          
+          // IMPORTANT: Reset the ConnectionManager's desired state
+          connectionManager.setDesiredState({ 
+            connected: false,
+            simulatorRunning: false 
+          });
+        } catch (sessionError) {
+          logger.warn('Failed to disconnect ConnectionManager:', { error: sessionError });
+        }
       }
 
+      if (connectionManager) {
+        connectionManager.resetState();
+      }
+      
       // Now call the backend logout API if needed
       try {
         await authApi.logout();
