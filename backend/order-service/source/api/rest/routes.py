@@ -27,8 +27,6 @@ async def setup_app(order_manager: OrderManager) -> tuple:
     # Add routes
     app.router.add_post('/api/orders/submit', controller.submit_order)
     app.router.add_post('/api/orders/cancel', controller.cancel_order)
-    app.router.add_get('/api/orders/status', controller.get_order_status)
-    app.router.add_get('/api/orders/user', controller.get_user_orders)
     app.router.add_get('/health', controller.health_check)
     app.router.add_get('/readiness', controller.readiness_check)
     

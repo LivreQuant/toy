@@ -8,9 +8,9 @@ import os
 from source.utils.logging import setup_logging
 from source.api.rest.routes import setup_app
 from source.config import config
+from source.db.connection_pool import DatabasePool
 from source.db.order_repository import OrderRepository
 from source.api.clients.auth_client import AuthClient
-from source.api.clients.session_client import SessionClient
 from source.api.clients.exchange_client import ExchangeClient
 from source.core.order_manager import OrderManager
 from source.utils.metrics import setup_metrics
@@ -18,11 +18,9 @@ from source.utils.tracing import setup_tracing
 
 logger = logging.getLogger('order_service')
 
-
 class GracefulExit(SystemExit):
     """Special exception for graceful exit"""
     pass
-
 
 async def main():
     """Initialize and run the order service"""
@@ -32,41 +30,44 @@ async def main():
     logger.info("Starting order service")
 
     # Initialize tracing
-    setup_tracing()
-    logger.info("Distributed tracing initialized")
+    if config.enable_tracing:
+        setup_tracing()
+        logger.info("Distributed tracing initialized")
 
     # Initialize metrics
-    setup_metrics()
-    logger.info("Metrics collection initialized")
+    if config.enable_metrics:
+        setup_metrics()
+        logger.info("Metrics collection initialized")
 
     # Resources to clean up on shutdown
     resources = {
         'runner': None,
+        'db_pool': None,
         'order_repository': None,
         'auth_client': None,
-        'session_client': None,
         'exchange_client': None
     }
 
     try:
         # Initialize database
+        db_pool = DatabasePool()
+        await db_pool.get_pool()  # Ensure connection is established
+        resources['db_pool'] = db_pool
+        
+        # Initialize order repository
         order_repository = OrderRepository()
-        await order_repository.connect()
         resources['order_repository'] = order_repository
 
         # Initialize API clients
         auth_client = AuthClient(config.auth_service_url)
-        session_client = SessionClient(config.session_service_url)
         exchange_client = ExchangeClient()
         resources['auth_client'] = auth_client
-        resources['session_client'] = session_client
         resources['exchange_client'] = exchange_client
 
         # Initialize order manager
         order_manager = OrderManager(
             order_repository,
             auth_client,
-            session_client,
             exchange_client
         )
 
@@ -111,19 +112,14 @@ async def cleanup_resources(resources):
         await resources['runner'].cleanup()
 
     # Close database connection
-    if resources['order_repository']:
+    if resources['db_pool']:
         logger.info("Closing database connection...")
-        await resources['order_repository'].close()
+        await resources['db_pool'].close()
 
     # Close auth client
     if resources['auth_client']:
         logger.info("Closing auth client...")
         await resources['auth_client'].close()
-
-    # Close session client
-    if resources['session_client']:
-        logger.info("Closing session client...")
-        await resources['session_client'].close()
 
     # Close exchange client
     if resources['exchange_client']:
@@ -141,3 +137,4 @@ if __name__ == "__main__":
         # This should not be reached now that we handle signals properly
         logger.info("Received keyboard interrupt")
         sys.exit(0)
+        
