@@ -39,12 +39,6 @@ USER_ORDER_COUNT = Counter(
     ['user_id']
 )
 
-SESSION_ORDER_COUNT = Counter(
-    'session_order_count_total',
-    'Total number of orders per session',
-    ['session_id']
-)
-
 # External Service Metrics
 AUTH_REQUEST_LATENCY = Histogram(
     'auth_request_latency_seconds',
@@ -136,11 +130,6 @@ def track_order_status_change(from_status, to_status):
 def track_user_order(user_id):
     """Track orders per user"""
     USER_ORDER_COUNT.labels(user_id=user_id).inc()
-
-
-def track_session_order(session_id):
-    """Track orders per session"""
-    SESSION_ORDER_COUNT.labels(session_id=session_id).inc()
 
 
 def track_auth_request(endpoint, success, duration_seconds):

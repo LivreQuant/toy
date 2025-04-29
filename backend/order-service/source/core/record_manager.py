@@ -81,7 +81,7 @@ class RecordManager:
             }
 
     async def create_order(self, order_params: Dict[str, Any], user_id: str,
-                           session_id: str, device_id: str, request_id: str = None,
+                           request_id: str = None,
                            simulator_id: str = None) -> Order:
         """
         Create a new order object and save it to database
@@ -89,8 +89,6 @@ class RecordManager:
         Args:
             order_params: Validated order parameters
             user_id: User ID
-            session_id: Session ID
-            device_id: Device ID
             request_id: Optional request ID for idempotency
             simulator_id: Optional simulator ID
             
@@ -105,8 +103,6 @@ class RecordManager:
             order_type=order_params.get('order_type'),
             price=order_params.get('price'),
             user_id=user_id,
-            session_id=session_id,
-            device_id=device_id,
             request_id=request_id,
             order_id=str(uuid.uuid4()),  # Generate new order ID
             created_at=time.time(),

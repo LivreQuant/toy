@@ -23,9 +23,9 @@ class OrderRepository:
 
         query = """
         INSERT INTO trading.orders (
-            order_id, user_id, session_id, symbol, side, quantity, price, 
+            order_id, user_id, symbol, side, quantity, price, 
             order_type, status, filled_quantity, avg_price, simulator_id,
-            created_at, updated_at, request_id, error_message, device_id
+            created_at, updated_at, request_id, error_message
         ) VALUES (
             $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 
             to_timestamp($13), to_timestamp($14), $15, $16, $17
@@ -46,7 +46,6 @@ class OrderRepository:
                     query,
                     order.order_id,
                     order.user_id,
-                    order.session_id,
                     order.symbol,
                     order.side.value,
                     order.quantity,
@@ -60,7 +59,6 @@ class OrderRepository:
                     order.updated_at,
                     order.request_id,
                     order.error_message,
-                    order.device_id
                 )
                 duration = time.time() - start_time
                 track_db_operation("save_order", True, duration)
@@ -77,11 +75,11 @@ class OrderRepository:
 
         query = """
         SELECT 
-            order_id, user_id, session_id, symbol, side, quantity, price, 
+            order_id, user_id, symbol, side, quantity, price, 
             order_type, status, filled_quantity, avg_price, simulator_id,
             EXTRACT(EPOCH FROM created_at) as created_at, 
             EXTRACT(EPOCH FROM updated_at) as updated_at, 
-            request_id, error_message, device_id
+            request_id, error_message
         FROM trading.orders
         WHERE order_id = $1
         """
@@ -116,11 +114,11 @@ class OrderRepository:
 
         query = """
         SELECT 
-            order_id, user_id, session_id, symbol, side, quantity, price, 
+            order_id, user_id, symbol, side, quantity, price, 
             order_type, status, filled_quantity, avg_price, simulator_id,
             EXTRACT(EPOCH FROM created_at) as created_at, 
             EXTRACT(EPOCH FROM updated_at) as updated_at, 
-            request_id, error_message, device_id
+            request_id, error_message
         FROM trading.orders
         WHERE user_id = $1
         ORDER BY created_at DESC
@@ -150,20 +148,20 @@ class OrderRepository:
             logger.error(f"Error retrieving user orders: {e}")
             return []
 
-    async def validate_device_id(self, session_id: str, device_id: str) -> bool:
+    async def validate_device_id(self, device_id: str) -> bool:
         """Validate if the device ID is associated with the session directly from database"""
         pool = await self.db_pool.get_pool()
 
         query = """
         SELECT 1 FROM session.session_details
-        WHERE session_id = $1 AND device_id = $2
+        WHERE device_id = $2
         """
 
         try:
             start_time = time.time()
 
             async with pool.acquire() as conn:
-                row = await conn.fetchrow(query, session_id, device_id)
+                row = await conn.fetchrow(query, device_id)
 
                 duration = time.time() - start_time
                 valid = row is not None
@@ -176,14 +174,14 @@ class OrderRepository:
             logger.error(f"Error validating device ID: {e}")
             return False
 
-    async def get_session_simulator(self, session_id: str) -> Dict[str, Any]:
+    async def get_session_simulator(self) -> Dict[str, Any]:
         """Get simulator information for a session directly from database"""
         pool = await self.db_pool.get_pool()
 
         query = """
         SELECT simulator_id, endpoint, status
         FROM simulator.instances
-        WHERE session_id = $1 AND status IN ('RUNNING', 'STARTING')
+        WHERE status IN ('RUNNING', 'STARTING')
         ORDER BY created_at DESC
         LIMIT 1
         """
@@ -192,7 +190,7 @@ class OrderRepository:
             start_time = time.time()
 
             async with pool.acquire() as conn:
-                row = await conn.fetchrow(query, session_id)
+                row = await conn.fetchrow(query)
 
                 duration = time.time() - start_time
                 track_db_operation("get_session_simulator", row is not None, duration)

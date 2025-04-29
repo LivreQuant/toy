@@ -113,7 +113,6 @@ class ExchangeClient:
 
             # Create gRPC request
             request = SubmitOrderRequest(
-                session_id=order.session_id,
                 symbol=order.symbol,
                 side=side_enum,
                 quantity=float(order.quantity),
@@ -205,7 +204,6 @@ class ExchangeClient:
 
             # Create gRPC request
             request = CancelOrderRequest(
-                session_id=order.session_id,
                 order_id=order.order_id
             )
 
@@ -282,7 +280,6 @@ class ExchangeClient:
             # For simplicity in this refactored version, assume we have a GetOrderStatus method
             # If this doesn't exist in the real proto, you'll need to implement a suitable alternative
             request = grpc.GetOrderStatusRequest(
-                session_id=order.session_id,
                 order_id=order.order_id
             )
 

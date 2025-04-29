@@ -15,8 +15,6 @@ class Order:
     quantity: float
     order_type: OrderType
     user_id: str
-    session_id: str
-    device_id: str
 
     # Optional fields
     price: Optional[float] = None
@@ -63,8 +61,6 @@ class Order:
             "filled_quantity": self.filled_quantity,
             "avg_price": self.avg_price,
             "user_id": self.user_id,
-            "session_id": self.session_id,
-            "device_id": self.device_id,
             "simulator_id": self.simulator_id,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
