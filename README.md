@@ -312,3 +312,15 @@ Backup & Recovery: Ensuring data can be restored in disaster scenarios.
 Advanced Deployment Strategies: Implementing zero-downtime deployments.
 
 Your architecture is actually quite good for an early system, but bridging the gap to production requires focusing on operational aspects beyond just functionality. The difference between a good architecture and a production-ready system often lies in these operational capabilities rather than in the core service design.
+
+## Running locally
+
+Some pods don't seem to stay running if running on arm.  Best to run on amd64.
+
+```shell
+cd trading_app/scripts/setup
+./01-setup-local-env.sh
+for script in 02*; do
+    ./"$script"
+done
+```

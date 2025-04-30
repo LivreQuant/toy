@@ -22,6 +22,66 @@ if [ "$(id -u)" -eq 0 ]; then
     exit 1
 fi
 
+# Check if curl is installed, install if missing
+if ! command -v curl >/dev/null 2>&1; then
+    echo "curl not found. Installing..."
+    sudo apt-get update && sudo apt-get install -y curl
+fi
+
+# Check if Docker is installed, install if missing
+if ! command -v docker >/dev/null 2>&1; then
+    echo "Docker not found. Installing..."
+    sudo apt-get update
+    sudo apt-get install -y \
+        ca-certificates \
+        curl \
+        gnupg \
+        lsb-release
+    sudo mkdir -p /etc/apt/keyrings
+    curl -fsSL https://download.docker.com/linux/debian/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+    sudo apt-get update
+    sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    sudo usermod -aG docker "$USER"
+    echo "Docker installed. Please log out and log back in for group changes to take effect if this is your first install."
+fi
+
+# Check if minikube is installed, install if missing
+if ! command -v minikube >/dev/null 2>&1; then
+    echo "Minikube not found. Installing..."
+    ARCH=$(uname -m)
+    if [ "$ARCH" = "x86_64" ]; then
+        MINIKUBE_ARCH="amd64"
+    elif [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
+        MINIKUBE_ARCH="arm64"
+    else
+        echo "Unsupported architecture: $ARCH"
+        exit 1
+    fi
+    echo "Detected architecture: $ARCH ($MINIKUBE_ARCH)"
+    curl -Lo minikube "https://storage.googleapis.com/minikube/releases/latest/minikube-linux-$MINIKUBE_ARCH"
+    chmod +x minikube
+    sudo mv minikube /usr/local/bin/
+fi
+
+# Check if kubectl is installed, install if missing
+if ! command -v kubectl >/dev/null 2>&1; then
+    echo "kubectl not found. Installing..."
+    ARCH=$(uname -m)
+    if [ "$ARCH" = "x86_64" ]; then
+        KUBECTL_ARCH="amd64"
+    elif [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
+        KUBECTL_ARCH="arm64"
+    else
+        echo "Unsupported architecture: $ARCH"
+        exit 1
+    fi
+    echo "Detected architecture: $ARCH ($KUBECTL_ARCH)"
+    curl -LO "https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/$KUBECTL_ARCH/kubectl"
+    chmod +x kubectl
+    sudo mv kubectl /usr/local/bin/
+fi
+
 # Check if Minikube is running, if not start it
 minikube status >/dev/null 2>&1
 MINIKUBE_STATUS=$?
@@ -33,7 +93,7 @@ if [ $MINIKUBE_STATUS -ne 0 ] || [ "$FORCE_RECREATE" = true ]; then
     fi
     
     echo "Starting Minikube..."
-    minikube start --driver=kvm2 --cpus=4 --memory=8g --disk-size=20g
+    minikube start --driver=docker --memory=max --disk-size=20g -v=8 --alsologtostderr
     
     # Check if minikube started successfully
     if [ $? -ne 0 ]; then
