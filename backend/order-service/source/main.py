@@ -5,14 +5,21 @@ import signal
 import sys
 
 from source.utils.logging import setup_logging
+
 from source.api.rest.routes import setup_app
+
 from source.config import config
+
 from source.db.connection_pool import DatabasePool
 from source.db.order_repository import OrderRepository
-from source.core.state_manager import StateManager  # Import StateManager
+
+from source.core.state_manager import StateManager
+
 from source.clients.auth_client import AuthClient
 from source.clients.exchange_client import ExchangeClient
+
 from source.core.order_manager import OrderManager
+
 from source.utils.metrics import setup_metrics
 from source.utils.tracing import setup_tracing
 
@@ -76,11 +83,10 @@ async def main():
             order_repository,
             auth_client,
             exchange_client,
-            state_manager  # Pass the state manager
         )
 
         # Setup and start REST API
-        app, runner, site = await setup_app(order_manager)
+        app, runner, site = await setup_app(order_manager, state_manager)
         resources['runner'] = runner
 
         # Set up signal handlers

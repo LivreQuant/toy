@@ -1,17 +1,27 @@
-# requirements.txt
+
+# Web server and async framework
 aiohttp==3.8.5
 aiohttp-cors==0.7.0
 asyncio==3.4.3
+
+# Database
 asyncpg==0.29.0
+
+# gRPC for service-to-service communication
 grpcio==1.62.0
 grpcio-tools==1.62.0
 protobuf==4.25.1
-redis==4.6.0
-typing-extensions==4.9.0
+
+# Data serialization and validation
 pydantic==2.5.2
 ujson==5.8.0
+
+# Type hints
+typing-extensions==4.9.0
+
 # PROMETHEUS TRACING
 prometheus-client>=0.16.0
+
 # JAEGER TRACING
 opentelemetry-api>=1.18.0
 opentelemetry-sdk>=1.18.0

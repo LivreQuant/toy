@@ -4,17 +4,19 @@ from aiohttp import web
 
 from source.api.rest.controllers import OrderController
 from source.core.order_manager import OrderManager
+from source.core.state_manager import StateManager
 from source.config import config
 
 logger = logging.getLogger('rest_routes')
 
 
-async def setup_app(order_manager: OrderManager) -> tuple:
+async def setup_app(order_manager: OrderManager, state_manager: StateManager) -> tuple:
     """
     Set up the REST API application with routes and middleware
     
     Args:
         order_manager: The order manager instance
+        state_manager: The state manager instance
         
     Returns:
         Tuple of (app, runner, site)
@@ -23,12 +25,12 @@ async def setup_app(order_manager: OrderManager) -> tuple:
     app = web.Application()
 
     # Create controller
-    controller = OrderController(order_manager)
+    controller = OrderController(order_manager, state_manager)
 
     # Add routes
     app.router.add_post('/api/orders/submit', controller.submit_order)
     app.router.add_post('/api/orders/cancel', controller.cancel_order)
-    app.router.add_get('/health', health_check)
+    app.router.add_get('/health', controller.health_check)
     app.router.add_get('/readiness', controller.readiness_check)
 
     # Set up CORS

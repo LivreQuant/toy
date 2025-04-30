@@ -1,6 +1,7 @@
 import logging
 import time
 import uuid
+import json
 from typing import Dict, Any, Optional
 import asyncio
 
@@ -20,13 +21,9 @@ class RecordManager:
     ):
         self.order_repository = order_repository
 
-        # Track request IDs to detect duplicates
-        self.recently_processed = {}
-        self._cache_lock = asyncio.Lock()  # For thread-safe cache operations
-
     async def check_duplicate_request(self, user_id: str, request_id: str) -> Optional[Dict[str, Any]]:
         """
-        Check if this is a duplicate request and return cached response if it is
+        Check if this is a duplicate request and return cached response from PostgreSQL if it is
         
         Args:
             user_id: User ID
@@ -38,47 +35,64 @@ class RecordManager:
         if not request_id:
             return None
 
-        # Check cache in a thread-safe way
-        async with self._cache_lock:
-            # Check cache
-            request_key = f"{user_id}:{request_id}"
-            cached = self.recently_processed.get(request_key)
+        try:
+            pool = await self.order_repository.db_pool.get_pool()
+            async with pool.acquire() as conn:
+                query = """
+                SELECT response FROM trading.request_idempotency
+                WHERE request_id = $1 AND user_id = $2
+                """
+                row = await conn.fetchrow(query, request_id, user_id)
+                
+                if row:
+                    logger.info(f"Returning cached response for duplicate request {request_id}")
+                    return json.loads(row['response'])
+                return None
+        except Exception as e:
+            logger.error(f"Error checking duplicate request: {e}")
+            return None
 
-            if cached:
-                # Return cached response for duplicate
-                logger.info(f"Returning cached response for duplicate request {request_id}")
-                return cached['response']
-
-        # Clean up old cache entries
-        await self._cleanup_old_request_ids()
-        return None
-
-    async def _cleanup_old_request_ids(self):
-        """Clean up old request IDs from cache"""
-        async with self._cache_lock:
-            current_time = time.time()
-            expiry = 300  # 5 minutes
-
-            # Remove entries older than expiry time
-            keys_to_remove = []
-            for key, entry in self.recently_processed.items():
-                if current_time - entry['timestamp'] > expiry:
-                    keys_to_remove.append(key)
-
-            for key in keys_to_remove:
-                del self.recently_processed[key]
-
-    async def cache_request_response(self, user_id: str, request_id: str, response: Dict[str, Any]):
-        """Cache a response for a request ID"""
+    async def cache_request_response(self, user_id: str, request_id: str, response: Dict[str, Any]) -> None:
+        """
+        Cache a response for a request ID in PostgreSQL
+        
+        Args:
+            user_id: User ID
+            request_id: Request ID
+            response: Response to cache
+        """
         if not request_id:
             return
 
-        async with self._cache_lock:
-            request_key = f"{user_id}:{request_id}"
-            self.recently_processed[request_key] = {
-                'timestamp': time.time(),
-                'response': response
-            }
+        try:
+            pool = await self.order_repository.db_pool.get_pool()
+            async with pool.acquire() as conn:
+                query = """
+                INSERT INTO trading.request_idempotency (request_id, user_id, response)
+                VALUES ($1, $2, $3)
+                ON CONFLICT (request_id, user_id) DO UPDATE
+                SET response = $3
+                """
+                await conn.execute(query, request_id, user_id, json.dumps(response))
+        except Exception as e:
+            logger.error(f"Error caching request response: {e}")
+
+    async def cleanup_old_requests(self) -> None:
+        """
+        Clean up old request records 
+        This method should be called periodically, e.g., via a scheduled task
+        """
+        try:
+            pool = await self.order_repository.db_pool.get_pool()
+            async with pool.acquire() as conn:
+                query = """
+                DELETE FROM trading.request_idempotency
+                WHERE created_at < NOW() - INTERVAL '1 day'
+                """
+                result = await conn.execute(query)
+                logger.info(f"Cleaned up old request records: {result}")
+        except Exception as e:
+            logger.error(f"Error cleaning up old requests: {e}")
 
     async def create_order(self, order_params: Dict[str, Any], user_id: str,
                            request_id: str = None,
@@ -135,3 +149,4 @@ class RecordManager:
         """
         order.updated_at = time.time()
         return await self.order_repository.save_order(order)
+    

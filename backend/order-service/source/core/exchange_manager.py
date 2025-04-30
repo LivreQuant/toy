@@ -3,7 +3,7 @@ from typing import Dict, Any
 
 from source.models.order import Order
 from source.models.enums import OrderStatus
-from source.api.clients.exchange_client import ExchangeClient
+from source.clients.exchange_client import ExchangeClient
 from source.utils.metrics import track_order_submitted, track_order_status_change
 
 logger = logging.getLogger('exchange_manager')

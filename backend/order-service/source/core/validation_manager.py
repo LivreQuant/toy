@@ -53,12 +53,13 @@ class ValidationManager:
             "user_id": user_id
         }
 
-    async def validate_session(self, device_id: str) -> Dict[str, Any]:
+    async def validate_session(self, device_id: str, user_id: str) -> Dict[str, Any]:
         """
         Validate session and device ID directly from database
         
         Args:
             device_id: Device ID to validate
+            user_id: User ID to find the simulator
             
         Returns:
             Validation result with simulator info if available
@@ -74,7 +75,7 @@ class ValidationManager:
             }
 
         # Get simulator information if exists
-        simulator = await self.order_repository.get_session_simulator()
+        simulator = await self.order_repository.get_session_simulator(user_id)
 
         return {
             "valid": True,

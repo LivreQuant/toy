@@ -1,10 +1,9 @@
 import logging
 import time
-from typing import List, Optional, Dict, Any
+from typing import Dict, Any
 
 from source.db.connection_pool import DatabasePool
 from source.models.order import Order
-from source.models.enums import OrderStatus
 from source.utils.metrics import track_db_operation
 
 logger = logging.getLogger('order_repository')
@@ -38,8 +37,8 @@ class OrderRepository:
             error_message = EXCLUDED.error_message
         """
 
+        start_time = time.time()
         try:
-            start_time = time.time()
 
             async with pool.acquire() as conn:
                 await conn.execute(
@@ -69,85 +68,6 @@ class OrderRepository:
             logger.error(f"Error saving order: {e}")
             return False
 
-    async def get_order(self, order_id: str) -> Optional[Order]:
-        """Get an order by ID"""
-        pool = await self.db_pool.get_pool()
-
-        query = """
-        SELECT 
-            order_id, user_id, symbol, side, quantity, price, 
-            order_type, status, filled_quantity, avg_price, simulator_id,
-            EXTRACT(EPOCH FROM created_at) as created_at, 
-            EXTRACT(EPOCH FROM updated_at) as updated_at, 
-            request_id, error_message
-        FROM trading.orders
-        WHERE order_id = $1
-        """
-
-        try:
-            start_time = time.time()
-
-            async with pool.acquire() as conn:
-                row = await conn.fetchrow(query, order_id)
-
-                duration = time.time() - start_time
-                success = row is not None
-                track_db_operation("get_order", success, duration)
-
-                if not row:
-                    return None
-
-                # Convert row to dict
-                order_dict = dict(row)
-
-                # Create order object
-                return Order.from_dict(order_dict)
-        except Exception as e:
-            duration = time.time() - start_time
-            track_db_operation("get_order", False, duration)
-            logger.error(f"Error retrieving order: {e}")
-            return None
-
-    async def get_user_orders(self, user_id: str, limit: int = 50, offset: int = 0) -> List[Order]:
-        """Get orders for a specific user"""
-        pool = await self.db_pool.get_pool()
-
-        query = """
-        SELECT 
-            order_id, user_id, symbol, side, quantity, price, 
-            order_type, status, filled_quantity, avg_price, simulator_id,
-            EXTRACT(EPOCH FROM created_at) as created_at, 
-            EXTRACT(EPOCH FROM updated_at) as updated_at, 
-            request_id, error_message
-        FROM trading.orders
-        WHERE user_id = $1
-        ORDER BY created_at DESC
-        LIMIT $2 OFFSET $3
-        """
-
-        try:
-            start_time = time.time()
-
-            async with pool.acquire() as conn:
-                rows = await conn.fetch(query, user_id, limit, offset)
-
-                orders = []
-                for row in rows:
-                    # Convert row to dict
-                    order_dict = dict(row)
-
-                    # Create order object
-                    orders.append(Order.from_dict(order_dict))
-
-                duration = time.time() - start_time
-                track_db_operation("get_user_orders", True, duration)
-                return orders
-        except Exception as e:
-            duration = time.time() - start_time
-            track_db_operation("get_user_orders", False, duration)
-            logger.error(f"Error retrieving user orders: {e}")
-            return []
-
     async def validate_device_id(self, device_id: str) -> bool:
         """Validate if the device ID is associated with the session directly from database"""
         pool = await self.db_pool.get_pool()
@@ -157,8 +77,8 @@ class OrderRepository:
         WHERE device_id = $2
         """
 
+        start_time = time.time()
         try:
-            start_time = time.time()
 
             async with pool.acquire() as conn:
                 row = await conn.fetchrow(query, device_id)
@@ -174,82 +94,25 @@ class OrderRepository:
             logger.error(f"Error validating device ID: {e}")
             return False
 
-    async def get_session_simulator(self) -> Dict[str, Any]:
-        """Get simulator information for a session directly from database"""
+    async def get_session_simulator(self, user_id: str) -> Dict[str, Any]:
+        """Get simulator information for a user directly from database"""
         pool = await self.db_pool.get_pool()
 
         query = """
         SELECT simulator_id, endpoint, status
         FROM simulator.instances
-        WHERE status IN ('RUNNING', 'STARTING')
+        WHERE user_id = $1 
+        AND status IN ('RUNNING')
         ORDER BY created_at DESC
         LIMIT 1
         """
 
         try:
-            start_time = time.time()
-
             async with pool.acquire() as conn:
-                row = await conn.fetchrow(query)
-
-                duration = time.time() - start_time
-                track_db_operation("get_session_simulator", row is not None, duration)
-
+                row = await conn.fetchrow(query, user_id)
                 if not row:
                     return None
-
                 return dict(row)
         except Exception as e:
-            duration = time.time() - start_time
-            track_db_operation("get_session_simulator", False, duration)
-            logger.error(f"Error getting session simulator: {e}")
+            logger.error(f"Error getting user simulator: {e}")
             return None
-
-    async def update_order_status(self, order_id: str, status: OrderStatus,
-                                  filled_quantity: Optional[float] = None,
-                                  avg_price: Optional[float] = None,
-                                  error_message: Optional[str] = None) -> bool:
-        """Update an order's status"""
-        pool = await self.db_pool.get_pool()
-
-        # Build dynamic update query
-        query_parts = ["UPDATE trading.orders SET status = $1"]
-        params = [status.value]
-
-        param_idx = 2
-        if filled_quantity is not None:
-            query_parts.append(f"filled_quantity = ${param_idx}")
-            params.append(filled_quantity)
-            param_idx += 1
-
-        if avg_price is not None:
-            query_parts.append(f"avg_price = ${param_idx}")
-            params.append(avg_price)
-            param_idx += 1
-
-        if error_message is not None:
-            query_parts.append(f"error_message = ${param_idx}")
-            params.append(error_message)
-            param_idx += 1
-
-        query_parts.append(f"updated_at = NOW()")
-        query_parts.append(f"WHERE order_id = ${param_idx}")
-        params.append(order_id)
-
-        query = " ".join(query_parts)
-
-        try:
-            start_time = time.time()
-
-            async with pool.acquire() as conn:
-                result = await conn.execute(query, *params)
-                success = "UPDATE 1" in result
-
-                duration = time.time() - start_time
-                track_db_operation("update_order_status", success, duration)
-                return success
-        except Exception as e:
-            duration = time.time() - start_time
-            track_db_operation("update_order_status", False, duration)
-            logger.error(f"Error updating order status: {e}")
-            return False
