@@ -23,14 +23,6 @@ def get_token(request):
     return request.query.get('token'), request.query.get('deviceId')
 
 
-async def health_check(request: web.Request) -> web.Response:
-    """Simple health check endpoint"""
-    return web.json_response({
-        'status': 'UP',
-        'timestamp': int(time.time())
-    })
-
-
 class OrderController:
     """Controller for order-related REST endpoints"""
 
@@ -57,6 +49,13 @@ class OrderController:
         except Exception as e:
             logger.error(f"Error extracting user ID from token: {e}")
             return None
+
+    async def health_check(self, request: web.Request) -> web.Response:
+        """Simple health check endpoint"""
+        return web.json_response({
+            'status': 'UP',
+            'timestamp': int(time.time())
+        })
 
     async def readiness_check(self, request: web.Request) -> web.Response:
         """Readiness check endpoint that verifies database connection and service availability"""

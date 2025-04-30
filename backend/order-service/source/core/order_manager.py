@@ -6,7 +6,6 @@ from source.core.validation_manager import ValidationManager
 from source.core.record_manager import RecordManager
 from source.core.exchange_manager import ExchangeManager
 from source.core.operation_manager import OperationManager
-from source.core.state_manager import StateManager
 
 logger = logging.getLogger('order_manager')
 
@@ -17,12 +16,10 @@ class OrderManager:
             order_repository: OrderRepository,
             auth_client: AuthClient,
             exchange_client: ExchangeClient,
-            state_manager: StateManager
     ):
         """Initialize managers"""
         self.order_repository = order_repository
         self.auth_client = auth_client  # Store auth_client directly
-        self.state_manager = state_manager
 
         # Create specialized managers
         self.validation_manager = ValidationManager(order_repository, auth_client)
