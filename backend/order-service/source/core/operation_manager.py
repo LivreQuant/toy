@@ -47,9 +47,11 @@ class OperationManager:
         simulator_id = simulator.get('simulator_id') if simulator else None
         simulator_endpoint = simulator.get('endpoint') if simulator else None
         
+        logger.info(f"FOUND SIMULATOR: {simulator_endpoint}")
+
         # 2. Find all open orders for these symbols
-        open_orders = await self.record_manager.get_open_orders_by_symbol(user_id, symbols)
-        open_order_ids = [order['order_id'] for order in open_orders]
+        #open_orders = await self.record_manager.get_open_orders_by_symbol(user_id, symbols)
+        #open_order_ids = [order['order_id'] for order in open_orders]
         
         # 3. Cancel existing open orders first
         """
@@ -85,7 +87,7 @@ class OperationManager:
                     order_id, user_id, OrderStatus.CANCELED.value, "Cancelled due to new order submission"
                 )
         """
-        
+
         # 4. Extract request IDs for duplicate checking
         request_ids = [order.get('requestId') for order in orders_data if order.get('requestId')]
         
@@ -173,6 +175,8 @@ class OperationManager:
                         "errorMessage": "Failed to save order to database",
                         "index": idx
                     })
+        
+        logger.info(f"VALID ORDERS: {valid_orders}")
         
         # 8. Submit to exchange if we have a simulator
         if simulator_endpoint and valid_orders:
