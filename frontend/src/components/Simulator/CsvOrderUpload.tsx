@@ -256,13 +256,9 @@ const CsvOrderUpload: React.FC = () => {
           requestId: `csv-${Date.now()}-${order.symbol}-${order.side}-${order.quantity}-${Math.floor(Math.random() * 1000)}`
         }));
         
-        // Use AbortController to prevent hanging requests
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 20000); // 20-second timeout
-        
+        // CRITICAL CHANGE: NO AbortController, NO timeout, ONE attempt only
         try {
           const response = await orderManager.submitOrders(submitOrders);
-          clearTimeout(timeoutId);
           
           if (response.success) {
             const successCount = response.results.filter(r => r.success).length;
@@ -273,7 +269,7 @@ const CsvOrderUpload: React.FC = () => {
             }
             
             if (failCount > 0) {
-              addToast('warning', `Failed to submit ${failCount} orders`);
+              addToast('warning', `Failed to submit ${failCount} orders - NO RETRY ATTEMPTED`);
               
               // Log first few failures
               response.results.forEach((result, index) => {
@@ -296,14 +292,12 @@ const CsvOrderUpload: React.FC = () => {
               }
             }
           } else {
-            addToast('error', `Failed to submit orders: ${response.errorMessage || 'Unknown error'}`);
+            addToast('error', `Failed to submit orders: ${response.errorMessage || 'Unknown error'} - NO RETRY ATTEMPTED`);
           }
         } catch (err: any) {
-          if (err.name === 'AbortError') {
-            addToast('error', 'Request timed out. Please check order status before trying again.');
-          } else {
-            throw err;
-          }
+          // Simple error handling - NO RETRY
+          addToast('error', `Error submitting orders: ${err.message} - NO RETRY ATTEMPTED`);
+          console.error('Order submission error:', err);
         }
       } else {
         // CANCEL operation
@@ -311,13 +305,9 @@ const CsvOrderUpload: React.FC = () => {
         
         const orderIds = orders.map(o => o.orderId!);
         
-        // Use AbortController to prevent hanging requests
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 20000); // 20-second timeout
-        
+        // CRITICAL CHANGE: NO AbortController, NO timeout, ONE attempt only
         try {
           const response = await orderManager.cancelOrders(orderIds);
-          clearTimeout(timeoutId);
           
           if (response.success) {
             const successCount = response.results.filter(r => r.success).length;
@@ -328,7 +318,7 @@ const CsvOrderUpload: React.FC = () => {
             }
             
             if (failCount > 0) {
-              addToast('warning', `Failed to cancel ${failCount} orders`);
+              addToast('warning', `Failed to cancel ${failCount} orders - NO RETRY ATTEMPTED`);
               
               // Log first few failures
               response.results.forEach((result, index) => {
@@ -351,25 +341,20 @@ const CsvOrderUpload: React.FC = () => {
               }
             }
           } else {
-            addToast('error', `Failed to cancel orders: ${response.errorMessage || 'Unknown error'}`);
+            addToast('error', `Failed to cancel orders: ${response.errorMessage || 'Unknown error'} - NO RETRY ATTEMPTED`);
           }
         } catch (err: any) {
-          if (err.name === 'AbortError') {
-            addToast('error', 'Request timed out. Please check order status before trying again.');
-          } else {
-            throw err;
-          }
+          // Simple error handling - NO RETRY
+          addToast('error', `Error cancelling orders: ${err.message} - NO RETRY ATTEMPTED`);
+          console.error('Order cancellation error:', err);
         }
       }
     } catch (error: any) {
-      addToast('error', `Error processing request: ${error.message || 'Unknown error'}`);
-      // Important: Log the error for debugging
+      addToast('error', `Error processing request: ${error.message || 'Unknown error'} - NO RETRY ATTEMPTED`);
       console.error('Order submission error:', error);
     } finally {
-      // Add a slight delay before enabling the button again to prevent accidental double-clicks
-      setTimeout(() => {
-        setIsSubmitting(false);
-      }, 1000);
+      // Enable the button again
+      setIsSubmitting(false);
     }
   }, [operation, orders, isSubmitting, orderManager, addToast]);
 

@@ -27,14 +27,14 @@ message OrderRequest {
   string request_id = 6;
 }
 
+message BatchOrderRequest {
+  repeated OrderRequest orders = 1;
+}
+
 message OrderResponse {
   bool success = 1;
   string order_id = 2;
   string error_message = 3;
-}
-
-message BatchOrderRequest {
-  repeated OrderRequest orders = 2;
 }
 
 message BatchOrderResponse {
@@ -44,7 +44,7 @@ message BatchOrderResponse {
 }
 
 message BatchCancelRequest {
-  repeated string order_ids = 2;
+  repeated string order_ids = 1;
 }
 
 message CancelResult {

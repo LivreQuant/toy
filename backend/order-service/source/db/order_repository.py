@@ -1,10 +1,12 @@
 import logging
 import time
-from typing import Dict, Any, List
+import json
+from typing import Dict, Any, List, Optional
 
 from source.db.connection_pool import DatabasePool
 from source.models.order import Order
 from source.utils.metrics import track_db_operation
+
 
 logger = logging.getLogger('order_repository')
 
@@ -125,6 +127,62 @@ class OrderRepository:
             logger.warning("⚠️ Skipping device ID validation due to database error")
             return True  # Temporarily return True to bypass the check
 
+    async def check_duplicate_request(self, user_id: str, request_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Check if this is a duplicate request and return cached response if it is
+        
+        Args:
+            user_id: User ID
+            request_id: Request ID
+            
+        Returns:
+            Cached response if duplicate, None otherwise
+        """
+        if not request_id:
+            return None
+
+        try:
+            pool = await self.db_pool.get_pool()
+            async with pool.acquire() as conn:
+                query = """
+                SELECT response FROM trading.orders
+                WHERE request_id = $1 AND user_id = $2
+                """
+                row = await conn.fetchrow(query, request_id, user_id)
+                
+                if row:
+                    logger.info(f"Returning cached response for duplicate request {request_id}")
+                    return json.loads(row['response'])
+                return None
+        except Exception as e:
+            logger.error(f"Error checking duplicate request: {e}")
+            return None
+
+    async def cache_request_response(self, user_id: str, request_id: str, response: Dict[str, Any]) -> None:
+        """
+        Cache a response for a request ID in PostgreSQL
+        
+        Args:
+            user_id: User ID
+            request_id: Request ID
+            response: Response to cache
+        """
+        if not request_id:
+            return
+
+        try:
+            pool = await self.db_pool.get_pool()
+            async with pool.acquire() as conn:
+                query = """
+                INSERT INTO trading.request_idempotency (request_id, user_id, response)
+                VALUES ($1, $2, $3)
+                ON CONFLICT (request_id, user_id) DO UPDATE
+                SET response = $3
+                """
+                await conn.execute(query, request_id, user_id, json.dumps(response))
+        except Exception as e:
+            logger.error(f"Error caching request response: {e}")
+        
     async def get_session_simulator(self, user_id: str) -> Dict[str, Any]:
         """Get simulator information for a user directly from database"""
         pool = await self.db_pool.get_pool()

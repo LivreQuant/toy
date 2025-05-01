@@ -95,7 +95,6 @@ class OrderController:
                 'status': 'NOT READY',
                 'reason': str(e)
             }, status=503)
-
      
     async def submit_orders(self, request: web.Request) -> web.Response:
         """
@@ -113,6 +112,8 @@ class OrderController:
             # Extract token and device ID
             token, device_id = get_token(request)
 
+            logger.info(f"FOUND TOKEN & DEVICE {device_id}")
+
             if not token:
                 return web.json_response({
                     "success": False,
@@ -127,6 +128,8 @@ class OrderController:
                     "error": "Invalid authentication token"
                 }, status=401)
 
+            logger.info(f"FOUND USER {user_id}")
+
             # Validate device ID
             device_valid = await self.order_manager.validation_manager.validate_device_id(device_id)
             if not device_valid:
@@ -134,6 +137,8 @@ class OrderController:
                     "success": False,
                     "error": "Invalid device ID for this session"
                 }, status=400)
+
+            logger.info(f"DEVICE VALID {device_valid}")
 
             # Parse request body
             try:
@@ -156,12 +161,6 @@ class OrderController:
                 return web.json_response({
                     "success": False,
                     "error": "No orders provided"
-                }, status=400)
-
-            if len(orders) > 100:  # Set a reasonable limit
-                return web.json_response({
-                    "success": False,
-                    "error": f"Too many orders. Maximum of 100 allowed per batch."
                 }, status=400)
 
             # Process orders
@@ -258,3 +257,4 @@ class OrderController:
         finally:
             # Always release the lock, even if there's an error
             await self.state_manager.release()
+            

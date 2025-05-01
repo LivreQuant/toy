@@ -38,7 +38,7 @@ class RecordManager:
             pool = await self.order_repository.db_pool.get_pool()
             async with pool.acquire() as conn:
                 query = """
-                SELECT response FROM trading.request_idempotency
+                SELECT response FROM trading.orders
                 WHERE request_id = $1 AND user_id = $2
                 """
                 row = await conn.fetchrow(query, request_id, user_id)
@@ -93,7 +93,7 @@ class RecordManager:
         except Exception as e:
             logger.error(f"Error cleaning up old requests: {e}")
 
-    async def create_order(self, order_params: Dict[str, Any], user_id: str,
+    async def save_order(self, order_params: Dict[str, Any], user_id: str,
                            request_id: str = None,
                            simulator_id: str = None) -> Order:
         """
@@ -136,16 +136,4 @@ class RecordManager:
         logger.info(f"Successfully created and saved order {order.order_id}")
         return order
 
-    async def update_order(self, order: Order) -> bool:
-        """
-        Update an existing order in the database
-        
-        Args:
-            order: Order to update
-            
-        Returns:
-            True if successful
-        """
-        order.updated_at = time.time()
-        return await self.order_repository.save_order(order)
     

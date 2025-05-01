@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file main/services/order_exchange_interface.proto.
  */
 export const file_main_services_order_exchange_interface: GenFile = /*@__PURE__*/
-  fileDesc("CixtYWluL3NlcnZpY2VzL29yZGVyX2V4Y2hhbmdlX2ludGVyZmFjZS5wcm90bxIOb3JkZXJfZXhjaGFuZ2Ui7wEKDE9yZGVyUmVxdWVzdBIOCgZzeW1ib2wYASABKAkSLwoEc2lkZRgCIAEoDjIhLm9yZGVyX2V4Y2hhbmdlLk9yZGVyUmVxdWVzdC5TaWRlEhAKCHF1YW50aXR5GAMgASgBEg0KBXByaWNlGAQgASgBEi8KBHR5cGUYBSABKA4yIS5vcmRlcl9leGNoYW5nZS5PcmRlclJlcXVlc3QuVHlwZRISCgpyZXF1ZXN0X2lkGAYgASgJIhkKBFNpZGUSBwoDQlVZEAASCAoEU0VMTBABIh0KBFR5cGUSCgoGTUFSS0VUEAASCQoFTElNSVQQASJJCg1PcmRlclJlc3BvbnNlEg8KB3N1Y2Nlc3MYASABKAgSEAoIb3JkZXJfaWQYAiABKAkSFQoNZXJyb3JfbWVzc2FnZRgDIAEoCSJBChFCYXRjaE9yZGVyUmVxdWVzdBIsCgZvcmRlcnMYAiADKAsyHC5vcmRlcl9leGNoYW5nZS5PcmRlclJlcXVlc3QibAoSQmF0Y2hPcmRlclJlc3BvbnNlEg8KB3N1Y2Nlc3MYASABKAgSLgoHcmVzdWx0cxgCIAMoCzIdLm9yZGVyX2V4Y2hhbmdlLk9yZGVyUmVzcG9uc2USFQoNZXJyb3JfbWVzc2FnZRgDIAEoCSInChJCYXRjaENhbmNlbFJlcXVlc3QSEQoJb3JkZXJfaWRzGAIgAygJIkgKDENhbmNlbFJlc3VsdBIQCghvcmRlcl9pZBgBIAEoCRIPCgdzdWNjZXNzGAIgASgIEhUKDWVycm9yX21lc3NhZ2UYAyABKAkibAoTQmF0Y2hDYW5jZWxSZXNwb25zZRIPCgdzdWNjZXNzGAEgASgIEi0KB3Jlc3VsdHMYAiADKAsyHC5vcmRlcl9leGNoYW5nZS5DYW5jZWxSZXN1bHQSFQoNZXJyb3JfbWVzc2FnZRgDIAEoCTLIAQoWT3JkZXJFeGNoYW5nZVNpbXVsYXRvchJVCgxTdWJtaXRPcmRlcnMSIS5vcmRlcl9leGNoYW5nZS5CYXRjaE9yZGVyUmVxdWVzdBoiLm9yZGVyX2V4Y2hhbmdlLkJhdGNoT3JkZXJSZXNwb25zZRJXCgxDYW5jZWxPcmRlcnMSIi5vcmRlcl9leGNoYW5nZS5CYXRjaENhbmNlbFJlcXVlc3QaIy5vcmRlcl9leGNoYW5nZS5CYXRjaENhbmNlbFJlc3BvbnNlQoUBChJjb20ub3JkZXJfZXhjaGFuZ2VCG09yZGVyRXhjaGFuZ2VJbnRlcmZhY2VQcm90b1ABogIDT1hYqgINT3JkZXJFeGNoYW5nZcoCDU9yZGVyRXhjaGFuZ2XiAhlPcmRlckV4Y2hhbmdlXEdQQk1ldGFkYXRh6gINT3JkZXJFeGNoYW5nZWIGcHJvdG8z");
+  fileDesc("CixtYWluL3NlcnZpY2VzL29yZGVyX2V4Y2hhbmdlX2ludGVyZmFjZS5wcm90bxIOb3JkZXJfZXhjaGFuZ2Ui7wEKDE9yZGVyUmVxdWVzdBIOCgZzeW1ib2wYASABKAkSLwoEc2lkZRgCIAEoDjIhLm9yZGVyX2V4Y2hhbmdlLk9yZGVyUmVxdWVzdC5TaWRlEhAKCHF1YW50aXR5GAMgASgBEg0KBXByaWNlGAQgASgBEi8KBHR5cGUYBSABKA4yIS5vcmRlcl9leGNoYW5nZS5PcmRlclJlcXVlc3QuVHlwZRISCgpyZXF1ZXN0X2lkGAYgASgJIhkKBFNpZGUSBwoDQlVZEAASCAoEU0VMTBABIh0KBFR5cGUSCgoGTUFSS0VUEAASCQoFTElNSVQQASJBChFCYXRjaE9yZGVyUmVxdWVzdBIsCgZvcmRlcnMYASADKAsyHC5vcmRlcl9leGNoYW5nZS5PcmRlclJlcXVlc3QiSQoNT3JkZXJSZXNwb25zZRIPCgdzdWNjZXNzGAEgASgIEhAKCG9yZGVyX2lkGAIgASgJEhUKDWVycm9yX21lc3NhZ2UYAyABKAkibAoSQmF0Y2hPcmRlclJlc3BvbnNlEg8KB3N1Y2Nlc3MYASABKAgSLgoHcmVzdWx0cxgCIAMoCzIdLm9yZGVyX2V4Y2hhbmdlLk9yZGVyUmVzcG9uc2USFQoNZXJyb3JfbWVzc2FnZRgDIAEoCSInChJCYXRjaENhbmNlbFJlcXVlc3QSEQoJb3JkZXJfaWRzGAEgAygJIkgKDENhbmNlbFJlc3VsdBIQCghvcmRlcl9pZBgBIAEoCRIPCgdzdWNjZXNzGAIgASgIEhUKDWVycm9yX21lc3NhZ2UYAyABKAkibAoTQmF0Y2hDYW5jZWxSZXNwb25zZRIPCgdzdWNjZXNzGAEgASgIEi0KB3Jlc3VsdHMYAiADKAsyHC5vcmRlcl9leGNoYW5nZS5DYW5jZWxSZXN1bHQSFQoNZXJyb3JfbWVzc2FnZRgDIAEoCTLIAQoWT3JkZXJFeGNoYW5nZVNpbXVsYXRvchJVCgxTdWJtaXRPcmRlcnMSIS5vcmRlcl9leGNoYW5nZS5CYXRjaE9yZGVyUmVxdWVzdBoiLm9yZGVyX2V4Y2hhbmdlLkJhdGNoT3JkZXJSZXNwb25zZRJXCgxDYW5jZWxPcmRlcnMSIi5vcmRlcl9leGNoYW5nZS5CYXRjaENhbmNlbFJlcXVlc3QaIy5vcmRlcl9leGNoYW5nZS5CYXRjaENhbmNlbFJlc3BvbnNlQoUBChJjb20ub3JkZXJfZXhjaGFuZ2VCG09yZGVyRXhjaGFuZ2VJbnRlcmZhY2VQcm90b1ABogIDT1hYqgINT3JkZXJFeGNoYW5nZcoCDU9yZGVyRXhjaGFuZ2XiAhlPcmRlckV4Y2hhbmdlXEdQQk1ldGFkYXRh6gINT3JkZXJFeGNoYW5nZWIGcHJvdG8z");
 
 /**
  * @generated from message order_exchange.OrderRequest
@@ -97,6 +97,23 @@ export const OrderRequest_TypeSchema: GenEnum<OrderRequest_Type> = /*@__PURE__*/
   enumDesc(file_main_services_order_exchange_interface, 0, 1);
 
 /**
+ * @generated from message order_exchange.BatchOrderRequest
+ */
+export type BatchOrderRequest = Message<"order_exchange.BatchOrderRequest"> & {
+  /**
+   * @generated from field: repeated order_exchange.OrderRequest orders = 1;
+   */
+  orders: OrderRequest[];
+};
+
+/**
+ * Describes the message order_exchange.BatchOrderRequest.
+ * Use `create(BatchOrderRequestSchema)` to create a new message.
+ */
+export const BatchOrderRequestSchema: GenMessage<BatchOrderRequest> = /*@__PURE__*/
+  messageDesc(file_main_services_order_exchange_interface, 1);
+
+/**
  * @generated from message order_exchange.OrderResponse
  */
 export type OrderResponse = Message<"order_exchange.OrderResponse"> & {
@@ -121,23 +138,6 @@ export type OrderResponse = Message<"order_exchange.OrderResponse"> & {
  * Use `create(OrderResponseSchema)` to create a new message.
  */
 export const OrderResponseSchema: GenMessage<OrderResponse> = /*@__PURE__*/
-  messageDesc(file_main_services_order_exchange_interface, 1);
-
-/**
- * @generated from message order_exchange.BatchOrderRequest
- */
-export type BatchOrderRequest = Message<"order_exchange.BatchOrderRequest"> & {
-  /**
-   * @generated from field: repeated order_exchange.OrderRequest orders = 2;
-   */
-  orders: OrderRequest[];
-};
-
-/**
- * Describes the message order_exchange.BatchOrderRequest.
- * Use `create(BatchOrderRequestSchema)` to create a new message.
- */
-export const BatchOrderRequestSchema: GenMessage<BatchOrderRequest> = /*@__PURE__*/
   messageDesc(file_main_services_order_exchange_interface, 2);
 
 /**
@@ -172,7 +172,7 @@ export const BatchOrderResponseSchema: GenMessage<BatchOrderResponse> = /*@__PUR
  */
 export type BatchCancelRequest = Message<"order_exchange.BatchCancelRequest"> & {
   /**
-   * @generated from field: repeated string order_ids = 2;
+   * @generated from field: repeated string order_ids = 1;
    */
   orderIds: string[];
 };
