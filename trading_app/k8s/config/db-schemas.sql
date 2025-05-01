@@ -145,25 +145,27 @@ CREATE SCHEMA IF NOT EXISTS trading;
 
 -- Create orders table if not exists
 CREATE TABLE IF NOT EXISTS trading.orders (
-    order_id UUID PRIMARY KEY,
-    user_id VARCHAR(100) NOT NULL,
-    symbol VARCHAR(20) NOT NULL,
-    side VARCHAR(10) NOT NULL,
-    quantity NUMERIC(18,8) NOT NULL,
-    price NUMERIC(18,8),
-    order_type VARCHAR(20) NOT NULL,
-    status VARCHAR(20) NOT NULL,
-    filled_quantity NUMERIC(18,8) NOT NULL DEFAULT 0,
-    avg_price NUMERIC(18,8) NOT NULL DEFAULT 0,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
-    request_id VARCHAR(100),
-    error_message TEXT
+  id SERIAL PRIMARY KEY,  -- Add this new primary key
+  order_id UUID NOT NULL, -- No longer the primary key, but still indexed
+  status VARCHAR(20) NOT NULL,
+  user_id VARCHAR(100) NOT NULL,
+  symbol VARCHAR(20) NOT NULL,
+  side VARCHAR(10) NOT NULL,
+  quantity NUMERIC(18,8) NOT NULL,
+  price NUMERIC(18,8),
+  order_type VARCHAR(20) NOT NULL,
+  filled_quantity NUMERIC(18,8) NOT NULL DEFAULT 0,
+  avg_price NUMERIC(18,8) NOT NULL DEFAULT 0,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
+  request_id VARCHAR(100),
+  error_message TEXT
 );
 
 -- Create indexes
-CREATE INDEX IF NOT EXISTS idx_orders_user_id ON trading.orders(user_id);
+CREATE INDEX IF NOT EXISTS idx_orders_order_id ON trading.orders(order_id);
 CREATE INDEX IF NOT EXISTS idx_orders_status ON trading.orders(status);
+CREATE INDEX IF NOT EXISTS idx_orders_user_id ON trading.orders(user_id);
 CREATE INDEX IF NOT EXISTS idx_orders_created_at ON trading.orders(created_at);
 
 -- Market Data Schema for Minute Bars

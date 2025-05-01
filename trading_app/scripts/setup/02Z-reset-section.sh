@@ -15,8 +15,8 @@ case $SECTION in
         ;;
     databases)
         echo "Resetting database services..."
-        kubectl delete service postgres redis
-        kubectl delete deployment postgres redis
+        kubectl delete service postgres
+        kubectl delete deployment postgres
         ;;
     pgbouncer)
         echo "Resetting pgbouncer..."
