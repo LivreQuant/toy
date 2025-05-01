@@ -3,43 +3,58 @@ syntax = "proto3";
 package order_exchange;
 
 service OrderExchangeSimulator {
-  // Submit an order
-  rpc SubmitOrder(SubmitOrderRequest) returns (SubmitOrderResponse);
+  // Submit orders in batch
+  rpc SubmitOrders(BatchOrderRequest) returns (BatchOrderResponse);
   
-  // Cancel an order
-  rpc CancelOrder(CancelOrderRequest) returns (CancelOrderResponse);
+  // Cancel orders in batch
+  rpc CancelOrders(BatchCancelRequest) returns (BatchCancelResponse);
 }
 
-message SubmitOrderRequest {
-  string session_id = 1;
-  string symbol = 2;
+message OrderRequest {
+  string symbol = 1;
   enum Side {
     BUY = 0;
     SELL = 1;
   }
-  Side side = 3;
-  double quantity = 4;
-  double price = 5;
+  Side side = 2;
+  double quantity = 3;
+  double price = 4;
   enum Type {
     MARKET = 0;
     LIMIT = 1;
   }
-  Type type = 6;
-  string request_id = 7; 
+  Type type = 5;
+  string request_id = 6;
 }
 
-message SubmitOrderResponse {
+message OrderResponse {
   bool success = 1;
   string order_id = 2;
   string error_message = 3;
 }
 
-message CancelOrderRequest {
-  string session_id = 1;
-  string order_id = 2;
+message BatchOrderRequest {
+  repeated OrderRequest orders = 2;
 }
 
-message CancelOrderResponse {
+message BatchOrderResponse {
   bool success = 1;
-  string error_message = 2;
+  repeated OrderResponse results = 2;
+  string error_message = 3;
+}
+
+message BatchCancelRequest {
+  repeated string order_ids = 2;
+}
+
+message CancelResult {
+  string order_id = 1;
+  bool success = 2;
+  string error_message = 3;
+}
+
+message BatchCancelResponse {
+  bool success = 1;
+  repeated CancelResult results = 2;
+  string error_message = 3;
 }

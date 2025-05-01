@@ -3,27 +3,37 @@ import { HttpClient } from './http-client';
 
 export type OrderSide = 'BUY' | 'SELL';
 export type OrderType = 'MARKET' | 'LIMIT';
-export type OrderStatus = 'NEW' | 'PARTIALLY_FILLED' | 'FILLED' | 'CANCELED' | 'REJECTED';
 
-export interface SubmitOrderRequest {
+export interface OrderRequest {
   symbol: string;
   side: OrderSide;
+  type: OrderType;
   quantity: number;
   price?: number;
-  type: OrderType;
-  requestId?: string;  // For idempotency
+  requestId?: string;
 }
 
-export interface SubmitOrderResponse {
+export interface OrderResult {
   success: boolean;
-  orderId: string;
+  orderId?: string;
   errorMessage?: string;
 }
 
-export interface OrderStatusResponse {
-  status: OrderStatus;
-  filledQuantity: number;
-  avgPrice: number;
+export interface BatchOrderResponse {
+  success: boolean;
+  results: OrderResult[];
+  errorMessage?: string;
+}
+
+export interface CancelResult {
+  orderId: string;
+  success: boolean;
+  errorMessage?: string;
+}
+
+export interface BatchCancelResponse {
+  success: boolean;
+  results: CancelResult[];
   errorMessage?: string;
 }
 
@@ -34,11 +44,11 @@ export class OrdersApi {
     this.client = client;
   }
 
-  async submitOrder(order: SubmitOrderRequest): Promise<SubmitOrderResponse> {
-    return this.client.post<SubmitOrderResponse>('/orders/submit', order);
+  async submitOrders(orders: OrderRequest[]): Promise<BatchOrderResponse> {
+    return this.client.post<BatchOrderResponse>('/api/orders/submit', { orders });
   }
 
-  async cancelOrder(orderId: string): Promise<{ success: boolean }> {
-    return this.client.post<{ success: boolean }>('/orders/cancel', { orderId });
+  async cancelOrders(orderIds: string[]): Promise<BatchCancelResponse> {
+    return this.client.post<BatchCancelResponse>('/api/orders/cancel', { orderIds });
   }
 }

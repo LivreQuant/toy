@@ -10,59 +10,54 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file main/services/order_exchange_interface.proto.
  */
 export const file_main_services_order_exchange_interface: GenFile = /*@__PURE__*/
-  fileDesc("CixtYWluL3NlcnZpY2VzL29yZGVyX2V4Y2hhbmdlX2ludGVyZmFjZS5wcm90bxIOb3JkZXJfZXhjaGFuZ2UilQIKElN1Ym1pdE9yZGVyUmVxdWVzdBISCgpzZXNzaW9uX2lkGAEgASgJEg4KBnN5bWJvbBgCIAEoCRI1CgRzaWRlGAMgASgOMicub3JkZXJfZXhjaGFuZ2UuU3VibWl0T3JkZXJSZXF1ZXN0LlNpZGUSEAoIcXVhbnRpdHkYBCABKAESDQoFcHJpY2UYBSABKAESNQoEdHlwZRgGIAEoDjInLm9yZGVyX2V4Y2hhbmdlLlN1Ym1pdE9yZGVyUmVxdWVzdC5UeXBlEhIKCnJlcXVlc3RfaWQYByABKAkiGQoEU2lkZRIHCgNCVVkQABIICgRTRUxMEAEiHQoEVHlwZRIKCgZNQVJLRVQQABIJCgVMSU1JVBABIk8KE1N1Ym1pdE9yZGVyUmVzcG9uc2USDwoHc3VjY2VzcxgBIAEoCBIQCghvcmRlcl9pZBgCIAEoCRIVCg1lcnJvcl9tZXNzYWdlGAMgASgJIjoKEkNhbmNlbE9yZGVyUmVxdWVzdBISCgpzZXNzaW9uX2lkGAEgASgJEhAKCG9yZGVyX2lkGAIgASgJIj0KE0NhbmNlbE9yZGVyUmVzcG9uc2USDwoHc3VjY2VzcxgBIAEoCBIVCg1lcnJvcl9tZXNzYWdlGAIgASgJMsgBChZPcmRlckV4Y2hhbmdlU2ltdWxhdG9yElYKC1N1Ym1pdE9yZGVyEiIub3JkZXJfZXhjaGFuZ2UuU3VibWl0T3JkZXJSZXF1ZXN0GiMub3JkZXJfZXhjaGFuZ2UuU3VibWl0T3JkZXJSZXNwb25zZRJWCgtDYW5jZWxPcmRlchIiLm9yZGVyX2V4Y2hhbmdlLkNhbmNlbE9yZGVyUmVxdWVzdBojLm9yZGVyX2V4Y2hhbmdlLkNhbmNlbE9yZGVyUmVzcG9uc2VChQEKEmNvbS5vcmRlcl9leGNoYW5nZUIbT3JkZXJFeGNoYW5nZUludGVyZmFjZVByb3RvUAGiAgNPWFiqAg1PcmRlckV4Y2hhbmdlygINT3JkZXJFeGNoYW5nZeICGU9yZGVyRXhjaGFuZ2VcR1BCTWV0YWRhdGHqAg1PcmRlckV4Y2hhbmdlYgZwcm90bzM");
+  fileDesc("CixtYWluL3NlcnZpY2VzL29yZGVyX2V4Y2hhbmdlX2ludGVyZmFjZS5wcm90bxIOb3JkZXJfZXhjaGFuZ2Ui7wEKDE9yZGVyUmVxdWVzdBIOCgZzeW1ib2wYASABKAkSLwoEc2lkZRgCIAEoDjIhLm9yZGVyX2V4Y2hhbmdlLk9yZGVyUmVxdWVzdC5TaWRlEhAKCHF1YW50aXR5GAMgASgBEg0KBXByaWNlGAQgASgBEi8KBHR5cGUYBSABKA4yIS5vcmRlcl9leGNoYW5nZS5PcmRlclJlcXVlc3QuVHlwZRISCgpyZXF1ZXN0X2lkGAYgASgJIhkKBFNpZGUSBwoDQlVZEAASCAoEU0VMTBABIh0KBFR5cGUSCgoGTUFSS0VUEAASCQoFTElNSVQQASJJCg1PcmRlclJlc3BvbnNlEg8KB3N1Y2Nlc3MYASABKAgSEAoIb3JkZXJfaWQYAiABKAkSFQoNZXJyb3JfbWVzc2FnZRgDIAEoCSJBChFCYXRjaE9yZGVyUmVxdWVzdBIsCgZvcmRlcnMYAiADKAsyHC5vcmRlcl9leGNoYW5nZS5PcmRlclJlcXVlc3QibAoSQmF0Y2hPcmRlclJlc3BvbnNlEg8KB3N1Y2Nlc3MYASABKAgSLgoHcmVzdWx0cxgCIAMoCzIdLm9yZGVyX2V4Y2hhbmdlLk9yZGVyUmVzcG9uc2USFQoNZXJyb3JfbWVzc2FnZRgDIAEoCSInChJCYXRjaENhbmNlbFJlcXVlc3QSEQoJb3JkZXJfaWRzGAIgAygJIkgKDENhbmNlbFJlc3VsdBIQCghvcmRlcl9pZBgBIAEoCRIPCgdzdWNjZXNzGAIgASgIEhUKDWVycm9yX21lc3NhZ2UYAyABKAkibAoTQmF0Y2hDYW5jZWxSZXNwb25zZRIPCgdzdWNjZXNzGAEgASgIEi0KB3Jlc3VsdHMYAiADKAsyHC5vcmRlcl9leGNoYW5nZS5DYW5jZWxSZXN1bHQSFQoNZXJyb3JfbWVzc2FnZRgDIAEoCTLIAQoWT3JkZXJFeGNoYW5nZVNpbXVsYXRvchJVCgxTdWJtaXRPcmRlcnMSIS5vcmRlcl9leGNoYW5nZS5CYXRjaE9yZGVyUmVxdWVzdBoiLm9yZGVyX2V4Y2hhbmdlLkJhdGNoT3JkZXJSZXNwb25zZRJXCgxDYW5jZWxPcmRlcnMSIi5vcmRlcl9leGNoYW5nZS5CYXRjaENhbmNlbFJlcXVlc3QaIy5vcmRlcl9leGNoYW5nZS5CYXRjaENhbmNlbFJlc3BvbnNlQoUBChJjb20ub3JkZXJfZXhjaGFuZ2VCG09yZGVyRXhjaGFuZ2VJbnRlcmZhY2VQcm90b1ABogIDT1hYqgINT3JkZXJFeGNoYW5nZcoCDU9yZGVyRXhjaGFuZ2XiAhlPcmRlckV4Y2hhbmdlXEdQQk1ldGFkYXRh6gINT3JkZXJFeGNoYW5nZWIGcHJvdG8z");
 
 /**
- * @generated from message order_exchange.SubmitOrderRequest
+ * @generated from message order_exchange.OrderRequest
  */
-export type SubmitOrderRequest = Message<"order_exchange.SubmitOrderRequest"> & {
+export type OrderRequest = Message<"order_exchange.OrderRequest"> & {
   /**
-   * @generated from field: string session_id = 1;
-   */
-  sessionId: string;
-
-  /**
-   * @generated from field: string symbol = 2;
+   * @generated from field: string symbol = 1;
    */
   symbol: string;
 
   /**
-   * @generated from field: order_exchange.SubmitOrderRequest.Side side = 3;
+   * @generated from field: order_exchange.OrderRequest.Side side = 2;
    */
-  side: SubmitOrderRequest_Side;
+  side: OrderRequest_Side;
 
   /**
-   * @generated from field: double quantity = 4;
+   * @generated from field: double quantity = 3;
    */
   quantity: number;
 
   /**
-   * @generated from field: double price = 5;
+   * @generated from field: double price = 4;
    */
   price: number;
 
   /**
-   * @generated from field: order_exchange.SubmitOrderRequest.Type type = 6;
+   * @generated from field: order_exchange.OrderRequest.Type type = 5;
    */
-  type: SubmitOrderRequest_Type;
+  type: OrderRequest_Type;
 
   /**
-   * @generated from field: string request_id = 7;
+   * @generated from field: string request_id = 6;
    */
   requestId: string;
 };
 
 /**
- * Describes the message order_exchange.SubmitOrderRequest.
- * Use `create(SubmitOrderRequestSchema)` to create a new message.
+ * Describes the message order_exchange.OrderRequest.
+ * Use `create(OrderRequestSchema)` to create a new message.
  */
-export const SubmitOrderRequestSchema: GenMessage<SubmitOrderRequest> = /*@__PURE__*/
+export const OrderRequestSchema: GenMessage<OrderRequest> = /*@__PURE__*/
   messageDesc(file_main_services_order_exchange_interface, 0);
 
 /**
- * @generated from enum order_exchange.SubmitOrderRequest.Side
+ * @generated from enum order_exchange.OrderRequest.Side
  */
-export enum SubmitOrderRequest_Side {
+export enum OrderRequest_Side {
   /**
    * @generated from enum value: BUY = 0;
    */
@@ -75,15 +70,15 @@ export enum SubmitOrderRequest_Side {
 }
 
 /**
- * Describes the enum order_exchange.SubmitOrderRequest.Side.
+ * Describes the enum order_exchange.OrderRequest.Side.
  */
-export const SubmitOrderRequest_SideSchema: GenEnum<SubmitOrderRequest_Side> = /*@__PURE__*/
+export const OrderRequest_SideSchema: GenEnum<OrderRequest_Side> = /*@__PURE__*/
   enumDesc(file_main_services_order_exchange_interface, 0, 0);
 
 /**
- * @generated from enum order_exchange.SubmitOrderRequest.Type
+ * @generated from enum order_exchange.OrderRequest.Type
  */
-export enum SubmitOrderRequest_Type {
+export enum OrderRequest_Type {
   /**
    * @generated from enum value: MARKET = 0;
    */
@@ -96,15 +91,15 @@ export enum SubmitOrderRequest_Type {
 }
 
 /**
- * Describes the enum order_exchange.SubmitOrderRequest.Type.
+ * Describes the enum order_exchange.OrderRequest.Type.
  */
-export const SubmitOrderRequest_TypeSchema: GenEnum<SubmitOrderRequest_Type> = /*@__PURE__*/
+export const OrderRequest_TypeSchema: GenEnum<OrderRequest_Type> = /*@__PURE__*/
   enumDesc(file_main_services_order_exchange_interface, 0, 1);
 
 /**
- * @generated from message order_exchange.SubmitOrderResponse
+ * @generated from message order_exchange.OrderResponse
  */
-export type SubmitOrderResponse = Message<"order_exchange.SubmitOrderResponse"> & {
+export type OrderResponse = Message<"order_exchange.OrderResponse"> & {
   /**
    * @generated from field: bool success = 1;
    */
@@ -122,79 +117,150 @@ export type SubmitOrderResponse = Message<"order_exchange.SubmitOrderResponse"> 
 };
 
 /**
- * Describes the message order_exchange.SubmitOrderResponse.
- * Use `create(SubmitOrderResponseSchema)` to create a new message.
+ * Describes the message order_exchange.OrderResponse.
+ * Use `create(OrderResponseSchema)` to create a new message.
  */
-export const SubmitOrderResponseSchema: GenMessage<SubmitOrderResponse> = /*@__PURE__*/
+export const OrderResponseSchema: GenMessage<OrderResponse> = /*@__PURE__*/
   messageDesc(file_main_services_order_exchange_interface, 1);
 
 /**
- * @generated from message order_exchange.CancelOrderRequest
+ * @generated from message order_exchange.BatchOrderRequest
  */
-export type CancelOrderRequest = Message<"order_exchange.CancelOrderRequest"> & {
+export type BatchOrderRequest = Message<"order_exchange.BatchOrderRequest"> & {
   /**
-   * @generated from field: string session_id = 1;
+   * @generated from field: repeated order_exchange.OrderRequest orders = 2;
    */
-  sessionId: string;
-
-  /**
-   * @generated from field: string order_id = 2;
-   */
-  orderId: string;
+  orders: OrderRequest[];
 };
 
 /**
- * Describes the message order_exchange.CancelOrderRequest.
- * Use `create(CancelOrderRequestSchema)` to create a new message.
+ * Describes the message order_exchange.BatchOrderRequest.
+ * Use `create(BatchOrderRequestSchema)` to create a new message.
  */
-export const CancelOrderRequestSchema: GenMessage<CancelOrderRequest> = /*@__PURE__*/
+export const BatchOrderRequestSchema: GenMessage<BatchOrderRequest> = /*@__PURE__*/
   messageDesc(file_main_services_order_exchange_interface, 2);
 
 /**
- * @generated from message order_exchange.CancelOrderResponse
+ * @generated from message order_exchange.BatchOrderResponse
  */
-export type CancelOrderResponse = Message<"order_exchange.CancelOrderResponse"> & {
+export type BatchOrderResponse = Message<"order_exchange.BatchOrderResponse"> & {
   /**
    * @generated from field: bool success = 1;
    */
   success: boolean;
 
   /**
-   * @generated from field: string error_message = 2;
+   * @generated from field: repeated order_exchange.OrderResponse results = 2;
+   */
+  results: OrderResponse[];
+
+  /**
+   * @generated from field: string error_message = 3;
    */
   errorMessage: string;
 };
 
 /**
- * Describes the message order_exchange.CancelOrderResponse.
- * Use `create(CancelOrderResponseSchema)` to create a new message.
+ * Describes the message order_exchange.BatchOrderResponse.
+ * Use `create(BatchOrderResponseSchema)` to create a new message.
  */
-export const CancelOrderResponseSchema: GenMessage<CancelOrderResponse> = /*@__PURE__*/
+export const BatchOrderResponseSchema: GenMessage<BatchOrderResponse> = /*@__PURE__*/
   messageDesc(file_main_services_order_exchange_interface, 3);
+
+/**
+ * @generated from message order_exchange.BatchCancelRequest
+ */
+export type BatchCancelRequest = Message<"order_exchange.BatchCancelRequest"> & {
+  /**
+   * @generated from field: repeated string order_ids = 2;
+   */
+  orderIds: string[];
+};
+
+/**
+ * Describes the message order_exchange.BatchCancelRequest.
+ * Use `create(BatchCancelRequestSchema)` to create a new message.
+ */
+export const BatchCancelRequestSchema: GenMessage<BatchCancelRequest> = /*@__PURE__*/
+  messageDesc(file_main_services_order_exchange_interface, 4);
+
+/**
+ * @generated from message order_exchange.CancelResult
+ */
+export type CancelResult = Message<"order_exchange.CancelResult"> & {
+  /**
+   * @generated from field: string order_id = 1;
+   */
+  orderId: string;
+
+  /**
+   * @generated from field: bool success = 2;
+   */
+  success: boolean;
+
+  /**
+   * @generated from field: string error_message = 3;
+   */
+  errorMessage: string;
+};
+
+/**
+ * Describes the message order_exchange.CancelResult.
+ * Use `create(CancelResultSchema)` to create a new message.
+ */
+export const CancelResultSchema: GenMessage<CancelResult> = /*@__PURE__*/
+  messageDesc(file_main_services_order_exchange_interface, 5);
+
+/**
+ * @generated from message order_exchange.BatchCancelResponse
+ */
+export type BatchCancelResponse = Message<"order_exchange.BatchCancelResponse"> & {
+  /**
+   * @generated from field: bool success = 1;
+   */
+  success: boolean;
+
+  /**
+   * @generated from field: repeated order_exchange.CancelResult results = 2;
+   */
+  results: CancelResult[];
+
+  /**
+   * @generated from field: string error_message = 3;
+   */
+  errorMessage: string;
+};
+
+/**
+ * Describes the message order_exchange.BatchCancelResponse.
+ * Use `create(BatchCancelResponseSchema)` to create a new message.
+ */
+export const BatchCancelResponseSchema: GenMessage<BatchCancelResponse> = /*@__PURE__*/
+  messageDesc(file_main_services_order_exchange_interface, 6);
 
 /**
  * @generated from service order_exchange.OrderExchangeSimulator
  */
 export const OrderExchangeSimulator: GenService<{
   /**
-   * Submit an order
+   * Submit orders in batch
    *
-   * @generated from rpc order_exchange.OrderExchangeSimulator.SubmitOrder
+   * @generated from rpc order_exchange.OrderExchangeSimulator.SubmitOrders
    */
-  submitOrder: {
+  submitOrders: {
     methodKind: "unary";
-    input: typeof SubmitOrderRequestSchema;
-    output: typeof SubmitOrderResponseSchema;
+    input: typeof BatchOrderRequestSchema;
+    output: typeof BatchOrderResponseSchema;
   },
   /**
-   * Cancel an order
+   * Cancel orders in batch
    *
-   * @generated from rpc order_exchange.OrderExchangeSimulator.CancelOrder
+   * @generated from rpc order_exchange.OrderExchangeSimulator.CancelOrders
    */
-  cancelOrder: {
+  cancelOrders: {
     methodKind: "unary";
-    input: typeof CancelOrderRequestSchema;
-    output: typeof CancelOrderResponseSchema;
+    input: typeof BatchCancelRequestSchema;
+    output: typeof BatchCancelResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_main_services_order_exchange_interface, 0);

@@ -99,8 +99,11 @@ class OrderController:
                 'reason': str(e)
             }, status=503)
 
-    async def submit_order(self, request: web.Request) -> web.Response:
-        """Handle order submission"""
+     
+    async def submit_orders(self, request: web.Request) -> web.Response:
+        """
+        Handle order submission endpoint - Only batch submission is supported
+        """
         # Try to acquire the lock first
         acquired = await self.state_manager.acquire()
         if not acquired:
@@ -110,9 +113,6 @@ class OrderController:
             }, status=503)  # Service Unavailable
 
         try:
-            # Start metrics timer
-            start_time = time.time()
-
             # Extract token and device ID
             token, device_id = get_token(request)
 
@@ -131,7 +131,7 @@ class OrderController:
                 }, status=401)
 
             # Validate device ID
-            device_valid = await self.order_manager.order_repository.validate_device_id(device_id)
+            device_valid = await self.order_manager.validation_manager.validate_device_id(device_id)
             if not device_valid:
                 return web.json_response({
                     "success": False,
@@ -147,37 +147,29 @@ class OrderController:
                     "error": "Invalid JSON in request body"
                 }, status=400)
 
-            # Validate request data
-            try:
-                # Required fields
-                validate_required_fields(data, ['symbol', 'side', 'quantity', 'type'])
-
-                # Numeric fields
-                validate_numeric_field(data, 'quantity', min_value=0.00001)
-                if 'price' in data:
-                    validate_numeric_field(data, 'price', min_value=0)
-
-                # Enum fields
-                validate_enum_field(data, 'side', OrderSide)
-                validate_enum_field(data, 'type', OrderType)
-            except ValidationError as e:
+            # Extract orders array
+            if not isinstance(data, dict) or 'orders' not in data or not isinstance(data['orders'], list):
                 return web.json_response({
                     "success": False,
-                    "error": str(e),
-                    "field": e.field
+                    "error": "Request must contain an 'orders' array"
                 }, status=400)
 
-            # Submit order - pass user_id and device_id
-            result = await self.order_manager.submit_order(data, user_id)
+            orders = data['orders']
+            if len(orders) == 0:
+                return web.json_response({
+                    "success": False,
+                    "error": "No orders provided"
+                }, status=400)
 
-            # Record metrics
-            elapsed_seconds = time.time() - start_time
-            track_order_submission_latency(data.get('type', 'UNKNOWN'), result.get('success', False), elapsed_seconds)
+            if len(orders) > 100:  # Set a reasonable limit
+                return web.json_response({
+                    "success": False,
+                    "error": f"Too many orders. Maximum of 100 allowed per batch."
+                }, status=400)
 
-            # Determine status code
-            status_code = 200 if result.get('success') else 400
-
-            return web.json_response(result, status=status_code)
+            # Process orders
+            result = await self.order_manager.submit_orders(orders, user_id)
+            return web.json_response(result)
 
         except Exception as e:
             logger.error(f"Error handling order submission: {e}")
@@ -189,8 +181,10 @@ class OrderController:
             # Always release the lock, even if there's an error
             await self.state_manager.release()
 
-    async def cancel_order(self, request: web.Request) -> web.Response:
-        """Handle order cancellation"""
+    async def cancel_orders(self, request: web.Request) -> web.Response:
+        """
+        Handle order cancellation endpoint - Only batch cancellation is supported
+        """
         # Try to acquire the lock first
         acquired = await self.state_manager.acquire()
         if not acquired:
@@ -208,7 +202,7 @@ class OrderController:
                     "success": False,
                     "error": "Authentication token is required"
                 }, status=401)
-                
+
             # Get user_id from token
             user_id = await self._get_user_id_from_token(token)
             if not user_id:
@@ -216,9 +210,9 @@ class OrderController:
                     "success": False,
                     "error": "Invalid authentication token"
                 }, status=401)
-                
+
             # Validate device ID
-            device_valid = await self.order_manager.order_repository.validate_device_id(device_id)
+            device_valid = await self.order_manager.validation_manager.validate_device_id(device_id)
             if not device_valid:
                 return web.json_response({
                     "success": False,
@@ -234,31 +228,30 @@ class OrderController:
                     "error": "Invalid JSON in request body"
                 }, status=400)
 
-            # Validate required fields
-            try:
-                validate_required_fields(data, ['orderId'])
-            except ValidationError as e:
+            # Extract order_ids array
+            if not isinstance(data, dict) or 'orderIds' not in data or not isinstance(data['orderIds'], list):
                 return web.json_response({
                     "success": False,
-                    "error": str(e)
+                    "error": "Request must contain an 'orderIds' array"
                 }, status=400)
 
-            # Extract requestId if present
-            request_id = data.get('requestId')
+            order_ids = data['orderIds']
+            if len(order_ids) == 0:
+                return web.json_response({
+                    "success": False,
+                    "error": "No order IDs provided"
+                }, status=400)
 
-            # Cancel order - pass user_id, device_id and request_id
-            result = await self.order_manager.cancel_order(
-                data['orderId'], 
-                device_id, 
-                user_id,
-                request_id
-            )
+            if len(order_ids) > 100:  # Set a reasonable limit
+                return web.json_response({
+                    "success": False,
+                    "error": f"Too many orders. Maximum of 100 cancellations allowed per batch."
+                }, status=400)
 
-            # Determine status code
-            status_code = 200 if result.get('success') else 400
+            # Process cancellations
+            result = await self.order_manager.cancel_orders(order_ids, user_id)
+            return web.json_response(result)
 
-            return web.json_response(result, status=status_code)
-            
         except Exception as e:
             logger.error(f"Error handling order cancellation: {e}")
             return web.json_response({
@@ -268,4 +261,3 @@ class OrderController:
         finally:
             # Always release the lock, even if there's an error
             await self.state_manager.release()
-            

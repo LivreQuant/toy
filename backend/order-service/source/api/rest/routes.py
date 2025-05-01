@@ -10,16 +10,10 @@ from source.config import config
 logger = logging.getLogger('rest_routes')
 
 
+
 async def setup_app(order_manager: OrderManager, state_manager: StateManager) -> tuple:
     """
     Set up the REST API application with routes and middleware
-    
-    Args:
-        order_manager: The order manager instance
-        state_manager: The state manager instance
-        
-    Returns:
-        Tuple of (app, runner, site)
     """
     # Create application
     app = web.Application()
@@ -27,9 +21,9 @@ async def setup_app(order_manager: OrderManager, state_manager: StateManager) ->
     # Create controller
     controller = OrderController(order_manager, state_manager)
 
-    # Add routes
-    app.router.add_post('/api/orders/submit', controller.submit_order)
-    app.router.add_post('/api/orders/cancel', controller.cancel_order)
+    # Add routes - only batch endpoints
+    app.router.add_post('/api/orders/submit', controller.submit_orders)  # Batch submissions only
+    app.router.add_post('/api/orders/cancel', controller.cancel_orders)  # Batch cancellations only
     app.router.add_get('/health', controller.health_check)
     app.router.add_get('/readiness', controller.readiness_check)
 
@@ -39,7 +33,7 @@ async def setup_app(order_manager: OrderManager, state_manager: StateManager) ->
             allow_credentials=True,
             expose_headers="*",
             allow_headers="*",
-            allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+            allow_methods=["GET", "POST", "OPTIONS"]
         )
     })
 

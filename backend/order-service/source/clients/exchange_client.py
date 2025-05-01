@@ -72,8 +72,18 @@ class ExchangeClient:
         self.channels.clear()
         self.stubs.clear()
 
-    async def submit_order(self, order: Order, simulator_endpoint: str) -> Dict[str, Any]:
-        """Submit an order to the exchange simulator"""
+    
+    async def submit_orders(self, batch_request: Dict[str, Any], endpoint: str) -> Dict[str, Any]:
+        """
+        Submit a batch of orders to the exchange simulator
+        
+        Args:
+            batch_request: Dictionary with session_id and orders array
+            endpoint: Exchange endpoint
+            
+        Returns:
+            Dictionary with success flag and results
+        """
         try:
             # Use circuit breaker for gRPC call
             set_circuit_state("exchange_service", self.breaker.state.name)
@@ -81,15 +91,15 @@ class ExchangeClient:
             # Execute with circuit breaker
             start_time = time.time()
             result = await self.breaker.execute(
-                self._submit_order_request,
-                order,
-                simulator_endpoint
+                self._submit_orders_request,
+                batch_request,
+                endpoint
             )
             duration = time.time() - start_time
 
             # Record metrics
             success = result.get('success', False)
-            track_exchange_request("submit_order", success, duration)
+            track_exchange_request("submit_orders_batch", success, duration)
 
             return result
         except CircuitOpenError:
@@ -97,79 +107,84 @@ class ExchangeClient:
             logger.warning("Exchange service circuit breaker open")
             return {
                 "success": False,
-                "error": "Exchange service unavailable due to repeated failures",
-                "order_id": order.order_id
+                "errorMessage": "Exchange service unavailable due to repeated failures",
+                "results": []
             }
 
-    async def _submit_order_request(self, order: Order, endpoint: str) -> Dict[str, Any]:
-        """Make the actual order submission request"""
+
+    async def _submit_orders_request(self, batch_request: Dict[str, Any], endpoint: str) -> Dict[str, Any]:
+        """Make the actual batch order submission request to gRPC service"""
         try:
             # Get gRPC connection
             _, stub = await self.get_channel(endpoint)
 
-            # Convert order side and type to gRPC enum values
-            side_enum = 0 if order.side == "BUY" else 1  # 0=BUY, 1=SELL
-            type_enum = 0 if order.order_type == "MARKET" else 1  # 0=MARKET, 1=LIMIT
-
-            # Create gRPC request
-            request = SubmitOrderRequest(
-                symbol=order.symbol,
-                side=side_enum,
-                quantity=float(order.quantity),
-                price=float(order.price) if order.price is not None else 0,
-                type=type_enum,
-                request_id=order.request_id or f"order-{int(time.time())}-{order.order_id}"
+            # Prepare the gRPC request
+            order_requests = []
+            for order_data in batch_request["orders"]:
+                # Convert enum values
+                side_enum = 0 if order_data["side"] == "BUY" else 1
+                type_enum = 0 if order_data["type"] == "MARKET" else 1
+                
+                # Create OrderRequest for each order
+                order_request = OrderRequest(
+                    symbol=order_data["symbol"],
+                    side=side_enum,
+                    quantity=float(order_data["quantity"]),
+                    price=float(order_data.get("price", 0)),
+                    type=type_enum,
+                    request_id=order_data.get("request_id", "")
+                )
+                order_requests.append(order_request)
+            
+            # Create the batch request
+            grpc_request = BatchOrderRequest(
+                session_id=batch_request["session_id"],
+                orders=order_requests
             )
 
-            # Call gRPC service
-            response = await stub.SubmitOrder(request, timeout=5)
+            # Call gRPC service with timeout
+            response = await stub.SubmitOrders(grpc_request, timeout=10)
 
-            if not response.success:
-                logger.warning(f"Order submission failed: {response.error_message}")
-                return {
-                    "success": False,
-                    "error": response.error_message,
-                    "order_id": order.order_id
-                }
-
-            return {
-                "success": True,
-                "order_id": response.order_id or order.order_id
+            # Convert to dictionary format
+            result = {
+                "success": response.success,
+                "errorMessage": response.error_message if hasattr(response, "error_message") else None,
+                "results": []
             }
+            
+            # Process individual order results
+            for order_result in response.results:
+                result["results"].append({
+                    "success": order_result.success,
+                    "orderId": order_result.order_id,
+                    "errorMessage": order_result.error_message
+                })
+
+            return result
 
         except grpc.aio.AioRpcError as e:
-            status_code = e.code()
-
-            if status_code == grpc.StatusCode.UNAVAILABLE:
-                logger.error(f"Exchange unavailable: {e.details()}")
-                return {
-                    "success": False,
-                    "error": "Exchange service unavailable, please try again later",
-                    "order_id": order.order_id
-                }
-            elif status_code == grpc.StatusCode.DEADLINE_EXCEEDED:
-                logger.error(f"Exchange request timed out: {e.details()}")
-                return {
-                    "success": False,
-                    "error": "Exchange service timed out, please try again",
-                    "order_id": order.order_id
-                }
-            logger.error(f"gRPC error ({status_code}): {e.details()}")
-            return {
-                "success": False,
-                "error": f"Communication error: {e.details()}",
-                "order_id": order.order_id
-            }
+            # Handle gRPC errors
+            return self._handle_grpc_error(e, "submit_orders")
+            
         except Exception as e:
-            logger.error(f"Error submitting order to exchange: {e}")
+            logger.error(f"Unexpected error in submit_orders: {e}")
             return {
                 "success": False,
-                "error": f"Exchange communication error: {str(e)}",
-                "order_id": order.order_id
+                "errorMessage": f"Exchange communication error: {str(e)}",
+                "results": []
             }
 
-    async def cancel_order(self, order: Order, simulator_endpoint: str) -> Dict[str, Any]:
-        """Cancel an order on the exchange simulator"""
+    async def cancel_orders(self, batch_request: Dict[str, Any], endpoint: str) -> Dict[str, Any]:
+        """
+        Cancel a batch of orders on the exchange simulator
+        
+        Args:
+            batch_request: Dictionary with session_id and order_ids array
+            endpoint: Exchange endpoint
+            
+        Returns:
+            Dictionary with success flag and results
+        """
         try:
             # Use circuit breaker for gRPC call
             set_circuit_state("exchange_service", self.breaker.state.name)
@@ -177,15 +192,15 @@ class ExchangeClient:
             # Execute with circuit breaker
             start_time = time.time()
             result = await self.breaker.execute(
-                self._cancel_order_request,
-                order,
-                simulator_endpoint
+                self._cancel_orders_request,
+                batch_request,
+                endpoint
             )
             duration = time.time() - start_time
 
             # Record metrics
             success = result.get('success', False)
-            track_exchange_request("cancel_order", success, duration)
+            track_exchange_request("cancel_orders_batch", success, duration)
 
             return result
         except CircuitOpenError:
@@ -193,135 +208,75 @@ class ExchangeClient:
             logger.warning("Exchange service circuit breaker open")
             return {
                 "success": False,
-                "error": "Exchange service unavailable due to repeated failures"
+                "errorMessage": "Exchange service unavailable due to repeated failures",
+                "results": []
             }
 
-    async def _cancel_order_request(self, order: Order, endpoint: str) -> Dict[str, Any]:
-        """Make the actual order cancellation request"""
+    async def _cancel_orders_request(self, batch_request: Dict[str, Any], endpoint: str) -> Dict[str, Any]:
+        """Make the actual batch cancel request to gRPC service"""
         try:
             # Get gRPC connection
             _, stub = await self.get_channel(endpoint)
 
-            # Create gRPC request
-            request = CancelOrderRequest(
-                order_id=order.order_id
+            # Create the batch request
+            grpc_request = BatchCancelRequest(
+                session_id=batch_request["session_id"],
+                order_ids=batch_request["order_ids"]
             )
 
-            # Call gRPC service
-            response = await stub.CancelOrder(request, timeout=5)
+            # Call gRPC service with timeout
+            response = await stub.CancelOrders(grpc_request, timeout=10)
 
-            if not response.success:
-                logger.warning(f"Order cancellation failed: {response.error_message}")
-                return {
-                    "success": False,
-                    "error": response.error_message
-                }
-
-            return {
-                "success": True
+            # Convert to dictionary format
+            result = {
+                "success": response.success,
+                "errorMessage": response.error_message if hasattr(response, "error_message") else None,
+                "results": []
             }
-
-        except grpc.aio.AioRpcError as e:
-            status_code = e.code()
-
-            if status_code == grpc.StatusCode.UNAVAILABLE:
-                logger.error(f"Exchange unavailable: {e.details()}")
-                return {
-                    "success": False,
-                    "error": "Exchange service unavailable, please try again later"
-                }
-            logger.error(f"gRPC error ({status_code}): {e.details()}")
-            return {
-                "success": False,
-                "error": f"Communication error: {e.details()}"
-            }
-        except Exception as e:
-            logger.error(f"Error cancelling order on exchange: {e}")
-            return {
-                "success": False,
-                "error": f"Exchange communication error: {str(e)}"
-            }
-
-    async def get_order_status(self, order: Order, simulator_endpoint: str) -> Dict[str, Any]:
-        """Get order status from the exchange simulator"""
-        try:
-            # Use circuit breaker for gRPC call
-            set_circuit_state("exchange_service", self.breaker.state.name)
-
-            # In this version, we use the Order object itself as our request
-            # Execute with circuit breaker
-            start_time = time.time()
-            result = await self.breaker.execute(
-                self._get_order_status_request,
-                order,
-                simulator_endpoint
-            )
-            duration = time.time() - start_time
-
-            # Record metrics
-            success = result.get('success', False)
-            track_exchange_request("get_order_status", success, duration)
+            
+            # Process individual cancel results
+            for cancel_result in response.results:
+                result["results"].append({
+                    "success": cancel_result.success,
+                    "orderId": cancel_result.order_id,
+                    "errorMessage": cancel_result.error_message if hasattr(cancel_result, "error_message") else None
+                })
 
             return result
-        except CircuitOpenError:
-            track_circuit_failure("exchange_service")
-            logger.warning("Exchange service circuit breaker open")
-            return {
-                "success": False,
-                "error": "Exchange service unavailable due to repeated failures"
-            }
-
-    async def _get_order_status_request(self, order: Order, endpoint: str) -> Dict[str, Any]:
-        """Make the actual order status request"""
-        try:
-            # Get gRPC connection
-            _, stub = await self.get_channel(endpoint)
-
-            # For simplicity in this refactored version, assume we have a GetOrderStatus method
-            # If this doesn't exist in the real proto, you'll need to implement a suitable alternative
-            request = grpc.GetOrderStatusRequest(
-                order_id=order.order_id
-            )
-
-            # Call gRPC service
-            response = await stub.GetOrderStatus(request, timeout=5)
-
-            # Map status enum to string
-            status_map = {
-                0: OrderStatus.REJECTED,  # UNKNOWN
-                1: OrderStatus.NEW,  # NEW
-                2: OrderStatus.PARTIALLY_FILLED,  # PARTIALLY_FILLED
-                3: OrderStatus.FILLED,  # FILLED
-                4: OrderStatus.CANCELED,  # CANCELED
-                5: OrderStatus.REJECTED  # REJECTED
-            }
-            status = status_map.get(response.status, OrderStatus.REJECTED)
-
-            return {
-                "success": True,
-                "status": status,
-                "filled_quantity": float(response.filled_quantity),
-                "avg_price": float(response.avg_price),
-                "error_message": response.error_message
-            }
 
         except grpc.aio.AioRpcError as e:
-            status_code = e.code()
-
-            if status_code == grpc.StatusCode.UNAVAILABLE:
-                logger.error(f"Exchange unavailable: {e.details()}")
-                return {
-                    "success": False,
-                    "error": "Exchange service unavailable, please try again later"
-                }
-            logger.error(f"gRPC error ({status_code}): {e.details()}")
-            return {
-                "success": False,
-                "error": f"Communication error: {e.details()}"
-            }
+            # Handle gRPC errors
+            return self._handle_grpc_error(e, "cancel_orders")
+            
         except Exception as e:
-            logger.error(f"Error getting order status from exchange: {e}")
+            logger.error(f"Unexpected error in cancel_orders: {e}")
             return {
                 "success": False,
-                "error": f"Exchange communication error: {str(e)}"
+                "errorMessage": f"Exchange communication error: {str(e)}",
+                "results": []
+            }
+
+    def _handle_grpc_error(self, error: grpc.aio.AioRpcError, operation: str) -> Dict[str, Any]:
+        """Handle gRPC errors for all operations"""
+        status_code = error.code()
+        if status_code == grpc.StatusCode.UNAVAILABLE:
+            logger.error(f"Exchange unavailable during {operation}: {error.details()}")
+            return {
+                "success": False,
+                "errorMessage": "Exchange service unavailable, please try again later",
+                "results": []
+            }
+        elif status_code == grpc.StatusCode.DEADLINE_EXCEEDED:
+            logger.error(f"Exchange request timed out during {operation}: {error.details()}")
+            return {
+                "success": False,
+                "errorMessage": "Exchange service timed out, please try again",
+                "results": []
+            }
+        else:
+            logger.error(f"gRPC error during {operation} ({status_code}): {error.details()}")
+            return {
+                "success": False,
+                "errorMessage": f"Communication error: {error.details()}",
+                "results": []
             }

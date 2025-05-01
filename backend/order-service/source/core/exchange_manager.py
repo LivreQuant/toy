@@ -18,77 +18,105 @@ class ExchangeManager:
     ):
         self.exchange_client = exchange_client
 
-    async def submit_order_to_exchange(self, order: Order, endpoint: str) -> Dict[str, Any]:
+        
+    async def submit_orders_to_exchange(self, orders: List[Order], endpoint: str) -> Dict[str, Any]:
         """
-        Submit an order to the exchange
+        Submit orders to the exchange in batch
         
         Args:
-            order: Order to submit
+            orders: List of orders to submit
             endpoint: Exchange endpoint
-            
+                
         Returns:
             Result from exchange
         """
         try:
-            logger.info(f"Submitting order {order.order_id} to exchange at {endpoint}")
-
+            logger.info(f"Submitting {len(orders)} orders to exchange at {endpoint}")
+            
+            # Get session ID from first order (all should have the same)
+            session_id = orders[0].session_id if orders else ""
+            
+            # Create batch request
+            batch_request = {
+                "session_id": session_id,
+                "orders": []
+            }
+            
+            # Add each order to the batch
+            for order in orders:
+                order_request = {
+                    "symbol": order.symbol,
+                    "side": order.side.value,
+                    "quantity": order.quantity,
+                    "price": order.price or 0,
+                    "type": order.order_type.value,
+                    "request_id": order.request_id or order.order_id
+                }
+                batch_request["orders"].append(order_request)
+                
             # Call exchange client
-            exchange_result = await self.exchange_client.submit_order(order, endpoint)
-
+            exchange_result = await self.exchange_client.submit_orders(batch_request, endpoint)
+            
             if not exchange_result.get('success'):
-                logger.warning(f"Order {order.order_id} rejected by exchange: {exchange_result.get('error')}")
+                logger.warning(f"Batch of {len(orders)} orders rejected by exchange: {exchange_result.get('error')}")
                 return exchange_result
-
-            # Track order submitted to exchange
-            track_order_submitted(order.order_type, order.symbol, order.side)
-
-            # Update order ID if exchange assigned a different one
-            if (exchange_result.get('order_id') and
-                    exchange_result.get('order_id') != order.order_id):
-                exchange_result['original_order_id'] = order.order_id
-                logger.info(f"Exchange assigned new order ID: {exchange_result.get('order_id')}")
-
-            logger.info(f"Order {order.order_id} successfully submitted to exchange")
+                
+            # Process results
+            results = exchange_result.get('results', [])
+            for i, result in enumerate(results):
+                if result.get('success') and i < len(orders):
+                    # Track order submitted to exchange
+                    track_order_submitted(orders[i].order_type, orders[i].symbol, orders[i].side)
+                    
+            logger.info(f"Successfully submitted {len(orders)} orders to exchange")
             return exchange_result
-
+            
         except Exception as e:
-            logger.error(f"Error submitting order {order.order_id} to exchange: {e}")
+            logger.error(f"Error submitting {len(orders)} orders to exchange: {e}")
             return {
                 "success": False,
-                "error": f"Exchange communication error: {str(e)}",
-                "order_id": order.order_id
+                "errorMessage": f"Exchange communication error: {str(e)}",
+                "results": []
             }
-
-    async def cancel_order_on_exchange(self, order: Order, endpoint: str) -> Dict[str, Any]:
+        
+    async def cancel_orders_on_exchange(self, orders: List[Order], endpoint: str) -> Dict[str, Any]:
         """
-        Cancel an order on the exchange
+        Cancel orders on the exchange in batch
         
         Args:
-            order: Order to cancel
+            orders: List of orders to cancel
             endpoint: Exchange endpoint
-            
+                
         Returns:
             Result from exchange
         """
         try:
-            logger.info(f"Cancelling order {order.order_id} on exchange at {endpoint}")
-
+            logger.info(f"Cancelling {len(orders)} orders on exchange at {endpoint}")
+            
+            # Get session ID from first order (all should have the same)
+            session_id = orders[0].session_id if orders else ""
+            
+            # Create batch request
+            batch_request = {
+                "session_id": session_id,
+                "order_ids": [order.order_id for order in orders]
+            }
+                
             # Call exchange client
-            exchange_result = await self.exchange_client.cancel_order(order, endpoint)
-
+            exchange_result = await self.exchange_client.cancel_orders(batch_request, endpoint)
+            
             if not exchange_result.get('success'):
-                logger.warning(f"Failed to cancel order {order.order_id} on exchange: {exchange_result.get('error')}")
+                logger.warning(f"Batch of {len(orders)} cancellations rejected by exchange: {exchange_result.get('error')}")
                 return exchange_result
-
-            # Track status change
-            track_order_status_change(order.status.value, OrderStatus.CANCELED.value)
-
-            logger.info(f"Order {order.order_id} successfully cancelled on exchange")
+                    
+            logger.info(f"Successfully sent cancellation for {len(orders)} orders to exchange")
             return exchange_result
-
+            
         except Exception as e:
-            logger.error(f"Error cancelling order {order.order_id} on exchange: {e}")
+            logger.error(f"Error cancelling {len(orders)} orders on exchange: {e}")
             return {
                 "success": False,
-                "error": f"Exchange communication error: {str(e)}"
+                "errorMessage": f"Exchange communication error: {str(e)}",
+                "results": []
             }
+        

@@ -1,13 +1,12 @@
 # source/core/order_manager.py
 import time
 import logging
-import asyncio
 import grpc
 from typing import Dict, List, Optional
 
 from source.models.order import Order
 from source.models.enums import OrderSide, OrderType, OrderStatus
-from source.api.grpc.order_exchange_interface_pb2 import SubmitOrderRequest, CancelOrderRequest
+from source.api.grpc.order_exchange_interface_pb2 import SubmitOrdersRequest, CancelOrdersRequest
 from source.api.grpc.order_exchange_interface_pb2_grpc import OrderExchangeSimulatorStub
 from source.config import config
 
@@ -74,11 +73,11 @@ class OrderManager:
                     return order
 
             # Convert to the appropriate enum values for gRPC
-            side_enum = SubmitOrderRequest.Side.BUY if side == OrderSide.BUY else SubmitOrderRequest.Side.SELL
-            type_enum = SubmitOrderRequest.Type.MARKET if order_type == OrderType.MARKET else SubmitOrderRequest.Type.LIMIT
+            side_enum = SubmitOrdersRequest.Side.BUY if side == OrderSide.BUY else SubmitOrdersRequest.Side.SELL
+            type_enum = SubmitOrdersRequest.Type.MARKET if order_type == OrderType.MARKET else SubmitOrdersRequest.Type.LIMIT
 
             # Create the gRPC request
-            request = SubmitOrderRequest(
+            request = SubmitOrdersRequest(
                 session_id=session_id,
                 symbol=symbol,
                 side=side_enum,
@@ -135,13 +134,13 @@ class OrderManager:
                 return False
 
             # Create the gRPC request
-            request = CancelOrderRequest(
+            request = CancelOrdersRequest(
                 session_id=session_id,
                 order_id=order_id
             )
 
             # Send the request
-            response = await self.stub.CancelOrder(request)
+            response = await self.stub.CancelOrders(request)
 
             if response.success:
                 # Update order status

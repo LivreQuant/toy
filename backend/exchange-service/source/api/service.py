@@ -21,10 +21,10 @@ from source.api.grpc.session_exchange_interface_pb2 import (
 )
 from source.api.grpc.session_exchange_interface_pb2_grpc import SessionExchangeSimulatorServicer
 from source.api.grpc.order_exchange_interface_pb2 import (
-    SubmitOrderRequest,
-    SubmitOrderResponse,
-    CancelOrderRequest, 
-    CancelOrderResponse
+    OrderResponse,
+    BatchOrderResponse,
+    CancelResult,
+    BatchCancelResponse
 )
 from source.api.grpc.order_exchange_interface_pb2_grpc import OrderExchangeSimulatorServicer
 from source.api.rest.health import HealthService
@@ -160,59 +160,102 @@ class ExchangeSimulatorService(SessionExchangeSimulatorServicer, OrderExchangeSi
             logger.error(f"Stream data error: {e}")
             context.set_code(grpc.StatusCode.INTERNAL)
             context.set_details(str(e))
-
-
-    async def SubmitOrder(
-            self,
-            request: SubmitOrderRequest,
-            context
-    ) -> SubmitOrderResponse:
-        """Submit an order"""
+   
+    async def SubmitOrders(self, request, context):
+        """
+        Handle batch order submissions
+        """
         try:
-            # Convert protobuf side and type to enum
-            side = 'BUY' if request.side == SubmitOrderRequest.Side.BUY else 'SELL'
-            order_type = 'MARKET' if request.type == SubmitOrderRequest.Type.MARKET else 'LIMIT'
-
-            result = self.exchange_manager.submit_order(
-                symbol=request.symbol,
-                side=side,
-                quantity=request.quantity,
-                order_type=order_type,
-                price=request.price,
-                request_id=request.request_id
+            # Create response object
+            response = BatchOrderResponse(
+                success=True,
+                results=[]
             )
-
-            return SubmitOrderResponse(
-                success=result['success'],
-                order_id=result.get('order_id', ''),
-                error_message=result.get('error_message', '')
-            )
+            
+            # Process each order in the batch
+            for order_request in request.orders:
+                # Extract order parameters
+                symbol = order_request.symbol
+                side = "BUY" if order_request.side == 0 else "SELL"
+                quantity = order_request.quantity
+                price = order_request.price if order_request.type == 1 else None  # Only for LIMIT
+                order_type = "MARKET" if order_request.type == 0 else "LIMIT"
+                request_id = order_request.request_id
+                
+                # Submit to exchange manager
+                order_result = await self.exchange_manager.submit_order(
+                    symbol=symbol,
+                    side=side,
+                    quantity=quantity,
+                    order_type=order_type,
+                    price=price,
+                    request_id=request_id
+                )
+                
+                # Create result for this order
+                if order_result.get('success'):
+                    result = OrderResponse(
+                        success=True,
+                        order_id=order_result.get('order_id', '')
+                    )
+                else:
+                    result = OrderResponse(
+                        success=False,
+                        order_id='',
+                        error_message=order_result.get('error_message', 'Order submission failed')
+                    )
+                    
+                response.results.append(result)
+                
+            return response
+            
         except Exception as e:
-            logger.error(f"Order submission error: {e}")
-            return SubmitOrderResponse(
+            logger.error(f"Error processing batch order submission: {e}")
+            
+            # Return error response
+            return BatchOrderResponse(
                 success=False,
-                error_message=str(e)
+                error_message=f"Server error: {str(e)}",
+                results=[]
             )
-
-    async def CancelOrder(
-            self,
-            request: CancelOrderRequest,
-            context
-    ) -> CancelOrderResponse:
-        """Cancel an existing order"""
+            
+    async def CancelOrders(self, request, context):
+        """
+        Handle batch order cancellations
+        """
         try:
-            result = self.exchange_manager.cancel_order(
-                order_id=request.order_id,
-                session_id=request.session_id
+            # Create response object
+            response = BatchCancelResponse(
+                success=True,
+                results=[]
             )
-
-            return CancelOrderResponse(
-                success=result['success'],
-                error_message=result.get('error_message', '')
-            )
+            
+            # Process each order ID in the batch
+            for order_id in request.order_ids:
+                # Cancel the order
+                cancel_result = await self.exchange_manager.cancel_order(
+                    order_id=order_id
+                )
+                
+                # Create result for this cancellation
+                result = CancelResult(
+                    order_id=order_id,
+                    success=cancel_result.get('success', False)
+                )
+                
+                if not cancel_result.get('success'):
+                    result.error_message = cancel_result.get('error_message', 'Order cancellation failed')
+                    
+                response.results.append(result)
+                
+            return response
+            
         except Exception as e:
-            logger.error(f"Order cancellation error: {e}")
-            return CancelOrderResponse(
+            logger.error(f"Error processing batch order cancellation: {e}")
+            
+            # Return error response
+            return BatchCancelResponse(
                 success=False,
-                error_message=str(e)
+                error_message=f"Server error: {str(e)}",
+                results=[]
             )

@@ -1,6 +1,6 @@
 import logging
 import time
-from typing import Dict, Any
+from typing import Dict, Any, List
 
 from source.db.connection_pool import DatabasePool
 from source.models.order import Order
@@ -15,11 +15,16 @@ class OrderRepository:
     def __init__(self):
         """Initialize the order repository"""
         self.db_pool = DatabasePool()
-
-    async def save_order(self, order: Order) -> bool:
-        """Save a new order or update existing order"""
+        
+    async def save_orders(self, orders: List[Order]) -> Dict[str, List[str]]:
+        """
+        Save multiple orders in a batch
+        
+        Returns:
+            Dict with successful and failed order IDs
+        """
         pool = await self.db_pool.get_pool()
-
+        
         query = """
         INSERT INTO trading.orders (
             order_id, user_id, symbol, side, quantity, price, 
@@ -36,37 +41,56 @@ class OrderRepository:
             updated_at = EXCLUDED.updated_at,
             error_message = EXCLUDED.error_message
         """
-
+        
+        successful_order_ids = []
+        failed_order_ids = []
+        
         start_time = time.time()
         try:
-
             async with pool.acquire() as conn:
-                await conn.execute(
-                    query,
-                    order.order_id,
-                    order.user_id,
-                    order.symbol,
-                    order.side.value,
-                    order.quantity,
-                    order.price,
-                    order.order_type.value,
-                    order.status.value,
-                    order.filled_quantity,
-                    order.avg_price,
-                    order.simulator_id,
-                    order.created_at,
-                    order.updated_at,
-                    order.request_id,
-                    order.error_message,
-                )
-                duration = time.time() - start_time
-                track_db_operation("save_order", True, duration)
-                return True
+                # Start a transaction
+                async with conn.transaction():
+                    for order in orders:
+                        try:
+                            await conn.execute(
+                                query,
+                                order.order_id,
+                                order.user_id,
+                                order.symbol,
+                                order.side.value,
+                                order.quantity,
+                                order.price,
+                                order.order_type.value,
+                                order.status.value,
+                                order.filled_quantity,
+                                order.avg_price,
+                                order.simulator_id,
+                                order.created_at,
+                                order.updated_at,
+                                order.request_id,
+                                order.error_message,
+                            )
+                            successful_order_ids.append(order.order_id)
+                        except Exception as order_error:
+                            logger.error(f"Error saving order {order.order_id}: {order_error}")
+                            failed_order_ids.append(order.order_id)
+                    
+                    duration = time.time() - start_time
+                    track_db_operation("save_orders_batch", True, duration)
+                    
+                    return {
+                        "successful": successful_order_ids,
+                        "failed": failed_order_ids
+                    }
         except Exception as e:
             duration = time.time() - start_time
-            track_db_operation("save_order", False, duration)
-            logger.error(f"Error saving order: {e}")
-            return False
+            track_db_operation("save_orders_batch", False, duration)
+            logger.error(f"Error batch saving orders: {e}")
+            
+            return {
+                "successful": successful_order_ids,
+                "failed": failed_order_ids if failed_order_ids else [o.order_id for o in orders]
+            }
 
     async def validate_device_id(self, device_id: str) -> bool:
         """Validate if the device ID is associated with the session directly from database"""
