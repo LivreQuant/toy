@@ -61,10 +61,16 @@ class AuthClient:
             # Update circuit state in metrics
             set_circuit_state("auth_service", self.breaker.state.name)
 
+            # Add debug log
+            logger.info(f"Validating token (truncated): {token[:10]}...")
+
             # Execute with circuit breaker
             start_time = time.time()
             result = await self.breaker.execute(self._validate_token_request, token)
             duration = time.time() - start_time
+
+            # Add debug log for the validation result
+            logger.info(f"Token validation result: {result}")
 
             # Record metrics
             success = result.get('valid', False)
@@ -78,7 +84,7 @@ class AuthClient:
         except Exception as e:
             logger.error(f"Error validating token: {e}")
             return {'valid': False, 'error': str(e)}
-
+        
     async def _validate_token_request(self, token: str) -> Dict[str, Any]:
         """Make the actual token validation request"""
         session = await self._get_session()

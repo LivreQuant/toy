@@ -47,4 +47,4 @@ kubectl apply -f "$K8S_DIR/deployments/order-service.yaml"
 
 # Check status
 echo "Waiting for order-service pods to start..."
-kubectl get pods -l app=order-service -w
+kubectl get pods -l app=order-service

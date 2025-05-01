@@ -1,5 +1,6 @@
 // src/api/http-client.ts
 import { TokenManager } from '../services/auth/token-manager';
+import { DeviceIdManager } from '../services/auth/device-id-manager'; // Add this import
 import { config } from '../config';
 import { getLogger } from '../boot/logging';
 
@@ -49,16 +50,26 @@ export class HttpClient {
       // The actual fetch call, header setup, body stringification, etc., needs to be here.
       // It must handle the promise returned by fetch and either resolve with T or throw.
 
-      const url = `${this.baseUrl}${endpoint}`;
+      // Create full URL string
+      const fullUrl = `${this.baseUrl}${endpoint}`;
+      
+
+      // Get device ID for authentication
+      const deviceId = DeviceIdManager.getInstance().getDeviceId();
+      
+      // Add deviceId as a query parameter by appending to endpoint string
+      const urlWithDeviceId = fullUrl + (fullUrl.includes('?') ? '&' : '?') + `deviceId=${deviceId}`;
+     
       const headers = new Headers(options.headers || {});
       headers.append('Content-Type', 'application/json');
+
       // Add Authorization header if needed
       if (!options.skipAuth) {
-          const token = await this.tokenManager.getAccessToken(); // Handles refresh internally
-          if (!token) {
-              throw new Error("Not authenticated"); // Or handle redirect
-          }
-          headers.append('Authorization', `Bearer ${token}`);
+        const token = await this.tokenManager.getAccessToken(); // Handles refresh internally
+        if (!token) {
+            throw new Error("Not authenticated"); // Or handle redirect
+        }
+        headers.append('Authorization', `Bearer ${token}`);
       }
 
       const fetchOptions: RequestInit = {
@@ -69,7 +80,7 @@ export class HttpClient {
       };
 
       try {
-          const response = await fetch(url, fetchOptions);
+          const response = await fetch(urlWithDeviceId, fetchOptions);
 
           if (!response.ok) {
               // Delegate HTTP status code errors to the handler

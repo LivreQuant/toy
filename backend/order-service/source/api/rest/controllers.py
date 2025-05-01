@@ -36,7 +36,8 @@ class OrderController:
                 logger.warning(f"Invalid authentication token")
                 return None
 
-            user_id = validation_result.get('user_id')
+            # Check for both naming conventions (snake_case and camelCase)
+            user_id = validation_result.get('user_id') or validation_result.get('userId')
             if not user_id:
                 logger.warning("Auth token valid but no user ID returned")
                 return None
@@ -45,7 +46,7 @@ class OrderController:
         except Exception as e:
             logger.error(f"Error extracting user ID from token: {e}")
             return None
-
+    
     async def health_check(self, request: web.Request) -> web.Response:
         """Simple health check endpoint"""
         return web.json_response({

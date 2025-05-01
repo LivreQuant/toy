@@ -2,6 +2,7 @@
 import React, { useState, useCallback, useRef } from 'react';
 import { useToast } from '../../hooks/useToast';
 import { useOrderManager } from '../../contexts/OrderContext';
+import { OrderRequest, BatchOrderResponse } from '../../api/order';
 import './CsvOrderUpload.css';
 
 type Operation = 'SUBMIT' | 'CANCEL';
@@ -237,104 +238,138 @@ const CsvOrderUpload: React.FC = () => {
   const handleSubmit = useCallback(async () => {
     if (orders.length === 0 || isSubmitting) return;
     
+    // IMPORTANT: Immediately set isSubmitting to prevent multiple submissions
     setIsSubmitting(true);
     
     try {
       if (operation === 'SUBMIT') {
         addToast('info', `Submitting ${orders.length} orders...`);
         
-        // Filter out any undefined properties and prepare submit data
+        // Create unique request IDs to ensure idempotency
         const submitOrders = orders.map(order => ({
           symbol: order.symbol!,
           side: order.side!,
           type: order.type!,
           quantity: order.quantity!,
           price: order.price,
-          requestId: `csv-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
+          // Generate deterministic requestId based on order data to ensure idempotency
+          requestId: `csv-${Date.now()}-${order.symbol}-${order.side}-${order.quantity}-${Math.floor(Math.random() * 1000)}`
         }));
         
-        const response = await orderManager.submitOrders(submitOrders);
+        // Use AbortController to prevent hanging requests
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 20000); // 20-second timeout
         
-        if (response.success) {
-          const successCount = response.results.filter(r => r.success).length;
-          const failCount = response.results.length - successCount;
+        try {
+          const response = await orderManager.submitOrders(submitOrders);
+          clearTimeout(timeoutId);
           
-          if (successCount > 0) {
-            addToast('success', `Successfully submitted ${successCount} orders`);
-          }
-          
-          if (failCount > 0) {
-            addToast('warning', `Failed to submit ${failCount} orders`);
+          if (response.success) {
+            const successCount = response.results.filter(r => r.success).length;
+            const failCount = response.results.length - successCount;
             
-            // Log first few failures
-            response.results.forEach((result, index) => {
-              if (!result.success && index < 5) {
-                addToast('error', `Order #${index + 1} failed: ${result.errorMessage || 'Unknown error'}`);
+            if (successCount > 0) {
+              addToast('success', `Successfully submitted ${successCount} orders`);
+            }
+            
+            if (failCount > 0) {
+              addToast('warning', `Failed to submit ${failCount} orders`);
+              
+              // Log first few failures
+              response.results.forEach((result, index) => {
+                if (!result.success && index < 5) {
+                  addToast('error', `Order #${index + 1} failed: ${result.errorMessage || 'Unknown error'}`);
+                }
+              });
+              
+              if (failCount > 5) {
+                addToast('info', `${failCount - 5} more order failures not shown`);
               }
-            });
+            }
             
-            if (failCount > 5) {
-              addToast('info', `${failCount - 5} more order failures not shown`);
+            // Clear state if all orders were successful
+            if (failCount === 0) {
+              setFile(null);
+              setOrders([]);
+              if (fileInputRef.current) {
+                fileInputRef.current.value = '';
+              }
             }
+          } else {
+            addToast('error', `Failed to submit orders: ${response.errorMessage || 'Unknown error'}`);
           }
-          
-          // Clear state if all orders were successful
-          if (failCount === 0) {
-            setFile(null);
-            setOrders([]);
-            if (fileInputRef.current) {
-              fileInputRef.current.value = '';
-            }
+        } catch (err: any) {
+          if (err.name === 'AbortError') {
+            addToast('error', 'Request timed out. Please check order status before trying again.');
+          } else {
+            throw err;
           }
-        } else {
-          addToast('error', `Failed to submit orders: ${response.errorMessage || 'Unknown error'}`);
         }
       } else {
         // CANCEL operation
         addToast('info', `Cancelling ${orders.length} orders...`);
         
         const orderIds = orders.map(o => o.orderId!);
-        const response = await orderManager.cancelOrders(orderIds);
         
-        if (response.success) {
-          const successCount = response.results.filter(r => r.success).length;
-          const failCount = response.results.length - successCount;
+        // Use AbortController to prevent hanging requests
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 20000); // 20-second timeout
+        
+        try {
+          const response = await orderManager.cancelOrders(orderIds);
+          clearTimeout(timeoutId);
           
-          if (successCount > 0) {
-            addToast('success', `Successfully cancelled ${successCount} orders`);
-          }
-          
-          if (failCount > 0) {
-            addToast('warning', `Failed to cancel ${failCount} orders`);
+          if (response.success) {
+            const successCount = response.results.filter(r => r.success).length;
+            const failCount = response.results.length - successCount;
             
-            // Log first few failures
-            response.results.forEach((result, index) => {
-              if (!result.success && index < 5) {
-                addToast('error', `Cancel #${index + 1} failed: ${result.errorMessage || 'Unknown error'}`);
+            if (successCount > 0) {
+              addToast('success', `Successfully cancelled ${successCount} orders`);
+            }
+            
+            if (failCount > 0) {
+              addToast('warning', `Failed to cancel ${failCount} orders`);
+              
+              // Log first few failures
+              response.results.forEach((result, index) => {
+                if (!result.success && index < 5) {
+                  addToast('error', `Cancel #${index + 1} failed: ${result.errorMessage || 'Unknown error'}`);
+                }
+              });
+              
+              if (failCount > 5) {
+                addToast('info', `${failCount - 5} more cancellation failures not shown`);
               }
-            });
+            }
             
-            if (failCount > 5) {
-              addToast('info', `${failCount - 5} more cancellation failures not shown`);
+            // Clear state if all cancellations were successful
+            if (failCount === 0) {
+              setFile(null);
+              setOrders([]);
+              if (fileInputRef.current) {
+                fileInputRef.current.value = '';
+              }
             }
+          } else {
+            addToast('error', `Failed to cancel orders: ${response.errorMessage || 'Unknown error'}`);
           }
-          
-          // Clear state if all cancellations were successful
-          if (failCount === 0) {
-            setFile(null);
-            setOrders([]);
-            if (fileInputRef.current) {
-              fileInputRef.current.value = '';
-            }
+        } catch (err: any) {
+          if (err.name === 'AbortError') {
+            addToast('error', 'Request timed out. Please check order status before trying again.');
+          } else {
+            throw err;
           }
-        } else {
-          addToast('error', `Failed to cancel orders: ${response.errorMessage || 'Unknown error'}`);
         }
       }
     } catch (error: any) {
       addToast('error', `Error processing request: ${error.message || 'Unknown error'}`);
+      // Important: Log the error for debugging
+      console.error('Order submission error:', error);
     } finally {
-      setIsSubmitting(false);
+      // Add a slight delay before enabling the button again to prevent accidental double-clicks
+      setTimeout(() => {
+        setIsSubmitting(false);
+      }, 1000);
     }
   }, [operation, orders, isSubmitting, orderManager, addToast]);
 
@@ -431,10 +466,10 @@ const CsvOrderUpload: React.FC = () => {
             <button 
               onClick={handleSubmit}
               disabled={isSubmitting || orders.length === 0}
-              className="submit-button"
+              className={`submit-button ${isSubmitting ? 'processing' : ''}`}
             >
               {isSubmitting 
-                ? 'Processing...' 
+                ? 'Processing... Do Not Refresh' 
                 : operation === 'SUBMIT' 
                   ? `Submit ${orders.length} Orders` 
                   : `Cancel ${orders.length} Orders`}

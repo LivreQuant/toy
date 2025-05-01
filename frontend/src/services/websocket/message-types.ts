@@ -92,7 +92,6 @@ export interface BaseWebSocketMessage {
  export interface ServerSessionInfoResponse extends BaseWebSocketMessage {
    type: 'session_info';
    requestId: string;
-   sessionId: string;
    userId: string;
    status: string;
    deviceId: string;

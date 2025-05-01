@@ -1,25 +1,23 @@
 // src/pages/HomePage.tsx
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../hooks/useAuth'; // Import the useAuth hook
+import { useAuth } from '../hooks/useAuth';
 import { useConnection } from '../hooks/useConnection';
 import { useRequireAuth } from '../hooks/useRequireAuth';
 import ConnectionStatusIndicator from '../components/Common/ConnectionStatusIndicator';
+import CsvOrderUpload from '../components/Simulator/CsvOrderUpload'; // Add this import
 import './HomePage.css';
 
 const HomePage: React.FC = () => {
-  useRequireAuth(); // Ensures user is authenticated to see this page
-  // *** FIX: Removed 'user' from destructuring ***
-  const { logout } = useAuth(); // Get logout function (user is not provided by default context)
+  useRequireAuth();
+  const { logout } = useAuth();
   const { connectionManager, connectionState, isConnected } = useConnection();
   const navigate = useNavigate();
 
-  // Example useEffect, keep if needed for other logic
   useEffect(() => {
     // Potential logic related to connectionManager on mount/unmount
   }, [connectionManager]);
 
-  // Logout Handler Implementation
   const handleLogout = async () => {
     try {
       await logout();
@@ -31,14 +29,12 @@ const HomePage: React.FC = () => {
   };
 
   const handleGoToSimulator = () => {
-    navigate('/simulator'); // Navigate to simulator page
+    navigate('/simulator');
   };
 
-  // Manual Reconnect Handler Implementation
   const handleManualReconnect = () => {
     if (connectionManager) {
       connectionManager.manualReconnect();
-      // Consider adding a toast notification
     }
   };
 
@@ -46,7 +42,7 @@ const HomePage: React.FC = () => {
     <div className="home-page">
       {/* Header with Logout Button */}
       <header className="home-header">
-        <h1>Home Page</h1>
+        <h1>Trading Platform</h1>
         <button onClick={handleLogout} className="logout-button">
           Logout
         </button>
@@ -58,14 +54,17 @@ const HomePage: React.FC = () => {
          {connectionState ? (
              <ConnectionStatusIndicator
                 state={connectionState}
-                onManualReconnect={handleManualReconnect} // Pass handler
+                onManualReconnect={handleManualReconnect}
              />
          ) : (
             <p>Loading connection state...</p>
          )}
-         {/* If you need user info, get it from AuthContext if added there
-         {user && <p>Welcome, {user.username}!</p>}
-         */}
+      </div>
+
+      {/* Order Management Panel - Always visible for authenticated users */}
+      <div className="order-panel">
+        <h2>Order Management</h2>
+        <CsvOrderUpload />
       </div>
 
       {/* Action Panel */}
@@ -84,7 +83,6 @@ const HomePage: React.FC = () => {
             {/* Add other action buttons here */}
         </div>
       </div>
-      {/* Add other home page content here */}
     </div>
   );
 };

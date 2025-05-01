@@ -130,3 +130,24 @@ class ValidationManager:
                 "valid": False,
                 "error": "Invalid order parameters: quantity and price must be numeric"
             }
+        
+    async def validate_device_id(self, device_id: str) -> bool:
+        """
+        Validate the device ID
+        
+        Args:
+            device_id: Device ID to validate
+            
+        Returns:
+            True if valid, False otherwise
+        """
+        if not device_id:
+            logger.warning("No device ID provided")
+            return False
+            
+        # Check if device ID exists in the database
+        try:
+            return await self.order_repository.validate_device_id(device_id)
+        except Exception as e:
+            logger.error(f"Error validating device ID: {e}")
+            return False

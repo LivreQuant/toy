@@ -45,10 +45,10 @@ export class OrdersApi {
   }
 
   async submitOrders(orders: OrderRequest[]): Promise<BatchOrderResponse> {
-    return this.client.post<BatchOrderResponse>('/api/orders/submit', { orders });
+    return this.client.post<BatchOrderResponse>('/orders/submit', { orders });
   }
 
   async cancelOrders(orderIds: string[]): Promise<BatchCancelResponse> {
-    return this.client.post<BatchCancelResponse>('/api/orders/cancel', { orderIds });
+    return this.client.post<BatchCancelResponse>('/orders/cancel', { orderIds });
   }
 }
