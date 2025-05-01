@@ -1,16 +1,10 @@
 import logging
-from source.db.order_repository import OrderRepository
-from source.clients.auth_client import AuthClient
-from source.clients.exchange_client import ExchangeClient
 from source.core.validation_manager import ValidationManager
-from source.core.record_manager import RecordManager
 from source.core.exchange_manager import ExchangeManager
 from source.core.operation_manager import OperationManager
 
 logger = logging.getLogger('order_manager')
 
-
-# backend/order-service/source/core/order_manager.py
 
 class OrderManager:
     """Main manager for order operations"""

@@ -13,7 +13,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n.main/services/session_exchange_interface.proto\x12\x10session_exchange\"e\n\rStreamRequest\x12\x1d\n\nsession_id\x18\x01 \x01(\tR\tsessionId\x12\x1b\n\tclient_id\x18\x02 \x01(\tR\x08\x63lientId\x12\x18\n\x07symbols\x18\x03 \x03(\tR\x07symbols\"\xf0\x01\n\x12\x45xchangeDataUpdate\x12\x1c\n\ttimestamp\x18\x01 \x01(\x03R\ttimestamp\x12=\n\x0bmarket_data\x18\x02 \x03(\x0b\x32\x1c.session_exchange.MarketDataR\nmarketData\x12<\n\x0borders_data\x18\x03 \x03(\x0b\x32\x1b.session_exchange.OrderDataR\nordersData\x12?\n\tportfolio\x18\x04 \x01(\x0b\x32!.session_exchange.PortfolioStatusR\tportfolio\"\xc1\x01\n\nMarketData\x12\x16\n\x06symbol\x18\x01 \x01(\tR\x06symbol\x12\x12\n\x04open\x18\x02 \x01(\x01R\x04open\x12\x12\n\x04high\x18\x03 \x01(\x01R\x04high\x12\x10\n\x03low\x18\x04 \x01(\x01R\x03low\x12\x14\n\x05\x63lose\x18\x05 \x01(\x01R\x05\x63lose\x12\x16\n\x06volume\x18\x06 \x01(\x05R\x06volume\x12\x1f\n\x0btrade_count\x18\x07 \x01(\x05R\ntradeCount\x12\x12\n\x04vwap\x18\x08 \x01(\x01R\x04vwap\"\xa4\x01\n\tOrderData\x12\x19\n\x08order_id\x18\x01 \x01(\tR\x07orderId\x12\x16\n\x06symbol\x18\x02 \x01(\tR\x06symbol\x12\x16\n\x06status\x18\x03 \x01(\tR\x06status\x12\'\n\x0f\x66illed_quantity\x18\x04 \x01(\x05R\x0e\x66illedQuantity\x12#\n\raverage_price\x18\x05 \x01(\x01R\x0c\x61veragePrice\"\x8f\x01\n\x0fPortfolioStatus\x12\x38\n\tpositions\x18\x01 \x03(\x0b\x32\x1a.session_exchange.PositionR\tpositions\x12!\n\x0c\x63\x61sh_balance\x18\x02 \x01(\x01R\x0b\x63\x61shBalance\x12\x1f\n\x0btotal_value\x18\x03 \x01(\x01R\ntotalValue\"\x84\x01\n\x08Position\x12\x16\n\x06symbol\x18\x01 \x01(\tR\x06symbol\x12\x1a\n\x08quantity\x18\x02 \x01(\x05R\x08quantity\x12!\n\x0c\x61verage_cost\x18\x03 \x01(\x01R\x0b\x61verageCost\x12!\n\x0cmarket_value\x18\x04 \x01(\x01R\x0bmarketValue\"=\n\x10HeartbeatRequest\x12)\n\x10\x63lient_timestamp\x18\x03 \x01(\x03R\x0f\x63lientTimestamp\"X\n\x11HeartbeatResponse\x12\x18\n\x07success\x18\x01 \x01(\x08R\x07success\x12)\n\x10server_timestamp\x18\x02 \x01(\x03R\x0fserverTimestamp2\xcf\x01\n\x18SessionExchangeSimulator\x12]\n\x12StreamExchangeData\x12\x1f.session_exchange.StreamRequest\x1a$.session_exchange.ExchangeDataUpdate0\x01\x12T\n\tHeartbeat\x12\".session_exchange.HeartbeatRequest\x1a#.session_exchange.HeartbeatResponseB\x91\x01\n\x14\x63om.session_exchangeB\x1dSessionExchangeInterfaceProtoP\x01\xa2\x02\x03SXX\xaa\x02\x0fSessionExchange\xca\x02\x0fSessionExchange\xe2\x02\x1bSessionExchange\\GPBMetadata\xea\x02\x0fSessionExchangeb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n.main/services/session_exchange_interface.proto\x12\x10session_exchange\",\n\rStreamRequest\x12\x1b\n\tclient_id\x18\x01 \x01(\tR\x08\x63lientId\"\xf0\x01\n\x12\x45xchangeDataUpdate\x12\x1c\n\ttimestamp\x18\x01 \x01(\x03R\ttimestamp\x12=\n\x0bmarket_data\x18\x02 \x03(\x0b\x32\x1c.session_exchange.MarketDataR\nmarketData\x12<\n\x0borders_data\x18\x03 \x03(\x0b\x32\x1b.session_exchange.OrderDataR\nordersData\x12?\n\tportfolio\x18\x04 \x01(\x0b\x32!.session_exchange.PortfolioStatusR\tportfolio\"\xc1\x01\n\nMarketData\x12\x16\n\x06symbol\x18\x01 \x01(\tR\x06symbol\x12\x12\n\x04open\x18\x02 \x01(\x01R\x04open\x12\x12\n\x04high\x18\x03 \x01(\x01R\x04high\x12\x10\n\x03low\x18\x04 \x01(\x01R\x03low\x12\x14\n\x05\x63lose\x18\x05 \x01(\x01R\x05\x63lose\x12\x16\n\x06volume\x18\x06 \x01(\x05R\x06volume\x12\x1f\n\x0btrade_count\x18\x07 \x01(\x05R\ntradeCount\x12\x12\n\x04vwap\x18\x08 \x01(\x01R\x04vwap\"\xa4\x01\n\tOrderData\x12\x19\n\x08order_id\x18\x01 \x01(\tR\x07orderId\x12\x16\n\x06symbol\x18\x02 \x01(\tR\x06symbol\x12\x16\n\x06status\x18\x03 \x01(\tR\x06status\x12\'\n\x0f\x66illed_quantity\x18\x04 \x01(\x05R\x0e\x66illedQuantity\x12#\n\raverage_price\x18\x05 \x01(\x01R\x0c\x61veragePrice\"\x8f\x01\n\x0fPortfolioStatus\x12\x38\n\tpositions\x18\x01 \x03(\x0b\x32\x1a.session_exchange.PositionR\tpositions\x12!\n\x0c\x63\x61sh_balance\x18\x02 \x01(\x01R\x0b\x63\x61shBalance\x12\x1f\n\x0btotal_value\x18\x03 \x01(\x01R\ntotalValue\"\x84\x01\n\x08Position\x12\x16\n\x06symbol\x18\x01 \x01(\tR\x06symbol\x12\x1a\n\x08quantity\x18\x02 \x01(\x05R\x08quantity\x12!\n\x0c\x61verage_cost\x18\x03 \x01(\x01R\x0b\x61verageCost\x12!\n\x0cmarket_value\x18\x04 \x01(\x01R\x0bmarketValue\"=\n\x10HeartbeatRequest\x12)\n\x10\x63lient_timestamp\x18\x03 \x01(\x03R\x0f\x63lientTimestamp\"X\n\x11HeartbeatResponse\x12\x18\n\x07success\x18\x01 \x01(\x08R\x07success\x12)\n\x10server_timestamp\x18\x02 \x01(\x03R\x0fserverTimestamp2\xcf\x01\n\x18SessionExchangeSimulator\x12]\n\x12StreamExchangeData\x12\x1f.session_exchange.StreamRequest\x1a$.session_exchange.ExchangeDataUpdate0\x01\x12T\n\tHeartbeat\x12\".session_exchange.HeartbeatRequest\x1a#.session_exchange.HeartbeatResponseB\x91\x01\n\x14\x63om.session_exchangeB\x1dSessionExchangeInterfaceProtoP\x01\xa2\x02\x03SXX\xaa\x02\x0fSessionExchange\xca\x02\x0fSessionExchange\xe2\x02\x1bSessionExchange\\GPBMetadata\xea\x02\x0fSessionExchangeb\x06proto3')
 
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, globals())
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'main.services.session_exchange_interface_pb2', globals())
@@ -22,21 +22,21 @@ if _descriptor._USE_C_DESCRIPTORS == False:
   DESCRIPTOR._options = None
   DESCRIPTOR._serialized_options = b'\n\024com.session_exchangeB\035SessionExchangeInterfaceProtoP\001\242\002\003SXX\252\002\017SessionExchange\312\002\017SessionExchange\342\002\033SessionExchange\\GPBMetadata\352\002\017SessionExchange'
   _STREAMREQUEST._serialized_start=68
-  _STREAMREQUEST._serialized_end=169
-  _EXCHANGEDATAUPDATE._serialized_start=172
-  _EXCHANGEDATAUPDATE._serialized_end=412
-  _MARKETDATA._serialized_start=415
-  _MARKETDATA._serialized_end=608
-  _ORDERDATA._serialized_start=611
-  _ORDERDATA._serialized_end=775
-  _PORTFOLIOSTATUS._serialized_start=778
-  _PORTFOLIOSTATUS._serialized_end=921
-  _POSITION._serialized_start=924
-  _POSITION._serialized_end=1056
-  _HEARTBEATREQUEST._serialized_start=1058
-  _HEARTBEATREQUEST._serialized_end=1119
-  _HEARTBEATRESPONSE._serialized_start=1121
-  _HEARTBEATRESPONSE._serialized_end=1209
-  _SESSIONEXCHANGESIMULATOR._serialized_start=1212
-  _SESSIONEXCHANGESIMULATOR._serialized_end=1419
+  _STREAMREQUEST._serialized_end=112
+  _EXCHANGEDATAUPDATE._serialized_start=115
+  _EXCHANGEDATAUPDATE._serialized_end=355
+  _MARKETDATA._serialized_start=358
+  _MARKETDATA._serialized_end=551
+  _ORDERDATA._serialized_start=554
+  _ORDERDATA._serialized_end=718
+  _PORTFOLIOSTATUS._serialized_start=721
+  _PORTFOLIOSTATUS._serialized_end=864
+  _POSITION._serialized_start=867
+  _POSITION._serialized_end=999
+  _HEARTBEATREQUEST._serialized_start=1001
+  _HEARTBEATREQUEST._serialized_end=1062
+  _HEARTBEATRESPONSE._serialized_start=1064
+  _HEARTBEATRESPONSE._serialized_end=1152
+  _SESSIONEXCHANGESIMULATOR._serialized_start=1155
+  _SESSIONEXCHANGESIMULATOR._serialized_end=1362
 # @@protoc_insertion_point(module_scope)

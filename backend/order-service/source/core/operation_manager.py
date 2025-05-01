@@ -1,8 +1,10 @@
 import logging
 import time
+import uuid
 from typing import Dict, Any, List
 
-from source.models.enums import OrderStatus
+from source.models.order import Order
+from source.models.enums import OrderStatus, OrderSide, OrderType
 from source.core.validation_manager import ValidationManager
 from source.core.record_manager import RecordManager
 from source.core.exchange_manager import ExchangeManager
@@ -309,7 +311,7 @@ class OperationManager:
                         "errorMessage": error_msg,
                         "index": idx
                     })
-        else if valid_orders:
+        elif valid_orders:
             # No simulator - just mark orders as canceled in database
             for order, idx in valid_orders:
                 order.status = OrderStatus.CANCELED

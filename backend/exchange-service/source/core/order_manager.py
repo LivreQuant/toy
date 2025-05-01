@@ -16,7 +16,6 @@ class OrderManager:
     def __init__(self, exchange_manager):
         self.exchange_manager = exchange_manager
         self.orders: Dict[str, Order] = {}
-        self.session_orders: Dict[str, List[str]] = {}
         self.order_service_url = config.order_exchange.service_url
         self.channel = None
         self.stub = None
@@ -47,7 +46,6 @@ class OrderManager:
 
     async def submit_order(
             self,
-            session_id: str,
             symbol: str,
             side: OrderSide,
             quantity: float,
@@ -56,7 +54,6 @@ class OrderManager:
     ) -> Order:
         """Submit a new order through the order exchange service"""
         order = Order(
-            session_id=session_id,
             symbol=symbol,
             side=side,
             quantity=quantity,
@@ -78,7 +75,6 @@ class OrderManager:
 
             # Create the gRPC request
             request = SubmitOrdersRequest(
-                session_id=session_id,
                 symbol=symbol,
                 side=side_enum,
                 quantity=float(quantity),
@@ -110,13 +106,9 @@ class OrderManager:
         # Store order
         self.orders[order.order_id] = order
 
-        if session_id not in self.session_orders:
-            self.session_orders[session_id] = []
-        self.session_orders[session_id].append(order.order_id)
-
         return order
 
-    async def cancel_order(self, session_id: str, order_id: str) -> bool:
+    async def cancel_order(self, order_id: str) -> bool:
         """Cancel an existing order through the order exchange service"""
         try:
             if not self.connected:
@@ -124,18 +116,8 @@ class OrderManager:
                 if not success:
                     return False
 
-            # Check if order exists
-            order = self.get_order_status(session_id, order_id)
-            if not order:
-                return False
-
-            # Cannot cancel already filled, canceled, or rejected orders
-            if order.status in [OrderStatus.FILLED, OrderStatus.CANCELED, OrderStatus.REJECTED]:
-                return False
-
             # Create the gRPC request
             request = CancelOrdersRequest(
-                session_id=session_id,
                 order_id=order_id
             )
 
@@ -144,8 +126,6 @@ class OrderManager:
 
             if response.success:
                 # Update order status
-                order.status = OrderStatus.CANCELED
-                order.updated_at = time.time()
                 logger.info(f"Order {order_id} canceled successfully")
                 return True
             else:
@@ -155,12 +135,3 @@ class OrderManager:
         except Exception as e:
             logger.error(f"Error canceling order: {e}")
             return False
-
-    def get_order_status(self, session_id: str, order_id: str) -> Optional[Order]:
-        """Retrieve order status"""
-        order = self.orders.get(order_id)
-
-        if not order or order.session_id != session_id:
-            return None
-
-        return order

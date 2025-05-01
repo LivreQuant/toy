@@ -3,11 +3,7 @@ import json
 import time
 from aiohttp import web
 
-from source.utils.validation import ValidationError, validate_required_fields, validate_numeric_field, \
-    validate_enum_field
-from source.models.enums import OrderSide, OrderType
 from source.core.order_manager import OrderManager
-from source.utils.metrics import track_order_submission_latency
 
 logger = logging.getLogger('rest_controllers')
 

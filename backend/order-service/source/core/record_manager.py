@@ -3,7 +3,6 @@ import time
 import uuid
 import json
 from typing import Dict, Any, Optional
-import asyncio
 
 from source.models.order import Order
 from source.db.order_repository import OrderRepository

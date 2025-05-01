@@ -7,7 +7,6 @@ from source.models.enums import OrderSide, OrderType, OrderStatus
 
 @dataclass
 class Order:
-    session_id: str
     symbol: str
     side: OrderSide
     quantity: float

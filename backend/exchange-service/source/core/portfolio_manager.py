@@ -58,18 +58,18 @@ class Portfolio:
 
 class PortfolioManager:
     def __init__(self):
-        self.portfolios: Dict[str, Portfolio] = {}
+        self.portfolio = None
 
-    def create_portfolio(self, session_id: str, user_id: str, initial_cash: float = 100000.0):
-        """Create a new portfolio for a session"""
-        self.portfolios[session_id] = Portfolio(user_id, initial_cash)
+    def create_portfolio(self, user_id: str, initial_cash: float = 100000.0):
+        """Create a new portfolio"""
+        self.portfolio = Portfolio(user_id, initial_cash)
 
-    def get_portfolio(self, session_id: str) -> Portfolio:
+    def get_portfolio(self) -> Portfolio:
         """Retrieve a portfolio"""
-        return self.portfolios.get(session_id)
+        return self.portfolio
 
-    def update_portfolio(self, session_id: str, order: Order):
-        """Update portfolio for a specific session"""
-        portfolio = self.portfolios.get(session_id)
+    def update_portfolio(self, order: Order):
+        """Update portfolio"""
+        portfolio = self.portfolio
         if portfolio:
             portfolio.update_position(order)

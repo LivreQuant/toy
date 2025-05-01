@@ -10,7 +10,6 @@ from source.config import config
 logger = logging.getLogger('rest_routes')
 
 
-
 async def setup_app(order_manager: OrderManager, state_manager: StateManager) -> tuple:
     """
     Set up the REST API application with routes and middleware

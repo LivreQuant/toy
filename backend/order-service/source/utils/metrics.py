@@ -2,7 +2,6 @@
 import logging
 import os
 import threading
-import time
 from prometheus_client import Counter, Histogram, Gauge, start_http_server
 
 logger = logging.getLogger('metrics')

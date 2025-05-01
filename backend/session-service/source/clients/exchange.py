@@ -199,7 +199,6 @@ class ExchangeClient(BaseClient):
                 
                 # Create stream request
                 request = StreamRequest(
-                    session_id=session_id,
                     client_id=client_id,
                 )
 

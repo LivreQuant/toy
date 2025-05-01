@@ -10,6 +10,7 @@ from source.utils.metrics import track_auth_request, set_circuit_state, track_ci
 
 logger = logging.getLogger('auth_client')
 
+
 class AuthClient:
     """Client for communicating with auth service REST API"""
 
@@ -23,7 +24,7 @@ class AuthClient:
         self.base_url = (base_url or config.auth_service_url).rstrip('/')
         self.session = None
         self._conn_lock = asyncio.Lock()  # Lock for session initialization
-        
+
         # Create circuit breaker
         self.breaker = CircuitBreaker(
             name="auth_service",
@@ -118,4 +119,3 @@ class AuthClient:
         except asyncio.TimeoutError:
             logger.error("Timeout validating token")
             raise
-        

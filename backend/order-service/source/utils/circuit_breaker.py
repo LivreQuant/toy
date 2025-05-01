@@ -2,7 +2,7 @@ import logging
 import time
 import asyncio
 from enum import Enum
-from typing import Callable, Any, Optional, List
+from typing import Callable, Any, List
 
 logger = logging.getLogger('circuit_breaker')
 

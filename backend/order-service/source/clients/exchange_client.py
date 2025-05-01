@@ -5,15 +5,14 @@ import time
 from typing import Dict, Any, Optional
 
 from source.utils.circuit_breaker import CircuitBreaker, CircuitOpenError
-from source.models.order import Order
-from source.models.enums import OrderStatus
 from source.api.grpc.order_exchange_interface_pb2 import (
-    SubmitOrderRequest, CancelOrderRequest
+    BatchOrderRequest, BatchCancelRequest, OrderRequest
 )
 from source.api.grpc.order_exchange_interface_pb2_grpc import OrderExchangeSimulatorStub
 from source.utils.metrics import track_exchange_request, set_circuit_state, track_circuit_failure
 
 logger = logging.getLogger('exchange_client')
+
 
 class ExchangeClient:
     """Client for communicating with exchange simulator via gRPC"""
@@ -23,7 +22,7 @@ class ExchangeClient:
         self.channels = {}  # endpoint -> channel
         self.stubs = {}  # endpoint -> stub
         self._conn_lock = asyncio.Lock()
-        
+
         # Create circuit breaker
         self.breaker = CircuitBreaker(
             name="exchange_service",
@@ -72,13 +71,12 @@ class ExchangeClient:
         self.channels.clear()
         self.stubs.clear()
 
-    
     async def submit_orders(self, batch_request: Dict[str, Any], endpoint: str) -> Dict[str, Any]:
         """
         Submit a batch of orders to the exchange simulator
         
         Args:
-            batch_request: Dictionary with session_id and orders array
+            batch_request: orders array
             endpoint: Exchange endpoint
             
         Returns:
@@ -111,7 +109,6 @@ class ExchangeClient:
                 "results": []
             }
 
-
     async def _submit_orders_request(self, batch_request: Dict[str, Any], endpoint: str) -> Dict[str, Any]:
         """Make the actual batch order submission request to gRPC service"""
         try:
@@ -124,7 +121,7 @@ class ExchangeClient:
                 # Convert enum values
                 side_enum = 0 if order_data["side"] == "BUY" else 1
                 type_enum = 0 if order_data["type"] == "MARKET" else 1
-                
+
                 # Create OrderRequest for each order
                 order_request = OrderRequest(
                     symbol=order_data["symbol"],
@@ -135,10 +132,9 @@ class ExchangeClient:
                     request_id=order_data.get("request_id", "")
                 )
                 order_requests.append(order_request)
-            
+
             # Create the batch request
             grpc_request = BatchOrderRequest(
-                session_id=batch_request["session_id"],
                 orders=order_requests
             )
 
@@ -151,7 +147,7 @@ class ExchangeClient:
                 "errorMessage": response.error_message if hasattr(response, "error_message") else None,
                 "results": []
             }
-            
+
             # Process individual order results
             for order_result in response.results:
                 result["results"].append({
@@ -165,7 +161,7 @@ class ExchangeClient:
         except grpc.aio.AioRpcError as e:
             # Handle gRPC errors
             return self._handle_grpc_error(e, "submit_orders")
-            
+
         except Exception as e:
             logger.error(f"Unexpected error in submit_orders: {e}")
             return {
@@ -179,7 +175,7 @@ class ExchangeClient:
         Cancel a batch of orders on the exchange simulator
         
         Args:
-            batch_request: Dictionary with session_id and order_ids array
+            batch_request: order_ids array
             endpoint: Exchange endpoint
             
         Returns:
@@ -220,7 +216,6 @@ class ExchangeClient:
 
             # Create the batch request
             grpc_request = BatchCancelRequest(
-                session_id=batch_request["session_id"],
                 order_ids=batch_request["order_ids"]
             )
 
@@ -233,7 +228,7 @@ class ExchangeClient:
                 "errorMessage": response.error_message if hasattr(response, "error_message") else None,
                 "results": []
             }
-            
+
             # Process individual cancel results
             for cancel_result in response.results:
                 result["results"].append({
@@ -247,7 +242,7 @@ class ExchangeClient:
         except grpc.aio.AioRpcError as e:
             # Handle gRPC errors
             return self._handle_grpc_error(e, "cancel_orders")
-            
+
         except Exception as e:
             logger.error(f"Unexpected error in cancel_orders: {e}")
             return {
