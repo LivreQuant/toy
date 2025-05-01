@@ -29,7 +29,7 @@ class PostgresSimulatorStore(PostgresRepository[Simulator]):
         )
         logger.info("PostgresSimulatorStore initialized.")
 
-    async def create_simulator(self, simulator: Simulator) -> bool:
+    async def create_simulator(self, simulator: Simulator, user_id: str) -> bool:
         """
         Create a new simulator record in PostgreSQL.
         """
@@ -50,7 +50,7 @@ class PostgresSimulatorStore(PostgresRepository[Simulator]):
                         ''',
                                            simulator.simulator_id,
                                            simulator.session_id,
-                                           'rmv',  # This seems to be a placeholder value
+                                           user_id,
                                            simulator.status.value,
                                            simulator.endpoint,
                                            simulator.exchange_type.value,

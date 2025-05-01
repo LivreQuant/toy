@@ -1,6 +1,6 @@
 # source/core/exchange_manager.py
 import logging
-import uuid
+import asyncio
 from typing import Dict, List, Any, Optional, Tuple
 
 from source.models.enums import OrderSide
@@ -32,6 +32,9 @@ class ExchangeManager:
         self.cash_balance = initial_cash
         self.positions: Dict[str, Dict] = {}
         self.orders: Dict[str, Dict] = {}
+
+        # Add a queue for market data update notifications
+        self.market_data_updates = asyncio.Queue()
 
     async def initialize(self):
         """
@@ -98,7 +101,7 @@ class ExchangeManager:
         except Exception as e:
             logger.error(f"Exchange cleanup failed: {e}")
 
-    def update_market_data(self, market_data_list):
+    async def update_market_data(self, market_data_list):
         """
         Update market data with values from the market data service
         
@@ -111,6 +114,10 @@ class ExchangeManager:
                 symbol = market_data.get('symbol')
                 if symbol:
                     self.current_market_data[symbol] = market_data
+
+            # Notify listeners about the update
+            await self.market_data_updates.put(True)
+            logger.debug(f"Received market data for {len(market_data_list)} symbols")
 
             return True
         except Exception as e:

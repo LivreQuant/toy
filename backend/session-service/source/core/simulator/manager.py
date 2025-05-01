@@ -193,7 +193,7 @@ class SimulatorManager:
 
             try:
                 # Save to database
-                await self.store_manager.simulator_store.create_simulator(simulator)
+                await self.store_manager.simulator_store.create_simulator(simulator, user_id)
 
                 # Update our current simulator tracking
                 self.current_simulator_id = simulator.simulator_id

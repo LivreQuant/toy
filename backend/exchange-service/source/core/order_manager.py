@@ -1,12 +1,11 @@
 # source/core/order_manager.py
-import time
 import logging
 import grpc
 from typing import Dict, List, Optional
 
 from source.models.order import Order
 from source.models.enums import OrderSide, OrderType, OrderStatus
-from source.api.grpc.order_exchange_interface_pb2 import SubmitOrdersRequest, CancelOrdersRequest
+from source.api.grpc.order_exchange_interface_pb2 import BatchOrderRequest, BatchCancelRequest, OrderRequest
 from source.api.grpc.order_exchange_interface_pb2_grpc import OrderExchangeSimulatorStub
 from source.config import config
 
@@ -70,11 +69,11 @@ class OrderManager:
                     return order
 
             # Convert to the appropriate enum values for gRPC
-            side_enum = SubmitOrdersRequest.Side.BUY if side == OrderSide.BUY else SubmitOrdersRequest.Side.SELL
-            type_enum = SubmitOrdersRequest.Type.MARKET if order_type == OrderType.MARKET else SubmitOrdersRequest.Type.LIMIT
+            side_enum = 0 if side == OrderSide.BUY else 1
+            type_enum = 0 if order_type == OrderType.MARKET else 1
 
             # Create the gRPC request
-            request = SubmitOrdersRequest(
+            order_request = OrderRequest(
                 symbol=symbol,
                 side=side_enum,
                 quantity=float(quantity),
@@ -83,20 +82,31 @@ class OrderManager:
                 request_id=order.order_id
             )
 
-            # Send the request
-            response = await self.stub.SubmitOrder(request)
+            batch_request = BatchOrderRequest(
+                orders=[order_request]
+            )
 
-            if response.success:
-                # Update the order with the response
-                order.order_id = response.order_id
-                order.status = OrderStatus.FILLED  # Simplified - assume immediate fill
-                order.update(quantity, price or 0.0)
-                logger.info(f"Order {order.order_id} submitted successfully")
+            # Send the request
+            response = await self.stub.SubmitOrders(batch_request)
+
+            if response.success and len(response.results) > 0:
+                result = response.results[0]
+                if result.success:
+                    # Update the order with the response
+                    order.order_id = result.order_id
+                    order.status = OrderStatus.FILLED  # Simplified - assume immediate fill
+                    order.update(quantity, price or 0.0)
+                    logger.info(f"Order {order.order_id} submitted successfully")
+                else:
+                    # Handle failure
+                    order.status = OrderStatus.REJECTED
+                    order.error_message = result.error_message
+                    logger.warning(f"Order submission failed: {result.error_message}")
             else:
-                # Handle failure
+                # Handle batch failure
                 order.status = OrderStatus.REJECTED
                 order.error_message = response.error_message
-                logger.warning(f"Order submission failed: {response.error_message}")
+                logger.warning(f"Order batch submission failed: {response.error_message}")
 
         except Exception as e:
             order.status = OrderStatus.REJECTED
@@ -117,19 +127,24 @@ class OrderManager:
                     return False
 
             # Create the gRPC request
-            request = CancelOrdersRequest(
-                order_id=order_id
+            request = BatchCancelRequest(
+                order_ids=[order_id]
             )
 
             # Send the request
             response = await self.stub.CancelOrders(request)
 
-            if response.success:
-                # Update order status
-                logger.info(f"Order {order_id} canceled successfully")
-                return True
+            if response.success and len(response.results) > 0:
+                result = response.results[0]
+                if result.success:
+                    # Update order status
+                    logger.info(f"Order {order_id} canceled successfully")
+                    return True
+                else:
+                    logger.warning(f"Order cancellation failed: {result.error_message}")
+                    return False
             else:
-                logger.warning(f"Order cancellation failed: {response.error_message}")
+                logger.warning(f"Order batch cancellation failed: {response.error_message}")
                 return False
 
         except Exception as e:

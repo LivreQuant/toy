@@ -116,7 +116,7 @@ class MarketDataClient:
                         })
                     
                     # Forward the market data to the exchange manager
-                    self.exchange_manager.update_market_data(market_data)
+                    await self.exchange_manager.update_market_data(market_data)
                     logger.debug(f"Received market data for {len(market_data)} symbols")
                     
                     # Reset retry count on successful update
