@@ -2,6 +2,7 @@
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { useToast } from '../hooks/useToast';
 import { useConnection } from '../hooks/useConnection';
 import { useRequireAuth } from '../hooks/useRequireAuth';
 import ConnectionStatusIndicator from '../components/Common/ConnectionStatusIndicator';
@@ -12,6 +13,7 @@ const HomePage: React.FC = () => {
   useRequireAuth();
   const { logout } = useAuth();
   const { connectionManager, connectionState, isConnected } = useConnection();
+  const { addToast } = useToast();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -24,7 +26,8 @@ const HomePage: React.FC = () => {
       // Logout function in AuthContext should handle redirect
     } catch (error) {
       console.error('Logout failed:', error);
-      // Consider adding a toast notification for error
+      // Add toast notification
+      addToast('error', `Logout failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -35,6 +38,7 @@ const HomePage: React.FC = () => {
   const handleManualReconnect = () => {
     if (connectionManager) {
       connectionManager.manualReconnect();
+      addToast('info', 'Attempting to reconnect...');
     }
   };
 

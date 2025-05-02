@@ -1,7 +1,9 @@
-// In src/pages/SessionDeactivatedPage.tsx
+// src/pages/SessionDeactivatedPage.tsx
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { authState } from '../state/auth-state';
+import { toastService } from '../services/notification/toast-service';
+import './SessionDeactivatedPage.css';
 
 const SessionDeactivatedPage: React.FC = () => {
   const navigate = useNavigate();
@@ -23,8 +25,8 @@ const SessionDeactivatedPage: React.FC = () => {
     // Fallback if window.close() doesn't work (due to browser restrictions)
     // Some browsers only allow window.close() for windows opened by JavaScript
     setTimeout(() => {
-      // Show message if window didn't close
-      alert('Please close this tab manually. This session has been deactivated.');
+      // Show message if window didn't close, using toast instead of alert
+      toastService.warning('Please close this tab manually. This session has been deactivated.', 0); // 0 for manual dismiss
     }, 300);
   };
 

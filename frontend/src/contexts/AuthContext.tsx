@@ -9,6 +9,8 @@ import LoadingSpinner from '../components/Common/LoadingSpinner'; // Assuming co
 
 import { authState } from '../state/auth-state';
 
+import { toastService } from '../services/notification/toast-service';
+
 import { TokenManager, TokenData } from '../services/auth/token-manager'; // Adjust path
 import { DeviceIdManager } from '../services/auth/device-id-manager';
 
@@ -210,8 +212,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, tokenManag
       setIsAuthLoading(false);
       logger.info('Logout process completed');
 
+      // Show success toast
+      toastService.success('You have been successfully logged out');
+      
     } catch (error) {
       logger.error("Unexpected error during logout process:", { error });
+        
+      // Show error toast
+      toastService.error(`Logout error: ${error instanceof Error ? error.message : 'Unknown error'}`);
       
       // Ensure we still clear tokens and update state even if errors occur
       tokenManager.clearTokens();

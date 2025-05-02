@@ -3,6 +3,7 @@ import { TokenManager } from '../services/auth/token-manager';
 import { DeviceIdManager } from '../services/auth/device-id-manager'; 
 import { config } from '../config';
 import { getLogger } from '../boot/logging';
+import { toastService } from '../services/notification/toast-service';
 
 export interface RequestOptions extends RequestInit {
   skipAuth?: boolean;
@@ -17,7 +18,7 @@ export class HttpClient {
 
   private readonly baseUrl: string;
   private readonly tokenManager: TokenManager;
-  private readonly maxRetries: number = 0; // CRITICAL CHANGE: NO RETRIES AT ALL
+  private readonly maxRetries: number = 0; // NO RETRIES
 
   constructor(tokenManager: TokenManager) {
     this.baseUrl = config.apiBaseUrl;
@@ -28,16 +29,19 @@ export class HttpClient {
   public async get<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
     return this.request<T>('GET', endpoint, undefined, options);
   }
+  
   public async post<T>(endpoint: string, data?: any, options: RequestOptions = {}): Promise<T> {
-    // CRITICAL CHANGE: For orders, always set retries to 0
+    // For orders, always set retries to 0
     if (endpoint.includes('/orders/submit') || endpoint.includes('/orders/cancel')) {
       options.retries = 0; // Force zero retries for orders
     }
     return this.request<T>('POST', endpoint, data, options);
   }
+  
   public async put<T>(endpoint: string, data?: any, options: RequestOptions = {}): Promise<T> {
     return this.request<T>('PUT', endpoint, data, options);
   }
+  
   public async delete<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
     return this.request<T>('DELETE', endpoint, undefined, options);
   }
@@ -49,7 +53,7 @@ export class HttpClient {
     options: RequestOptions = {},
     retryCount: number = 0 
   ): Promise<T> {
-    // CRITICAL CHECK: Never retry order operations
+    // Never retry order operations
     if ((endpoint.includes('/orders/submit') || endpoint.includes('/orders/cancel')) && retryCount > 0) {
       this.logger.error(`BLOCKING RETRY attempt for order endpoint: ${endpoint}`, { retryCount });
       throw new Error("Order operations cannot be retried");
@@ -133,12 +137,18 @@ export class HttpClient {
       this.logger.debug('Could not parse error response body as JSON', { status: response.status, endpoint });
     }
 
-    // CRITICAL CHANGE: Check if this is an order endpoint - never retry
+    // Check if this is an order endpoint - never retry
     if (endpoint.includes('/orders/submit') || endpoint.includes('/orders/cancel')) {
       this.logger.error(`Error for order endpoint ${endpoint}: ${response.status} - NO RETRY`, { 
         status: response.status, 
         error: errorMessage
       });
+      
+      // Show error toast for order operations unless suppressed
+      if (!options.suppressErrorToast) {
+        toastService.error(`Order operation failed: ${errorMessage}`);
+      }
+      
       throw new Error(`Order operation failed (${response.status}): ${errorMessage} - NOT RETRIED`);
     }
 
@@ -153,43 +163,92 @@ export class HttpClient {
         } else {
           errorMessage = options.customErrorMessage || 'Session expired or invalid. Please log in again.';
           this.logger.error(`Token refresh failed after 401. ${errorMessage}`);
+          
+          // Show session expired toast unless suppressed
+          if (!options.suppressErrorToast) {
+            toastService.error(errorMessage, 0); // Manual dismiss for important auth errors
+          }
+          
           throw new Error(errorMessage);
         }
       } catch (refreshError: any) {
         errorMessage = options.customErrorMessage || 'Session refresh failed. Please log in again.';
         this.logger.error(`Error during token refresh attempt. ${errorMessage}`);
+        
+        // Show session refresh error toast unless suppressed
+        if (!options.suppressErrorToast) {
+          toastService.error(errorMessage, 0);
+        }
+        
         throw new Error(errorMessage);
       }
     } else if (response.status === 403) {
       errorMessage = options.customErrorMessage || errorDetails?.message || 'Permission denied.';
       this.logger.error(`[Forbidden] ${errorMessage}`);
+      
+      // Show permission error toast unless suppressed
+      if (!options.suppressErrorToast) {
+        toastService.error(`Access denied: ${errorMessage}`);
+      }
     } else if (response.status === 404) {
       errorMessage = options.customErrorMessage || errorDetails?.message || 'Resource not found.';
       this.logger.error(`[NotFound] ${errorMessage}`);
+      
+      // Show not found toast unless suppressed
+      if (!options.suppressErrorToast) {
+        toastService.warning(`Not found: ${errorMessage}`);
+      }
     } else if (response.status >= 400 && response.status < 500) {
       errorMessage = options.customErrorMessage || errorDetails?.message || `Client error ${response.status}.`;
       this.logger.error(`.ClientError${response.status} ${errorMessage}`);
+      
+      // Show client error toast unless suppressed
+      if (!options.suppressErrorToast) {
+        toastService.error(errorMessage);
+      }
     } else if (response.status >= 500) {
       errorMessage = options.customErrorMessage || `Server error (${response.status}). NOT RETRYING.`;
       
-      // CRITICAL CHANGE: Never retry 5xx errors for order endpoints
+      // Never retry 5xx errors for order endpoints
       if (!endpoint.includes('/orders/submit') && !endpoint.includes('/orders/cancel')) {
         const maxRetriesForServerError = options.retries ?? this.maxRetries;
         if (retryCount < maxRetriesForServerError) {
           const delay = Math.pow(2, retryCount) * 500 + (Math.random() * 500);
           this.logger.warn(`Server error ${response.status}. Retrying request in ${delay.toFixed(0)}ms (attempt ${retryCount + 1}/${maxRetriesForServerError})`, { endpoint });
+          
+          // Show retry toast unless suppressed
+          if (!options.suppressErrorToast) {
+            toastService.info(`Server error. Retrying in ${Math.round(delay/1000)} seconds...`);
+          }
+          
           await new Promise(resolve => setTimeout(resolve, delay));
           return this.request<T>(method, endpoint, data, options, retryCount + 1);
         } else {
           this.logger.error(`Server error ${response.status} persisted after ${maxRetriesForServerError} retries.`, { endpoint, details: errorDetails });
+          
+          // Show persistent server error toast unless suppressed
+          if (!options.suppressErrorToast) {
+            toastService.error(`Server error persisted after multiple retries: ${errorMessage}`, 0);
+          }
         }
       } else {
         this.logger.error(`Server error ${response.status} for order endpoint: ${endpoint} - NO RETRY ATTEMPTED`, { endpoint });
+        
+        // Show server error toast for order endpoints unless suppressed
+        if (!options.suppressErrorToast) {
+          toastService.error(`Server error for order operation: ${errorMessage}`);
+        }
       }
     }
 
     if (response.status >= 400) {
       this.logger.error(`.Unhandled${response.status} ${errorMessage}`);
+      
+      // Show general error toast unless suppressed
+      if (!options.suppressErrorToast) {
+        toastService.error(errorMessage);
+      }
+      
       throw new Error(errorMessage);
     }
 
@@ -209,23 +268,41 @@ export class HttpClient {
 
       this.logger.error('Network or fetch error occurred', { endpoint, error: error.message, retryCount });
 
-      // CRITICAL CHANGE: Never retry order operations
+      // Never retry order operations
       if (endpoint.includes('/orders/submit') || endpoint.includes('/orders/cancel')) {
         this.logger.error(`Network error for order endpoint: ${endpoint} - NO RETRY`, { 
           error: error.message 
         });
+        
+        // Show network error toast for order operations unless suppressed
+        if (!options.suppressErrorToast) {
+          toastService.error(`Network error for order operation: ${error.message}`);
+        }
+        
         throw new Error(`Network error for order operation: ${error.message} - NOT RETRIED`);
       }
       
-      // Example: Simple retry logic for non-order operations
+      // Simple retry logic for non-order operations
       const maxRetriesForNetworkError = options.retries ?? this.maxRetries;
       if (retryCount < maxRetriesForNetworkError) {
           const delay = Math.pow(2, retryCount) * 1000 + (Math.random() * 1000);
           this.logger.warn(`Network error. Retrying request in ${delay.toFixed(0)}ms (attempt ${retryCount + 1}/${maxRetriesForNetworkError})`, { endpoint });
+          
+          // Show retry toast unless suppressed
+          if (!options.suppressErrorToast) {
+            toastService.info(`Connection issue. Retrying in ${Math.round(delay/1000)} seconds...`);
+          }
+          
           await new Promise(resolve => setTimeout(resolve, delay));
           return this.request<T>(method, endpoint, data, options, retryCount + 1);
       } else {
           this.logger.error(`Network error persisted after. ${errorMessage}`);
+          
+          // Show persistent network error toast unless suppressed
+          if (!options.suppressErrorToast) {
+            toastService.error(`Connection failed: ${errorMessage}`, 0); // Manual dismiss for persistent errors
+          }
+          
           throw new Error(errorMessage);
       }
   }

@@ -2,6 +2,7 @@
 import { getLogger } from '../../boot/logging';
 import { TokenManager } from '../auth/token-manager';
 import { OrdersApi } from '../../api/order';
+import { toastService } from '../notification/toast-service';
 
 // Define the types we need
 interface OrderRequest {
@@ -52,6 +53,10 @@ export class OrderManager {
     // Check authentication
     if (!this.tokenManager.isAuthenticated()) {
       this.logger.warn('Order submission attempted without authentication');
+      
+      // Add toast notification for unauthenticated user
+      toastService.error('Cannot submit orders: You are not logged in');
+      
       return { 
         success: false, 
         errorMessage: 'Not authenticated',
