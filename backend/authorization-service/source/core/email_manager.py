@@ -25,7 +25,7 @@ class EmailManager(BaseManager):
         self.base_url = os.getenv('APP_BASE_URL', 'https://example.com')
         
         # Set up template engine
-        template_dir = os.path.join(os.path.dirname(__file__), '../templates/email')
+        template_dir = os.path.join(os.path.dirname(__file__), '../templates')
         self.template_env = Environment(loader=FileSystemLoader(template_dir))
 
     async def send_email(self, recipient_email: str, subject: str, template_name: str, context: Dict[str, Any]) -> bool:

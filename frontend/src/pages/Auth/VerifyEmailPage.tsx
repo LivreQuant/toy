@@ -7,6 +7,7 @@ import './AuthForms.css';
 // Import API client
 import { authApi } from '../../api';
 
+
 interface LocationState {
   userId?: string | number;
   email?: string;

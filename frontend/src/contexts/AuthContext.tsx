@@ -24,7 +24,8 @@ interface AuthContextProps {
   userId: string | number | null;
   login: (credentials: LoginRequest) => Promise<boolean>;
   logout: () => Promise<void>;
-  tokenManager: TokenManager; // Expose for direct use if needed (e.g., in HttpClient)
+  tokenManager: TokenManager;
+  forgotPassword: (data: { email: string }) => Promise<boolean>; // Add this property
 }
 
 export const AuthContext = createContext<AuthContextProps | undefined>(undefined);
@@ -145,6 +146,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, tokenManag
     }
   }, [authApi, tokenManager]); // Dependencies for useCallback
 
+  const forgotPassword = useCallback(async (data: { email: string }): Promise<boolean> => {
+    logger.info('Attempting forgot password...');
+    setIsAuthLoading(true);
+    
+    try {
+      // Call API (implement this if the API exists, otherwise simulate it)
+      const response = await authApi.forgotPassword(data);
+      
+      setIsAuthLoading(false);
+      return true;
+    } catch (error: any) {
+      logger.error("Forgot password failed", { error: error.message });
+      setIsAuthLoading(false);
+      return false;
+    }
+  }, [authApi]);
+
   // Logout function
   const logout = useCallback(async (): Promise<void> => {
     logger.info('Attempting logout...');
@@ -244,8 +262,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, tokenManag
     userId,
     login,
     logout,
-    tokenManager // Provide the instance
-  }), [isAuthenticated, isAuthLoading, userId, login, logout, tokenManager]);
+    tokenManager,
+    forgotPassword // Add this property
+  }), [isAuthenticated, isAuthLoading, userId, login, logout, tokenManager, forgotPassword]);
 
   // Render loading screen only during the very initial check
   // Avoid showing it on subsequent re-renders where loading might briefly be true

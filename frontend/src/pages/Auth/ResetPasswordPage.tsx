@@ -7,6 +7,7 @@ import './AuthForms.css';
 // Import API client
 import { authApi } from '../../api';
 
+
 const ResetPasswordPage: React.FC = () => {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');

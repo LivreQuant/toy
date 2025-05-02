@@ -5,10 +5,11 @@ import { DeviceIdManager } from './device-id-manager';
 import { getLogger } from '../../boot/logging';
 
 export interface TokenData {
-  accessToken: string;
-  refreshToken: string;
-  expiresAt: number; // timestamp in milliseconds
-  userId: string | number; // Add userId to the token data
+    accessToken: string;
+    refreshToken: string;
+    expiresAt: number; // timestamp in milliseconds
+    userId: string | number;
+    isLongLivedSession?: boolean; // Add this property
 }
   
 export class TokenManager {

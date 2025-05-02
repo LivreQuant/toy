@@ -5,7 +5,7 @@ import { useToast } from '../../hooks/useToast';
 import './AuthForms.css';
 
 // Import API client
-import { authApi } from '../../api/auth';
+import { authApi } from '../../api';
 
 const SignupPage: React.FC = () => {
   const [formData, setFormData] = useState({
