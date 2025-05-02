@@ -37,14 +37,47 @@ export class TokenManager {
     }
 
     // Store tokens using injected storage service
-    public storeTokens(tokenData: TokenData): void {
+    public storeTokens(tokenData: TokenData, rememberMe: boolean = false): void {
         try {
-             this.storageService.setItem(this.STORAGE_KEY, JSON.stringify(tokenData));
+            // Update the expiry times based on rememberMe flag
+            // For refresh tokens, extend to 30 days if rememberMe is true
+            if (rememberMe) {
+            // Store a flag to indicate this is a long-lived session
+            tokenData.isLongLivedSession = true;
+            }
+            
+            this.storageService.setItem(this.STORAGE_KEY, JSON.stringify(tokenData));
         } catch (e: any) {
             this.logger.error(`Failed to store tokens: ${e.message}`);
         }
     }
 
+    // Add automatic csrf protection for API calls
+    public async getCsrfToken(): Promise<string> {
+        // Generate a CSRF token if none exists or if it's expired
+        let csrfToken = this.storageService.getItem('csrf_token');
+        const csrfExpiry = this.storageService.getItem('csrf_expiry');
+        
+        if (!csrfToken || !csrfExpiry || parseInt(csrfExpiry) < Date.now()) {
+        // Create a new token using a random string
+        csrfToken = this.generateRandomToken();
+        // Set expiry for 2 hours
+        const expiry = Date.now() + (2 * 60 * 60 * 1000);
+        
+        this.storageService.setItem('csrf_token', csrfToken);
+        this.storageService.setItem('csrf_expiry', expiry.toString());
+        }
+        
+        return csrfToken;
+    }
+
+    private generateRandomToken(): string {
+        // Generate a secure random token
+        const array = new Uint8Array(32);
+        window.crypto.getRandomValues(array);
+        return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+    }
+    
     // Get stored tokens using injected storage service
     public getTokens(): TokenData | null {
         const tokenStr = this.storageService.getItem(this.STORAGE_KEY);

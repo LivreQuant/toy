@@ -78,6 +78,12 @@ export class HttpClient {
         throw new Error("Not authenticated"); 
       }
       headers.append('Authorization', `Bearer ${token}`);
+      
+      // Add CSRF protection for authenticated endpoints
+      const csrfHeaders = await this.getCsrfHeader();
+      Object.entries(csrfHeaders).forEach(([key, value]) => {
+        headers.append(key, value);
+      });
     }
 
     const fetchOptions: RequestInit = {
@@ -255,6 +261,22 @@ export class HttpClient {
     this.logger.error("handleHttpErrorResponse reached unexpectedly for non-error response", { status: response.status });
     throw new Error("Unexpected non-error response in error handler");
   }
+
+  private async getCsrfHeader(): Promise<Record<string, string>> {
+    // Only add CSRF token for authenticated endpoints
+    if (!this.tokenManager.isAuthenticated()) {
+      return {};
+    }
+    
+    try {
+      const csrfToken = await this.tokenManager.getCsrfToken();
+      return { 'X-CSRF-Token': csrfToken };
+    } catch (e) {
+      this.logger.warn('Failed to get CSRF token for request', { error: e });
+      return {};
+    }
+  }
+
 
   private async handleNetworkOrFetchError<T>(
       error: Error,

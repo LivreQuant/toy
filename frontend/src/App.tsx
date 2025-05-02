@@ -34,9 +34,17 @@ import { OrderProvider } from './contexts/OrderContext';
 // COMPONENTS
 import ProtectedRoute from './components/Common/ProtectedRoute'; // Component for protected routes
 
+// AUTH COMPONENTS
+import LandingPage from './pages/LandingPage';
+import LoginPage from './pages/Auth/LoginPage';
+import SignupPage from './pages/Auth/SignupPage';
+import VerifyEmailPage from './pages/Auth/VerifyEmailPage';
+import ForgotUsernamePage from './pages/Auth/ForgotUsernamePage';
+import ForgotPasswordPage from './pages/Auth/ForgotPasswordPage';
+import ResetPasswordPage from './pages/Auth/ResetPasswordPage';
+
 // PAGES
 import HomePage from './pages/HomePage';
-import LoginPage from './pages/LoginPage';
 import SimulatorPage from './pages/SimulatorPage';
 import SessionDeactivatedPage from './pages/SessionDeactivatedPage';
 
@@ -110,11 +118,15 @@ function App() {
                 <Router>
                   <DeviceIdInvalidationHandler>
                     <Routes>
-                      {/* Simulator page */}
-                      <Route path="/login" element={
-                        <LoginPage />
-                      } />
-
+                      {/* Public routes */}
+                      <Route path="/" element={<LandingPage />} />
+                      <Route path="/login" element={<LoginPage />} />
+                      <Route path="/signup" element={<SignupPage />} />
+                      <Route path="/verify-email" element={<VerifyEmailPage />} />
+                      <Route path="/forgot-username" element={<ForgotUsernamePage />} />
+                      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                      <Route path="/reset-password" element={<ResetPasswordPage />} />
+                      
                       {/* Session page */}
                       <Route path="/home" element={
                           <ProtectedRoute>

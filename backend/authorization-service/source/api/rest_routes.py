@@ -16,13 +16,19 @@ from source.api.handlers.password import handle_reset_password, handle_forgot_pa
 from source.api.handlers.profile import handle_update_profile
 from source.api.handlers.signup import handle_signup, handle_verify_email, handle_resend_verification
 
+from source.api.middlewares.rate_limiting import RateLimiter
+from source.api.middlewares.csrf import CsrfProtection
+
 logger = logging.getLogger('rest_api')
 
 
 def setup_rest_app(auth_manager):
     """Set up the REST API application with routes and middleware"""
-    app = web.Application()
-
+    app = web.Application(middlewares=[
+        RateLimiter().middleware,
+        CsrfProtection().middleware
+    ])
+    
     # Add routes
     app.router.add_post('/api/auth/login', handle_login(auth_manager))
     app.router.add_post('/api/auth/logout', handle_logout(auth_manager))
