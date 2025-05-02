@@ -7,6 +7,7 @@ from jinja2 import Environment, FileSystemLoader
 
 from source.core.base_manager import BaseManager
 from source.utils.tracing import optional_trace_span
+from source.config import Config
 
 logger = logging.getLogger('email_manager')
 
@@ -14,12 +15,12 @@ class EmailManager(BaseManager):
     def __init__(self, db_manager=None):
         super().__init__(db_manager)
         
-        # Mailgun configuration
+        # Mailgun configuration from Config class
         self.mailgun_enabled = os.getenv('EMAIL_ENABLED', 'true').lower() == 'true'
-        self.mailgun_api_key = os.getenv('MAILGUN_API_KEY', 'API_KEY')
-        self.mailgun_domain = os.getenv('MAILGUN_DOMAIN', 'sandbox5cecb1e74c8f456eb39118a09f6d5139.mailgun.org')
+        self.mailgun_api_key = Config.MAILGUN_API_KEY
+        self.mailgun_domain = Config.MAILGUN_DOMAIN
+        self.mailgun_sender = f"Trading Platform <postmaster@{self.mailgun_domain}>"
         self.mailgun_base_url = f"https://api.mailgun.net/v3/{self.mailgun_domain}"
-        self.mailgun_sender = os.getenv('MAILGUN_SENDER', f"Trading Platform <postmaster@{self.mailgun_domain}>")
         
         # App configuration
         self.base_url = os.getenv('APP_BASE_URL', 'https://example.com')
@@ -124,3 +125,18 @@ class EmailManager(BaseManager):
             }
             
             return await self.send_email(email, subject, "password_reset", context)
+            
+    async def initialize(self):
+        """Initialize email manager and check configuration"""
+        await super().initialize()
+        
+        logger.info("Initializing EmailManager")
+        
+        # Validate configuration
+        if not self.mailgun_api_key and self.mailgun_enabled:
+            logger.warning("Mailgun API key not set but email is enabled")
+            
+        if not self.mailgun_domain and self.mailgun_enabled:
+            logger.warning("Mailgun domain not set but email is enabled")
+            
+        return self

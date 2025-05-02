@@ -25,6 +25,9 @@ CREATE INDEX IF NOT EXISTS idx_users_username ON auth.users(username);
 CREATE INDEX IF NOT EXISTS idx_users_email ON auth.users(email);
 CREATE INDEX IF NOT EXISTS idx_users_role ON auth.users(user_role);
 
+
+
+
 -- User preferences table for app settings
 CREATE TABLE IF NOT EXISTS auth.user_preferences (
     user_id INTEGER PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -261,3 +264,83 @@ GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA marketdata TO opentp;
 GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA marketdata TO opentp;
 ALTER DEFAULT PRIVILEGES IN SCHEMA marketdata GRANT ALL ON TABLES TO opentp;
 ALTER DEFAULT PRIVILEGES IN SCHEMA marketdata GRANT ALL ON SEQUENCES TO opentp;
+
+
+-- User Profiles Table
+CREATE TABLE IF NOT EXISTS auth.user_profiles (
+    user_id INTEGER PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    display_name VARCHAR(100),
+    bio TEXT,
+    profile_picture_url TEXT,
+    preferences JSONB DEFAULT '{}',
+    metadata JSONB DEFAULT '{}',
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create index for performance
+CREATE INDEX IF NOT EXISTS idx_user_profiles_updated_at ON auth.user_profiles(updated_at);
+
+-- Password Reset Tokens Table
+CREATE TABLE IF NOT EXISTS auth.password_reset_tokens (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    token_hash TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    is_used BOOLEAN DEFAULT FALSE,
+    CONSTRAINT unique_reset_token UNIQUE (token_hash)
+);
+
+-- Add indexes for performance
+CREATE INDEX IF NOT EXISTS idx_reset_token_hash ON auth.password_reset_tokens(token_hash);
+CREATE INDEX IF NOT EXISTS idx_reset_token_user_id ON auth.password_reset_tokens(user_id);
+
+-- Create cleanup function
+CREATE OR REPLACE FUNCTION auth.cleanup_expired_reset_tokens()
+RETURNS void AS $$
+BEGIN
+  DELETE FROM auth.password_reset_tokens 
+  WHERE expires_at < NOW() OR is_used = TRUE;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Create password reset token function
+CREATE OR REPLACE FUNCTION auth.create_password_reset_token(
+    p_user_id INTEGER, 
+    p_token_hash TEXT, 
+    p_expires_at TIMESTAMP WITH TIME ZONE
+) RETURNS BOOLEAN AS $$
+BEGIN
+    -- Delete any existing tokens for this user
+    DELETE FROM auth.password_reset_tokens 
+    WHERE user_id = p_user_id;
+    
+    -- Insert new token
+    INSERT INTO auth.password_reset_tokens (user_id, token_hash, expires_at)
+    VALUES (p_user_id, p_token_hash, p_expires_at);
+    
+    RETURN TRUE;
+EXCEPTION
+    WHEN OTHERS THEN
+        RETURN FALSE;
+END;
+$$ LANGUAGE plpgsql;
+
+-- User Feedback Table
+CREATE TABLE IF NOT EXISTS auth.user_feedback (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES auth.users(id) ON DELETE SET NULL,
+    feedback_type VARCHAR(50) NOT NULL DEFAULT 'general',
+    title VARCHAR(200),
+    content TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    status VARCHAR(20) DEFAULT 'new',
+    reviewed_by INTEGER REFERENCES auth.users(id) ON DELETE SET NULL,
+    reviewed_at TIMESTAMP WITH TIME ZONE
+);
+
+-- Add indexes for performance
+CREATE INDEX IF NOT EXISTS idx_feedback_user_id ON auth.user_feedback(user_id);
+CREATE INDEX IF NOT EXISTS idx_feedback_type ON auth.user_feedback(feedback_type);
+CREATE INDEX IF NOT EXISTS idx_feedback_status ON auth.user_feedback(status);
+CREATE INDEX IF NOT EXISTS idx_feedback_created_at ON auth.user_feedback(created_at);

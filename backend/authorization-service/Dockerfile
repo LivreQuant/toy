@@ -22,25 +22,8 @@ RUN pip install --no-cache-dir --prefer-binary -r requirements.txt
 # Copy source code
 COPY . .
 
-# Set comprehensive default environment variables
-ENV ENVIRONMENT="development" \
-    PYTHONPATH=/app \
-    # Database Configuration
-    DB_HOST="postgres" \
-    DB_PORT="5432" \
-    DB_NAME="opentp" \
-    DB_USER="opentp" \
-    DB_PASSWORD="samaral" \
-    DB_MIN_CONNECTIONS="1" \
-    DB_MAX_CONNECTIONS="10" \
-    # Tracing Configuration
-    ENABLE_TRACING="true" \
-    METRICS_PORT="9090" \
-    # Service Configuration
-    REST_PORT="8001" \
-    AUTH_SERVICE_URL="http://auth-service:8000" \
-    # Logging and Security
-    LOG_LEVEL="DEBUG"
+# Set only essential environment variables, others will come from .env files
+ENV PYTHONPATH=/app
 
 # Create log directory and set permissions
 RUN mkdir -p /app/logs && \
