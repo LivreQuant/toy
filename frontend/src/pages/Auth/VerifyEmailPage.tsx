@@ -1,12 +1,12 @@
+// src/pages/Auth/VerifyEmailPage.tsx
 import React, { useState, useEffect } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import AuthLayout from './AuthLayout';
 import { useToast } from '../../hooks/useToast';
 import './AuthForms.css';
 
 // Import API client
 import { authApi } from '../../api';
-
 
 interface LocationState {
   userId?: string | number;
@@ -18,20 +18,33 @@ const VerifyEmailPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
+  
+  // Add search params to support query string parameters
   const location = useLocation();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { addToast } = useToast();
   
-  // Extract state passed from signup/login
-  const { userId, email } = (location.state as LocationState) || {};
+  // Extract state passed from signup/login AND check URL query params as fallback
+  const locationState = location.state as LocationState;
+  const userId = locationState?.userId || searchParams.get('userId') || '';
+  const email = locationState?.email || searchParams.get('email') || '';
   
   useEffect(() => {
-    // Redirect if no userId or email found
+    // Redirect if no userId or email found - with more detailed error
     if (!userId || !email) {
-      addToast('error', 'Missing information required for verification');
-      navigate('/login', { replace: true });
+      console.error("Missing verification info:", { 
+        hasState: !!location.state,
+        locationUserId: locationState?.userId,
+        locationEmail: locationState?.email,
+        queryUserId: searchParams.get('userId'),
+        queryEmail: searchParams.get('email')
+      });
+      
+      addToast('error', 'Missing information required for verification. Please try signing up again.');
+      navigate('/signup', { replace: true });
     }
-  }, [userId, email, addToast, navigate]);
+  }, [userId, email, addToast, navigate, location.state, searchParams]);
   
   // Handle resend cooldown timer
   useEffect(() => {
@@ -64,7 +77,7 @@ const VerifyEmailPage: React.FC = () => {
     
     try {
       const response = await authApi.verifyEmail({
-        userId: userId!,
+        userId: userId,
         code: verificationCode
       });
       
@@ -90,7 +103,7 @@ const VerifyEmailPage: React.FC = () => {
     
     try {
       const response = await authApi.resendVerification({
-        userId: userId!
+        userId: userId
       });
       
       if (response.success) {
@@ -105,6 +118,18 @@ const VerifyEmailPage: React.FC = () => {
       setIsResending(false);
     }
   };
+
+  // Debug section - display navigation state info when in development
+  const debugInfo = process.env.NODE_ENV === 'development' ? (
+    <div style={{ marginTop: '20px', padding: '10px', backgroundColor: '#f5f5f5', fontSize: '12px' }}>
+      <p>Debug - Verification params:</p>
+      <ul>
+        <li>User ID: {userId || 'Not set'}</li>
+        <li>Email: {email || 'Not set'}</li>
+        <li>Has Navigation State: {location.state ? 'Yes' : 'No'}</li>
+      </ul>
+    </div>
+  ) : null;
 
   return (
     <AuthLayout 
@@ -150,6 +175,8 @@ const VerifyEmailPage: React.FC = () => {
           </button>
         </div>
       </form>
+      
+      {debugInfo}
     </AuthLayout>
   );
 };

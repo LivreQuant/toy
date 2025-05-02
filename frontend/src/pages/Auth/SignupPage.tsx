@@ -92,7 +92,9 @@ const SignupPage: React.FC = () => {
       
       if (response.success) {
         addToast('success', 'Account created successfully! Please check your email to verify your account.');
-        navigate('/auth/verify-email', { 
+        
+        // Navigate to verify-email with both state and URL parameters (belt and suspenders approach)
+        navigate(`/verify-email?userId=${response.userId}&email=${encodeURIComponent(formData.email)}`, { 
           state: { 
             userId: response.userId,
             email: formData.email 
