@@ -1,0 +1,121 @@
+/* src/pages/SimulationSetupPage.css */
+.simulation-setup-page {
+    padding: 20px;
+    max-width: 800px;
+    margin: 0 auto;
+}
+  
+  .simulation-setup-page h1 {
+    margin-bottom: 30px;
+    text-align: center;
+  }
+  
+  .simulation-form {
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+    padding: 30px;
+  }
+  
+  .form-group {
+    margin-bottom: 25px;
+  }
+  
+  .form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 500;
+    color: #333;
+  }
+  
+  .form-group input[type="text"],
+  .form-group input[type="number"],
+  .form-group select {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 1rem;
+  }
+  
+  .form-group input[type="text"]:focus,
+  .form-group input[type="number"]:focus,
+  .form-group select:focus {
+    border-color: #3498db;
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+  }
+  
+  .risk-selector {
+    display: flex;
+    gap: 20px;
+  }
+  
+  .risk-selector label {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 15px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  
+  .risk-selector label.selected {
+    background-color: #f1f9fe;
+    border-color: #3498db;
+    font-weight: bold;
+  }
+  
+  .risk-selector label:hover:not(.selected) {
+    background-color: #f9f9f9;
+  }
+  
+  .risk-selector input[type="radio"] {
+    margin-bottom: 10px;
+  }
+  
+  .form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 15px;
+    margin-top: 30px;
+  }
+  
+  .cancel-button {
+    padding: 12px 20px;
+    background-color: #f1f1f1;
+    color: #333;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: background-color 0.2s;
+  }
+  
+  .cancel-button:hover:not(:disabled) {
+    background-color: #e1e1e1;
+  }
+  
+  .submit-button {
+    padding: 12px 20px;
+    background-color: #3498db;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: background-color 0.2s;
+  }
+  
+  .submit-button:hover:not(:disabled) {
+    background-color: #2980b9;
+  }
+  
+  .submit-button:disabled,
+  .cancel-button:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}

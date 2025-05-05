@@ -1,21 +1,59 @@
-// src/pages/SimulatorPage.tsx
+// src/pages/SimulatorPage.tsx (updated)
 import React, { useEffect, useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom'; // Add useParams
 import { useConnection } from '../hooks/useConnection';
 import { useRequireAuth } from '../hooks/useRequireAuth';
 import { useToast } from '../hooks/useToast';
 import ConnectionStatusIndicator from '../components/Common/ConnectionStatusIndicator';
 import CsvOrderUpload from '../components/Simulator/CsvOrderUpload';
+import { SimulationConfig } from '../types/simulation'; // Import the type
 import './SimulatorPage.css';
 
 const SimulatorPage: React.FC = () => {
   useRequireAuth();
+  const { simulationId } = useParams<{ simulationId: string }>(); // Get the simulation ID from the URL
   const { connectionManager, connectionState, isConnected } = useConnection();
   const { addToast } = useToast();
   const navigate = useNavigate();
+  
+  // Add state for the simulation
+  const [simulation, setSimulation] = useState<SimulationConfig | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Local state for button disabling during API calls
   const [isSimActionLoading, setIsSimActionLoading] = useState(false);
+
+  // Load the simulation data
+  useEffect(() => {
+    const loadSimulation = async () => {
+      // In a real implementation, this would call an API to load the simulation
+      // For now, we'll just mock it
+      try {
+        // Simulate API call delay
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Mock simulation data
+        const mockSimulation: SimulationConfig = {
+          id: simulationId || '0',
+          name: 'Tech Sector Simulation',
+          sector: 'Technology',
+          riskLevel: 'medium',
+          initialCapital: 100000,
+          createdAt: Date.now() - 7 * 24 * 60 * 60 * 1000,
+          lastModified: Date.now() - 2 * 24 * 60 * 60 * 1000,
+          status: 'configured'
+        };
+        
+        setSimulation(mockSimulation);
+      } catch (error) {
+        addToast('error', `Failed to load simulation: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    loadSimulation();
+  }, [simulationId, addToast]);
 
   // Derived state from context
   const simulatorStatus = connectionState?.simulatorStatus || 'UNKNOWN';
@@ -24,15 +62,24 @@ const SimulatorPage: React.FC = () => {
 
   // Handler to attempt stopping the simulator
   const handleStopSimulator = useCallback(async () => {
-      if (!connectionManager || isSimulatorBusy || !isSimulatorRunning) return false; // Return success status
+      if (!connectionManager || isSimulatorBusy || !isSimulatorRunning) return false;
       setIsSimActionLoading(true);
-       addToast('info', 'Attempting to stop simulator...');
-      let success = false; // Track success
+      addToast('info', 'Attempting to stop simulator...');
+      let success = false;
       try {
            const result = await connectionManager.stopSimulator();
            if (result.success) {
                addToast('success', `Simulator stopped (Status: ${result.status || 'STOPPED'})`);
-               success = true; // Mark as successful
+               
+               // In a real implementation, update the simulation status in your state and backend
+               if (simulation) {
+                 setSimulation({
+                   ...simulation,
+                   status: 'stopped'
+                 });
+               }
+               
+               success = true;
            } else {
                addToast('error', `Failed to stop simulator: ${result.error || 'Unknown reason'}`);
            }
@@ -41,17 +88,13 @@ const SimulatorPage: React.FC = () => {
        } finally {
           setIsSimActionLoading(false);
        }
-       return success; // Return success status
-   }, [connectionManager, isSimulatorBusy, isSimulatorRunning, addToast]);
+       return success;
+   }, [connectionManager, isSimulatorBusy, isSimulatorRunning, addToast, simulation]);
 
    // Handler to Stop Simulator and Go Home
    const handleShutdownAndGoHome = useCallback(async () => {
-        // Prevent action if already busy or not running
         if (isSimulatorBusy || !isSimulatorRunning) return;
-
-        const stopped = await handleStopSimulator(); // Call existing stop logic
-
-        // Navigate home regardless of whether stop succeeded
+        const stopped = await handleStopSimulator();
         navigate('/home');
    }, [handleStopSimulator, navigate, isSimulatorBusy, isSimulatorRunning]);
 
@@ -63,6 +106,14 @@ const SimulatorPage: React.FC = () => {
           const result = await connectionManager.startSimulator();
           if (result.success) {
               addToast('success', `Simulator started (Status: ${result.status || 'RUNNING'})`);
+              
+              // In a real implementation, update the simulation status in your state and backend
+              if (simulation) {
+                setSimulation({
+                  ...simulation,
+                  status: 'running' 
+                });
+              }
           } else {
               addToast('error', `Failed to start simulator: ${result.error || 'Unknown reason'}`);
           }
@@ -71,10 +122,10 @@ const SimulatorPage: React.FC = () => {
       } finally {
          setIsSimActionLoading(false);
       }
-   }, [connectionManager, isSimulatorBusy, isSimulatorRunning, addToast]);
+   }, [connectionManager, isSimulatorBusy, isSimulatorRunning, addToast, simulation]);
 
    const handleGoBack = useCallback(() => {
-       navigate(-1); // Navigate back to the previous page (likely HomePage)
+       navigate('/home');
    }, [navigate]);
 
    const handleManualReconnect = useCallback(() => {
@@ -84,10 +135,23 @@ const SimulatorPage: React.FC = () => {
        }
    }, [connectionManager, addToast]);
 
+  if (isLoading) {
+    return <div className="loading-container">Loading simulation data...</div>;
+  }
+
+  if (!simulation) {
+    return <div className="error-container">Simulation not found.</div>;
+  }
+
   return (
     <div className="simulator-page">
         <header className="simulator-header">
-            <h1>Trading Simulator</h1>
+            <h1>{simulation.name}</h1>
+            <div className="simulator-info">
+              <span className="info-item">Sector: {simulation.sector}</span>
+              <span className="info-item">Risk Level: {simulation.riskLevel}</span>
+              <span className="info-item">Capital: ${simulation.initialCapital.toLocaleString()}</span>
+            </div>
             <div className="simulator-controls">
                 {/* Back button */}
                 <button onClick={handleGoBack} className="control-button secondary">Back</button>

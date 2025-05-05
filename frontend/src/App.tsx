@@ -34,7 +34,7 @@ import { OrderProvider } from './contexts/OrderContext';
 // COMPONENTS
 import ProtectedRoute from './components/Common/ProtectedRoute'; // Component for protected routes
 
-// AUTH COMPONENTS
+// PAGES
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/Auth/LoginPage';
 import SignupPage from './pages/Auth/SignupPage';
@@ -42,10 +42,9 @@ import VerifyEmailPage from './pages/Auth/VerifyEmailPage';
 import ForgotUsernamePage from './pages/Auth/ForgotUsernamePage';
 import ForgotPasswordPage from './pages/Auth/ForgotPasswordPage';
 import ResetPasswordPage from './pages/Auth/ResetPasswordPage';
-
-// PAGES
 import HomePage from './pages/HomePage';
 import SimulatorPage from './pages/SimulatorPage';
+import SimulationSetupPage from './pages/SimulationSetupPage';
 import SessionDeactivatedPage from './pages/SessionDeactivatedPage';
 
 // Initialize Logging First
@@ -134,8 +133,15 @@ function App() {
                           </ProtectedRoute>
                       } />
 
+                      {/* Simulator initialize */}
+                      <Route path="/simulator/new" element={
+                          <ProtectedRoute>
+                            <SimulationSetupPage />
+                          </ProtectedRoute>
+                      } />
+
                       {/* Simulator page */}
-                      <Route path="/simulator" element={
+                      <Route path="/simulator/:simulationId" element={
                           <ProtectedRoute>
                             <SimulatorPage />
                           </ProtectedRoute>
