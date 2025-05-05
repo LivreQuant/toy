@@ -180,10 +180,31 @@ class VerificationManager(BaseManager):
                 span.set_attribute("error", "Token already used")
                 return None
 
-            if token_data.get('expires_at') < datetime.utcnow():
+            # Compare timestamps - ensure both are in the same format
+            # Get current UTC time
+            now = datetime.utcnow()
+            
+            # Get expiration time
+            expires_at = token_data.get('expires_at')
+            
+            # Check if expires_at has timezone info
+            has_timezone = hasattr(expires_at, 'tzinfo') and expires_at.tzinfo is not None
+            
+            # Convert now to timezone-aware if expires_at is timezone-aware
+            if has_timezone:
+                try:
+                    import pytz
+                    now = pytz.UTC.localize(now)
+                except ImportError:
+                    # If pytz is not available, strip timezone from expires_at
+                    expires_at = expires_at.replace(tzinfo=None)
+            
+            # Now compare the times
+            if expires_at < now:
                 span.set_attribute("token_valid", False)
                 span.set_attribute("error", "Token expired")
                 return None
 
             span.set_attribute("token_valid", True)
             return token_data.get('user_id')
+        

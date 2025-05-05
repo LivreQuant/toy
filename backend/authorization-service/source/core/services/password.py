@@ -63,12 +63,12 @@ class PasswordService(BaseManager):
                     return {
                         'success': True  # Always return success
                     }
-
-                reset_token = await self.verification_manager.create_password_reset_token(user_id)
-
+                
                 try:
                     # Generate reset token
-                    user_id = user.get('id')
+                    user_id = user.get('id')  # Extract user_id from the user object
+
+                    reset_token = await self.verification_manager.create_password_reset_token(user_id)
 
                     # Send reset email
                     email_sent = await  self.email_manager.send_password_reset_email(
@@ -78,7 +78,6 @@ class PasswordService(BaseManager):
                     if not email_sent:
                         # Log the failure but don't reveal to user
                         self.logger.error(f"Failed to send password reset email to {email}")
-                    
                     
                     span.set_attribute("user_found", True)
                     span.set_attribute("reset_token_created", True)

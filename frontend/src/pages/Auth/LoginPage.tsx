@@ -167,6 +167,7 @@ const LoginPage: React.FC = () => {
         
         <div className="auth-links">
           <p>Don't have an account? <Link to="/signup">Sign up</Link></p>
+          {/* Add the Forgot Username link here */}
           <p>Forgot your username? <Link to="/forgot-username">Recover username</Link></p>
         </div>
       </form>
