@@ -45,6 +45,7 @@ import ForgotPasswordPage from './pages/Auth/ForgotPasswordPage';
 import ResetPasswordPage from './pages/Auth/ResetPasswordPage';
 import HomePage from './pages/HomePage';
 import SimulatorPage from './pages/SimulatorPage';
+import BookDetailsPage from './pages/BookDetailsPage';
 import BookSetupPage from './pages/BookSetupPage';
 import SessionDeactivatedPage from './pages/SessionDeactivatedPage';
 
@@ -136,10 +137,16 @@ function App() {
                         } />
 
                         {/* Book initialize */}
-                        <Route path="/book/new" element={
-                            <ProtectedRoute>
-                              <BookSetupPage />
-                            </ProtectedRoute>
+                        <Route path="/books/new" element={
+                          <ProtectedRoute>
+                            <BookSetupPage />
+                          </ProtectedRoute>
+                        } />
+
+                        <Route path="/books/:bookId" element={
+                          <ProtectedRoute>
+                            <BookDetailsPage />
+                          </ProtectedRoute>
                         } />
 
                         {/* Simulator page */}

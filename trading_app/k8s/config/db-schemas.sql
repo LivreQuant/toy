@@ -344,3 +344,24 @@ CREATE INDEX IF NOT EXISTS idx_feedback_user_id ON auth.user_feedback(user_id);
 CREATE INDEX IF NOT EXISTS idx_feedback_type ON auth.user_feedback(feedback_type);
 CREATE INDEX IF NOT EXISTS idx_feedback_status ON auth.user_feedback(status);
 CREATE INDEX IF NOT EXISTS idx_feedback_created_at ON auth.user_feedback(created_at);
+
+
+-- Create schema for books in PostgreSQL
+CREATE TABLE IF NOT EXISTS trading.books (
+    book_id UUID PRIMARY KEY,
+    user_id VARCHAR(100) NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    initial_capital NUMERIC(18,2) NOT NULL,
+    risk_level VARCHAR(10) NOT NULL CHECK (risk_level IN ('low', 'medium', 'high')),
+    market_focus VARCHAR(100),
+    status VARCHAR(20) NOT NULL DEFAULT 'CONFIGURED' CHECK (status IN ('CONFIGURED', 'ACTIVE', 'ARCHIVED')),
+    trading_strategy VARCHAR(100),
+    max_position_size NUMERIC(18,2),
+    max_total_risk NUMERIC(18,2),
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Add indexes
+CREATE INDEX IF NOT EXISTS idx_books_user_id ON trading.books(user_id);
+CREATE INDEX IF NOT EXISTS idx_books_status ON trading.books(status);

@@ -13,6 +13,12 @@ ORDER_CREATED = Counter(
     ['order_type', 'symbol', 'side']
 )
 
+BOOK_CREATED = Counter(
+    'book_created_total',
+    'Total number of books created',
+    ['user_id']
+)
+
 ORDER_SUBMITTED = Counter(
     'order_submitted_total',
     'Total number of orders submitted to exchange',
@@ -131,6 +137,11 @@ def track_user_order(user_id):
     USER_ORDER_COUNT.labels(user_id=user_id).inc()
 
 
+def track_book_created(user_id):
+    """Track book creation"""
+    BOOK_CREATED.labels(user_id=user_id).inc()
+
+    
 def track_auth_request(endpoint, success, duration_seconds):
     """Track auth service request latency"""
     AUTH_REQUEST_LATENCY.labels(endpoint=endpoint, success=str(success).lower()).observe(duration_seconds)
