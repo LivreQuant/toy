@@ -34,13 +34,28 @@ export interface Order {
   updatedAt: number; // Timestamp
 }
 
-export interface SimulationConfig {
+export interface Book {
   id: string;
+  userId: string;
   name: string;
-  sector: string;
-  riskLevel: 'low' | 'medium' | 'high';
   initialCapital: number;
+  riskLevel: 'low' | 'medium' | 'high';
+  marketFocus?: string;
+  status: 'CONFIGURED' | 'ACTIVE' | 'ARCHIVED';
+  tradingStrategy?: string;
+  maxPositionSize?: number;
+  maxTotalRisk?: number;
   createdAt: number;
-  lastModified: number;
-  status: 'configured' | 'running' | 'stopped' | 'error';
+  updatedAt: number;
+}
+
+// Add this to the existing file
+export interface CreateBookRequest {
+  name: string;
+  initialCapital: number;
+  riskLevel: 'low' | 'medium' | 'high';
+  marketFocus?: string;
+  tradingStrategy?: string;
+  maxPositionSize?: number;
+  maxTotalRisk?: number;
 }

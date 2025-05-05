@@ -1,7 +1,7 @@
-// src/api/api-client.ts
 import { HttpClient } from './http-client';
 import { AuthApi } from './auth';
 import { OrdersApi } from './order';
+import { BookApi } from './book'; // Add this
 import { TokenManager } from '../services/auth/token-manager';
 import { DeviceIdManager } from '../services/auth/device-id-manager';
 import { LocalStorageService } from '../services/storage/local-storage-service';
@@ -15,17 +15,15 @@ const sessionStorageService = new SessionStorageService();
 const deviceIdManager = DeviceIdManager.getInstance(sessionStorageService);
 
 // Create token manager
-const tokenManager = new TokenManager(localStorageService, deviceIdManager);
+export const tokenManager = new TokenManager(localStorageService, deviceIdManager);
 
 // Create HTTP client
-const httpClient = new HttpClient(tokenManager);
+export const httpClient = new HttpClient(tokenManager);
 
 // Create API clients
 export const authApi = new AuthApi(httpClient);
 export const ordersApi = new OrdersApi(httpClient);
+export const bookApi = new BookApi(httpClient); // Add this
 
 // Set the auth API on the token manager to handle token refreshes
 tokenManager.setAuthApi(authApi);
-
-// Export token manager and device ID manager for use in other parts of the app
-export { tokenManager, deviceIdManager };
