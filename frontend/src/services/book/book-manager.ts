@@ -1,4 +1,4 @@
-
+// src/services/book/book-manager.ts
 import { getLogger } from '../../boot/logging';
 import { TokenManager } from '../auth/token-manager';
 import { BookApi } from '../../api/book';
@@ -18,11 +18,12 @@ export class BookManager {
 
   async createBook(bookData: CreateBookRequest): Promise<{ 
     success: boolean; 
-    bookId?: string 
+    bookId?: string;
+    error?: string; 
   }> {
     if (!this.tokenManager.isAuthenticated()) {
       toastService.error('You must be logged in to create a book');
-      return { success: false };
+      return { success: false, error: 'Not authenticated' };
     }
 
     try {
@@ -31,6 +32,7 @@ export class BookManager {
       if (response.success && response.bookId) {
         toastService.success(`Book "${bookData.name}" created successfully`);
         
+        // Refresh books after creation
         await this.fetchBooks();
         
         return { 
@@ -39,42 +41,65 @@ export class BookManager {
         };
       } else {
         toastService.error(response.error || 'Failed to create book');
-        return { success: false };
+        return { 
+          success: false, 
+          error: response.error || 'Unknown error'
+        };
       }
     } catch (error: any) {
       this.logger.error('Book creation failed', error);
       toastService.error(`Failed to create book: ${error.message}`);
-      return { success: false };
+      return { 
+        success: false, 
+        error: error.message || 'Unknown error'
+      };
     }
   }
 
-  async fetchBooks(): Promise<void> {
+  async fetchBooks(): Promise<{ 
+    success: boolean; 
+    books?: Book[];
+    error?: string; 
+  }> {
     if (!this.tokenManager.isAuthenticated()) {
-      return;
+      return { success: false, error: 'Not authenticated' };
     }
 
     try {
       const response = await this.bookApi.getBooks();
       
       if (response.success && response.books) {
-        const booksMap = response.books.reduce((acc, book) => {
-          acc[book.id] = book;
-          return acc;
-        }, {} as Record<string, Book>);
-
-        // Use the new updateFullState method
-        bookState.updateFullState({
-          books: booksMap,
-          activeBookId: null,
-          isLoading: false,
-          error: null
-        });
+        // Update book state if state management is being used
+        if (bookState) {
+          const booksMap = response.books.reduce((acc, book) => {
+            acc[book.id] = book;
+            return acc;
+          }, {} as Record<string, Book>);
+          
+          bookState.updateFullState({
+            books: booksMap,
+            isLoading: false,
+            error: null,
+            lastUpdated: Date.now()
+          });
+        }
+        
+        return { 
+          success: true, 
+          books: response.books 
+        };
       } else {
-        toastService.error(response.error || 'Failed to fetch books');
+        return { 
+          success: false, 
+          error: response.error || 'Failed to fetch books'
+        };
       }
     } catch (error: any) {
       this.logger.error('Failed to fetch books', error);
-      toastService.error(`Failed to fetch books: ${error.message}`);
+      return { 
+        success: false, 
+        error: error.message || 'Unknown error'
+      };
     }
   }
 }

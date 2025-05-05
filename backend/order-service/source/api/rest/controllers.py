@@ -9,14 +9,15 @@ logger = logging.getLogger('rest_controllers')
 
 
 def get_token(request):
-    """Extract token from request headers or query parameters"""
+    """Extract token and CSRF token from request headers or query parameters"""
     auth_header = request.headers.get('Authorization')
+    csrf_token = request.headers.get('X-CSRF-Token')
 
     if auth_header and auth_header.startswith('Bearer '):
-        return auth_header[7:], request.query.get('deviceId')
+        return auth_header[7:], request.query.get('deviceId'), csrf_token
 
     # Try query parameter
-    return request.query.get('token'), request.query.get('deviceId')
+    return request.query.get('token'), request.query.get('deviceId'), csrf_token
 
 
 class OrderController:
@@ -27,10 +28,10 @@ class OrderController:
         self.order_manager = order_manager
         self.state_manager = state_manager
 
-    async def _get_user_id_from_token(self, token: str) -> str:
+    async def _get_user_id_from_token(self, token: str, csrf_token: str = None) -> str:
         """Extract user ID from authentication token"""
         try:
-            validation_result = await self.order_manager.validation_manager.auth_client.validate_token(token)
+            validation_result = await self.order_manager.validation_manager.auth_client.validate_token(token, csrf_token)
 
             if not validation_result.get('valid', False):
                 logger.warning(f"Invalid authentication token")
@@ -46,7 +47,7 @@ class OrderController:
         except Exception as e:
             logger.error(f"Error extracting user ID from token: {e}")
             return None
-    
+        
     async def health_check(self, request: web.Request) -> web.Response:
         """Simple health check endpoint"""
         return web.json_response({
@@ -110,9 +111,7 @@ class OrderController:
 
         try:
             # Extract token and device ID
-            token, device_id = get_token(request)
-
-            logger.info(f"FOUND TOKEN & DEVICE {device_id}")
+            token, device_id, csrf_token = get_token(request)
 
             if not token:
                 return web.json_response({
@@ -121,7 +120,7 @@ class OrderController:
                 }, status=401)
 
             # Get user_id from token
-            user_id = await self._get_user_id_from_token(token)
+            user_id = await self._get_user_id_from_token(token, csrf_token)
             if not user_id:
                 return web.json_response({
                     "success": False,
@@ -191,7 +190,7 @@ class OrderController:
             
         try:
             # Extract token and device ID
-            token, device_id = get_token(request)
+            token, device_id, csrf_token = get_token(request)
 
             if not token:
                 return web.json_response({
@@ -200,7 +199,7 @@ class OrderController:
                 }, status=401)
 
             # Get user_id from token
-            user_id = await self._get_user_id_from_token(token)
+            user_id = await self._get_user_id_from_token(token, csrf_token)
             if not user_id:
                 return web.json_response({
                     "success": False,

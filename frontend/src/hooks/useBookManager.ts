@@ -1,5 +1,6 @@
+// src/hooks/useBookManager.ts
 import { useContext } from 'react';
-import { BookManagerContext } from '../contexts/BookContext'; // Corrected import
+import { BookManagerContext } from '../contexts/BookContext';
 
 export const useBookManager = () => {
   const context = useContext(BookManagerContext);

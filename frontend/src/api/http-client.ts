@@ -80,10 +80,10 @@ export class HttpClient {
       headers.append('Authorization', `Bearer ${token}`);
       
       // Add CSRF protection for authenticated endpoints
-      const csrfHeaders = await this.getCsrfHeader();
-      Object.entries(csrfHeaders).forEach(([key, value]) => {
-        headers.append(key, value);
-      });
+      const csrfToken = await this.tokenManager.getCsrfToken();
+      if (csrfToken) {
+        headers.append('X-CSRF-Token', csrfToken);
+      }
     }
 
     const fetchOptions: RequestInit = {
@@ -309,7 +309,6 @@ export class HttpClient {
       return {};
     }
   }
-
 
   private async handleNetworkOrFetchError<T>(
       error: Error,

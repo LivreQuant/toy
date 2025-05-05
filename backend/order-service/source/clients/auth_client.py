@@ -47,13 +47,14 @@ class AuthClient:
                 await self.session.close()
                 self.session = None
 
-    async def validate_token(self, token: str) -> Dict[str, Any]:
+    async def validate_token(self, token: str, csrf_token: str = None) -> Dict[str, Any]:
         """
         Validate a JWT token
         
         Args:
             token: JWT token to validate
-            
+            csrf_token: Optional CSRF token
+                
         Returns:
             Response data containing token validity
         """
@@ -66,7 +67,7 @@ class AuthClient:
 
             # Execute with circuit breaker
             start_time = time.time()
-            result = await self.breaker.execute(self._validate_token_request, token)
+            result = await self.breaker.execute(self._validate_token_request, token, csrf_token)
             duration = time.time() - start_time
 
             # Add debug log for the validation result
@@ -85,11 +86,15 @@ class AuthClient:
             logger.error(f"Error validating token: {e}")
             return {'valid': False, 'error': str(e)}
         
-    async def _validate_token_request(self, token: str) -> Dict[str, Any]:
+    async def _validate_token_request(self, token: str, csrf_token: str = None) -> Dict[str, Any]:
         """Make the actual token validation request"""
         session = await self._get_session()
         headers = {'Authorization': f'Bearer {token}'}
-
+        
+        # Add CSRF token to headers if provided
+        if csrf_token:
+            headers['X-CSRF-Token'] = csrf_token
+        
         try:
             # Attempt with retries for transient issues
             max_retries = 3
@@ -125,3 +130,4 @@ class AuthClient:
         except asyncio.TimeoutError:
             logger.error("Timeout validating token")
             raise
+        

@@ -1,3 +1,4 @@
+// src/api/book.ts
 import { HttpClient } from './http-client';
 import { Book } from '../types'; // Import from types
 
@@ -23,7 +24,8 @@ export class BookApi {
     bookId?: string; 
     error?: string 
   }> {
-    return this.client.post('/books/create', bookData);
+    // Change from '/books/create' to '/books'
+    return this.client.post('/api/books', bookData);
   }
 
   async getBooks(): Promise<{ 
@@ -31,13 +33,13 @@ export class BookApi {
     books?: Book[]; 
     error?: string 
   }> {
-    return this.client.get('/books');
+    return this.client.get('/api/books');
   }
 
   async updateBook(bookId: string, updates: Partial<CreateBookRequest>): Promise<{ 
     success: boolean; 
     error?: string 
   }> {
-    return this.client.put(`/books/${bookId}`, updates);
+    return this.client.put(`/api/books/${bookId}`, updates);
   }
 }

@@ -18,18 +18,19 @@ class ValidationManager:
         self.order_repository = order_repository
         self.auth_client = auth_client
 
-    async def validate_user_auth(self, token: str) -> Dict[str, Any]:
+    async def validate_user_auth(self, token: str, csrf_token: str = None) -> Dict[str, Any]:
         """
         Validate authentication token
         
         Args:
             token: Authentication token
-            
+            csrf_token: Optional CSRF token
+                
         Returns:
             Validation result with valid flag and user_id if successful
         """
         # Validate the auth token
-        auth_result = await self.auth_client.validate_token(token)
+        auth_result = await self.auth_client.validate_token(token, csrf_token)
 
         if not auth_result.get('valid', False):
             logger.warning(f"Invalid authentication token")

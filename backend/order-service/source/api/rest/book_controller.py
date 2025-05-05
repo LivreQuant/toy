@@ -1,314 +1,28 @@
 import logging
 import json
+import time
+import uuid
 from aiohttp import web
 
-from source.core.book_manager import BookManager
-from source.core.state_manager import StateManager
+from source.db.book_repository import BookRepository
 from source.api.rest.controllers import get_token
 
-logger = logging.getLogger('book_controller')
-
+logger = logging.getLogger('book_controllers')
 
 class BookController:
     """Controller for book-related REST endpoints"""
 
-    def __init__(self, book_manager: BookManager, state_manager: StateManager):
-        """Initialize controller with book manager and state manager"""
-        self.book_manager = book_manager
-        self.state_manager = state_manager
+    def __init__(self, book_repository, auth_client, validation_manager):
+        """Initialize controller with repositories and services"""
+        self.book_repository = book_repository
+        self.auth_client = auth_client
+        self.validation_manager = validation_manager
 
-    async def create_book(self, request: web.Request) -> web.Response:
-        """Handle book creation endpoint"""
-        logger.info("Received create book request")
-        
-        # Try to acquire the lock first
-        acquired = await self.state_manager.acquire()
-        if not acquired:
-            return web.json_response({
-                "success": False,
-                "error": "Service is currently busy. Please try again later."
-            }, status=503)  # Service Unavailable
-        
-        try:
-            # Extract token and device ID
-            token, device_id = get_token(request)
-            
-            logger.info(f"Token and device ID extracted: device_id={device_id}")
-
-            if not token:
-                return web.json_response({
-                    "success": False,
-                    "error": "Authentication token is required"
-                }, status=401)
-
-            # Get user_id from token
-            user_id = await self._get_user_id_from_token(token)
-            if not user_id:
-                return web.json_response({
-                    "success": False,
-                    "error": "Invalid authentication token"
-                }, status=401)
-            
-            logger.info(f"User ID from token: {user_id}")
-
-            # Validate device ID
-            device_valid = await self.book_manager.validation_manager.validate_device_id(device_id)
-            if not device_valid:
-                return web.json_response({
-                    "success": False,
-                    "error": "Invalid device ID for this session"
-                }, status=400)
-            
-            logger.info(f"Device ID validation: {device_valid}")
-
-            # Parse request body
-            try:
-                data = await request.json()
-                logger.info(f"Request body parsed: {data}")
-            except json.JSONDecodeError:
-                return web.json_response({
-                    "success": False,
-                    "error": "Invalid JSON in request body"
-                }, status=400)
-
-            # Process book creation
-            result = await self.book_manager.create_book(data, user_id)
-            logger.info(f"Book creation result: {result}")
-            
-            if result['success']:
-                return web.json_response(result)
-            else:
-                return web.json_response(result, status=400)
-        
-        except Exception as e:
-            logger.error(f"Error in create_book handler: {e}")
-            return web.json_response({
-                "success": False,
-                "error": f"Server error: {str(e)}"
-            }, status=500)
-        finally:
-            # Always release the lock, even if there's an error
-            await self.state_manager.release()
-
-    async def get_books(self, request: web.Request) -> web.Response:
-        """Handle get all books endpoint"""
-        logger.info("Received get books request")
-        
-        # Extract token and device ID
-        token, device_id = get_token(request)
-        
-        logger.info(f"Token and device ID extracted: device_id={device_id}")
-
-        if not token:
-            return web.json_response({
-                "success": False,
-                "error": "Authentication token is required"
-            }, status=401)
-
-        # Get user_id from token
-        user_id = await self._get_user_id_from_token(token)
-        if not user_id:
-            return web.json_response({
-                "success": False,
-                "error": "Invalid authentication token"
-            }, status=401)
-        
-        logger.info(f"User ID from token: {user_id}")
-
-        # Validate device ID
-        device_valid = await self.book_manager.validation_manager.validate_device_id(device_id)
-        if not device_valid:
-            return web.json_response({
-                "success": False,
-                "error": "Invalid device ID for this session"
-            }, status=400)
-        
-        logger.info(f"Device ID validation: {device_valid}")
-
-        # Get all books for user
-        result = await self.book_manager.get_books(user_id)
-        logger.info(f"Get books result: {len(result.get('books', []))} books found")
-        
-        return web.json_response(result)
-
-    async def get_book(self, request: web.Request) -> web.Response:
-        """Handle get book by ID endpoint"""
-        # Extract token and device ID
-        token, device_id = get_token(request)
-        
-        # Extract book ID from URL
-        book_id = request.match_info.get('book_id')
-        logger.info(f"Received get book request: book_id={book_id}")
-
-        if not token:
-            return web.json_response({
-                "success": False,
-                "error": "Authentication token is required"
-            }, status=401)
-
-        # Get user_id from token
-        user_id = await self._get_user_id_from_token(token)
-        if not user_id:
-            return web.json_response({
-                "success": False,
-                "error": "Invalid authentication token"
-            }, status=401)
-
-        # Validate device ID
-        device_valid = await self.book_manager.validation_manager.validate_device_id(device_id)
-        if not device_valid:
-            return web.json_response({
-                "success": False,
-                "error": "Invalid device ID for this session"
-            }, status=400)
-
-        if not book_id:
-            return web.json_response({
-                "success": False,
-                "error": "Book ID is required"
-            }, status=400)
-
-        # Get book
-        result = await self.book_manager.get_book(book_id, user_id)
-        
-        if result['success']:
-            return web.json_response(result)
-        else:
-            status = 404 if result.get('error') == 'Book not found' else 400
-            return web.json_response(result, status=status)
-
-    async def update_book(self, request: web.Request) -> web.Response:
-        """Handle update book endpoint"""
-        # Try to acquire the lock first
-        acquired = await self.state_manager.acquire()
-        if not acquired:
-            return web.json_response({
-                "success": False,
-                "error": "Service is currently busy. Please try again later."
-            }, status=503)  # Service Unavailable
-        
-        try:
-            # Extract token and device ID
-            token, device_id = get_token(request)
-            
-            # Extract book ID from URL
-            book_id = request.match_info.get('book_id')
-            logger.info(f"Received update book request: book_id={book_id}")
-
-            if not token:
-                return web.json_response({
-                    "success": False,
-                    "error": "Authentication token is required"
-                }, status=401)
-
-            # Get user_id from token
-            user_id = await self._get_user_id_from_token(token)
-            if not user_id:
-                return web.json_response({
-                    "success": False,
-                    "error": "Invalid authentication token"
-                }, status=401)
-
-            # Validate device ID
-            device_valid = await self.book_manager.validation_manager.validate_device_id(device_id)
-            if not device_valid:
-                return web.json_response({
-                    "success": False,
-                    "error": "Invalid device ID for this session"
-                }, status=400)
-
-            if not book_id:
-                return web.json_response({
-                    "success": False,
-                    "error": "Book ID is required"
-                }, status=400)
-
-            # Parse request body
-            try:
-                data = await request.json()
-                logger.info(f"Request body parsed: {data}")
-            except json.JSONDecodeError:
-                return web.json_response({
-                    "success": False,
-                    "error": "Invalid JSON in request body"
-                }, status=400)
-
-            # Update book
-            result = await self.book_manager.update_book(book_id, data, user_id)
-            
-            if result['success']:
-                return web.json_response(result)
-            else:
-                status = 404 if result.get('error') == 'Book not found' else 400
-                return web.json_response(result, status=status)
-        
-        finally:
-            # Always release the lock, even if there's an error
-            await self.state_manager.release()
-
-    async def delete_book(self, request: web.Request) -> web.Response:
-        """Handle delete book endpoint"""
-        # Try to acquire the lock first
-        acquired = await self.state_manager.acquire()
-        if not acquired:
-            return web.json_response({
-                "success": False,
-                "error": "Service is currently busy. Please try again later."
-            }, status=503)  # Service Unavailable
-        
-        try:
-            # Extract token and device ID
-            token, device_id = get_token(request)
-            
-            # Extract book ID from URL
-            book_id = request.match_info.get('book_id')
-            logger.info(f"Received delete book request: book_id={book_id}")
-
-            if not token:
-                return web.json_response({
-                    "success": False,
-                    "error": "Authentication token is required"
-                }, status=401)
-
-            # Get user_id from token
-            user_id = await self._get_user_id_from_token(token)
-            if not user_id:
-                return web.json_response({
-                    "success": False,
-                    "error": "Invalid authentication token"
-                }, status=401)
-
-            # Validate device ID
-            device_valid = await self.book_manager.validation_manager.validate_device_id(device_id)
-            if not device_valid:
-                return web.json_response({
-                    "success": False,
-                    "error": "Invalid device ID for this session"
-                }, status=400)
-
-            if not book_id:
-                return web.json_response({
-                    "success": False,
-                    "error": "Book ID is required"
-                }, status=400)
-
-            # Delete book
-            result = await self.book_manager.delete_book(book_id, user_id)
-            
-            if result['success']:
-                return web.json_response(result)
-            else:
-                status = 404 if result.get('error') == 'Book not found' else 400
-                return web.json_response(result, status=status)
-        
-        finally:
-            # Always release the lock, even if there's an error
-            await self.state_manager.release()
-    
-    async def _get_user_id_from_token(self, token: str) -> str:
+    async def _get_user_id_from_token(self, token: str, csrf_token: str = None) -> str:
         """Extract user ID from authentication token"""
         try:
-            validation_result = await self.book_manager.validation_manager.auth_client.validate_token(token)
+            # Use auth_client directly instead of through order_manager
+            validation_result = await self.auth_client.validate_token(token, csrf_token)
 
             if not validation_result.get('valid', False):
                 logger.warning(f"Invalid authentication token")
@@ -324,3 +38,281 @@ class BookController:
         except Exception as e:
             logger.error(f"Error extracting user ID from token: {e}")
             return None
+        
+    async def create_book(self, request: web.Request) -> web.Response:
+        """Handle book creation endpoint"""
+        try:
+            # Extract token and device ID
+            token, device_id, csrf_token = get_token(request)
+
+            if not token:
+                return web.json_response({
+                    "success": False,
+                    "error": "Authentication token is required"
+                }, status=401)
+
+            # Get user_id from token
+            user_id = await self._get_user_id_from_token(token, csrf_token)
+            if not user_id:
+                return web.json_response({
+                    "success": False,
+                    "error": "Invalid authentication token"
+                }, status=401)
+
+            # Validate device ID
+            device_valid = await self.validation_manager.validate_device_id(device_id)
+            if not device_valid:
+                return web.json_response({
+                    "success": False,
+                    "error": "Invalid device ID for this session"
+                }, status=400)
+
+            # Parse request body
+            try:
+                data = await request.json()
+            except json.JSONDecodeError:
+                return web.json_response({
+                    "success": False,
+                    "error": "Invalid JSON in request body"
+                }, status=400)
+
+            # Validate required fields
+            required_fields = ['name', 'initialCapital', 'riskLevel']
+            missing_fields = [field for field in required_fields if field not in data]
+            if missing_fields:
+                return web.json_response({
+                    "success": False,
+                    "error": f"Missing required fields: {', '.join(missing_fields)}"
+                }, status=400)
+
+            # Convert incoming data to book model format
+            book_data = {
+                'book_id': str(uuid.uuid4()),
+                'user_id': user_id,
+                'name': data['name'],
+                'initial_capital': data['initialCapital'],
+                'risk_level': data['riskLevel'],
+                'market_focus': data.get('marketFocus'),
+                'trading_strategy': data.get('tradingStrategy'),
+                'max_position_size': data.get('maxPositionSize'),
+                'max_total_risk': data.get('maxTotalRisk'),
+                'status': 'CONFIGURED',
+                'created_at': time.time(),
+                'updated_at': time.time()
+            }
+
+            # Create book in database
+            book_id = await self.book_repository.create_book(book_data)
+            
+            if not book_id:
+                return web.json_response({
+                    "success": False,
+                    "error": "Failed to create book in database"
+                }, status=500)
+
+            return web.json_response({
+                "success": True,
+                "bookId": book_id
+            })
+
+        except Exception as e:
+            logger.error(f"Error handling book creation: {e}")
+            return web.json_response({
+                "success": False,
+                "error": "Server error processing book creation"
+            }, status=500)
+
+    async def get_books(self, request: web.Request) -> web.Response:
+        """Handle books retrieval endpoint"""
+        try:
+            # Extract token and device ID
+            token, device_id, csrf_token = get_token(request)
+
+            if not token:
+                return web.json_response({
+                    "success": False,
+                    "error": "Authentication token is required"
+                }, status=401)
+
+            # Get user_id from token
+            user_id = await self._get_user_id_from_token(token, csrf_token)
+            if not user_id:
+                return web.json_response({
+                    "success": False,
+                    "error": "Invalid authentication token"
+                }, status=401)
+
+            # Validate device ID
+            device_valid = await self.validation_manager.validate_device_id(device_id)
+            if not device_valid:
+                return web.json_response({
+                    "success": False,
+                    "error": "Invalid device ID for this session"
+                }, status=400)
+
+            # Retrieve books for this user
+            books = await self.book_repository.get_user_books(user_id)
+
+            return web.json_response({
+                "success": True,
+                "books": books
+            })
+
+        except Exception as e:
+            logger.error(f"Error handling books retrieval: {e}")
+            return web.json_response({
+                "success": False,
+                "error": "Server error processing book request"
+            }, status=500)
+
+    async def get_book(self, request: web.Request) -> web.Response:
+        """Handle single book retrieval endpoint"""
+        try:
+            # Extract token and device ID
+            token, device_id, csrf_token = get_token(request)
+
+            if not token:
+                return web.json_response({
+                    "success": False,
+                    "error": "Authentication token is required"
+                }, status=401)
+
+            # Get user_id from token
+            user_id = await self._get_user_id_from_token(token, csrf_token)
+            if not user_id:
+                return web.json_response({
+                    "success": False,
+                    "error": "Invalid authentication token"
+                }, status=401)
+
+            # Validate device ID
+            device_valid = await self.validation_manager.validate_device_id(device_id)
+            if not device_valid:
+                return web.json_response({
+                    "success": False,
+                    "error": "Invalid device ID for this session"
+                }, status=400)
+
+            # Get book ID from URL
+            book_id = request.match_info.get('id')
+            if not book_id:
+                return web.json_response({
+                    "success": False,
+                    "error": "Book ID is required"
+                }, status=400)
+
+            # Retrieve book
+            book = await self.book_repository.get_book(book_id, user_id)
+            
+            if not book:
+                return web.json_response({
+                    "success": False,
+                    "error": "Book not found or does not belong to user"
+                }, status=404)
+
+            return web.json_response({
+                "success": True,
+                "book": book
+            })
+
+        except Exception as e:
+            logger.error(f"Error handling book retrieval: {e}")
+            return web.json_response({
+                "success": False,
+                "error": "Server error processing book request"
+            }, status=500)
+
+    async def update_book(self, request: web.Request) -> web.Response:
+        """Handle book update endpoint"""
+        try:
+            # Extract token and device ID
+            token, device_id, csrf_token = get_token(request)
+
+            if not token:
+                return web.json_response({
+                    "success": False,
+                    "error": "Authentication token is required"
+                }, status=401)
+
+            # Get user_id from token
+            user_id = await self._get_user_id_from_token(token, csrf_token)
+            if not user_id:
+                return web.json_response({
+                    "success": False,
+                    "error": "Invalid authentication token"
+                }, status=401)
+
+            # Validate device ID
+            device_valid = await self.validation_manager.validate_device_id(device_id)
+            if not device_valid:
+                return web.json_response({
+                    "success": False,
+                    "error": "Invalid device ID for this session"
+                }, status=400)
+
+            # Get book ID from URL
+            book_id = request.match_info.get('id')
+            if not book_id:
+                return web.json_response({
+                    "success": False,
+                    "error": "Book ID is required"
+                }, status=400)
+
+            # Parse request body
+            try:
+                data = await request.json()
+            except json.JSONDecodeError:
+                return web.json_response({
+                    "success": False,
+                    "error": "Invalid JSON in request body"
+                }, status=400)
+
+            # Verify book exists and belongs to user
+            existing_book = await self.book_repository.get_book(book_id, user_id)
+            if not existing_book:
+                return web.json_response({
+                    "success": False,
+                    "error": "Book not found or does not belong to user"
+                }, status=404)
+
+            # Update only provided fields
+            update_data = {}
+            if 'name' in data:
+                update_data['name'] = data['name']
+            if 'initialCapital' in data:
+                update_data['initial_capital'] = data['initialCapital']
+            if 'riskLevel' in data:
+                update_data['risk_level'] = data['riskLevel']
+            if 'marketFocus' in data:
+                update_data['market_focus'] = data['marketFocus']
+            if 'tradingStrategy' in data:
+                update_data['trading_strategy'] = data['tradingStrategy']
+            if 'maxPositionSize' in data:
+                update_data['max_position_size'] = data['maxPositionSize']
+            if 'maxTotalRisk' in data:
+                update_data['max_total_risk'] = data['maxTotalRisk']
+            if 'status' in data:
+                update_data['status'] = data['status']
+
+            # Add updated timestamp
+            update_data['updated_at'] = time.time()
+
+            # Update book in database
+            success = await self.book_repository.update_book(book_id, user_id, update_data)
+            
+            if not success:
+                return web.json_response({
+                    "success": False,
+                    "error": "Failed to update book in database"
+                }, status=500)
+
+            return web.json_response({
+                "success": True
+            })
+
+        except Exception as e:
+            logger.error(f"Error handling book update: {e}")
+            return web.json_response({
+                "success": False,
+                "error": "Server error processing book update"
+            }, status=500)
