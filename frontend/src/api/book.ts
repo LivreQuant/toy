@@ -25,7 +25,7 @@ export class BookApi {
     error?: string 
   }> {
     // Change from '/books/create' to '/books'
-    return this.client.post('/api/books', bookData);
+    return this.client.post('/books', bookData);
   }
 
   async getBooks(): Promise<{ 
@@ -33,13 +33,13 @@ export class BookApi {
     books?: Book[]; 
     error?: string 
   }> {
-    return this.client.get('/api/books');
+    return this.client.get('/books');
   }
 
   async updateBook(bookId: string, updates: Partial<CreateBookRequest>): Promise<{ 
     success: boolean; 
     error?: string 
   }> {
-    return this.client.put(`/api/books/${bookId}`, updates);
+    return this.client.put(`/books/${bookId}`, updates);
   }
 }
