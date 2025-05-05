@@ -48,9 +48,10 @@ class UserDatabaseManager(BaseDatabaseManager):
             if not self.pool:
                 await self.connect()
 
+            # Update this query to include verification_code and verification_sent_at
             query = """
                 SELECT id, username, email, first_name, last_name, is_active, user_role, 
-                       email_verified, created_at, last_login
+                    email_verified, created_at, last_login, verification_code, verification_sent_at
                 FROM auth.users
                 WHERE id = $1
             """

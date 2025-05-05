@@ -73,12 +73,15 @@ class SignupService(BaseManager):
         """Handle email verification request"""
         with optional_trace_span(self.tracer, "verify_email") as span:
             span.set_attribute("user_id", str(user_id))
+            self.logger.info(f"Email verification request for user_id: {user_id}")
+            self.logger.info(f"Verification code provided: '{verification_code}' of type {type(verification_code)}")
 
             try:
                 # Get user info
                 user = await self.db.get_user_by_id(user_id)
-
+                
                 if not user:
+                    self.logger.error(f"User not found with ID: {user_id}")
                     span.set_attribute("verification.success", False)
                     span.set_attribute("verification.error", "User not found")
                     return {
@@ -86,7 +89,10 @@ class SignupService(BaseManager):
                         'error': "User not found"
                     }
 
+                self.logger.info(f"User found: {user.get('id')}, username: {user.get('username')}")
+                
                 if user.get('email_verified'):
+                    self.logger.info(f"Email already verified for user {user_id}")
                     span.set_attribute("verification.success", False)
                     span.set_attribute("verification.error", "Email already verified")
                     return {
@@ -95,9 +101,12 @@ class SignupService(BaseManager):
                     }
 
                 # Verify code
+                self.logger.info(f"Calling verification_manager.verify_email_code for user {user_id}")
                 is_valid = await self.verification_manager.verify_email_code(user_id, verification_code)
+                self.logger.info(f"Verification result for user {user_id}: {is_valid}")
 
                 if not is_valid:
+                    self.logger.warning(f"Invalid or expired verification code for user {user_id}")
                     span.set_attribute("verification.success", False)
                     span.set_attribute("verification.error", "Invalid or expired verification code")
                     return {
@@ -105,13 +114,14 @@ class SignupService(BaseManager):
                         'error': "Invalid or expired verification code"
                     }
 
+                self.logger.info(f"Email verification successful for user {user_id}")
                 span.set_attribute("verification.success", True)
                 return {
                     'success': True,
                     'message': "Email verified successfully"
                 }
             except Exception as e:
-                self.logger.error(f"Email verification error: {e}", exc_info=True)
+                self.logger.error(f"Email verification error for user {user_id}: {e}", exc_info=True)
                 span.record_exception(e)
                 span.set_attribute("verification.success", False)
                 span.set_attribute("verification.error", str(e))

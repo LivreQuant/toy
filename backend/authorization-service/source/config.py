@@ -30,6 +30,8 @@ class Config:
     # Environment
     ENVIRONMENT = ENV
 
+    APP_BASE_URL = os.getenv('APP_BASE_URL', 'http://localhost:3000')
+
     # Database Configuration
     DB_CONFIG = {
         'host': os.getenv('DB_HOST', 'postgres'),

@@ -23,7 +23,7 @@ class EmailManager(BaseManager):
         self.mailgun_base_url = f"https://api.mailgun.net/v3/{self.mailgun_domain}"
         
         # App configuration
-        self.base_url = os.getenv('APP_BASE_URL', 'https://example.com')
+        self.base_url = Config.APP_BASE_URL
         
         # Set up template engine
         template_dir = os.path.join(os.path.dirname(__file__), '../templates')

@@ -93,13 +93,17 @@ def handle_verify_email(auth_manager):
                 # Parse request body
                 data = await request.json()
                 user_id = data.get('userId')
-                verification_code = sanitize_input(data.get('code'))
+                verification_code = data.get('code')
                 
                 logger.debug(f"Processing email verification for user: {user_id}")
+                logger.debug(f"Request JSON: {data}")
+                logger.debug(f"Verification code from request: '{verification_code}' of type {type(verification_code)}")
+                
                 span.set_attribute("user_id", str(user_id))
                 
                 if not user_id or not verification_code:
                     logger.debug("Missing required fields")
+                    logger.debug(f"userId present: {user_id is not None}, code present: {verification_code is not None}")
                     span.set_attribute("error", "Missing required fields")
                     return web.json_response({
                         'success': False,
@@ -107,11 +111,15 @@ def handle_verify_email(auth_manager):
                     }, status=400)
                 
                 # Call auth manager
+                logger.debug(f"Calling auth_manager.verify_email with userId={user_id}, code='{verification_code}'")
                 result = await auth_manager.verify_email(user_id, verification_code)
+                logger.debug(f"Verification result: {result}")
                 
                 span.set_attribute("verification.success", result.get('success', False))
                 if not result.get('success', False):
-                    span.set_attribute("verification.error", result.get('error', 'Verification failed'))
+                    error_msg = result.get('error', 'Verification failed')
+                    span.set_attribute("verification.error", error_msg)
+                    logger.debug(f"Verification failed: {error_msg}")
                 
                 status = 200 if result.get('success', False) else 400
                 return web.json_response(result, status=status)
