@@ -10,19 +10,21 @@ from source.config import config
 logger = logging.getLogger('api_utils')
 
 
-async def validate_token_with_auth_service(token: str) -> Dict[str, Any]:
+async def validate_token_with_auth_service(token: str, headers: dict = None) -> Dict[str, Any]:
     """
     Call the auth service directly to validate a token.
 
     Args:
         token: JWT token to validate
+        headers: Additional headers to include
 
     Returns:
         Dict with validation results
     """
     auth_service_url = config.services.auth_service_url
-    headers = {'Authorization': f'Bearer {token}'}
-
+    if headers is None:
+        headers = {'Authorization': f'Bearer {token}'}
+    
     try:
         async with aiohttp.ClientSession() as session:
             async with session.post(

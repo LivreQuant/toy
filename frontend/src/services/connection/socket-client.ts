@@ -85,8 +85,16 @@ export class SocketClient implements Disposable {
         throw new Error('Failed to get authentication token for WebSocket');
       }
 
+      // Get the CSRF token
+      const csrfToken = await this.tokenManager.getCsrfToken();
+      
       const deviceId = DeviceIdManager.getInstance().getDeviceId();
-      const params = new URLSearchParams({ token, deviceId });
+      // Add CSRF token to the params
+      const params = new URLSearchParams({ 
+          token, 
+          deviceId,
+          csrfToken  // Add this line
+      });
 
       const wsUrl = `${config.wsBaseUrl}?${params.toString()}`;
 

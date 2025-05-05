@@ -183,6 +183,7 @@ class SessionServer:
         cors_options = aiohttp_cors.ResourceOptions(
             allow_credentials=True,
             expose_headers="*",
+            #allow_headers=("X-Requested-With", "Content-Type", "Authorization", "X-CSRF-Token"),
             allow_headers="*",  # Be more specific in production if possible
             allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"]  # Include common methods
         )

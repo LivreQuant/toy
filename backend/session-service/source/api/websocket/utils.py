@@ -42,10 +42,20 @@ async def authenticate_websocket_request(
     logger.info(f"Authenticating WebSocket request from {request.remote}")
     logger.info(f"Request query parameters: {dict(request.query)}")
 
+    # Extract the csrfToken from query parameters
     query = request.query
     token = query.get('token')
     device_id = query.get('deviceId')
+    csrf_token = query.get('csrfToken')
 
+    # Validate CSRF token
+    if not csrf_token:
+        logger.warning("Authentication failed: Missing CSRF token")
+        raise ClientError(
+            message="Missing CSRF token",
+            error_code="MISSING_CSRF_TOKEN"
+        )
+    
     # Log parameter presence
     logger.info(f"Auth parameters - token present: {token is not None}, deviceId present: {device_id is not None}")
 
@@ -67,8 +77,11 @@ async def authenticate_websocket_request(
     # Get the session ID (in single-user mode, it's pre-defined)
     session_id = session_manager.state_manager.get_active_session_id()
 
-    # Validate token
-    validation_result = await validate_token_with_auth_service(token)
+    # Include CSRF token in validation request to auth service
+    headers = {'Authorization': f'Bearer {token}', 'X-CSRF-Token': csrf_token}
+    
+    # Then use these headers in your validate_token_with_auth_service call
+    validation_result = await validate_token_with_auth_service(token, headers)
 
     if not validation_result.get('valid', False):
         logger.warning(f"Authentication failed: Invalid token for device {device_id}")
