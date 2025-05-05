@@ -3,7 +3,7 @@ import React, { createContext, useState, useEffect, useCallback, ReactNode, useM
 
 import { getLogger } from '../boot/logging'; // Adjust path as needed
 
-import { LoginRequest, LoginResponse, AuthApi } from '../api/auth'; // Adjust path as needed
+import { LoginRequest, AuthApi } from '../api/auth'; // Adjust path as needed
 
 import LoadingSpinner from '../components/Common/LoadingSpinner'; // Assuming component exists
 
@@ -16,16 +16,28 @@ import { DeviceIdManager } from '../services/auth/device-id-manager';
 
 import { ConnectionManager } from '../services/connection/connection-manager';
 
+// Define our own LoginResponse interface here to avoid import errors
+interface LoginResponse {
+  success: boolean;
+  accessToken?: string;
+  refreshToken?: string;
+  expiresIn?: number;
+  userId?: string | number;
+  userRole?: string;
+  requiresVerification?: boolean;
+  error?: string;
+}
+
 const logger = getLogger('AuthContext'); // Initialize logger for this context
 
 interface AuthContextProps {
   isAuthenticated: boolean;
   isAuthLoading: boolean;
   userId: string | number | null;
-  login: (credentials: LoginRequest) => Promise<boolean>;
+  login: (credentials: LoginRequest) => Promise<LoginResponse>; // Updated return type
   logout: () => Promise<void>;
   tokenManager: TokenManager;
-  forgotPassword: (data: { email: string }) => Promise<boolean>; // Add this property
+  forgotPassword: (data: { email: string }) => Promise<boolean>;
 }
 
 export const AuthContext = createContext<AuthContextProps | undefined>(undefined);
@@ -85,66 +97,100 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, tokenManag
   }, [tokenManager]); // Rerun only if tokenManager instance changes
 
   // Login function
-  const login = useCallback(async (credentials: LoginRequest): Promise<boolean> => {
+  const login = useCallback(async (credentials: LoginRequest): Promise<LoginResponse> => {
     logger.info('Attempting login...');
     setIsAuthLoading(true);
     authState.updateState({ isAuthLoading: true, lastAuthError: null });
-
+  
     try {
       // 1. Call API
-      const response: LoginResponse = await authApi.login(credentials.username, credentials.password);
+      const response = await authApi.login(credentials.username, credentials.password);
       logger.info('Login API successful');
-
-      // 2. Store Tokens
-      const tokenData: TokenData = {
-        accessToken: response.accessToken,
-        refreshToken: response.refreshToken,
-        expiresAt: Date.now() + response.expiresIn * 1000,
-        userId: response.userId,
-      };
-      tokenManager.storeTokens(tokenData);
-      logger.info('Tokens stored');
-
-      // Ensure device ID is registered with the session
-      const deviceId = DeviceIdManager.getInstance().getDeviceId();
-      logger.info(`Using device ID for this session: ${deviceId}`);
-
-      // Update global app state
-      authState.updateState({
-        isAuthenticated: true,
-        isAuthLoading: false,
-        userId: response.userId,
-        lastAuthError: null,
-      });
-
-      // Update local context state
-      setIsAuthenticated(true);
-      setUserId(response.userId);
+  
+      // If we get a requiresVerification flag, return early
+      if (response.requiresVerification) {
+        logger.info('Login requires email verification');
+        setIsAuthLoading(false);
+        
+        authState.updateState({
+          isAuthenticated: false,
+          isAuthLoading: false,
+          userId: response.userId || null,
+          lastAuthError: 'Email verification required'
+        });
+        
+        return response;
+      }
+  
+      // 2. Store Tokens - only do this if login was successful and all required fields are present
+      if (response.success && 
+          response.accessToken && 
+          response.refreshToken && 
+          response.expiresIn && 
+          response.userId) {
+        
+        const tokenData: TokenData = {
+          accessToken: response.accessToken,
+          refreshToken: response.refreshToken,
+          expiresAt: Date.now() + response.expiresIn * 1000,
+          userId: response.userId,
+        };
+        tokenManager.storeTokens(tokenData);
+        logger.info('Tokens stored');
+  
+        // Ensure device ID is registered with the session
+        const deviceId = DeviceIdManager.getInstance().getDeviceId();
+        logger.info(`Using device ID for this session: ${deviceId}`);
+  
+        // Update global app state
+        authState.updateState({
+          isAuthenticated: true,
+          isAuthLoading: false,
+          userId: response.userId,
+          lastAuthError: null,
+        });
+  
+        // Update local context state
+        setIsAuthenticated(true);
+        setUserId(response.userId);
+      } else if (response.success) {
+        // Success but missing data
+        logger.error("Login response marked as success but missing required data");
+        
+        // Return a failed response
+        return {
+          success: false,
+          error: "Missing authentication data from server"
+        };
+      }
+      
       setIsAuthLoading(false);
       logger.info('AuthContext state updated');
-
-      return true;
+  
+      return response;
     } catch (error: any) {
       logger.error("Login failed", { error: error.message });
       tokenManager.clearTokens(); // Ensure tokens are cleared
-
-      // 5. Update global state on failure
+  
+      // Update global state on failure
       authState.updateState({
         isAuthenticated: false,
-        isAuthLoading: false, // Loading finished
+        isAuthLoading: false,
         userId: null,
         lastAuthError: error?.message || 'Login failed',
       });
-
+  
       // Update local context state
       setIsAuthenticated(false);
       setUserId(null);
       setIsAuthLoading(false);
-      // Error handling (toast etc.) likely done by HttpClient/ErrorHandler
-
-      return false; // Login failure
+  
+      return {
+        success: false,
+        error: error?.message || 'Login failed'
+      };
     }
-  }, [authApi, tokenManager]); // Dependencies for useCallback
+  }, [authApi, tokenManager]);
 
   const forgotPassword = useCallback(async (data: { email: string }): Promise<boolean> => {
     logger.info('Attempting forgot password...');

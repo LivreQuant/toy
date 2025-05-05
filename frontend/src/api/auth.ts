@@ -8,10 +8,14 @@ export interface LoginRequest {
 }
 
 export interface LoginResponse {
-  accessToken: string;
-  refreshToken: string;
-  expiresIn: number;
-  userId: number;
+  success: boolean;
+  accessToken?: string;
+  refreshToken?: string;
+  expiresIn?: number;
+  userId?: string | number;
+  userRole?: string;
+  requiresVerification?: boolean;
+  error?: string;
 }
 
 export interface SignupRequest {

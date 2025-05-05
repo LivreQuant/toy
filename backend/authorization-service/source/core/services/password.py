@@ -64,21 +64,34 @@ class PasswordService(BaseManager):
                         'success': True  # Always return success
                     }
 
-                # Generate reset token
-                user_id = user.get('id')
                 reset_token = await self.verification_manager.create_password_reset_token(user_id)
 
-                # Send reset email
-                await self.email_manager.send_password_reset_email(
-                    email, user.get('username'), reset_token
-                )
+                try:
+                    # Generate reset token
+                    user_id = user.get('id')
 
-                span.set_attribute("user_found", True)
-                span.set_attribute("reset_token_created", True)
-                span.set_attribute("email_sent", True)
-                return {
-                    'success': True
-                }
+                    # Send reset email
+                    email_sent = await  self.email_manager.send_password_reset_email(
+                        email, user.get('username'), reset_token
+                    )
+                    
+                    if not email_sent:
+                        # Log the failure but don't reveal to user
+                        self.logger.error(f"Failed to send password reset email to {email}")
+                    
+                    
+                    span.set_attribute("user_found", True)
+                    span.set_attribute("reset_token_created", True)
+                    span.set_attribute("email_sent", True)
+                    return {
+                        'success': True
+                    }
+                
+                except Exception as e:
+                    # Log the email sending error but return success to user
+                    self.logger.error(f"Email sending error in forgot_password: {e}", exc_info=True)
+                    return {'success': True}  # Still return success for security
+                    
             except Exception as e:
                 self.logger.error(f"Forgot password error: {e}", exc_info=True)
                 span.record_exception(e)

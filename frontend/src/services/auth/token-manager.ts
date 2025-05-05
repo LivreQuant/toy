@@ -150,40 +150,48 @@ export class TokenManager {
         if (this.refreshPromise) {
             return this.refreshPromise;
         }
-
+    
         const tokens = this.getTokens();
         if (!tokens?.refreshToken) {
             // Use error handler
             this.logger.error('No refresh token available');
             return false;
         }
-
+    
         // Check if authApi has been set via setAuthApi
         if (!this.authApi) {
             this.logger.error('Auth API dependency not set in TokenManager');
             return false;
         }
-
+    
         this.refreshPromise = new Promise<boolean>(async (resolve) => {
             try {
                 // Use the assigned authApi instance
-                const response = await this.authApi!.refreshToken(tokens.refreshToken); // Safe to use non-null assertion due to check above
-
+                const response = await this.authApi!.refreshToken(tokens.refreshToken);
+    
+                // Verify all required fields are present
+                if (!response.accessToken || !response.refreshToken || !response.expiresIn || !response.userId) {
+                    this.logger.error('Token refresh response missing required fields');
+                    this.notifyRefreshListeners(false);
+                    resolve(false);
+                    return;
+                }
+    
                 this.storeTokens({
                     accessToken: response.accessToken,
-                    refreshToken: response.refreshToken, // Store the new refresh token if provided
+                    refreshToken: response.refreshToken,
                     expiresAt: Date.now() + (response.expiresIn * 1000),
-                    userId: response.userId  // Store userId with the tokens
+                    userId: response.userId
                 });
-
+    
                 // Notify listeners about the token refresh success
                 this.notifyRefreshListeners(true);
                 resolve(true);
-
+    
             } catch (error: any) {
                 // Use error handler for refresh failure
                 this.logger.error('Token refresh API call failed');
-
+    
                 // Notify listeners about the failed refresh
                 this.notifyRefreshListeners(false);
                 resolve(false);
@@ -192,10 +200,10 @@ export class TokenManager {
                 this.refreshPromise = null;
             }
         });
-
+    
         return this.refreshPromise;
     }
-
+    
     // Notify all registered listeners (no change needed here)
     private notifyRefreshListeners(success: boolean): void {
         // Use a Set iterator for safety if listeners modify the Set during iteration

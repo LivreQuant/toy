@@ -45,6 +45,24 @@ class LoginService(BaseManager):
 
                 self.logger.debug(f"User authenticated successfully: {user}")
 
+                # Check email verification status
+                user_details = await self.db.get_user_by_id(user['user_id'])
+                if user_details and not user_details.get('email_verified', False):
+                    track_login_attempt(username, False)
+                    track_login_duration(start_time, False)
+                    
+                    span.set_attribute("login.success", False)
+                    span.set_attribute("login.error", "Email not verified")
+                    
+                    return {
+                        'success': False,
+                        'error': "Email verification required",
+                        'requiresVerification': True,
+                        'userId': user['user_id']
+                    }
+
+                self.logger.debug(f"User email verified successfully: {user}")
+
                 # Track successful login
                 track_login_attempt(username, True)
                 track_login_duration(start_time, True)

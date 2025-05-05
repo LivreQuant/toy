@@ -6,9 +6,12 @@ import { useToast } from '../../hooks/useToast';
 import AuthLayout from './AuthLayout';
 import './AuthForms.css';
 
+// Define the location state interface
 interface LocationState {
   verified?: boolean;
   from?: string;
+  userId?: string | number;
+  needsVerification?: boolean;
 }
 
 const LoginPage: React.FC = () => {
@@ -50,19 +53,32 @@ const LoginPage: React.FC = () => {
     setError(null);
     setIsSubmitting(true);
     
+    // Extract location state correctly with type safety
+    const locationState = location.state as LocationState;
+    
     try {
-      const success = await login({ 
+      const response = await login({ 
         username, 
         password,
         rememberMe
       });
       
-      if (success) {
-        const state = location.state as LocationState;
-        const redirectTo = state?.from || '/home';
+      if (response.success) {
+        // Successful login, redirect to home
+        const redirectTo = locationState?.from || '/home';
         navigate(redirectTo);
+      } else if (response.requiresVerification && response.userId) {
+        // Email needs verification, redirect to verification page
+        navigate(`/verify-email?userId=${response.userId}`, {
+          state: { 
+            userId: response.userId,
+            needsVerification: true
+          }
+        });
+        addToast('warning', 'Please verify your email address before logging in.');
       } else {
-        setError('Invalid username or password');
+        // General login failure
+        setError(response.error || 'Invalid username or password');
       }
     } catch (error: any) {
       setError(error.message || 'Login failed. Please try again.');

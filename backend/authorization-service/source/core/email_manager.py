@@ -54,31 +54,47 @@ class EmailManager(BaseManager):
                     span.set_attribute("email_disabled", True)
                     return True
                 
-                # Send via Mailgun API
-                response = requests.post(
-                    f"{self.mailgun_base_url}/messages",
-                    auth=("api", self.mailgun_api_key),
-                    data={
-                        "from": self.mailgun_sender,
-                        "to": recipient_email,
-                        "subject": subject,
-                        "text": text_content,
-                        "html": html_content
-                    }
-                )
-                
-                if response.status_code == 200:
-                    logger.info(f"Email sent to {recipient_email}, template: {template_name}")
-                    span.set_attribute("email_sent", True)
-                    span.set_attribute("mailgun_response", response.status_code)
-                    return True
-                else:
-                    logger.error(f"Mailgun API error: {response.status_code} - {response.text}")
-                    span.set_attribute("email_sent", False)
-                    span.set_attribute("mailgun_error", response.text)
-                    span.set_attribute("mailgun_status", response.status_code)
-                    return False
+                try:
+                    # Send via Mailgun API
+                    response = requests.post(
+                        f"{self.mailgun_base_url}/messages",
+                        auth=("api", self.mailgun_api_key),
+                        data={
+                            "from": self.mailgun_sender,
+                            "to": recipient_email,
+                            "subject": subject,
+                            "text": text_content,
+                            "html": html_content
+                        }
+                    )
                     
+                    if response.status_code == 200:
+                        logger.info(f"Email sent to {recipient_email}, template: {template_name}")
+                        span.set_attribute("email_sent", True)
+                        span.set_attribute("mailgun_response", response.status_code)
+                        return True
+                    else:
+                        logger.error(f"Mailgun API error: {response.status_code} - {response.text}")
+                        span.set_attribute("email_sent", False)
+                        span.set_attribute("mailgun_error", response.text)
+                        span.set_attribute("mailgun_status", response.status_code)
+                        return False
+                except requests.exceptions.ConnectionError as e:
+                    logger.error(f"Connection error sending email: {e}")
+                    span.set_attribute("email_sent", False)
+                    span.set_attribute("error", f"Connection error: {str(e)}")
+                    return False
+                except requests.exceptions.Timeout as e:
+                    logger.error(f"Timeout sending email: {e}")
+                    span.set_attribute("email_sent", False)
+                    span.set_attribute("error", f"Timeout: {str(e)}")
+                    return False
+                except requests.exceptions.RequestException as e:
+                    logger.error(f"Request error sending email: {e}")
+                    span.set_attribute("email_sent", False)
+                    span.set_attribute("error", str(e))
+                    return False
+                
             except Exception as e:
                 logger.error(f"Failed to send email: {e}")
                 span.record_exception(e)
