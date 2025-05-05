@@ -130,19 +130,52 @@ export class HttpClient {
     options: RequestOptions,
     retryCount: number
   ): Promise<T> {
+    console.log(`🔍 HTTP: Error response from ${method} ${endpoint}:`, {
+      status: response.status,
+      statusText: response.statusText
+    });
+
     let errorMessage = options.customErrorMessage || `HTTP Error ${response.status}: ${response.statusText}`;
     let errorDetails: any = null;
+
     try {
+      // Parse the error response body
       errorDetails = await response.json();
+      console.log("🔍 HTTP: Error response body:", JSON.stringify(errorDetails));
+      
+      // For authentication endpoints, handle verification required case
+      if (endpoint.includes('/auth/login') && 
+          response.status === 401 && 
+          errorDetails && 
+          errorDetails.requiresVerification) {
+        
+        // Return the parsed response even though it's a 401
+        // This allows the login component to handle the verification redirect
+        console.log("🔍 HTTP: Detected verification required response");
+        return errorDetails as T;
+      }
+      
+      // Normal error message handling
       if (typeof errorDetails?.message === 'string') {
         errorMessage = errorDetails.message;
       } else if (typeof errorDetails?.error === 'string') {
-         errorMessage = errorDetails.error;
+        errorMessage = errorDetails.error;
       }
     } catch (e) {
+      console.error("🔍 HTTP: Could not parse error response body:", e);
       this.logger.debug('Could not parse error response body as JSON', { status: response.status, endpoint });
     }
 
+    // Check if this is an auth endpoint with special error handling
+    if (endpoint.includes('/auth/login') && response.status === 401) {
+      console.log("🔍 HTTP: Special handling for login 401 response");
+      
+      if (errorDetails) {
+        console.log("🔍 HTTP: Returning error details as response");
+        return errorDetails as T;
+      }
+    }
+    
     // Check if this is an order endpoint - never retry
     if (endpoint.includes('/orders/submit') || endpoint.includes('/orders/cancel')) {
       this.logger.error(`Error for order endpoint ${endpoint}: ${response.status} - NO RETRY`, { 

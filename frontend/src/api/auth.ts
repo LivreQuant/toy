@@ -15,6 +15,7 @@ export interface LoginResponse {
   userId?: string | number;
   userRole?: string;
   requiresVerification?: boolean;
+  email?: string; // Add the email field
   error?: string;
 }
 
@@ -67,11 +68,21 @@ export class AuthApi {
   }
 
   async login(username: string, password: string, rememberMe: boolean = false): Promise<LoginResponse> {
-    return this.client.post<LoginResponse>(
-      '/auth/login',
-      { username, password, rememberMe },
-      { skipAuth: true }
-    );
+    console.log("🔍 API: Attempting login for user:", username);
+    
+    try {
+      const response = await this.client.post<LoginResponse>(
+        '/auth/login',
+        { username, password, rememberMe },
+        { skipAuth: true }
+      );
+      
+      console.log("🔍 API: Login response received:", JSON.stringify(response));
+      return response;
+    } catch (error) {
+      console.error("🔍 API: Login request failed:", error);
+      throw error;
+    }
   }
 
   async logout(): Promise<void> {

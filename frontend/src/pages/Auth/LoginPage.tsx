@@ -42,45 +42,68 @@ const LoginPage: React.FC = () => {
     }
   }, [isAuthenticated, navigate]);
 
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    console.log("🔍 LOGIN: Submit button clicked");
+    
     if (!username.trim() || !password) {
       setError('Please enter both username and password');
+      console.log("🔍 LOGIN: Missing username or password");
       return;
     }
     
     setError(null);
     setIsSubmitting(true);
-    
-    // Extract location state correctly with type safety
-    const locationState = location.state as LocationState;
+    console.log("🔍 LOGIN: Starting login process for user:", username);
     
     try {
+      console.log("🔍 LOGIN: Calling login API");
       const response = await login({ 
         username, 
         password,
         rememberMe
       });
       
-      if (response.success) {
-        // Successful login, redirect to home
-        const redirectTo = locationState?.from || '/home';
-        navigate(redirectTo);
-      } else if (response.requiresVerification && response.userId) {
-        // Email needs verification, redirect to verification page
+      console.log("🔍 LOGIN: Got response from login API:", JSON.stringify(response));
+      
+      // Check for verification required case
+      if (response.requiresVerification && response.userId) {
+        console.log("🔍 LOGIN: Email verification required, userId:", response.userId);
+        
+        // Create an object with verified properties
+        const verificationState = { 
+          userId: response.userId,
+          needsVerification: true
+        };
+        
+        // Add email if it exists in the response
+        if ('email' in response) {
+          // This approach avoids TypeScript errors by using dynamic property access
+          (verificationState as any).email = response.email;
+        }
+        
+        console.log("🔍 LOGIN: Navigating to verification page");
         navigate(`/verify-email?userId=${response.userId}`, {
-          state: { 
-            userId: response.userId,
-            needsVerification: true
-          }
+          state: verificationState
         });
+        
         addToast('warning', 'Please verify your email address before logging in.');
+        return;
+      }
+      
+      if (response.success) {
+        console.log("🔍 LOGIN: Login successful, redirecting");
+        const state = location.state as LocationState;
+        const redirectTo = state?.from || '/home';
+        navigate(redirectTo);
       } else {
-        // General login failure
+        console.log("🔍 LOGIN: Login failed:", response.error);
         setError(response.error || 'Invalid username or password');
       }
     } catch (error: any) {
+      console.error("🔍 LOGIN: Exception during login:", error);
       setError(error.message || 'Login failed. Please try again.');
     } finally {
       setIsSubmitting(false);

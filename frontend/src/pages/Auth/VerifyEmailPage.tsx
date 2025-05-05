@@ -11,6 +11,7 @@ import { authApi } from '../../api';
 interface LocationState {
   userId?: string | number;
   email?: string;
+  needsVerification?: boolean;
 }
 
 const VerifyEmailPage: React.FC = () => {
@@ -29,10 +30,11 @@ const VerifyEmailPage: React.FC = () => {
   const locationState = location.state as LocationState;
   const userId = locationState?.userId || searchParams.get('userId') || '';
   const email = locationState?.email || searchParams.get('email') || '';
+  const needsVerification = locationState?.needsVerification || searchParams.get('needsVerification') === 'true';
   
   useEffect(() => {
-    // Redirect if no userId or email found - with more detailed error
-    if (!userId || !email) {
+    // Redirect if no userId found - with more detailed error
+    if (!userId) {
       console.error("Missing verification info:", { 
         hasState: !!location.state,
         locationUserId: locationState?.userId,
@@ -119,22 +121,13 @@ const VerifyEmailPage: React.FC = () => {
     }
   };
 
-  // Debug section - display navigation state info when in development
-  const debugInfo = process.env.NODE_ENV === 'development' ? (
-    <div style={{ marginTop: '20px', padding: '10px', backgroundColor: '#f5f5f5', fontSize: '12px' }}>
-      <p>Debug - Verification params:</p>
-      <ul>
-        <li>User ID: {userId || 'Not set'}</li>
-        <li>Email: {email || 'Not set'}</li>
-        <li>Has Navigation State: {location.state ? 'Yes' : 'No'}</li>
-      </ul>
-    </div>
-  ) : null;
-
   return (
     <AuthLayout 
       title="Verify Your Email" 
-      subtitle={`We've sent a verification code to ${email}. Please check your inbox.`}
+      subtitle={email ? 
+        `We've sent a verification code to ${email}. Please check your inbox.` : 
+        "We've sent a verification code to your email. Please check your inbox."
+      }
     >
       <form className="auth-form" onSubmit={handleSubmit}>
         <div className="form-group verification-code-group">
@@ -175,8 +168,6 @@ const VerifyEmailPage: React.FC = () => {
           </button>
         </div>
       </form>
-      
-      {debugInfo}
     </AuthLayout>
   );
 };

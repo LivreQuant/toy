@@ -1,4 +1,5 @@
-# source/core/services/login_service.py
+# backend/authorization-service/source/core/services/login.py
+
 import time
 from source.core.base_manager import BaseManager
 from source.utils.tracing import optional_trace_span
@@ -54,11 +55,13 @@ class LoginService(BaseManager):
                     span.set_attribute("login.success", False)
                     span.set_attribute("login.error", "Email not verified")
                     
+                    # UPDATED: Include email address in the response
                     return {
                         'success': False,
                         'error': "Email verification required",
                         'requiresVerification': True,
-                        'userId': user['user_id']
+                        'userId': user['user_id'],
+                        'email': user_details.get('email')
                     }
 
                 self.logger.debug(f"User email verified successfully: {user}")

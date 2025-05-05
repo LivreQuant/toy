@@ -98,18 +98,29 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, tokenManag
 
   // Login function
   const login = useCallback(async (credentials: LoginRequest): Promise<LoginResponse> => {
-    logger.info('Attempting login...');
+    logger.info('🔍 AUTH: Attempting login...');
+    console.log("🔍 AUTH: Login attempt for user:", credentials.username);
+    
     setIsAuthLoading(true);
     authState.updateState({ isAuthLoading: true, lastAuthError: null });
   
     try {
       // 1. Call API
+      console.log("🔍 AUTH: Calling login API endpoint");
       const response = await authApi.login(credentials.username, credentials.password);
-      logger.info('Login API successful');
+      console.log("🔍 AUTH: Raw API response:", JSON.stringify(response));
+      
+      // Log detailed response properties
+      console.log("🔍 AUTH: Response properties:", {
+        success: response.success,
+        requiresVerification: response.requiresVerification,
+        userId: response.userId,
+        error: response.error
+      });
   
       // If we get a requiresVerification flag, return early
       if (response.requiresVerification) {
-        logger.info('Login requires email verification');
+        console.log("🔍 AUTH: Login requires email verification for userId:", response.userId);
         setIsAuthLoading(false);
         
         authState.updateState({

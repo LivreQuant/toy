@@ -48,10 +48,21 @@ def handle_login(auth_manager):
                     span.set_attribute("login.error", result.get('error', 'Authentication failed'))
 
                 if not result['success']:
-                    return web.json_response({
-                        'success': False,
-                        'error': result.get('error', 'Authentication failed')
-                    }, status=401)
+                    # Check if this is an email verification issue
+                    if result.get('requiresVerification'):
+                        # UPDATED: Include email address in the response
+                        return web.json_response({
+                            'success': False,
+                            'error': result.get('error', 'Email verification required'),
+                            'requiresVerification': True,
+                            'userId': result.get('userId'),
+                            'email': result.get('email')
+                        }, status=401)
+                    else:
+                        return web.json_response({
+                            'success': False,
+                            'error': result.get('error', 'Authentication failed')
+                        }, status=401)
 
                 # Process successful login
                 logger.debug("Login successful, preparing response")
