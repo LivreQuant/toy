@@ -8,10 +8,6 @@ export interface CreateBookRequest {
 }
 
 export class BookApi {
-  id: string;
-  name: string;
-  details: Array<[string, string, string]>;
-  
   private client: HttpClient;
 
   constructor(client: HttpClient) {
@@ -23,7 +19,7 @@ export class BookApi {
     bookId?: string; 
     error?: string 
   }> {
-    // Change from '/books/create' to '/books'
+    // Use POST to '/books' endpoint
     return this.client.post('/books', bookData);
   }
 

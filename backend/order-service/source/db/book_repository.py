@@ -49,29 +49,24 @@ class BookRepository:
         
         query = """
         INSERT INTO trading.books (
-            book_id, user_id, name, initial_capital, risk_level,
-            market_focus, trading_strategy, max_position_size, 
-            max_total_risk, status, created_at, updated_at
+            book_id, user_id, name, parameters, created_at, updated_at
         ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, to_timestamp($11), to_timestamp($12)
+            $1, $2, $3, $4, to_timestamp($12), to_timestamp($13)
         ) RETURNING book_id
         """
         
         start_time = time.time()
         try:
             async with pool.acquire() as conn:
+                # Convert details list to JSONB if present
+                details_json = json.dumps(book_data.get('details')) if book_data.get('details') else None
+                
                 book_id = await conn.fetchval(
                     query,
                     book_data['book_id'],
                     book_data['user_id'],
                     book_data['name'],
-                    book_data['initial_capital'],
-                    book_data['risk_level'],
-                    book_data.get('market_focus'),
-                    book_data.get('trading_strategy'),
-                    book_data.get('max_position_size'),
-                    book_data.get('max_total_risk'),
-                    book_data['status'],
+                    details_json,  # Pass the details JSON
                     book_data['created_at'],
                     book_data['updated_at']
                 )
@@ -99,13 +94,7 @@ class BookRepository:
             book_id as id, 
             user_id, 
             name, 
-            initial_capital as "initialCapital", 
-            risk_level as "riskLevel", 
-            market_focus as "marketFocus", 
-            trading_strategy as "tradingStrategy",
-            max_position_size as "maxPositionSize",
-            max_total_risk as "maxTotalRisk",
-            status,
+            details,
             extract(epoch from created_at) as "createdAt",
             extract(epoch from updated_at) as "updatedAt"
         FROM trading.books 
@@ -139,13 +128,7 @@ class BookRepository:
             book_id as id, 
             user_id, 
             name, 
-            initial_capital as "initialCapital", 
-            risk_level as "riskLevel", 
-            market_focus as "marketFocus", 
-            trading_strategy as "tradingStrategy",
-            max_position_size as "maxPositionSize",
-            max_total_risk as "maxTotalRisk",
-            status,
+            details,
             extract(epoch from created_at) as "createdAt",
             extract(epoch from updated_at) as "updatedAt"
         FROM trading.books 
@@ -185,6 +168,10 @@ class BookRepository:
             return True  # Nothing to update
         
         pool = await self.db_pool.get_pool()
+        
+        # Handle special case for details field - convert to JSON
+        if 'details' in update_data:
+            update_data['details'] = json.dumps(update_data['details'])
         
         # Build dynamic query based on provided fields
         set_clauses = [f"{key} = ${i+3}" for i, key in enumerate(update_data.keys())]

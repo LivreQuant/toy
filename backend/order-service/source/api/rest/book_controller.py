@@ -85,22 +85,14 @@ class BookController:
                     "error": f"Missing required fields: {', '.join(missing_fields)}"
                 }, status=400)
 
-            logger.info("Auth token valid but no user ID returned")
             book_id = uuid.uuid4()
-            logger.info("Auth token valid but no user ID returned {book_id}")
-
+            
             # Convert incoming data to book model format
             book_data = {
-                'book_id': book_id,
+                'book_id': str(book_id),
                 'user_id': user_id,
                 'name': data['name'],
-                'initial_capital': data['initialCapital'],
-                'risk_level': data['riskLevel'],
-                'market_focus': data.get('marketFocus'),
-                'trading_strategy': data.get('tradingStrategy'),
-                'max_position_size': data.get('maxPositionSize'),
-                'max_total_risk': data.get('maxTotalRisk'),
-                'status': 'CONFIGURED',
+                'details': data.get('details'),  # Add details field
                 'created_at': time.time(),
                 'updated_at': time.time()
             }
@@ -279,24 +271,13 @@ class BookController:
                     "error": "Book not found or does not belong to user"
                 }, status=404)
 
+                
             # Update only provided fields
             update_data = {}
             if 'name' in data:
                 update_data['name'] = data['name']
-            if 'initialCapital' in data:
-                update_data['initial_capital'] = data['initialCapital']
-            if 'riskLevel' in data:
-                update_data['risk_level'] = data['riskLevel']
-            if 'marketFocus' in data:
-                update_data['market_focus'] = data['marketFocus']
-            if 'tradingStrategy' in data:
-                update_data['trading_strategy'] = data['tradingStrategy']
-            if 'maxPositionSize' in data:
-                update_data['max_position_size'] = data['maxPositionSize']
-            if 'maxTotalRisk' in data:
-                update_data['max_total_risk'] = data['maxTotalRisk']
-            if 'status' in data:
-                update_data['status'] = data['status']
+            if 'details' in data:
+                update_data['details'] = data['details']  # Add details field handling
 
             # Add updated timestamp
             update_data['updated_at'] = time.time()

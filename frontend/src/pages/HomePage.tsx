@@ -141,37 +141,32 @@ const HomePage: React.FC = () => {
           </div>
         ) : (
           <div className="simulation-list">
-            {books.map(book => {
-              console.log('Book object:', book);
-              
-              // Safely access properties with fallbacks
-              return (
-                <div key={book.id} className="simulation-card">
-                  <div className="simulation-info">
-                    <h3>{book.name || 'Unnamed Book'}</h3>
-                    <div className="simulation-details">
-                      <span className="detail">Risk: {book.riskLevel || 'Unknown'}</span>
-                      <span className="detail">Capital: ${(book.initialCapital || 0).toLocaleString()}</span>
-                      {book.marketFocus && <span className="detail">Focus: {book.marketFocus}</span>}
-                    </div>
-                    <div className="simulation-status">
-                      Status: <span className={`status-${(book.status || 'unknown').toLowerCase()}`}>
-                        {book.status || 'Unknown'}
-                      </span>
-                    </div>
+            {books.map(book => (
+              <div key={book.id} className="simulation-card">
+                <div className="simulation-info">
+                  <h3>{book.name || 'Unnamed Book'}</h3>
+                  <div className="simulation-details">
+                    <span className="detail">Risk: {book.riskLevel || 'Unknown'}</span>
+                    <span className="detail">Capital: ${(book.initialCapital || 0).toLocaleString()}</span>
+                    {book.marketFocus && <span className="detail">Focus: {book.marketFocus}</span>}
                   </div>
-                  <div className="simulation-actions">
-                    <button 
-                      onClick={() => handleOpenBook(book.id)}
-                      className="action-button open-button"
-                      disabled={!isConnected}
-                    >
-                      Open Book
-                    </button>
+                  <div className="simulation-status">
+                    Status: <span className={`status-${(book.status || 'unknown').toLowerCase()}`}>
+                      {book.status || 'Unknown'}
+                    </span>
                   </div>
                 </div>
-              );
-            })}
+                <div className="simulation-actions">
+                  <button 
+                    onClick={() => handleOpenBook(book.id)}
+                    className="action-button open-button"
+                    disabled={!isConnected}
+                  >
+                    Open Book
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>

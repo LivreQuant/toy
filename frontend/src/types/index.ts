@@ -49,13 +49,7 @@ export interface Book {
   updatedAt: number;
 }
 
-// Add this to the existing file
 export interface CreateBookRequest {
   name: string;
-  initialCapital: number;
-  riskLevel: 'low' | 'medium' | 'high';
-  marketFocus?: string;
-  tradingStrategy?: string;
-  maxPositionSize?: number;
-  maxTotalRisk?: number;
+  details: Array<[string, string, string]>; // [category, subcategory, value]
 }

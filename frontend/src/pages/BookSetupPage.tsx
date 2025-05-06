@@ -1,6 +1,7 @@
 // src/pages/BookSetupPage.tsx
 import React, { useState, useEffect, useContext } from 'react';
 import { getLogger } from '../boot/logging';
+import { BookManagerContext } from '../contexts/BookContext';
 import { 
   Box, 
   Button, 
@@ -15,8 +16,8 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { styled } from '@mui/material/styles';
 import { TextField } from '@mui/material';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 
-import { BookManagerContext } from '../contexts/BookContext';
 
 // Initialize logger
 const logger = getLogger('BookSetupPage');
@@ -121,10 +122,19 @@ const aumModifiers = {
 const BookSetupPage: React.FC = () => {
   const navigate = useNavigate();
   
+  // Add this function to handle navigation
+  const handleBackToHome = () => {
+    navigate('/home');
+  };
+
   const [portfolioName, setPortfolioName] = useState<string>('My Portfolio');
 
   // Get the book manager from context
-  const { bookManager } = useContext(BookManagerContext);
+  const bookManagerContext = useContext(BookManagerContext);
+  if (!bookManagerContext) {
+    throw new Error('BookManager context is undefined');
+  }
+  const { createBook, fetchBooks, fetchBook } = bookManagerContext;
 
   // Define the categories and their options
   const categories: CategoryConfig[] = [
@@ -442,8 +452,6 @@ const BookSetupPage: React.FC = () => {
   };
 
   // Handle form submission
-  
-  // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -470,27 +478,55 @@ const BookSetupPage: React.FC = () => {
     
     if (isFormValid) {
       try {
-        // Create the book using the book manager
-        const createdBook = await bookManager.createBook(createBookRequest);
-        logger.info('Book created successfully', { bookId: createdBook.id });
+        // Show loading state
+        setIsProcessing(true);
         
-        // Navigate to home page
-        navigate('/home');
+        // Create the book using the createBook function from context
+        const result = await createBook(createBookRequest);
+        
+        if (result.success && result.bookId) {
+          logger.info('Book created successfully', { bookId: result.bookId });
+          
+          // Show success message
+          const toast = document.createElement('div');
+          toast.textContent = 'Portfolio created successfully!';
+          document.body.appendChild(toast);
+          setTimeout(() => document.body.removeChild(toast), 3000);
+          
+          // Navigate to home page
+          navigate('/home');
+        } else {
+          // Show error
+          logger.error('Failed to create book', { error: result.error });
+          alert('Failed to create portfolio: ' + (result.error || 'Unknown error'));
+        }
       } catch (error) {
-        logger.error('Failed to create book', { error });
-        // Show error to user
+        logger.error('Exception during book creation', { error });
+        alert('Error creating portfolio: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      } finally {
+        setIsProcessing(false);
       }
     } else {
       logger.warn('Form validation failed - not all categories selected');
-      // Show validation error
+      alert('Please make selections in all required categories');
     }
   };
 
   return (
     <Box sx={{ p: 4, maxWidth: 1200, mx: 'auto' }}>
-      <Typography variant="h4" component="h1" gutterBottom>
-        Portfolio Preferences
-      </Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+        <Button 
+          startIcon={<ArrowBackIcon />} 
+          onClick={handleBackToHome}
+          variant="outlined"
+          sx={{ mr: 2 }}
+        >
+          Back to Home
+        </Button>
+        <Typography variant="h4" component="h1">
+          Portfolio Preferences
+        </Typography>
+      </Box>
       
       <Typography variant="body1" paragraph>
         Configure your preferences by selecting options in each category below.
@@ -648,8 +684,9 @@ const BookSetupPage: React.FC = () => {
             variant="contained"
             color="primary"
             size="large"
+            disabled={isProcessing}
           >
-            Generate Simulation
+            {isProcessing ? 'Creating Portfolio...' : 'Generate Simulation'}
           </Button>
         </Box>
       </form>
