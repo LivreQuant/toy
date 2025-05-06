@@ -4,15 +4,14 @@ import { Book } from '../types'; // Import from types
 
 export interface CreateBookRequest {
   name: string;
-  initialCapital: number;
-  riskLevel: 'low' | 'medium' | 'high';
-  marketFocus?: string;
-  tradingStrategy?: string;
-  maxPositionSize?: number;
-  maxTotalRisk?: number;
+  details: Array<[string, string, string]>; // [category, subcategory, value]
 }
 
 export class BookApi {
+  id: string;
+  name: string;
+  details: Array<[string, string, string]>;
+  
   private client: HttpClient;
 
   constructor(client: HttpClient) {
