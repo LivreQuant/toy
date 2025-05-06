@@ -85,6 +85,7 @@ class BookController:
                     "error": f"Missing required fields: {', '.join(missing_fields)}"
                 }, status=400)
 
+            logger.info("Auth token valid but no user ID returned")
             book_id = uuid.uuid4()
             logger.info("Auth token valid but no user ID returned {book_id}")
 
