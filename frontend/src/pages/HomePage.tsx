@@ -9,6 +9,9 @@ import { Book } from '../types';
 import ConnectionStatusIndicator from '../components/Common/ConnectionStatusIndicator';
 import './HomePage.css';
 
+// Instead of relying solely on the local state, let's also directly access the global state
+import { bookState } from '../state/book-state';
+
 const HomePage: React.FC = () => {
   useRequireAuth();
   const { logout } = useAuth();
@@ -21,34 +24,43 @@ const HomePage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    // Subscribe to book state changes
+    const subscription = bookState.getState$().subscribe(state => {
+      console.log('Book state updated:', state);
+      const bookArray = Object.values(state.books);
+      console.log('Book array from state:', bookArray);
+      setBooks(bookArray);
+    });
+    
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
     const fetchBooks = async () => {
       try {
         setIsLoading(true);
-        await bookManager.fetchBooks();
+        const response = await bookManager.fetchBooks();
         
-        // Safely convert and type the books
-        const storedBooksObj = (window as any).bookState?.getState()?.books || {};
-        const storedBooks = Object.values(storedBooksObj).filter((book: any): book is Book => {
-          // Validate that the book matches the Book type
-          return (
-            book &&
-            typeof book === 'object' &&
-            typeof book.id === 'string' &&
-            typeof book.name === 'string' &&
-            typeof book.initialCapital === 'number' &&
-            ['low', 'medium', 'high'].includes(book.riskLevel) &&
-            ['CONFIGURED', 'ACTIVE', 'ARCHIVED'].includes(book.status)
-          );
-        });
-
-        setBooks(storedBooks);
+        console.log('Book API response:', response);
+        
+        if (response.success && response.books) {
+          console.log('Books from API:', response.books);
+          setBooks(response.books);
+        } else {
+          console.log('No books returned or error:', response);
+          setBooks([]);
+        }
       } catch (error) {
+        console.error('Error fetching books:', error);
         addToast('error', 'Failed to fetch books');
+        setBooks([]);
       } finally {
         setIsLoading(false);
       }
     };
-
+  
     if (isConnected) {
       fetchBooks();
     }
@@ -76,6 +88,10 @@ const HomePage: React.FC = () => {
       addToast('info', 'Attempting to reconnect...');
     }
   };
+
+  console.log('Books array in component:', books);
+  console.log('Books length:', books.length);
+  console.log('isLoading:', isLoading);
 
   return (
     <div className="home-page">
@@ -124,33 +140,38 @@ const HomePage: React.FC = () => {
             </button>
           </div>
         ) : (
-          <div className="books-list">
-            {books.map(book => (
-              <div key={book.id} className="book-card">
-                <div className="book-info">
-                  <h3>{book.name}</h3>
-                  <div className="book-details">
-                    <span className="detail">Risk: {book.riskLevel}</span>
-                    <span className="detail">Capital: ${book.initialCapital.toLocaleString()}</span>
-                    {book.marketFocus && <span className="detail">Focus: {book.marketFocus}</span>}
+          <div className="simulation-list">
+            {books.map(book => {
+              console.log('Book object:', book);
+              
+              // Safely access properties with fallbacks
+              return (
+                <div key={book.id} className="simulation-card">
+                  <div className="simulation-info">
+                    <h3>{book.name || 'Unnamed Book'}</h3>
+                    <div className="simulation-details">
+                      <span className="detail">Risk: {book.riskLevel || 'Unknown'}</span>
+                      <span className="detail">Capital: ${(book.initialCapital || 0).toLocaleString()}</span>
+                      {book.marketFocus && <span className="detail">Focus: {book.marketFocus}</span>}
+                    </div>
+                    <div className="simulation-status">
+                      Status: <span className={`status-${(book.status || 'unknown').toLowerCase()}`}>
+                        {book.status || 'Unknown'}
+                      </span>
+                    </div>
                   </div>
-                  <div className="book-status">
-                    Status: <span className={`status-${book.status.toLowerCase()}`}>
-                      {book.status}
-                    </span>
+                  <div className="simulation-actions">
+                    <button 
+                      onClick={() => handleOpenBook(book.id)}
+                      className="action-button open-button"
+                      disabled={!isConnected}
+                    >
+                      Open Book
+                    </button>
                   </div>
                 </div>
-                <div className="book-actions">
-                  <button 
-                    onClick={() => handleOpenBook(book.id)}
-                    className="action-button open-button"
-                    disabled={!isConnected}
-                  >
-                    Open Book
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

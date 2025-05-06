@@ -87,7 +87,7 @@ const BookSetupPage: React.FC = () => {
       
       if (result.success && result.bookId) {
         addToast('success', `Book "${formData.name}" created successfully!`);
-        navigate(`/simulator/${result.bookId}`);
+        navigate('/home'); // Instead of navigate(`/simulator/${result.bookId}`);
       } else {
         addToast('error', result.error || 'Failed to create book');
       }

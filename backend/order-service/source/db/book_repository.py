@@ -1,5 +1,8 @@
 import logging
 import time
+import decimal
+import uuid
+import json
 from typing import Dict, Any, List, Optional
 
 from source.db.connection_pool import DatabasePool
@@ -7,6 +10,24 @@ from source.utils.metrics import track_db_operation
 
 logger = logging.getLogger('book_repository')
 
+def serialize_json_safe(obj):
+    """Convert non-JSON serializable objects to serializable types"""
+    if isinstance(obj, decimal.Decimal):
+        return float(obj)
+    elif isinstance(obj, uuid.UUID):
+        return str(obj)
+    raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
+
+def ensure_json_serializable(data):
+    """Recursively convert all values in a data structure to JSON serializable types"""
+    if isinstance(data, dict):
+        return {k: ensure_json_serializable(v) for k, v in data.items()}
+    elif isinstance(data, list):
+        return [ensure_json_serializable(item) for item in data]
+    elif isinstance(data, (decimal.Decimal, uuid.UUID)):
+        return serialize_json_safe(data)
+    return data
+    
 class BookRepository:
     """Data access layer for books"""
 
@@ -58,6 +79,10 @@ class BookRepository:
                 duration = time.time() - start_time
                 track_db_operation("create_book", True, duration)
                 
+                # Convert UUID to string before returning
+                if isinstance(book_id, uuid.UUID):
+                    return str(book_id)
+                
                 return book_id
         except Exception as e:
             duration = time.time() - start_time
@@ -66,15 +91,7 @@ class BookRepository:
             return None
 
     async def get_user_books(self, user_id: str) -> List[Dict[str, Any]]:
-        """
-        Get all books for a user
-        
-        Args:
-            user_id: User ID to find books for
-            
-        Returns:
-            List of book objects
-        """
+        """Get all books for a user"""
         pool = await self.db_pool.get_pool()
         
         query = """
@@ -104,7 +121,9 @@ class BookRepository:
                 duration = time.time() - start_time
                 track_db_operation("get_user_books", True, duration)
                 
-                return [dict(row) for row in rows]
+                # Convert rows to dicts and ensure all values are JSON serializable
+                books = [ensure_json_serializable(dict(row)) for row in rows]
+                return books
         except Exception as e:
             duration = time.time() - start_time
             track_db_operation("get_user_books", False, duration)
@@ -112,16 +131,7 @@ class BookRepository:
             return []
 
     async def get_book(self, book_id: str, user_id: str) -> Optional[Dict[str, Any]]:
-        """
-        Get a single book by ID and user ID
-        
-        Args:
-            book_id: Book ID to retrieve
-            user_id: User ID to validate ownership
-            
-        Returns:
-            Book object if found, None otherwise
-        """
+        """Get a single book by ID and user ID"""
         pool = await self.db_pool.get_pool()
         
         query = """
@@ -150,7 +160,9 @@ class BookRepository:
                 duration = time.time() - start_time
                 track_db_operation("get_book", True, duration)
                 
-                return dict(row) if row else None
+                if row:
+                    return ensure_json_serializable(dict(row))
+                return None
         except Exception as e:
             duration = time.time() - start_time
             track_db_operation("get_book", False, duration)

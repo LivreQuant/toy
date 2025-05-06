@@ -6,6 +6,35 @@ import { Book, CreateBookRequest } from '../../types';
 import { bookState } from '../../state/book-state';
 import { toastService } from '../notification/toast-service';
 
+interface BookApiResponse {
+  id: string;
+  user_id: string;
+  name: string;
+  initialCapital?: number;
+  initial_capital?: number;
+  riskLevel?: string;
+  risk_level?: string;
+  marketFocus?: string;
+  market_focus?: string;
+  tradingStrategy?: string;
+  trading_strategy?: string;
+  maxPositionSize?: number;
+  max_position_size?: number;
+  maxTotalRisk?: number;
+  max_total_risk?: number;
+  status: string;
+  createdAt?: number;
+  created_at?: number;
+  updatedAt?: number;
+  updated_at?: number;
+}
+
+
+// Define a type guard to check if a status string is valid for our Book type
+function isValidBookStatus(status: string): status is 'CONFIGURED' | 'ACTIVE' | 'ARCHIVED' {
+  return ['CONFIGURED', 'ACTIVE', 'ARCHIVED'].includes(status);
+}
+
 export class BookManager {
   private logger = getLogger('BookManager');
   private bookApi: BookApi;
@@ -55,7 +84,8 @@ export class BookManager {
       };
     }
   }
-
+    
+  // In src/services/book/book-manager.ts
   async fetchBooks(): Promise<{ 
     success: boolean; 
     books?: Book[];
@@ -67,26 +97,50 @@ export class BookManager {
 
     try {
       const response = await this.bookApi.getBooks();
+      console.log('Raw API response:', response);
       
       if (response.success && response.books) {
-        // Update book state if state management is being used
-        if (bookState) {
-          const booksMap = response.books.reduce((acc, book) => {
-            acc[book.id] = book;
-            return acc;
-          }, {} as Record<string, Book>);
+        // Cast the response to any to bypass TypeScript's type checking
+        const apiBooks = response.books as any[];
+        
+        // Create properly shaped Book objects from the API data
+        const formattedBooks = apiBooks.map(apiBook => {
+          // Create a book object with the correct shape
+          const book: Book = {
+            id: apiBook.id,
+            userId: apiBook.user_id,
+            name: apiBook.name,
+            initialCapital: Number(apiBook.initial_capital || 0),
+            riskLevel: (apiBook.risk_level || 'medium') as 'low' | 'medium' | 'high',
+            status: apiBook.status as 'CONFIGURED' | 'ACTIVE' | 'ARCHIVED',
+            createdAt: Number(apiBook.created_at || Date.now()),
+            updatedAt: Number(apiBook.updated_at || Date.now())
+          };
           
-          bookState.updateFullState({
-            books: booksMap,
-            isLoading: false,
-            error: null,
-            lastUpdated: Date.now()
-          });
-        }
+          // Add optional fields if they exist in the API response
+          if (apiBook.market_focus) {
+            book.marketFocus = apiBook.market_focus;
+          }
+          
+          if (apiBook.trading_strategy) {
+            book.tradingStrategy = apiBook.trading_strategy;
+          }
+          
+          if (apiBook.max_position_size) {
+            book.maxPositionSize = Number(apiBook.max_position_size);
+          }
+          
+          if (apiBook.max_total_risk) {
+            book.maxTotalRisk = Number(apiBook.max_total_risk);
+          }
+          
+          console.log('Formatted book:', book);
+          return book;
+        });
         
         return { 
           success: true, 
-          books: response.books 
+          books: formattedBooks 
         };
       } else {
         return { 
@@ -96,6 +150,72 @@ export class BookManager {
       }
     } catch (error: any) {
       this.logger.error('Failed to fetch books', error);
+      return { 
+        success: false, 
+        error: error.message || 'Unknown error'
+      };
+    }
+  }
+
+  // In src/services/book/book-manager.ts
+  async fetchBook(bookId: string): Promise<{ 
+    success: boolean; 
+    book?: Book;
+    error?: string; 
+  }> {
+    if (!this.tokenManager.isAuthenticated()) {
+      return { success: false, error: 'Not authenticated' };
+    }
+  
+    try {
+      // Implement getBook in BookApi if it doesn't exist
+      const response = await this.bookApi.getBook(bookId);
+      
+      if (response.success && response.book) {
+        // Cast the response to any to handle the snake_case properties
+        const apiBook = response.book as any;
+        
+        // Create a properly formatted Book object from the API response
+        const formattedBook: Book = {
+          id: apiBook.id,
+          userId: apiBook.user_id,
+          name: apiBook.name,
+          initialCapital: Number(apiBook.initial_capital || 0),
+          riskLevel: (apiBook.risk_level || 'medium') as 'low' | 'medium' | 'high',
+          status: apiBook.status as 'CONFIGURED' | 'ACTIVE' | 'ARCHIVED',
+          createdAt: Number(apiBook.created_at || Date.now()),
+          updatedAt: Number(apiBook.updated_at || Date.now())
+        };
+        
+        // Add optional fields if they exist in the API response
+        if (apiBook.market_focus) {
+          formattedBook.marketFocus = apiBook.market_focus;
+        }
+        
+        if (apiBook.trading_strategy) {
+          formattedBook.tradingStrategy = apiBook.trading_strategy;
+        }
+        
+        if (apiBook.max_position_size !== undefined) {
+          formattedBook.maxPositionSize = Number(apiBook.max_position_size);
+        }
+        
+        if (apiBook.max_total_risk !== undefined) {
+          formattedBook.maxTotalRisk = Number(apiBook.max_total_risk);
+        }
+        
+        return { 
+          success: true, 
+          book: formattedBook 
+        };
+      } else {
+        return { 
+          success: false, 
+          error: response.error || 'Failed to fetch book details'
+        };
+      }
+    } catch (error: any) {
+      this.logger.error('Failed to fetch book details', error);
       return { 
         success: false, 
         error: error.message || 'Unknown error'

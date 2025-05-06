@@ -36,6 +36,14 @@ export class BookApi {
     return this.client.get('/books');
   }
 
+  async getBook(bookId: string): Promise<{ 
+    success: boolean; 
+    book?: any; 
+    error?: string 
+  }> {
+    return this.client.get(`/books/${bookId}`);
+  }
+
   async updateBook(bookId: string, updates: Partial<CreateBookRequest>): Promise<{ 
     success: boolean; 
     error?: string 
