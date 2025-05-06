@@ -358,4 +358,3 @@ CREATE TABLE IF NOT EXISTS trading.books (
 
 -- Add indexes
 CREATE INDEX IF NOT EXISTS idx_books_user_id ON trading.books(user_id);
-CREATE INDEX IF NOT EXISTS idx_books_status ON trading.books(status);

@@ -243,7 +243,6 @@ data:
 
     -- Add indexes
     CREATE INDEX IF NOT EXISTS idx_books_user_id ON trading.books(user_id);
-    CREATE INDEX IF NOT EXISTS idx_books_status ON trading.books(status);
 
     -- Grant permissions
     GRANT USAGE ON SCHEMA trading TO opentp;
