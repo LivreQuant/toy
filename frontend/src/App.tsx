@@ -1,4 +1,4 @@
-// App.tsx 
+// src/App.tsx
 import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useNavigate } from 'react-router-dom';
@@ -25,6 +25,7 @@ import { OrderManager } from './services/orders/order-manager';
 import { useConnection } from './hooks/useConnection';
 
 // CONTEXT
+import { ThemeProvider } from './contexts/ThemeContext';
 import { ToastProvider } from './contexts/ToastContext';
 import { AuthProvider } from './contexts/AuthContext';
 import { TokenManagerProvider } from './contexts/TokenManagerContext';
@@ -50,7 +51,7 @@ import BookSetupPage from './pages/BookSetupPage';
 import SessionDeactivatedPage from './pages/SessionDeactivatedPage';
 
 // Initialize Logging First
-initializeLogging()
+initializeLogging();
 
 // --- Start Service Instantiation ---
 
@@ -64,7 +65,7 @@ const tokenManager = new TokenManager(
   DeviceIdManager.getInstance(sessionStorageService)
 );
 
-// Intialize Rest APIs + Websocket
+// Initialize Rest APIs + Websocket
 const httpClient = new HttpClient(tokenManager);
 const authApi = new AuthApi(httpClient);
 const ordersApi = new OrdersApi(httpClient);
@@ -72,7 +73,7 @@ const ordersApi = new OrdersApi(httpClient);
 tokenManager.setAuthApi(authApi);
 
 const connectionManager = new ConnectionManager(
-  tokenManager,
+  tokenManager
 );
 
 const orderManager = new OrderManager(
@@ -108,73 +109,80 @@ function DeviceIdInvalidationHandler({ children }: { children: React.ReactNode }
   return <>{children}</>;
 }
 
+// Separate routes component for better organization
+const AppRoutes: React.FC = () => {
+  return (
+    <Routes>
+      {/* Public routes */}
+      <Route path="/" element={<LandingPage />} />
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/signup" element={<SignupPage />} />
+      <Route path="/verify-email" element={<VerifyEmailPage />} />
+      <Route path="/forgot-username" element={<ForgotUsernamePage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
+      
+      {/* Session page */}
+      <Route path="/home" element={
+        <ProtectedRoute>
+          <HomePage />
+        </ProtectedRoute>
+      } />
+
+      {/* Book initialize */}
+      <Route path="/books/new" element={
+        <ProtectedRoute>
+          <BookSetupPage />
+        </ProtectedRoute>
+      } />
+
+      <Route path="/books/:bookId" element={
+        <ProtectedRoute>
+          <BookDetailsPage />
+        </ProtectedRoute>
+      } />
+
+      {/* Simulator page */}
+      <Route path="/simulator/:simulationId" element={
+        <ProtectedRoute>
+          <SimulatorPage />
+        </ProtectedRoute>
+      } />
+
+      {/* Deactivate session */}
+      <Route path="/session-deactivated" element={
+        <SessionDeactivatedPage />
+      } />
+
+      {/* Default route - Redirect to home */}
+      <Route path="*" element={
+        <Navigate to="/home" replace />
+      } />
+    </Routes>
+  );
+};
+
 function App() {
   return (
-    // Order matters: Toast > Auth > Connection
-    <ToastProvider>
-       <AuthProvider tokenManager={tokenManager} authApi={authApi} connectionManager={connectionManager}>
-        <TokenManagerProvider tokenManager={tokenManager}>
-          <BookManagerProvider>
-            <OrderProvider orderManager={orderManager}>
-              <ConnectionProvider connectionManager={connectionManager}>
+    <ThemeProvider>
+      <ToastProvider>
+        <AuthProvider tokenManager={tokenManager} authApi={authApi} connectionManager={connectionManager}>
+          <TokenManagerProvider tokenManager={tokenManager}>
+            <BookManagerProvider>
+              <OrderProvider orderManager={orderManager}>
+                <ConnectionProvider connectionManager={connectionManager}>
                   <Router>
                     <DeviceIdInvalidationHandler>
-                      <Routes>
-                        {/* Public routes */}
-                        <Route path="/" element={<LandingPage />} />
-                        <Route path="/login" element={<LoginPage />} />
-                        <Route path="/signup" element={<SignupPage />} />
-                        <Route path="/verify-email" element={<VerifyEmailPage />} />
-                        <Route path="/forgot-username" element={<ForgotUsernamePage />} />
-                        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-                        <Route path="/reset-password" element={<ResetPasswordPage />} />
-                        
-                        {/* Session page */}
-                        <Route path="/home" element={
-                            <ProtectedRoute>
-                              <HomePage />
-                            </ProtectedRoute>
-                        } />
-
-                        {/* Book initialize */}
-                        <Route path="/books/new" element={
-                          <ProtectedRoute>
-                            <BookSetupPage />
-                          </ProtectedRoute>
-                        } />
-
-                        <Route path="/books/:bookId" element={
-                          <ProtectedRoute>
-                            <BookDetailsPage />
-                          </ProtectedRoute>
-                        } />
-
-                        {/* Simulator page */}
-                        <Route path="/simulator/:simulationId" element={
-                            <ProtectedRoute>
-                              <SimulatorPage />
-                            </ProtectedRoute>
-                        } />
-
-                        {/* Deactivate session */}
-                        <Route path="/session-deactivated" element={
-                          <SessionDeactivatedPage />
-                        } />
-
-                        {/* Default route - Unprotected 404 Page*/}
-                        <Route path="/" element={
-                          <Navigate to="/home" replace />
-                        } />
-
-                      </Routes>
+                      <AppRoutes />
                     </DeviceIdInvalidationHandler>
                   </Router>
-              </ConnectionProvider>
-            </OrderProvider>
-          </BookManagerProvider>
-        </TokenManagerProvider>
-       </AuthProvider>
-    </ToastProvider>
+                </ConnectionProvider>
+              </OrderProvider>
+            </BookManagerProvider>
+          </TokenManagerProvider>
+        </AuthProvider>
+      </ToastProvider>
+    </ThemeProvider>
   );
 }
 

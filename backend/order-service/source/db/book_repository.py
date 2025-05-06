@@ -51,7 +51,7 @@ class BookRepository:
         INSERT INTO trading.books (
             book_id, user_id, name, parameters, created_at, updated_at
         ) VALUES (
-            $1, $2, $3, $4, to_timestamp($12), to_timestamp($13)
+            $1, $2, $3, $4, to_timestamp($5), to_timestamp($6)
         ) RETURNING book_id
         """
         

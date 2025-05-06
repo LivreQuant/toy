@@ -1,57 +1,240 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
-import './LandingPage.css';
+// src/contexts/ThemeContext.tsx
+import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
+import { ThemeProvider as MuiThemeProvider } from '@mui/material/styles';
+import { createTheme } from '@mui/material/styles';
+import CssBaseline from '@mui/material/CssBaseline';
 
-const LandingPage: React.FC = () => {
+type ThemeMode = 'light' | 'dark';
+
+interface ThemeContextType {
+  mode: ThemeMode;
+  toggleTheme: () => void;
+}
+
+// Light theme colors
+const lightTheme = {
+  primary: {
+    main: '#2196f3',  // Professional blue
+    dark: '#1976d2',
+    light: '#64b5f6',
+    contrastText: '#ffffff',
+  },
+  secondary: {
+    main: '#26a69a',  // Teal for accents
+    dark: '#00796b',
+    light: '#4db6ac',
+    contrastText: '#ffffff',
+  },
+  background: {
+    default: '#f5f7fa',
+    paper: '#ffffff',
+    card: '#ffffff',
+    chart: '#ffffff',
+  },
+  text: {
+    primary: '#212121',
+    secondary: '#757575',
+    hint: '#9e9e9e',
+  },
+  success: {
+    main: '#4caf50',
+    dark: '#388e3c',
+  },
+  error: {
+    main: '#f44336',
+    dark: '#d32f2f',
+  },
+  warning: {
+    main: '#ff9800',
+    dark: '#f57c00',
+  },
+  info: {
+    main: '#2196f3',
+    dark: '#1976d2',
+  },
+  divider: 'rgba(0, 0, 0, 0.12)',
+};
+
+// Dark theme colors - optimized for financial data
+const darkTheme = {
+  primary: {
+    main: '#2196f3',  // Keep brand blue consistent
+    dark: '#1976d2',
+    light: '#64b5f6',
+    contrastText: '#ffffff',
+  },
+  secondary: {
+    main: '#26a69a',  // Keep accent color
+    dark: '#00796b',
+    light: '#4db6ac',
+    contrastText: '#ffffff',
+  },
+  background: {
+    default: '#121212',
+    paper: '#1e1e1e',
+    card: '#232323',
+    chart: '#1a1a1a',
+  },
+  text: {
+    primary: '#ffffff',
+    secondary: '#b3b3b3',
+    hint: '#7a7a7a',
+  },
+  success: {
+    main: '#66bb6a',  // Brighter green for dark mode
+    dark: '#43a047',
+  },
+  error: {
+    main: '#ef5350',  // Brighter red for dark mode
+    dark: '#e53935',
+  },
+  warning: {
+    main: '#ffa726',  // Brighter orange for dark mode
+    dark: '#fb8c00',
+  },
+  info: {
+    main: '#42a5f5',  // Brighter blue for dark mode
+    dark: '#1e88e5',
+  },
+  divider: 'rgba(255, 255, 255, 0.12)',
+};
+
+// Create the actual Material-UI themes
+const createLightTheme = () => createTheme({
+  palette: {
+    mode: 'light',
+    ...lightTheme,
+  },
+  typography: {
+    fontFamily: "'Inter', 'Roboto', 'Helvetica', 'Arial', sans-serif",
+    h1: {
+      fontWeight: 700,
+    },
+    h2: {
+      fontWeight: 600,
+    },
+    h3: {
+      fontWeight: 600,
+    },
+    button: {
+      fontWeight: 500,
+      textTransform: 'none',
+    },
+  },
+  components: {
+    MuiButton: {
+      styleOverrides: {
+        root: {
+          borderRadius: 8,
+          padding: '10px 24px',
+          boxShadow: 'none',
+          '&:hover': {
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+          },
+        },
+      },
+    },
+    MuiCard: {
+      styleOverrides: {
+        root: {
+          borderRadius: 12,
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)',
+        },
+      },
+    },
+  },
+});
+
+const createDarkTheme = () => createTheme({
+  palette: {
+    mode: 'dark',
+    ...darkTheme,
+  },
+  typography: {
+    fontFamily: "'Inter', 'Roboto', 'Helvetica', 'Arial', sans-serif",
+    h1: {
+      fontWeight: 700,
+    },
+    h2: {
+      fontWeight: 600,
+    },
+    h3: {
+      fontWeight: 600,
+    },
+    button: {
+      fontWeight: 500,
+      textTransform: 'none',
+    },
+  },
+  components: {
+    MuiButton: {
+      styleOverrides: {
+        root: {
+          borderRadius: 8,
+          padding: '10px 24px',
+          boxShadow: 'none',
+          '&:hover': {
+            boxShadow: '0 4px 12px rgba(33, 150, 243, 0.2)',
+          },
+        },
+      },
+    },
+    MuiCard: {
+      styleOverrides: {
+        root: {
+          borderRadius: 12,
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)',
+          backgroundColor: darkTheme.background.card,
+        },
+      },
+    },
+  },
+});
+
+const ThemeContext = createContext<ThemeContextType>({
+  mode: 'dark',
+  toggleTheme: () => {},
+});
+
+export const useTheme = () => useContext(ThemeContext);
+
+interface ThemeProviderProps {
+  children: ReactNode;
+}
+
+export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
+  // Default to dark theme for financial applications
+  const [mode, setMode] = useState<ThemeMode>('dark');
+
+  // Check if user has a saved preference
+  useEffect(() => {
+    const savedMode = localStorage.getItem('themeMode') as ThemeMode;
+    if (savedMode && (savedMode === 'light' || savedMode === 'dark')) {
+      setMode(savedMode);
+    } else {
+      // Use system preference if no saved preference
+      const prefersDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      setMode(prefersDarkMode ? 'dark' : 'light');
+    }
+  }, []);
+
+  const toggleTheme = () => {
+    const newMode = mode === 'light' ? 'dark' : 'light';
+    setMode(newMode);
+    localStorage.setItem('themeMode', newMode);
+  };
+
+  // Select appropriate theme based on mode
+  const theme = mode === 'light' ? createLightTheme() : createDarkTheme();
+
   return (
-    <div className="landing-page">
-      <header className="landing-header">
-        <div className="landing-logo">
-          <h1>Trading Platform</h1>
-        </div>
-        <div className="landing-actions">
-          <Link to="/login" className="action-button login-button">Login</Link>
-          <Link to="/signup" className="action-button signup-button">Sign Up</Link>
-        </div>
-      </header>
-      
-      <main className="landing-content">
-        <section className="hero-section">
-          <h2>Welcome to Open Trading Platform</h2>
-          <p>A powerful platform for testing and executing trading strategies</p>
-          <div className="hero-cta">
-            <Link to="/signup" className="cta-button">Get Started</Link>
-            <a href="#features" className="learn-more">Learn More</a>
-          </div>
-        </section>
-        
-        <section id="features" className="features-section">
-          <h2>Platform Features</h2>
-          <div className="feature-cards">
-            <div className="feature-card">
-              <div className="feature-icon">📈</div>
-              <h3>Advanced Simulator</h3>
-              <p>Test your strategies in a realistic market environment</p>
-            </div>
-            <div className="feature-card">
-              <div className="feature-icon">📊</div>
-              <h3>Real-time Data</h3>
-              <p>Access to market data with minimal latency</p>
-            </div>
-            <div className="feature-card">
-              <div className="feature-icon">🔒</div>
-              <h3>Secure Platform</h3>
-              <p>Enterprise-grade security for your trading activities</p>
-            </div>
-          </div>
-        </section>
-      </main>
-      
-      <footer className="landing-footer">
-        <p>&copy; {new Date().getFullYear()} Trading Platform. All rights reserved.</p>
-      </footer>
-    </div>
+    <ThemeContext.Provider value={{ mode, toggleTheme }}>
+      <MuiThemeProvider theme={theme}>
+        <CssBaseline />
+        {children}
+      </MuiThemeProvider>
+    </ThemeContext.Provider>
   );
 };
 
-export default LandingPage;
+export default ThemeProvider;

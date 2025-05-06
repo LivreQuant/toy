@@ -8,6 +8,69 @@ import { Book } from '../types';
 import CsvOrderUpload from '../components/Simulator/CsvOrderUpload';
 import './BookDetailsPage.css';
 
+// Define the API response type
+interface BookApiResponse {
+  id: string;
+  user_id: string;
+  name: string;
+  parameters: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+// Helper function to parse book parameters
+const parseBookParameters = (parametersStr: string): Record<string, any> => {
+  try {
+    // Parse JSON string into array of parameter arrays
+    const parametersArray = JSON.parse(parametersStr);
+    
+    // Process parameters into a usable structure
+    const result: Record<string, any> = {
+      sectors: [],
+      position: { long: false, short: false }
+    };
+    
+    parametersArray.forEach((param: [string, string, string]) => {
+      const [category, subcategory, value] = param;
+      
+      switch(category) {
+        case 'Region':
+          result.region = value;
+          break;
+        case 'Market':
+          result.marketFocus = value;
+          break;
+        case 'Instrument':
+          result.instrument = value;
+          break;
+        case 'Investment Approach':
+          if (!result.investmentApproach) result.investmentApproach = [];
+          result.investmentApproach.push(value);
+          break;
+        case 'Investment Timeframe':
+          if (!result.investmentTimeframe) result.investmentTimeframe = [];
+          result.investmentTimeframe.push(value);
+          break;
+        case 'Sector':
+          result.sectors.push(value);
+          break;
+        case 'Position':
+          if (subcategory === 'Long') result.position.long = value === 'true';
+          if (subcategory === 'Short') result.position.short = value === 'true';
+          break;
+        case 'Allocation':
+          result.initialCapital = parseFloat(value);
+          break;
+      }
+    });
+    
+    return result;
+  } catch (e) {
+    console.error('Error parsing book parameters:', e);
+    return {};
+  }
+};
+
 const BookDetailsPage: React.FC = () => {
   useRequireAuth();
   const { bookId } = useParams<{ bookId: string }>();
@@ -17,6 +80,7 @@ const BookDetailsPage: React.FC = () => {
   const bookManager = useBookManager();
 
   const [book, setBook] = useState<Book | null>(null);
+  const [bookParams, setBookParams] = useState<Record<string, any>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isStartingSimulator, setIsStartingSimulator] = useState(false);
 
@@ -35,7 +99,38 @@ const BookDetailsPage: React.FC = () => {
         const response = await bookManager.fetchBook(bookId);
         
         if (response.success && response.book) {
-          setBook(response.book);
+          // Process the raw book data - treat it as BookApiResponse
+          const rawBook = response.book as unknown as BookApiResponse;
+          
+          const formattedBook: Book = {
+            id: rawBook.id,
+            userId: rawBook.user_id,
+            name: rawBook.name,
+            initialCapital: 0, // Will be set from parameters
+            riskLevel: 'medium', // Default value
+            status: 'CONFIGURED', // Default status
+            createdAt: rawBook.createdAt || Date.now(),
+            updatedAt: rawBook.updatedAt || Date.now()
+          };
+          
+          // Parse parameters if they exist
+          if (typeof rawBook.parameters === 'string') {
+            const params = parseBookParameters(rawBook.parameters);
+            setBookParams(params);
+            
+            // Update book with parsed parameter values
+            if (params.initialCapital) {
+              formattedBook.initialCapital = params.initialCapital;
+            }
+            if (params.marketFocus) {
+              formattedBook.marketFocus = params.marketFocus;
+            }
+            if (params.investmentApproach) {
+              formattedBook.tradingStrategy = params.investmentApproach.join(', ');
+            }
+          }
+          
+          setBook(formattedBook);
         } else {
           addToast('error', response.error || 'Book not found');
           navigate('/home');
@@ -104,38 +199,52 @@ const BookDetailsPage: React.FC = () => {
               <span className="label">Initial Capital</span>
               <span className="value">${book.initialCapital.toLocaleString()}</span>
             </div>
-            <div className="detail-item">
-              <span className="label">Risk Level</span>
-              <span className="value">{book.riskLevel}</span>
-            </div>
-            {book.marketFocus && (
+            
+            {bookParams.investmentTimeframe && (
               <div className="detail-item">
-                <span className="label">Market Focus</span>
-                <span className="value">{book.marketFocus}</span>
+                <span className="label">Investment Timeframe</span>
+                <span className="value">{bookParams.investmentTimeframe.join(', ')}</span>
               </div>
             )}
+            
+            {bookParams.marketFocus && (
+              <div className="detail-item">
+                <span className="label">Market Focus</span>
+                <span className="value">{bookParams.marketFocus}</span>
+              </div>
+            )}
+            
             <div className="detail-item">
               <span className="label">Status</span>
               <span className={`value status-${book.status.toLowerCase()}`}>
                 {book.status}
               </span>
             </div>
+            
             {book.tradingStrategy && (
               <div className="detail-item">
                 <span className="label">Trading Strategy</span>
                 <span className="value">{book.tradingStrategy}</span>
               </div>
             )}
-            {book.maxPositionSize !== undefined && (
+            
+            {bookParams.sectors && bookParams.sectors.length > 0 && (
               <div className="detail-item">
-                <span className="label">Max Position Size</span>
-                <span className="value">${book.maxPositionSize.toLocaleString()}</span>
+                <span className="label">Sectors</span>
+                <span className="value">
+                  {bookParams.sectors.includes('generalist') ? 'All Sectors' : bookParams.sectors.join(', ')}
+                </span>
               </div>
             )}
-            {book.maxTotalRisk !== undefined && (
+            
+            {bookParams.position && (
               <div className="detail-item">
-                <span className="label">Max Total Risk</span>
-                <span className="value">${book.maxTotalRisk.toLocaleString()}</span>
+                <span className="label">Position Type</span>
+                <span className="value">
+                  {bookParams.position.long ? 'Long' : ''}
+                  {bookParams.position.long && bookParams.position.short ? ' & ' : ''}
+                  {bookParams.position.short ? 'Short' : ''}
+                </span>
               </div>
             )}
           </div>
