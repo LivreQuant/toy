@@ -58,15 +58,15 @@ class BookRepository:
         start_time = time.time()
         try:
             async with pool.acquire() as conn:
-                # Convert details list to JSONB if present
-                details_json = json.dumps(book_data.get('details')) if book_data.get('details') else None
+                # Convert parameters list to JSONB if present
+                parameters_json = json.dumps(book_data.get('parameters')) if book_data.get('parameters') else None
                 
                 book_id = await conn.fetchval(
                     query,
                     book_data['book_id'],
                     book_data['user_id'],
                     book_data['name'],
-                    details_json,  # Pass the details JSON
+                    parameters_json, 
                     book_data['created_at'],
                     book_data['updated_at']
                 )
@@ -94,7 +94,7 @@ class BookRepository:
             book_id as id, 
             user_id, 
             name, 
-            details,
+            parameters,
             extract(epoch from created_at) as "createdAt",
             extract(epoch from updated_at) as "updatedAt"
         FROM trading.books 
@@ -128,7 +128,7 @@ class BookRepository:
             book_id as id, 
             user_id, 
             name, 
-            details,
+            parameters,
             extract(epoch from created_at) as "createdAt",
             extract(epoch from updated_at) as "updatedAt"
         FROM trading.books 
@@ -169,9 +169,9 @@ class BookRepository:
         
         pool = await self.db_pool.get_pool()
         
-        # Handle special case for details field - convert to JSON
-        if 'details' in update_data:
-            update_data['details'] = json.dumps(update_data['details'])
+        # Handle special case for parameters field - convert to JSON
+        if 'parameters' in update_data:
+            update_data['parameters'] = json.dumps(update_data['parameters'])
         
         # Build dynamic query based on provided fields
         set_clauses = [f"{key} = ${i+3}" for i, key in enumerate(update_data.keys())]

@@ -36,12 +36,11 @@ class BookManager:
         """
         logger.info(f"Creating book for user {user_id}")
         
-        # Validate book parameters
-        validation_result = await self.validate_book_parameters(book_data)
-        if not validation_result['valid']:
+        # Basic validation for required fields
+        if 'name' not in book_data:
             return {
                 "success": False,
-                "error": validation_result['error']
+                "error": "Missing required field: name"
             }
         
         # Create book model
@@ -49,12 +48,7 @@ class BookManager:
             book = Book(
                 user_id=user_id,
                 name=book_data['name'],
-                initial_capital=float(book_data['initial_capital']),
-                risk_level=book_data['risk_level'],
-                market_focus=book_data.get('market_focus'),
-                trading_strategy=book_data.get('trading_strategy'),
-                max_position_size=float(book_data['max_position_size']) if book_data.get('max_position_size') else None,
-                max_total_risk=float(book_data['max_total_risk']) if book_data.get('max_total_risk') else None,
+                parameters=book_data.get('parameters'),
                 book_id=str(uuid.uuid4()),
                 created_at=time.time(),
                 updated_at=time.time()
@@ -183,63 +177,15 @@ class BookManager:
                     "error": "Book does not belong to this user"
                 }
             
-            # Validate update parameters
+            # Process updates
             valid_updates = {}
             
-            # Filter and process updates
+            # Only process valid fields
             if 'name' in updates:
                 valid_updates['name'] = updates['name']
             
-            if 'initial_capital' in updates:
-                try:
-                    valid_updates['initial_capital'] = float(updates['initial_capital'])
-                except ValueError:
-                    return {
-                        "success": False,
-                        "error": "Initial capital must be a number"
-                    }
-            
-            if 'risk_level' in updates:
-                risk_level = updates['risk_level']
-                if risk_level not in ['low', 'medium', 'high']:
-                    return {
-                        "success": False,
-                        "error": "Risk level must be 'low', 'medium', or 'high'"
-                    }
-                valid_updates['risk_level'] = risk_level
-            
-            if 'market_focus' in updates:
-                valid_updates['market_focus'] = updates['market_focus']
-            
-            if 'status' in updates:
-                status = updates['status']
-                if status not in ['CONFIGURED', 'ACTIVE', 'ARCHIVED']:
-                    return {
-                        "success": False,
-                        "error": "Status must be 'CONFIGURED', 'ACTIVE', or 'ARCHIVED'"
-                    }
-                valid_updates['status'] = status
-            
-            if 'trading_strategy' in updates:
-                valid_updates['trading_strategy'] = updates['trading_strategy']
-            
-            if 'max_position_size' in updates:
-                try:
-                    valid_updates['max_position_size'] = float(updates['max_position_size']) if updates['max_position_size'] is not None else None
-                except ValueError:
-                    return {
-                        "success": False,
-                        "error": "Max position size must be a number"
-                    }
-            
-            if 'max_total_risk' in updates:
-                try:
-                    valid_updates['max_total_risk'] = float(updates['max_total_risk']) if updates['max_total_risk'] is not None else None
-                except ValueError:
-                    return {
-                        "success": False,
-                        "error": "Max total risk must be a number"
-                    }
+            if 'parameters' in updates:
+                valid_updates['parameters'] = updates['parameters']
             
             # Apply updates
             if valid_updates:
@@ -314,77 +260,3 @@ class BookManager:
                 "success": False,
                 "error": f"Error deleting book: {str(e)}"
             }
-    
-    async def validate_book_parameters(self, book_data: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Validate book parameters
-        
-        Args:
-            book_data: Book data dictionary
-            
-        Returns:
-            Validation result with valid flag and error message
-        """
-        # Check required fields
-        required_fields = ['name', 'initial_capital', 'risk_level']
-        for field in required_fields:
-            if field not in book_data:
-                return {
-                    "valid": False,
-                    "error": f"Missing required field: {field}"
-                }
-        
-        # Validate risk level
-        if book_data['risk_level'] not in ['low', 'medium', 'high']:
-            return {
-                "valid": False,
-                "error": "Risk level must be 'low', 'medium', or 'high'"
-            }
-        
-        # Validate initial capital
-        try:
-            initial_capital = float(book_data['initial_capital'])
-            if initial_capital <= 0:
-                return {
-                    "valid": False,
-                    "error": "Initial capital must be greater than 0"
-                }
-        except ValueError:
-            return {
-                "valid": False,
-                "error": "Initial capital must be a number"
-            }
-        
-        # Validate max position size if provided
-        if 'max_position_size' in book_data and book_data['max_position_size'] is not None:
-            try:
-                max_position_size = float(book_data['max_position_size'])
-                if max_position_size <= 0:
-                    return {
-                        "valid": False,
-                        "error": "Max position size must be greater than 0"
-                    }
-            except ValueError:
-                return {
-                    "valid": False,
-                    "error": "Max position size must be a number"
-                }
-        
-        # Validate max total risk if provided
-        if 'max_total_risk' in book_data and book_data['max_total_risk'] is not None:
-            try:
-                max_total_risk = float(book_data['max_total_risk'])
-                if max_total_risk <= 0:
-                    return {
-                        "valid": False,
-                        "error": "Max total risk must be greater than 0"
-                    }
-            except ValueError:
-                return {
-                    "valid": False,
-                    "error": "Max total risk must be a number"
-                }
-        
-        return {
-            "valid": True
-        }

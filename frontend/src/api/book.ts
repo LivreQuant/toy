@@ -4,7 +4,7 @@ import { Book } from '../types'; // Import from types
 
 export interface CreateBookRequest {
   name: string;
-  details: Array<[string, string, string]>; // [category, subcategory, value]
+  parameters: Array<[string, string, string]>; // [category, subcategory, value]
 }
 
 export class BookApi {

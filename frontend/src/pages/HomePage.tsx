@@ -145,7 +145,7 @@ const HomePage: React.FC = () => {
               <div key={book.id} className="simulation-card">
                 <div className="simulation-info">
                   <h3>{book.name || 'Unnamed Book'}</h3>
-                  <div className="simulation-details">
+                  <div className="simulation-parameters">
                     <span className="detail">Risk: {book.riskLevel || 'Unknown'}</span>
                     <span className="detail">Capital: ${(book.initialCapital || 0).toLocaleString()}</span>
                     {book.marketFocus && <span className="detail">Focus: {book.marketFocus}</span>}

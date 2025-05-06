@@ -77,7 +77,7 @@ class BookController:
                 }, status=400)
 
             # Validate required fields
-            required_fields = ['name', 'initialCapital', 'riskLevel']
+            required_fields = ['name', 'parameters']
             missing_fields = [field for field in required_fields if field not in data]
             if missing_fields:
                 return web.json_response({
@@ -92,7 +92,7 @@ class BookController:
                 'book_id': str(book_id),
                 'user_id': user_id,
                 'name': data['name'],
-                'details': data.get('details'),  # Add details field
+                'parameters': data.get('parameters'),
                 'created_at': time.time(),
                 'updated_at': time.time()
             }
@@ -276,8 +276,8 @@ class BookController:
             update_data = {}
             if 'name' in data:
                 update_data['name'] = data['name']
-            if 'details' in data:
-                update_data['details'] = data['details']  # Add details field handling
+            if 'parameters' in data:
+                update_data['parameters'] = data['parameters'] 
 
             # Add updated timestamp
             update_data['updated_at'] = time.time()

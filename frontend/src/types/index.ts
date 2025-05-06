@@ -51,5 +51,5 @@ export interface Book {
 
 export interface CreateBookRequest {
   name: string;
-  details: Array<[string, string, string]>; // [category, subcategory, value]
+  parameters: Array<[string, string, string]>; // [category, subcategory, value]
 }

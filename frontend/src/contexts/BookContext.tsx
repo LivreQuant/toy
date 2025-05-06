@@ -7,7 +7,7 @@ import { httpClient, tokenManager } from '../api/api-client'; // Ensure these ar
 interface BookManagerContextType {
   createBook: (bookData: { 
     name: string;
-    details: Array<[string, string, string]>; 
+    parameters: Array<[string, string, string]>; 
   }) => Promise<{ success: boolean; bookId?: string; error?: string }>;
   fetchBooks: () => Promise<{ success: boolean; books?: Book[]; error?: string }>;
   fetchBook: (bookId: string) => Promise<{ success: boolean; book?: Book; error?: string }>;

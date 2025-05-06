@@ -11,7 +11,7 @@ class Book:
     user_id: str
     name: str
     book_id: str = field(default_factory=lambda: str(uuid.uuid4()))
-    details: Optional[List[List]] = None  # New field for the details list
+    parameters: Optional[List[List]] = None  # New field for the parameters list
     created_at: float = field(default_factory=time.time)
     updated_at: float = field(default_factory=time.time)
     
@@ -21,7 +21,7 @@ class Book:
             "book_id": self.book_id,
             "user_id": self.user_id,
             "name": self.name,
-            "details": self.details,  # Include the details field
+            "parameters": self.parameters,  # Include the parameters field
             "created_at": self.created_at,
             "updated_at": self.updated_at
         }

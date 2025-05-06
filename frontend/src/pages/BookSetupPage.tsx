@@ -225,49 +225,49 @@ const BookSetupPage: React.FC = () => {
   ];
 
   // Function to convert selections to the required format for CreateBookRequest
-  const convertSelectionsToDetails = (): Array<[string, string, string]> => {
-    const details: Array<[string, string, string]> = [];
+  const convertSelectionsToParameters = (): Array<[string, string, string]> => {
+    const parameters: Array<[string, string, string]> = [];
     
     // Add region
     if (selections.region.length > 0) {
-      details.push(["Region", "", selections.region[0]]);
+      parameters.push(["Region", "", selections.region[0]]);
     }
     
     // Add markets
     if (selections.markets.length > 0) {
-      details.push(["Market", "", selections.markets[0]]);
+      parameters.push(["Market", "", selections.markets[0]]);
     }
     
     // Add instruments
     if (selections.instruments.length > 0) {
-      details.push(["Instrument", "", selections.instruments[0]]);
+      parameters.push(["Instrument", "", selections.instruments[0]]);
     }
     
     // Add investment approach (can have multiple)
     selections.investmentApproach.forEach(approach => {
-      details.push(["Investment Approach", "", approach]);
+      parameters.push(["Investment Approach", "", approach]);
     });
     
     // Add investment timeframe (can have multiple)
     selections.investmentTimeframe.forEach(timeframe => {
-      details.push(["Investment Timeframe", "", timeframe]);
+      parameters.push(["Investment Timeframe", "", timeframe]);
     });
     
     // Add sector focus (can have multiple)
     selections.sectorFocus.forEach(sector => {
-      details.push(["Sector", "", sector]);
+      parameters.push(["Sector", "", sector]);
     });
     
     // Add position types (long/short)
     const hasLong = selections.positionTypes.includes('long');
     const hasShort = selections.positionTypes.includes('short');
-    details.push(["Position", "Long", hasLong.toString()]);
-    details.push(["Position", "Short", hasShort.toString()]);
+    parameters.push(["Position", "Long", hasLong.toString()]);
+    parameters.push(["Position", "Short", hasShort.toString()]);
     
     // Add AUM allocation
-    details.push(["Allocation", "", aumAllocation.toString()]);
+    parameters.push(["Allocation", "", aumAllocation.toString()]);
     
-    return details;
+    return parameters;
   };
 
   // State for selected options in each category
@@ -455,13 +455,13 @@ const BookSetupPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Convert selections to details format
-    const details = convertSelectionsToDetails();
+    // Convert selections to parameters format
+    const parameters = convertSelectionsToParameters();
     
     // Create book request
     const createBookRequest = {
       name: portfolioName,
-      details: details
+      parameters: parameters
     };
     
     // Log form submission
