@@ -5,6 +5,7 @@ import { config } from '../../config';
 
 import { TokenManager } from '../auth/token-manager';
 import { DeviceIdManager } from '../auth/device-id-manager';
+import { toastService } from '../notification/toast-service';
 
 import { Resilience, ResilienceState } from './resilience';
 import { SimulatorClient } from './simulator-client';
@@ -167,6 +168,35 @@ export class ConnectionManager implements Disposable {
         this.logger.warn(`Device ID invalidated: ${(message as any).deviceId}`);
         this.handleDeviceIdInvalidation('server_message', (message as any).reason);
       }
+    });
+  }
+
+  // Add a reset method that fully resets the connection state
+  public resetState(): void {
+    if (this.isDisposed) return;
+    
+    this.logger.info('Resetting connection manager state');
+    
+    // Force disconnect if connected
+    this.disconnect('reset');
+    
+    // Reset desired state
+    this.desiredState = {
+      connected: false,
+      simulatorRunning: false
+    };
+    
+    // Reset resilience
+    this.resilience.reset();
+    
+    // Update connection state
+    connectionState.updateState({
+      webSocketStatus: ConnectionStatus.DISCONNECTED,
+      overallStatus: ConnectionStatus.DISCONNECTED,
+      isRecovering: false,
+      recoveryAttempt: 0,
+      simulatorStatus: 'UNKNOWN',
+      lastConnectionError: null
     });
   }
 
@@ -579,6 +609,9 @@ export class ConnectionManager implements Disposable {
     
     // Use socket reconnect if connected, otherwise attempt recovery
     const wsStatus = connectionState.getState().webSocketStatus;
+      
+    // Show reconnection attempt toast to user - with a stable ID
+    toastService.info('Attempting to reconnect...', 5000, 'connection-recovery-attempt');
     
     if (wsStatus === ConnectionStatus.CONNECTED) {
       this.socketClient.disconnect('manual_reconnect');
@@ -599,6 +632,9 @@ export class ConnectionManager implements Disposable {
     // Clear device ID
     const deviceId = DeviceIdManager.getInstance().getDeviceId();
     DeviceIdManager.getInstance().clearDeviceId();
+    
+    // Show toast notification to user about the session issue
+    toastService.error(`Your session has been deactivated: ${reason || 'Device ID invalidated'}`, 0);
     
     // Emit event
     this.events.emit('device_id_invalidated', {

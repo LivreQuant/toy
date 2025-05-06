@@ -5,10 +5,11 @@ import { DeviceIdManager } from './device-id-manager';
 import { getLogger } from '../../boot/logging';
 
 export interface TokenData {
-  accessToken: string;
-  refreshToken: string;
-  expiresAt: number; // timestamp in milliseconds
-  userId: string | number; // Add userId to the token data
+    accessToken: string;
+    refreshToken: string;
+    expiresAt: number; // timestamp in milliseconds
+    userId: string | number;
+    isLongLivedSession?: boolean; // Add this property
 }
   
 export class TokenManager {
@@ -37,14 +38,47 @@ export class TokenManager {
     }
 
     // Store tokens using injected storage service
-    public storeTokens(tokenData: TokenData): void {
+    public storeTokens(tokenData: TokenData, rememberMe: boolean = false): void {
         try {
-             this.storageService.setItem(this.STORAGE_KEY, JSON.stringify(tokenData));
+            // Update the expiry times based on rememberMe flag
+            // For refresh tokens, extend to 30 days if rememberMe is true
+            if (rememberMe) {
+            // Store a flag to indicate this is a long-lived session
+            tokenData.isLongLivedSession = true;
+            }
+            
+            this.storageService.setItem(this.STORAGE_KEY, JSON.stringify(tokenData));
         } catch (e: any) {
             this.logger.error(`Failed to store tokens: ${e.message}`);
         }
     }
 
+    // Add automatic csrf protection for API calls
+    public async getCsrfToken(): Promise<string> {
+        // Generate a CSRF token if none exists or if it's expired
+        let csrfToken = this.storageService.getItem('csrf_token');
+        const csrfExpiry = this.storageService.getItem('csrf_expiry');
+        
+        if (!csrfToken || !csrfExpiry || parseInt(csrfExpiry) < Date.now()) {
+        // Create a new token using a random string
+        csrfToken = this.generateRandomToken();
+        // Set expiry for 2 hours
+        const expiry = Date.now() + (2 * 60 * 60 * 1000);
+        
+        this.storageService.setItem('csrf_token', csrfToken);
+        this.storageService.setItem('csrf_expiry', expiry.toString());
+        }
+        
+        return csrfToken;
+    }
+
+    private generateRandomToken(): string {
+        // Generate a secure random token
+        const array = new Uint8Array(32);
+        window.crypto.getRandomValues(array);
+        return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+    }
+    
     // Get stored tokens using injected storage service
     public getTokens(): TokenData | null {
         const tokenStr = this.storageService.getItem(this.STORAGE_KEY);
@@ -116,40 +150,48 @@ export class TokenManager {
         if (this.refreshPromise) {
             return this.refreshPromise;
         }
-
+    
         const tokens = this.getTokens();
         if (!tokens?.refreshToken) {
             // Use error handler
             this.logger.error('No refresh token available');
             return false;
         }
-
+    
         // Check if authApi has been set via setAuthApi
         if (!this.authApi) {
             this.logger.error('Auth API dependency not set in TokenManager');
             return false;
         }
-
+    
         this.refreshPromise = new Promise<boolean>(async (resolve) => {
             try {
                 // Use the assigned authApi instance
-                const response = await this.authApi!.refreshToken(tokens.refreshToken); // Safe to use non-null assertion due to check above
-
+                const response = await this.authApi!.refreshToken(tokens.refreshToken);
+    
+                // Verify all required fields are present
+                if (!response.accessToken || !response.refreshToken || !response.expiresIn || !response.userId) {
+                    this.logger.error('Token refresh response missing required fields');
+                    this.notifyRefreshListeners(false);
+                    resolve(false);
+                    return;
+                }
+    
                 this.storeTokens({
                     accessToken: response.accessToken,
-                    refreshToken: response.refreshToken, // Store the new refresh token if provided
+                    refreshToken: response.refreshToken,
                     expiresAt: Date.now() + (response.expiresIn * 1000),
-                    userId: response.userId  // Store userId with the tokens
+                    userId: response.userId
                 });
-
+    
                 // Notify listeners about the token refresh success
                 this.notifyRefreshListeners(true);
                 resolve(true);
-
+    
             } catch (error: any) {
                 // Use error handler for refresh failure
                 this.logger.error('Token refresh API call failed');
-
+    
                 // Notify listeners about the failed refresh
                 this.notifyRefreshListeners(false);
                 resolve(false);
@@ -158,10 +200,10 @@ export class TokenManager {
                 this.refreshPromise = null;
             }
         });
-
+    
         return this.refreshPromise;
     }
-
+    
     // Notify all registered listeners (no change needed here)
     private notifyRefreshListeners(success: boolean): void {
         // Use a Set iterator for safety if listeners modify the Set during iteration

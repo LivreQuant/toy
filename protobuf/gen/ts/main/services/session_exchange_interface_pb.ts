@@ -10,26 +10,16 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file main/services/session_exchange_interface.proto.
  */
 export const file_main_services_session_exchange_interface: GenFile = /*@__PURE__*/
-  fileDesc("Ci5tYWluL3NlcnZpY2VzL3Nlc3Npb25fZXhjaGFuZ2VfaW50ZXJmYWNlLnByb3RvEhBzZXNzaW9uX2V4Y2hhbmdlIkcKDVN0cmVhbVJlcXVlc3QSEgoKc2Vzc2lvbl9pZBgBIAEoCRIRCgljbGllbnRfaWQYAiABKAkSDwoHc3ltYm9scxgDIAMoCSLCAQoSRXhjaGFuZ2VEYXRhVXBkYXRlEhEKCXRpbWVzdGFtcBgBIAEoAxIxCgttYXJrZXRfZGF0YRgCIAMoCzIcLnNlc3Npb25fZXhjaGFuZ2UuTWFya2V0RGF0YRIwCgtvcmRlcnNfZGF0YRgDIAMoCzIbLnNlc3Npb25fZXhjaGFuZ2UuT3JkZXJEYXRhEjQKCXBvcnRmb2xpbxgEIAEoCzIhLnNlc3Npb25fZXhjaGFuZ2UuUG9ydGZvbGlvU3RhdHVzIoEBCgpNYXJrZXREYXRhEg4KBnN5bWJvbBgBIAEoCRILCgNiaWQYAiABKAESCwoDYXNrGAMgASgBEhAKCGJpZF9zaXplGAQgASgFEhAKCGFza19zaXplGAUgASgFEhIKCmxhc3RfcHJpY2UYBiABKAESEQoJbGFzdF9zaXplGAcgASgFIm0KCU9yZGVyRGF0YRIQCghvcmRlcl9pZBgBIAEoCRIOCgZzeW1ib2wYAiABKAkSDgoGc3RhdHVzGAMgASgJEhcKD2ZpbGxlZF9xdWFudGl0eRgEIAEoBRIVCg1hdmVyYWdlX3ByaWNlGAUgASgBImsKD1BvcnRmb2xpb1N0YXR1cxItCglwb3NpdGlvbnMYASADKAsyGi5zZXNzaW9uX2V4Y2hhbmdlLlBvc2l0aW9uEhQKDGNhc2hfYmFsYW5jZRgCIAEoARITCgt0b3RhbF92YWx1ZRgDIAEoASJYCghQb3NpdGlvbhIOCgZzeW1ib2wYASABKAkSEAoIcXVhbnRpdHkYAiABKAUSFAoMYXZlcmFnZV9jb3N0GAMgASgBEhQKDG1hcmtldF92YWx1ZRgEIAEoASIsChBIZWFydGJlYXRSZXF1ZXN0EhgKEGNsaWVudF90aW1lc3RhbXAYAyABKAMiPgoRSGVhcnRiZWF0UmVzcG9uc2USDwoHc3VjY2VzcxgBIAEoCBIYChBzZXJ2ZXJfdGltZXN0YW1wGAIgASgDMs8BChhTZXNzaW9uRXhjaGFuZ2VTaW11bGF0b3ISXQoSU3RyZWFtRXhjaGFuZ2VEYXRhEh8uc2Vzc2lvbl9leGNoYW5nZS5TdHJlYW1SZXF1ZXN0GiQuc2Vzc2lvbl9leGNoYW5nZS5FeGNoYW5nZURhdGFVcGRhdGUwARJUCglIZWFydGJlYXQSIi5zZXNzaW9uX2V4Y2hhbmdlLkhlYXJ0YmVhdFJlcXVlc3QaIy5zZXNzaW9uX2V4Y2hhbmdlLkhlYXJ0YmVhdFJlc3BvbnNlQpEBChRjb20uc2Vzc2lvbl9leGNoYW5nZUIdU2Vzc2lvbkV4Y2hhbmdlSW50ZXJmYWNlUHJvdG9QAaICA1NYWKoCD1Nlc3Npb25FeGNoYW5nZcoCD1Nlc3Npb25FeGNoYW5nZeICG1Nlc3Npb25FeGNoYW5nZVxHUEJNZXRhZGF0YeoCD1Nlc3Npb25FeGNoYW5nZWIGcHJvdG8z");
+  fileDesc("Ci5tYWluL3NlcnZpY2VzL3Nlc3Npb25fZXhjaGFuZ2VfaW50ZXJmYWNlLnByb3RvEhBzZXNzaW9uX2V4Y2hhbmdlIiIKDVN0cmVhbVJlcXVlc3QSEQoJY2xpZW50X2lkGAEgASgJIsIBChJFeGNoYW5nZURhdGFVcGRhdGUSEQoJdGltZXN0YW1wGAEgASgDEjEKC21hcmtldF9kYXRhGAIgAygLMhwuc2Vzc2lvbl9leGNoYW5nZS5NYXJrZXREYXRhEjAKC29yZGVyc19kYXRhGAMgAygLMhsuc2Vzc2lvbl9leGNoYW5nZS5PcmRlckRhdGESNAoJcG9ydGZvbGlvGAQgASgLMiEuc2Vzc2lvbl9leGNoYW5nZS5Qb3J0Zm9saW9TdGF0dXMihwEKCk1hcmtldERhdGESDgoGc3ltYm9sGAEgASgJEgwKBG9wZW4YAiABKAESDAoEaGlnaBgDIAEoARILCgNsb3cYBCABKAESDQoFY2xvc2UYBSABKAESDgoGdm9sdW1lGAYgASgFEhMKC3RyYWRlX2NvdW50GAcgASgFEgwKBHZ3YXAYCCABKAEibQoJT3JkZXJEYXRhEhAKCG9yZGVyX2lkGAEgASgJEg4KBnN5bWJvbBgCIAEoCRIOCgZzdGF0dXMYAyABKAkSFwoPZmlsbGVkX3F1YW50aXR5GAQgASgFEhUKDWF2ZXJhZ2VfcHJpY2UYBSABKAEiawoPUG9ydGZvbGlvU3RhdHVzEi0KCXBvc2l0aW9ucxgBIAMoCzIaLnNlc3Npb25fZXhjaGFuZ2UuUG9zaXRpb24SFAoMY2FzaF9iYWxhbmNlGAIgASgBEhMKC3RvdGFsX3ZhbHVlGAMgASgBIlgKCFBvc2l0aW9uEg4KBnN5bWJvbBgBIAEoCRIQCghxdWFudGl0eRgCIAEoBRIUCgxhdmVyYWdlX2Nvc3QYAyABKAESFAoMbWFya2V0X3ZhbHVlGAQgASgBIiwKEEhlYXJ0YmVhdFJlcXVlc3QSGAoQY2xpZW50X3RpbWVzdGFtcBgDIAEoAyI+ChFIZWFydGJlYXRSZXNwb25zZRIPCgdzdWNjZXNzGAEgASgIEhgKEHNlcnZlcl90aW1lc3RhbXAYAiABKAMyzwEKGFNlc3Npb25FeGNoYW5nZVNpbXVsYXRvchJdChJTdHJlYW1FeGNoYW5nZURhdGESHy5zZXNzaW9uX2V4Y2hhbmdlLlN0cmVhbVJlcXVlc3QaJC5zZXNzaW9uX2V4Y2hhbmdlLkV4Y2hhbmdlRGF0YVVwZGF0ZTABElQKCUhlYXJ0YmVhdBIiLnNlc3Npb25fZXhjaGFuZ2UuSGVhcnRiZWF0UmVxdWVzdBojLnNlc3Npb25fZXhjaGFuZ2UuSGVhcnRiZWF0UmVzcG9uc2VCkQEKFGNvbS5zZXNzaW9uX2V4Y2hhbmdlQh1TZXNzaW9uRXhjaGFuZ2VJbnRlcmZhY2VQcm90b1ABogIDU1hYqgIPU2Vzc2lvbkV4Y2hhbmdlygIPU2Vzc2lvbkV4Y2hhbmdl4gIbU2Vzc2lvbkV4Y2hhbmdlXEdQQk1ldGFkYXRh6gIPU2Vzc2lvbkV4Y2hhbmdlYgZwcm90bzM");
 
 /**
  * @generated from message session_exchange.StreamRequest
  */
 export type StreamRequest = Message<"session_exchange.StreamRequest"> & {
   /**
-   * @generated from field: string session_id = 1;
-   */
-  sessionId: string;
-
-  /**
-   * @generated from field: string client_id = 2;
+   * @generated from field: string client_id = 1;
    */
   clientId: string;
-
-  /**
-   * @generated from field: repeated string symbols = 3;
-   */
-  symbols: string[];
 };
 
 /**
@@ -81,34 +71,39 @@ export type MarketData = Message<"session_exchange.MarketData"> & {
   symbol: string;
 
   /**
-   * @generated from field: double bid = 2;
+   * @generated from field: double open = 2;
    */
-  bid: number;
+  open: number;
 
   /**
-   * @generated from field: double ask = 3;
+   * @generated from field: double high = 3;
    */
-  ask: number;
+  high: number;
 
   /**
-   * @generated from field: int32 bid_size = 4;
+   * @generated from field: double low = 4;
    */
-  bidSize: number;
+  low: number;
 
   /**
-   * @generated from field: int32 ask_size = 5;
+   * @generated from field: double close = 5;
    */
-  askSize: number;
+  close: number;
 
   /**
-   * @generated from field: double last_price = 6;
+   * @generated from field: int32 volume = 6;
    */
-  lastPrice: number;
+  volume: number;
 
   /**
-   * @generated from field: int32 last_size = 7;
+   * @generated from field: int32 trade_count = 7;
    */
-  lastSize: number;
+  tradeCount: number;
+
+  /**
+   * @generated from field: double vwap = 8;
+   */
+  vwap: number;
 };
 
 /**

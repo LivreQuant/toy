@@ -9,24 +9,28 @@ from opentelemetry import trace
 
 from source.utils.tracing import optional_trace_span
 
-logger = logging.getLogger('token_manager')
-
 
 class TokenManager:
+    """
+    TokenManager handles JWT token generation, validation, and related operations.
+    This class is responsible for the cryptographic aspects of authentication tokens.
+    """
+
     def __init__(self):
         # Load secrets from environment or secure storage
         self.jwt_secret = os.getenv('JWT_SECRET', 'dev-secret-key')
         self.refresh_secret = os.getenv('JWT_REFRESH_SECRET', 'dev-refresh-secret-key')
         self.access_token_expiry = int(os.getenv('ACCESS_TOKEN_EXPIRY', '3600'))  # 1 hour
         self.refresh_token_expiry = int(os.getenv('REFRESH_TOKEN_EXPIRY', '2592000'))  # 30 days
-        self.tracer = trace.get_tracer("token_manager")
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.tracer = trace.get_tracer(self.__class__.__name__)
 
     def generate_tokens(self, user_id, user_role='user'):
         """Generate access and refresh tokens"""
         with optional_trace_span(self.tracer, "generate_tokens") as span:
             span.set_attribute("user.id", str(user_id))
             span.set_attribute("user.role", user_role)
-            
+
             # Generate access token
             access_token_expires = datetime.datetime.utcnow() + datetime.timedelta(seconds=self.access_token_expiry)
             access_token_payload = {
@@ -67,7 +71,7 @@ class TokenManager:
 
                 # Check token type for additional security
                 if payload.get('token_type') != 'access':
-                    logger.warning(f"Wrong token type: {payload.get('token_type')}")
+                    self.logger.warning(f"Wrong token type: {payload.get('token_type')}")
                     span.set_attribute("error", "Wrong token type")
                     span.set_attribute("valid", False)
                     return {'valid': False}
@@ -75,24 +79,24 @@ class TokenManager:
                 span.set_attribute("user.id", str(payload.get('user_id')))
                 span.set_attribute("user.role", payload.get('user_role', 'user'))
                 span.set_attribute("valid", True)
-                
+
                 return {
                     'valid': True,
                     'user_id': payload.get('user_id'),
                     'user_role': payload.get('user_role', 'user')
                 }
             except jwt.ExpiredSignatureError:
-                logger.warning(f"Token expired: {token[:10]}...")
+                self.logger.warning("Token expired")
                 span.set_attribute("error", "Token expired")
                 span.set_attribute("valid", False)
                 return {'valid': False, 'error': 'Token expired'}
             except jwt.InvalidTokenError as e:
-                logger.warning(f"Invalid token: {e}")
+                self.logger.warning(f"Invalid token: {e}")
                 span.set_attribute("error", str(e))
                 span.set_attribute("valid", False)
                 return {'valid': False, 'error': str(e)}
             except Exception as e:
-                logger.error(f"Token validation error: {e}")
+                self.logger.error(f"Token validation error: {e}")
                 span.record_exception(e)
                 span.set_attribute("error", str(e))
                 span.set_attribute("valid", False)
@@ -106,14 +110,14 @@ class TokenManager:
 
                 # Check token type
                 if payload.get('token_type') != 'refresh':
-                    logger.warning(f"Wrong token type for refresh: {payload.get('token_type')}")
+                    self.logger.warning(f"Wrong token type for refresh: {payload.get('token_type')}")
                     span.set_attribute("error", "Wrong token type")
                     span.set_attribute("valid", False)
                     return {'valid': False}
 
                 span.set_attribute("user.id", str(payload.get('user_id')))
                 span.set_attribute("valid", True)
-                
+
                 return {
                     'valid': True,
                     'user_id': payload.get('user_id')
@@ -127,7 +131,7 @@ class TokenManager:
                 span.set_attribute("valid", False)
                 return {'valid': False, 'error': str(e)}
             except Exception as e:
-                logger.error(f"Refresh token validation error: {e}")
+                self.logger.error(f"Refresh token validation error: {e}")
                 span.record_exception(e)
                 span.set_attribute("error", str(e))
                 span.set_attribute("valid", False)

@@ -193,7 +193,7 @@ class SimulatorManager:
 
             try:
                 # Save to database
-                await self.store_manager.simulator_store.create_simulator(simulator)
+                await self.store_manager.simulator_store.create_simulator(simulator, user_id)
 
                 # Update our current simulator tracking
                 self.current_simulator_id = simulator.simulator_id
@@ -249,11 +249,11 @@ class SimulatorManager:
                 return None, f"Error creating simulator: {str(e)}"
 
     async def stream_exchange_data(
-            self,
-            endpoint: str,
-            session_id: str,
-            client_id: str,
-            exchange_type: ExchangeType = None
+        self,
+        endpoint: str,
+        session_id: str,
+        client_id: str,
+        exchange_type: ExchangeType = None
     ):
         """
         Stream exchange data with retry mechanism and adapter support.
@@ -290,8 +290,12 @@ class SimulatorManager:
             async for standardized_data in self.exchange_client.stream_exchange_data(
                     endpoint, session_id, client_id, exchange_type
             ):
-                # Add a unique identifier to each raw data response
-                data_id = f"{standardized_data.timestamp}-{standardized_data.update_id}"
+                # Generate a data ID safely without using .get()
+                if hasattr(standardized_data, 'timestamp') and hasattr(standardized_data, 'update_id'):
+                    data_id = f"{standardized_data.timestamp}-{standardized_data.update_id}"
+                else:
+                    data_id = f"{time.time()}-{uuid.uuid4()}"
+                    
                 logger.info(f"Received exchange data [ID: {data_id}] from simulator at {endpoint}")
 
                 # Call the callback function if set - pass standardized data directly
@@ -316,6 +320,9 @@ class SimulatorManager:
                     retriable_exceptions=(ConnectionError, TimeoutError)
             ):
                 yield data
+        except GeneratorExit:
+            # Handle generator exit gracefully
+            logger.info(f"Exchange data stream for {session_id} closed")
         except Exception as e:
             logger.error(f"Unhandled error in simulator data stream: {e}", exc_info=True)
             # Update status if possible

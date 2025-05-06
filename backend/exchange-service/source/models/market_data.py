@@ -4,23 +4,26 @@ from typing import Dict, Any
 
 @dataclass
 class MarketData:
-    """Market data for a single symbol"""
+    """Market data for a single symbol (minute bars)"""
     symbol: str
-    bid: float
-    ask: float
-    bid_size: int
-    ask_size: int
-    last_price: float
-    last_size: int
+    open: float
+    high: float
+    low: float
+    close: float
+    volume: int
+    trade_count: int = 0
+    vwap: float = 0.0
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary representation"""
         return {
             'symbol': self.symbol,
-            'bid': self.bid,
-            'ask': self.ask,
-            'bid_size': self.bid_size,
-            'ask_size': self.ask_size,
-            'last_price': self.last_price,
-            'last_size': self.last_size
+            'open': self.open,
+            'high': self.high, 
+            'low': self.low,
+            'close': self.close,
+            'volume': self.volume,
+            'trade_count': self.trade_count,
+            'vwap': self.vwap
         }
+    

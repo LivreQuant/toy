@@ -14,30 +14,30 @@ class OrderExchangeSimulatorStub(object):
         Args:
             channel: A grpc.Channel.
         """
-        self.SubmitOrder = channel.unary_unary(
-                '/order_exchange.OrderExchangeSimulator/SubmitOrder',
-                request_serializer=main_dot_services_dot_order__exchange__interface__pb2.SubmitOrderRequest.SerializeToString,
-                response_deserializer=main_dot_services_dot_order__exchange__interface__pb2.SubmitOrderResponse.FromString,
+        self.SubmitOrders = channel.unary_unary(
+                '/order_exchange.OrderExchangeSimulator/SubmitOrders',
+                request_serializer=main_dot_services_dot_order__exchange__interface__pb2.BatchOrderRequest.SerializeToString,
+                response_deserializer=main_dot_services_dot_order__exchange__interface__pb2.BatchOrderResponse.FromString,
                 )
-        self.CancelOrder = channel.unary_unary(
-                '/order_exchange.OrderExchangeSimulator/CancelOrder',
-                request_serializer=main_dot_services_dot_order__exchange__interface__pb2.CancelOrderRequest.SerializeToString,
-                response_deserializer=main_dot_services_dot_order__exchange__interface__pb2.CancelOrderResponse.FromString,
+        self.CancelOrders = channel.unary_unary(
+                '/order_exchange.OrderExchangeSimulator/CancelOrders',
+                request_serializer=main_dot_services_dot_order__exchange__interface__pb2.BatchCancelRequest.SerializeToString,
+                response_deserializer=main_dot_services_dot_order__exchange__interface__pb2.BatchCancelResponse.FromString,
                 )
 
 
 class OrderExchangeSimulatorServicer(object):
     """Missing associated documentation comment in .proto file."""
 
-    def SubmitOrder(self, request, context):
-        """Submit an order
+    def SubmitOrders(self, request, context):
+        """Submit orders in batch
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def CancelOrder(self, request, context):
-        """Cancel an order
+    def CancelOrders(self, request, context):
+        """Cancel orders in batch
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -46,15 +46,15 @@ class OrderExchangeSimulatorServicer(object):
 
 def add_OrderExchangeSimulatorServicer_to_server(servicer, server):
     rpc_method_handlers = {
-            'SubmitOrder': grpc.unary_unary_rpc_method_handler(
-                    servicer.SubmitOrder,
-                    request_deserializer=main_dot_services_dot_order__exchange__interface__pb2.SubmitOrderRequest.FromString,
-                    response_serializer=main_dot_services_dot_order__exchange__interface__pb2.SubmitOrderResponse.SerializeToString,
+            'SubmitOrders': grpc.unary_unary_rpc_method_handler(
+                    servicer.SubmitOrders,
+                    request_deserializer=main_dot_services_dot_order__exchange__interface__pb2.BatchOrderRequest.FromString,
+                    response_serializer=main_dot_services_dot_order__exchange__interface__pb2.BatchOrderResponse.SerializeToString,
             ),
-            'CancelOrder': grpc.unary_unary_rpc_method_handler(
-                    servicer.CancelOrder,
-                    request_deserializer=main_dot_services_dot_order__exchange__interface__pb2.CancelOrderRequest.FromString,
-                    response_serializer=main_dot_services_dot_order__exchange__interface__pb2.CancelOrderResponse.SerializeToString,
+            'CancelOrders': grpc.unary_unary_rpc_method_handler(
+                    servicer.CancelOrders,
+                    request_deserializer=main_dot_services_dot_order__exchange__interface__pb2.BatchCancelRequest.FromString,
+                    response_serializer=main_dot_services_dot_order__exchange__interface__pb2.BatchCancelResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -67,7 +67,7 @@ class OrderExchangeSimulator(object):
     """Missing associated documentation comment in .proto file."""
 
     @staticmethod
-    def SubmitOrder(request,
+    def SubmitOrders(request,
             target,
             options=(),
             channel_credentials=None,
@@ -77,14 +77,14 @@ class OrderExchangeSimulator(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.unary_unary(request, target, '/order_exchange.OrderExchangeSimulator/SubmitOrder',
-            main_dot_services_dot_order__exchange__interface__pb2.SubmitOrderRequest.SerializeToString,
-            main_dot_services_dot_order__exchange__interface__pb2.SubmitOrderResponse.FromString,
+        return grpc.experimental.unary_unary(request, target, '/order_exchange.OrderExchangeSimulator/SubmitOrders',
+            main_dot_services_dot_order__exchange__interface__pb2.BatchOrderRequest.SerializeToString,
+            main_dot_services_dot_order__exchange__interface__pb2.BatchOrderResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
     @staticmethod
-    def CancelOrder(request,
+    def CancelOrders(request,
             target,
             options=(),
             channel_credentials=None,
@@ -94,8 +94,8 @@ class OrderExchangeSimulator(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.unary_unary(request, target, '/order_exchange.OrderExchangeSimulator/CancelOrder',
-            main_dot_services_dot_order__exchange__interface__pb2.CancelOrderRequest.SerializeToString,
-            main_dot_services_dot_order__exchange__interface__pb2.CancelOrderResponse.FromString,
+        return grpc.experimental.unary_unary(request, target, '/order_exchange.OrderExchangeSimulator/CancelOrders',
+            main_dot_services_dot_order__exchange__interface__pb2.BatchCancelRequest.SerializeToString,
+            main_dot_services_dot_order__exchange__interface__pb2.BatchCancelResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)

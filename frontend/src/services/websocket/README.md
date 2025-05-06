@@ -66,7 +66,6 @@ The connection is established when the frontend's `ConnectionManager` calls the 
    {
      type: 'session_info',
      requestId: string,
-     sessionId: string,
      userId: string,
      status: string,
      deviceId: string,

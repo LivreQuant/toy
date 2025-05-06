@@ -23,7 +23,6 @@ class Position:
 @dataclass
 class Portfolio:
     user_id: str
-    session_id: str
     cash_balance: float = 100000.0
     positions: Dict[str, Position] = field(default_factory=dict)
     created_at: float = field(default_factory=time.time)

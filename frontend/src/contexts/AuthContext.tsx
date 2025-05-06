@@ -3,16 +3,30 @@ import React, { createContext, useState, useEffect, useCallback, ReactNode, useM
 
 import { getLogger } from '../boot/logging'; // Adjust path as needed
 
-import { LoginRequest, LoginResponse, AuthApi } from '../api/auth'; // Adjust path as needed
+import { LoginRequest, AuthApi } from '../api/auth'; // Adjust path as needed
 
 import LoadingSpinner from '../components/Common/LoadingSpinner'; // Assuming component exists
 
 import { authState } from '../state/auth-state';
 
+import { toastService } from '../services/notification/toast-service';
+
 import { TokenManager, TokenData } from '../services/auth/token-manager'; // Adjust path
 import { DeviceIdManager } from '../services/auth/device-id-manager';
 
 import { ConnectionManager } from '../services/connection/connection-manager';
+
+// Define our own LoginResponse interface here to avoid import errors
+interface LoginResponse {
+  success: boolean;
+  accessToken?: string;
+  refreshToken?: string;
+  expiresIn?: number;
+  userId?: string | number;
+  userRole?: string;
+  requiresVerification?: boolean;
+  error?: string;
+}
 
 const logger = getLogger('AuthContext'); // Initialize logger for this context
 
@@ -20,9 +34,10 @@ interface AuthContextProps {
   isAuthenticated: boolean;
   isAuthLoading: boolean;
   userId: string | number | null;
-  login: (credentials: LoginRequest) => Promise<boolean>;
+  login: (credentials: LoginRequest) => Promise<LoginResponse>; // Updated return type
   logout: () => Promise<void>;
-  tokenManager: TokenManager; // Expose for direct use if needed (e.g., in HttpClient)
+  tokenManager: TokenManager;
+  forgotPassword: (data: { email: string }) => Promise<boolean>;
 }
 
 export const AuthContext = createContext<AuthContextProps | undefined>(undefined);
@@ -82,66 +97,128 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, tokenManag
   }, [tokenManager]); // Rerun only if tokenManager instance changes
 
   // Login function
-  const login = useCallback(async (credentials: LoginRequest): Promise<boolean> => {
-    logger.info('Attempting login...');
+  const login = useCallback(async (credentials: LoginRequest): Promise<LoginResponse> => {
+    logger.info('🔍 AUTH: Attempting login...');
+    console.log("🔍 AUTH: Login attempt for user:", credentials.username);
+    
     setIsAuthLoading(true);
     authState.updateState({ isAuthLoading: true, lastAuthError: null });
-
+  
     try {
       // 1. Call API
-      const response: LoginResponse = await authApi.login(credentials.username, credentials.password);
-      logger.info('Login API successful');
-
-      // 2. Store Tokens
-      const tokenData: TokenData = {
-        accessToken: response.accessToken,
-        refreshToken: response.refreshToken,
-        expiresAt: Date.now() + response.expiresIn * 1000,
+      console.log("🔍 AUTH: Calling login API endpoint");
+      const response = await authApi.login(credentials.username, credentials.password);
+      console.log("🔍 AUTH: Raw API response:", JSON.stringify(response));
+      
+      // Log detailed response properties
+      console.log("🔍 AUTH: Response properties:", {
+        success: response.success,
+        requiresVerification: response.requiresVerification,
         userId: response.userId,
-      };
-      tokenManager.storeTokens(tokenData);
-      logger.info('Tokens stored');
-
-      // Ensure device ID is registered with the session
-      const deviceId = DeviceIdManager.getInstance().getDeviceId();
-      logger.info(`Using device ID for this session: ${deviceId}`);
-
-      // Update global app state
-      authState.updateState({
-        isAuthenticated: true,
-        isAuthLoading: false,
-        userId: response.userId,
-        lastAuthError: null,
+        error: response.error
       });
-
-      // Update local context state
-      setIsAuthenticated(true);
-      setUserId(response.userId);
+  
+      // If we get a requiresVerification flag, return early
+      if (response.requiresVerification) {
+        console.log("🔍 AUTH: Login requires email verification for userId:", response.userId);
+        setIsAuthLoading(false);
+        
+        authState.updateState({
+          isAuthenticated: false,
+          isAuthLoading: false,
+          userId: response.userId || null,
+          lastAuthError: 'Email verification required'
+        });
+        
+        return response;
+      }
+  
+      // 2. Store Tokens - only do this if login was successful and all required fields are present
+      if (response.success && 
+          response.accessToken && 
+          response.refreshToken && 
+          response.expiresIn && 
+          response.userId) {
+        
+        const tokenData: TokenData = {
+          accessToken: response.accessToken,
+          refreshToken: response.refreshToken,
+          expiresAt: Date.now() + response.expiresIn * 1000,
+          userId: response.userId,
+        };
+        tokenManager.storeTokens(tokenData);
+        logger.info('Tokens stored');
+  
+        // Ensure device ID is registered with the session
+        const deviceId = DeviceIdManager.getInstance().getDeviceId();
+        logger.info(`Using device ID for this session: ${deviceId}`);
+  
+        // Update global app state
+        authState.updateState({
+          isAuthenticated: true,
+          isAuthLoading: false,
+          userId: response.userId,
+          lastAuthError: null,
+        });
+  
+        // Update local context state
+        setIsAuthenticated(true);
+        setUserId(response.userId);
+      } else if (response.success) {
+        // Success but missing data
+        logger.error("Login response marked as success but missing required data");
+        
+        // Return a failed response
+        return {
+          success: false,
+          error: "Missing authentication data from server"
+        };
+      }
+      
       setIsAuthLoading(false);
       logger.info('AuthContext state updated');
-
-      return true;
+  
+      return response;
     } catch (error: any) {
       logger.error("Login failed", { error: error.message });
       tokenManager.clearTokens(); // Ensure tokens are cleared
-
-      // 5. Update global state on failure
+  
+      // Update global state on failure
       authState.updateState({
         isAuthenticated: false,
-        isAuthLoading: false, // Loading finished
+        isAuthLoading: false,
         userId: null,
         lastAuthError: error?.message || 'Login failed',
       });
-
+  
       // Update local context state
       setIsAuthenticated(false);
       setUserId(null);
       setIsAuthLoading(false);
-      // Error handling (toast etc.) likely done by HttpClient/ErrorHandler
-
-      return false; // Login failure
+  
+      return {
+        success: false,
+        error: error?.message || 'Login failed'
+      };
     }
-  }, [authApi, tokenManager]); // Dependencies for useCallback
+  }, [authApi, tokenManager]);
+
+  const forgotPassword = useCallback(async (data: { email: string }): Promise<boolean> => {
+    logger.info('Attempting forgot password...');
+    setIsAuthLoading(true);
+    
+    try {
+      // Call API (implement this if the API exists, otherwise simulate it)
+      const response = await authApi.forgotPassword(data);
+      
+      setIsAuthLoading(false);
+      return true;
+    } catch (error: any) {
+      logger.error("Forgot password failed", { error: error.message });
+      setIsAuthLoading(false);
+      return false;
+    }
+  }, [authApi]);
 
   // Logout function
   const logout = useCallback(async (): Promise<void> => {
@@ -155,7 +232,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, tokenManag
         try {
           // Call the ConnectionManager's stopSession method first
           const sessionStopped = await connectionManager.disconnect();
-          logger.info(`Session ${sessionStopped ? 'successfully stopped' : 'stop request failed'}`);
+          logger.info(`Session ${sessionStopped ? 'successfully stopped' : 'stop request failed'}`);          
         } catch (sessionError) {
           // Log but continue with logout process
           logger.warn('Failed to stop session via ConnectionManager:', { error: sessionError });
@@ -164,10 +241,25 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, tokenManag
 
       // Then, disconnect the connection
       if (connectionManager) {
-        connectionManager.disconnect('user_logout');
-        logger.info('ConnectionManager disconnected');
+        try {
+          // Call the ConnectionManager's disconnect method first
+          await connectionManager.disconnect('user_logout');
+          logger.info('ConnectionManager disconnected');
+          
+          // IMPORTANT: Reset the ConnectionManager's desired state
+          connectionManager.setDesiredState({ 
+            connected: false,
+            simulatorRunning: false 
+          });
+        } catch (sessionError) {
+          logger.warn('Failed to disconnect ConnectionManager:', { error: sessionError });
+        }
       }
 
+      if (connectionManager) {
+        connectionManager.resetState();
+      }
+      
       // Now call the backend logout API if needed
       try {
         await authApi.logout();
@@ -195,8 +287,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, tokenManag
       setIsAuthLoading(false);
       logger.info('Logout process completed');
 
+      // Show success toast
+      toastService.success('You have been successfully logged out');
+      
     } catch (error) {
       logger.error("Unexpected error during logout process:", { error });
+        
+      // Show error toast
+      toastService.error(`Logout error: ${error instanceof Error ? error.message : 'Unknown error'}`);
       
       // Ensure we still clear tokens and update state even if errors occur
       tokenManager.clearTokens();
@@ -221,8 +319,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, tokenManag
     userId,
     login,
     logout,
-    tokenManager // Provide the instance
-  }), [isAuthenticated, isAuthLoading, userId, login, logout, tokenManager]);
+    tokenManager,
+    forgotPassword // Add this property
+  }), [isAuthenticated, isAuthLoading, userId, login, logout, tokenManager, forgotPassword]);
 
   // Render loading screen only during the very initial check
   // Avoid showing it on subsequent re-renders where loading might briefly be true

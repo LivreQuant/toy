@@ -1,44 +1,43 @@
-FROM python:3.10-slim
+FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies including PostgreSQL client for health checks
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     postgresql-client \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install dependencies
+# Copy requirements and install dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy protobuf files and generate Python code
-COPY main/services/market_exchange_interface.proto .
-RUN mkdir -p source/api/grpc && \
-    python -m grpc_tools.protoc -I. --python_out=source/api/grpc --grpc_python_out=source/api/grpc market_exchange_interface.proto
-
-# Add wait-for script to ensure database is ready before starting the app
-COPY wait-for-postgres.sh .
-RUN chmod +x wait-for-postgres.sh
-
-# Copy source code
+# Copy source code (including pre-generated protobuf files)
 COPY source/ source/
 
 # Environment variables
 ENV PYTHONUNBUFFERED=1 \
-    SYMBOLS="AAPL,GOOGL,MSFT,AMZN,TSLA,FB" \
+    PYTHONPATH=/app \
+    # Market Data Configuration
+    SYMBOLS="AAPL,GOOGL,MSFT,AMZN,TSLA,META" \
     UPDATE_INTERVAL="60" \
     API_HOST="0.0.0.0" \
     API_PORT="50060" \
-    DB_HOST="postgres" \
+    # Database Configuration
+    DB_HOST="pgbouncer" \
     DB_PORT="5432" \
-    DB_NAME="marketdata" \
-    DB_USER="postgres" \
-    DB_PASSWORD="postgres"
+    DB_NAME="opentp" \
+    DB_USER="opentp" \
+    DB_PASSWORD="samaral" \
+    # Logging Configuration
+    LOG_LEVEL="INFO"
 
-# Wait for PostgreSQL and start the service
-CMD ["sh", "-c", "./wait-for-postgres.sh && python -m source.main"]
+# Expose gRPC port and health check port
+EXPOSE 50060 50061
 
-# Health check using gRPC reflection and database connection
+# Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD pg_isready -h $DB_HOST -p $DB_PORT -U $DB_USER && python -c "import grpc; grpc.insecure_channel('localhost:${API_PORT:-50060}')" || exit 1
+    CMD curl -f http://localhost:50061/health || exit 1
+
+# Run the application
+CMD ["python", "-m", "source.main"]

@@ -106,16 +106,17 @@ class MarketDataClient:
                     for data in update.data:
                         market_data.append({
                             'symbol': data.symbol,
-                            'bid': data.bid,
-                            'ask': data.ask,
-                            'bid_size': data.bid_size,
-                            'ask_size': data.ask_size,
-                            'last_price': data.last_price,
-                            'last_size': data.last_size
+                            'open': data.open,
+                            'high': data.high,
+                            'low': data.low,
+                            'close': data.close,
+                            'volume': data.volume,
+                            'trade_count': data.trade_count,
+                            'vwap': data.vwap
                         })
                     
                     # Forward the market data to the exchange manager
-                    self.exchange_manager.update_market_data(market_data)
+                    await self.exchange_manager.update_market_data(market_data)
                     logger.debug(f"Received market data for {len(market_data)} symbols")
                     
                     # Reset retry count on successful update

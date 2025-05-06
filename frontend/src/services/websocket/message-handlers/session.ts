@@ -49,7 +49,6 @@ export class SessionHandler {
             ...response,
             success: true, // Add explicit success flag if backend doesn't provide it
             // Add any missing required properties with default values
-            sessionId: response.sessionId || 'unknown',
             userId: response.userId || 'unknown',
             status: response.status || 'active',
             createdAt: response.createdAt || Date.now(),

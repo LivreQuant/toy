@@ -32,7 +32,7 @@ spec:
             
             # Apply schema files in order with proper error checking
             echo "Applying schema files..."
-            for schema in users.sql auth_tokens.sql sessions.sql simulator_sessions.sql trading.sql; do
+            for schema in users.sql auth_tokens.sql sessions.sql market_data.sql simulator_sessions.sql trading.sql user_profiles.sql password_reset.sql user_feedback.sql; do
               echo "Applying $schema..."
               PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -f /schemas/$schema
               if [ $? -ne 0 ]; then

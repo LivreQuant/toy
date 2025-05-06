@@ -13,7 +13,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n,main/services/order_exchange_interface.proto\x12\x0eorder_exchange\"\xd0\x02\n\x12SubmitOrderRequest\x12\x1d\n\nsession_id\x18\x01 \x01(\tR\tsessionId\x12\x16\n\x06symbol\x18\x02 \x01(\tR\x06symbol\x12;\n\x04side\x18\x03 \x01(\x0e\x32\'.order_exchange.SubmitOrderRequest.SideR\x04side\x12\x1a\n\x08quantity\x18\x04 \x01(\x01R\x08quantity\x12\x14\n\x05price\x18\x05 \x01(\x01R\x05price\x12;\n\x04type\x18\x06 \x01(\x0e\x32\'.order_exchange.SubmitOrderRequest.TypeR\x04type\x12\x1d\n\nrequest_id\x18\x07 \x01(\tR\trequestId\"\x19\n\x04Side\x12\x07\n\x03\x42UY\x10\x00\x12\x08\n\x04SELL\x10\x01\"\x1d\n\x04Type\x12\n\n\x06MARKET\x10\x00\x12\t\n\x05LIMIT\x10\x01\"o\n\x13SubmitOrderResponse\x12\x18\n\x07success\x18\x01 \x01(\x08R\x07success\x12\x19\n\x08order_id\x18\x02 \x01(\tR\x07orderId\x12#\n\rerror_message\x18\x03 \x01(\tR\x0c\x65rrorMessage\"N\n\x12\x43\x61ncelOrderRequest\x12\x1d\n\nsession_id\x18\x01 \x01(\tR\tsessionId\x12\x19\n\x08order_id\x18\x02 \x01(\tR\x07orderId\"T\n\x13\x43\x61ncelOrderResponse\x12\x18\n\x07success\x18\x01 \x01(\x08R\x07success\x12#\n\rerror_message\x18\x02 \x01(\tR\x0c\x65rrorMessage2\xc8\x01\n\x16OrderExchangeSimulator\x12V\n\x0bSubmitOrder\x12\".order_exchange.SubmitOrderRequest\x1a#.order_exchange.SubmitOrderResponse\x12V\n\x0b\x43\x61ncelOrder\x12\".order_exchange.CancelOrderRequest\x1a#.order_exchange.CancelOrderResponseB\x85\x01\n\x12\x63om.order_exchangeB\x1bOrderExchangeInterfaceProtoP\x01\xa2\x02\x03OXX\xaa\x02\rOrderExchange\xca\x02\rOrderExchange\xe2\x02\x19OrderExchange\\GPBMetadata\xea\x02\rOrderExchangeb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n,main/services/order_exchange_interface.proto\x12\x0eorder_exchange\"\x9f\x02\n\x0cOrderRequest\x12\x16\n\x06symbol\x18\x01 \x01(\tR\x06symbol\x12\x35\n\x04side\x18\x02 \x01(\x0e\x32!.order_exchange.OrderRequest.SideR\x04side\x12\x1a\n\x08quantity\x18\x03 \x01(\x01R\x08quantity\x12\x14\n\x05price\x18\x04 \x01(\x01R\x05price\x12\x35\n\x04type\x18\x05 \x01(\x0e\x32!.order_exchange.OrderRequest.TypeR\x04type\x12\x1d\n\nrequest_id\x18\x06 \x01(\tR\trequestId\"\x19\n\x04Side\x12\x07\n\x03\x42UY\x10\x00\x12\x08\n\x04SELL\x10\x01\"\x1d\n\x04Type\x12\n\n\x06MARKET\x10\x00\x12\t\n\x05LIMIT\x10\x01\"I\n\x11\x42\x61tchOrderRequest\x12\x34\n\x06orders\x18\x01 \x03(\x0b\x32\x1c.order_exchange.OrderRequestR\x06orders\"i\n\rOrderResponse\x12\x18\n\x07success\x18\x01 \x01(\x08R\x07success\x12\x19\n\x08order_id\x18\x02 \x01(\tR\x07orderId\x12#\n\rerror_message\x18\x03 \x01(\tR\x0c\x65rrorMessage\"\x8c\x01\n\x12\x42\x61tchOrderResponse\x12\x18\n\x07success\x18\x01 \x01(\x08R\x07success\x12\x37\n\x07results\x18\x02 \x03(\x0b\x32\x1d.order_exchange.OrderResponseR\x07results\x12#\n\rerror_message\x18\x03 \x01(\tR\x0c\x65rrorMessage\"1\n\x12\x42\x61tchCancelRequest\x12\x1b\n\torder_ids\x18\x01 \x03(\tR\x08orderIds\"h\n\x0c\x43\x61ncelResult\x12\x19\n\x08order_id\x18\x01 \x01(\tR\x07orderId\x12\x18\n\x07success\x18\x02 \x01(\x08R\x07success\x12#\n\rerror_message\x18\x03 \x01(\tR\x0c\x65rrorMessage\"\x8c\x01\n\x13\x42\x61tchCancelResponse\x12\x18\n\x07success\x18\x01 \x01(\x08R\x07success\x12\x36\n\x07results\x18\x02 \x03(\x0b\x32\x1c.order_exchange.CancelResultR\x07results\x12#\n\rerror_message\x18\x03 \x01(\tR\x0c\x65rrorMessage2\xc8\x01\n\x16OrderExchangeSimulator\x12U\n\x0cSubmitOrders\x12!.order_exchange.BatchOrderRequest\x1a\".order_exchange.BatchOrderResponse\x12W\n\x0c\x43\x61ncelOrders\x12\".order_exchange.BatchCancelRequest\x1a#.order_exchange.BatchCancelResponseB\x85\x01\n\x12\x63om.order_exchangeB\x1bOrderExchangeInterfaceProtoP\x01\xa2\x02\x03OXX\xaa\x02\rOrderExchange\xca\x02\rOrderExchange\xe2\x02\x19OrderExchange\\GPBMetadata\xea\x02\rOrderExchangeb\x06proto3')
 
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, globals())
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'main.services.order_exchange_interface_pb2', globals())
@@ -21,18 +21,24 @@ if _descriptor._USE_C_DESCRIPTORS == False:
 
   DESCRIPTOR._options = None
   DESCRIPTOR._serialized_options = b'\n\022com.order_exchangeB\033OrderExchangeInterfaceProtoP\001\242\002\003OXX\252\002\rOrderExchange\312\002\rOrderExchange\342\002\031OrderExchange\\GPBMetadata\352\002\rOrderExchange'
-  _SUBMITORDERREQUEST._serialized_start=65
-  _SUBMITORDERREQUEST._serialized_end=401
-  _SUBMITORDERREQUEST_SIDE._serialized_start=345
-  _SUBMITORDERREQUEST_SIDE._serialized_end=370
-  _SUBMITORDERREQUEST_TYPE._serialized_start=372
-  _SUBMITORDERREQUEST_TYPE._serialized_end=401
-  _SUBMITORDERRESPONSE._serialized_start=403
-  _SUBMITORDERRESPONSE._serialized_end=514
-  _CANCELORDERREQUEST._serialized_start=516
-  _CANCELORDERREQUEST._serialized_end=594
-  _CANCELORDERRESPONSE._serialized_start=596
-  _CANCELORDERRESPONSE._serialized_end=680
-  _ORDEREXCHANGESIMULATOR._serialized_start=683
-  _ORDEREXCHANGESIMULATOR._serialized_end=883
+  _ORDERREQUEST._serialized_start=65
+  _ORDERREQUEST._serialized_end=352
+  _ORDERREQUEST_SIDE._serialized_start=296
+  _ORDERREQUEST_SIDE._serialized_end=321
+  _ORDERREQUEST_TYPE._serialized_start=323
+  _ORDERREQUEST_TYPE._serialized_end=352
+  _BATCHORDERREQUEST._serialized_start=354
+  _BATCHORDERREQUEST._serialized_end=427
+  _ORDERRESPONSE._serialized_start=429
+  _ORDERRESPONSE._serialized_end=534
+  _BATCHORDERRESPONSE._serialized_start=537
+  _BATCHORDERRESPONSE._serialized_end=677
+  _BATCHCANCELREQUEST._serialized_start=679
+  _BATCHCANCELREQUEST._serialized_end=728
+  _CANCELRESULT._serialized_start=730
+  _CANCELRESULT._serialized_end=834
+  _BATCHCANCELRESPONSE._serialized_start=837
+  _BATCHCANCELRESPONSE._serialized_end=977
+  _ORDEREXCHANGESIMULATOR._serialized_start=980
+  _ORDEREXCHANGESIMULATOR._serialized_end=1180
 # @@protoc_insertion_point(module_scope)

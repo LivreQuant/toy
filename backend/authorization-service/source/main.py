@@ -8,8 +8,11 @@ import sys
 import traceback
 from aiohttp import web
 
-from source.core.auth_manager import AuthManager
 from source.db.db_manager import DatabaseManager
+from source.core.auth_manager import AuthManager
+from source.core.email_manager import EmailManager
+from source.core.verification_manager import VerificationManager
+from source.core.profile_manager import ProfileManager
 from source.api.rest_routes import setup_rest_app
 from source.utils.tracing import setup_tracing
 from source.utils.metrics import setup_metrics
@@ -17,32 +20,42 @@ from source.utils.metrics import setup_metrics
 
 # Logging setup function
 def setup_logging():
-    # Create logs directory if it doesn't exist
-    log_dir = '/app/logs'
-
-    os.makedirs(log_dir, exist_ok=True)
-
-    # Configure root logger
+    """Configure application logging with environment-aware paths"""
     logger = logging.getLogger()
-    logger.setLevel(getattr(logging, os.getenv('LOG_LEVEL', 'DEBUG')))  # Set default to DEBUG
+    logger.setLevel(getattr(logging, os.getenv('LOG_LEVEL', 'DEBUG')))
 
-    # Console handler
+    # Console handler (always enabled)
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setFormatter(logging.Formatter(
         '%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s'
     ))
     logger.addHandler(console_handler)
 
-    # Rotating File handler
-    file_handler = logging.handlers.RotatingFileHandler(
-        os.path.join(log_dir, 'auth_service.log'),
-        maxBytes=10 * 1024 * 1024,  # 10 MB
-        backupCount=5
-    )
-    file_handler.setFormatter(logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s'
-    ))
-    logger.addHandler(file_handler)
+    # Try to set up file logging if possible
+    try:
+        # Use an environment-appropriate directory
+        if os.getenv('KUBERNETES_SERVICE_HOST'):
+            # In Kubernetes, use /app/logs
+            log_dir = '/app/logs'
+        else:
+            # Local development - use a directory in the project
+            log_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'logs')
+
+        os.makedirs(log_dir, exist_ok=True)
+
+        # Rotating File handler
+        file_handler = logging.handlers.RotatingFileHandler(
+            os.path.join(log_dir, 'auth_service.log'),
+            maxBytes=10 * 1024 * 1024,  # 10 MB
+            backupCount=5
+        )
+        file_handler.setFormatter(logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s'
+        ))
+        logger.addHandler(file_handler)
+        logger.info(f"File logging enabled at {log_dir}")
+    except Exception as e:
+        logger.warning(f"Could not set up file logging: {e}. Continuing with console logging only.")
 
     return logging.getLogger('auth_service')
 
@@ -60,22 +73,45 @@ async def serve():
     logger.info("Distributed tracing initialized")
 
     # Initialize metrics
-    setup_metrics()  # Add this line
+    setup_metrics()
     logger.info("Metrics initialization completed")
 
-    db_manager = None
-    auth_manager = None
-    runner = None
+    # Managers for dependency injection and cleanup
+    managers = {}
 
     try:
-        # Create database manager
+        # Create and initialize database manager
         db_manager = DatabaseManager()
         await db_manager.connect()
+        managers['db_manager'] = db_manager
         logger.info("Database manager connected successfully")
 
-        # Create auth manager
+        # Create and initialize email manager (no database dependency)
+        email_manager = EmailManager()
+        await email_manager.initialize()
+        managers['email_manager'] = email_manager
+        logger.info("Email manager initialized")
+
+        # Create and initialize verification manager
+        verification_manager = VerificationManager(db_manager)
+        await verification_manager.initialize()
+        managers['verification_manager'] = verification_manager
+        logger.info("Verification manager initialized")
+
+        # Create and initialize profile manager
+        profile_manager = ProfileManager(db_manager)
+        await profile_manager.initialize()
+        managers['profile_manager'] = profile_manager
+        logger.info("Profile manager initialized")
+
+        # Create and initialize auth manager with all dependencies
         auth_manager = AuthManager(db_manager)
-        logger.info("Authentication manager initialized")
+        auth_manager.register_dependency('email_manager', email_manager)
+        auth_manager.register_dependency('verification_manager', verification_manager)
+        auth_manager.register_dependency('profile_manager', profile_manager)
+        await auth_manager.initialize()
+        managers['auth_manager'] = auth_manager
+        logger.info("Auth manager initialized with dependencies")
 
         # Set up REST API server
         app = setup_rest_app(auth_manager)
@@ -95,7 +131,7 @@ async def serve():
         # Set up signal handlers within the serve function
         for sig in (signal.SIGINT, signal.SIGTERM):
             loop = asyncio.get_running_loop()
-            loop.add_signal_handler(sig, lambda: asyncio.create_task(shutdown(stop_event)))
+            loop.add_signal_handler(sig, lambda: asyncio.create_task(shutdown(stop_event, managers)))
 
         logger.info("Entering wait state - service ready")
         await stop_event.wait()
@@ -105,27 +141,22 @@ async def serve():
         logger.critical(f"Critical error during service startup: {e}")
         logger.critical(traceback.format_exc())
     finally:
-        # Cleanup in reverse order
-        logger.info("Performing service cleanup...")
-
-        if auth_manager:
-            logger.info("Stopping token cleanup thread...")
-            auth_manager.stop_cleanup_thread()
-
-        if runner:
-            logger.info("Cleaning up web runner...")
-            await runner.cleanup()
-
-        if db_manager:
-            logger.info("Closing database connections...")
-            await db_manager.close()
-
-        logger.info("Service cleanup completed")
+        # Cleanup will be handled by the shutdown function
+        pass
 
 
-async def shutdown(stop_event):
+async def shutdown(stop_event, managers):
     """Graceful shutdown handler"""
     logger.info("Shutdown signal received, initiating graceful shutdown...")
+
+    # Cleanup in reverse order of initialization (dependencies first)
+    for name, manager in reversed(list(managers.items())):
+        try:
+            logger.info(f"Cleaning up {name}...")
+            await manager.cleanup()
+        except Exception as e:
+            logger.error(f"Error cleaning up {name}: {e}")
+
     stop_event.set()
 
 

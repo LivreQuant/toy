@@ -30,14 +30,23 @@ import { AuthProvider } from './contexts/AuthContext';
 import { TokenManagerProvider } from './contexts/TokenManagerContext';
 import { ConnectionProvider } from './contexts/ConnectionContext';
 import { OrderProvider } from './contexts/OrderContext';
+import { BookManagerProvider } from './contexts/BookContext';
 
 // COMPONENTS
 import ProtectedRoute from './components/Common/ProtectedRoute'; // Component for protected routes
 
 // PAGES
+import LandingPage from './pages/LandingPage';
+import LoginPage from './pages/Auth/LoginPage';
+import SignupPage from './pages/Auth/SignupPage';
+import VerifyEmailPage from './pages/Auth/VerifyEmailPage';
+import ForgotUsernamePage from './pages/Auth/ForgotUsernamePage';
+import ForgotPasswordPage from './pages/Auth/ForgotPasswordPage';
+import ResetPasswordPage from './pages/Auth/ResetPasswordPage';
 import HomePage from './pages/HomePage';
-import LoginPage from './pages/LoginPage';
 import SimulatorPage from './pages/SimulatorPage';
+import BookDetailsPage from './pages/BookDetailsPage';
+import BookSetupPage from './pages/BookSetupPage';
 import SessionDeactivatedPage from './pages/SessionDeactivatedPage';
 
 // Initialize Logging First
@@ -105,45 +114,64 @@ function App() {
     <ToastProvider>
        <AuthProvider tokenManager={tokenManager} authApi={authApi} connectionManager={connectionManager}>
         <TokenManagerProvider tokenManager={tokenManager}>
-          <OrderProvider orderManager={orderManager}>
-            <ConnectionProvider connectionManager={connectionManager}>
-                <Router>
-                  <DeviceIdInvalidationHandler>
-                    <Routes>
-                      {/* Simulator page */}
-                      <Route path="/login" element={
-                        <LoginPage />
-                      } />
+          <BookManagerProvider>
+            <OrderProvider orderManager={orderManager}>
+              <ConnectionProvider connectionManager={connectionManager}>
+                  <Router>
+                    <DeviceIdInvalidationHandler>
+                      <Routes>
+                        {/* Public routes */}
+                        <Route path="/" element={<LandingPage />} />
+                        <Route path="/login" element={<LoginPage />} />
+                        <Route path="/signup" element={<SignupPage />} />
+                        <Route path="/verify-email" element={<VerifyEmailPage />} />
+                        <Route path="/forgot-username" element={<ForgotUsernamePage />} />
+                        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                        <Route path="/reset-password" element={<ResetPasswordPage />} />
+                        
+                        {/* Session page */}
+                        <Route path="/home" element={
+                            <ProtectedRoute>
+                              <HomePage />
+                            </ProtectedRoute>
+                        } />
 
-                      {/* Session page */}
-                      <Route path="/home" element={
+                        {/* Book initialize */}
+                        <Route path="/books/new" element={
                           <ProtectedRoute>
-                            <HomePage />
+                            <BookSetupPage />
                           </ProtectedRoute>
-                      } />
+                        } />
 
-                      {/* Simulator page */}
-                      <Route path="/simulator" element={
+                        <Route path="/books/:bookId" element={
                           <ProtectedRoute>
-                            <SimulatorPage />
+                            <BookDetailsPage />
                           </ProtectedRoute>
-                      } />
+                        } />
 
-                      {/* Deactivate session */}
-                      <Route path="/session-deactivated" element={
-                        <SessionDeactivatedPage />
-                      } />
+                        {/* Simulator page */}
+                        <Route path="/simulator/:simulationId" element={
+                            <ProtectedRoute>
+                              <SimulatorPage />
+                            </ProtectedRoute>
+                        } />
 
-                      {/* Default route - Unprotected 404 Page*/}
-                      <Route path="/" element={
-                        <Navigate to="/home" replace />
-                      } />
+                        {/* Deactivate session */}
+                        <Route path="/session-deactivated" element={
+                          <SessionDeactivatedPage />
+                        } />
 
-                    </Routes>
-                  </DeviceIdInvalidationHandler>
-                </Router>
-            </ConnectionProvider>
-          </OrderProvider>
+                        {/* Default route - Unprotected 404 Page*/}
+                        <Route path="/" element={
+                          <Navigate to="/home" replace />
+                        } />
+
+                      </Routes>
+                    </DeviceIdInvalidationHandler>
+                  </Router>
+              </ConnectionProvider>
+            </OrderProvider>
+          </BookManagerProvider>
         </TokenManagerProvider>
        </AuthProvider>
     </ToastProvider>

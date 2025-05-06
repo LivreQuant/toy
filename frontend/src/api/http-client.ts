@@ -1,14 +1,16 @@
 // src/api/http-client.ts
 import { TokenManager } from '../services/auth/token-manager';
+import { DeviceIdManager } from '../services/auth/device-id-manager'; 
 import { config } from '../config';
 import { getLogger } from '../boot/logging';
+import { toastService } from '../services/notification/toast-service';
 
 export interface RequestOptions extends RequestInit {
   skipAuth?: boolean;
-  retries?: number; // Used internally for retrying after token refresh or server error
-  suppressErrorToast?: boolean; // Flag to suppress automatic error toasts
-  customErrorMessage?: string; // Custom message for error handling
-  context?: string; // Optional context string for logging/error reporting
+  retries?: number; 
+  suppressErrorToast?: boolean; 
+  customErrorMessage?: string; 
+  context?: string; 
 }
 
 export class HttpClient {
@@ -16,23 +18,30 @@ export class HttpClient {
 
   private readonly baseUrl: string;
   private readonly tokenManager: TokenManager;
-  private readonly maxRetries: number = 2; // Max retries for 5xx errors
+  private readonly maxRetries: number = 0; // NO RETRIES
 
   constructor(tokenManager: TokenManager) {
     this.baseUrl = config.apiBaseUrl;
     this.tokenManager = tokenManager;
   }
 
-  // Public methods (no changes needed here, they call the private request method)
+  // Public methods
   public async get<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
     return this.request<T>('GET', endpoint, undefined, options);
   }
+  
   public async post<T>(endpoint: string, data?: any, options: RequestOptions = {}): Promise<T> {
+    // For orders, always set retries to 0
+    if (endpoint.includes('/orders/submit') || endpoint.includes('/orders/cancel')) {
+      options.retries = 0; // Force zero retries for orders
+    }
     return this.request<T>('POST', endpoint, data, options);
   }
+  
   public async put<T>(endpoint: string, data?: any, options: RequestOptions = {}): Promise<T> {
     return this.request<T>('PUT', endpoint, data, options);
   }
+  
   public async delete<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
     return this.request<T>('DELETE', endpoint, undefined, options);
   }
@@ -42,84 +51,149 @@ export class HttpClient {
     endpoint: string,
     data?: any,
     options: RequestOptions = {},
-    retryCount: number = 0 // Internal counter for retries
+    retryCount: number = 0 
   ): Promise<T> {
-      /* --- FULL IMPLEMENTATION IS MISSING --- */
-      // This is a placeholder structure based on the error handling logic below.
-      // The actual fetch call, header setup, body stringification, etc., needs to be here.
-      // It must handle the promise returned by fetch and either resolve with T or throw.
+    // Never retry order operations
+    if ((endpoint.includes('/orders/submit') || endpoint.includes('/orders/cancel')) && retryCount > 0) {
+      this.logger.error(`BLOCKING RETRY attempt for order endpoint: ${endpoint}`, { retryCount });
+      throw new Error("Order operations cannot be retried");
+    }
 
-      const url = `${this.baseUrl}${endpoint}`;
-      const headers = new Headers(options.headers || {});
-      headers.append('Content-Type', 'application/json');
-      // Add Authorization header if needed
-      if (!options.skipAuth) {
-          const token = await this.tokenManager.getAccessToken(); // Handles refresh internally
-          if (!token) {
-              throw new Error("Not authenticated"); // Or handle redirect
-          }
-          headers.append('Authorization', `Bearer ${token}`);
+    // Create full URL string
+    const fullUrl = `${this.baseUrl}${endpoint}`;
+    
+    // Get device ID for authentication
+    const deviceId = DeviceIdManager.getInstance().getDeviceId();
+    
+    // Add deviceId as a query parameter by appending to endpoint string
+    const urlWithDeviceId = fullUrl + (fullUrl.includes('?') ? '&' : '?') + `deviceId=${deviceId}`;
+   
+    const headers = new Headers(options.headers || {});
+    headers.append('Content-Type', 'application/json');
+
+    // Add Authorization header if needed
+    if (!options.skipAuth) {
+      const token = await this.tokenManager.getAccessToken(); // Handles refresh internally
+      if (!token) {
+        throw new Error("Not authenticated"); 
+      }
+      headers.append('Authorization', `Bearer ${token}`);
+      
+      // Add CSRF protection for authenticated endpoints
+      const csrfToken = await this.tokenManager.getCsrfToken();
+      if (csrfToken) {
+        headers.append('X-CSRF-Token', csrfToken);
+      }
+    }
+
+    const fetchOptions: RequestInit = {
+      ...options,
+      method: method,
+      headers: headers,
+      body: data ? JSON.stringify(data) : undefined,
+    };
+
+    try {
+      const response = await fetch(urlWithDeviceId, fetchOptions);
+
+      if (!response.ok) {
+        return await this.handleHttpErrorResponse<T>(response, method, endpoint, data, options, retryCount);
       }
 
-      const fetchOptions: RequestInit = {
-          ...options,
-          method: method,
-          headers: headers,
-          body: data ? JSON.stringify(data) : undefined,
-      };
-
-      try {
-          const response = await fetch(url, fetchOptions);
-
-          if (!response.ok) {
-              // Delegate HTTP status code errors to the handler
-              return await this.handleHttpErrorResponse<T>(response, method, endpoint, data, options, retryCount);
-          }
-
-          // Handle successful responses
-          if (response.status === 204) { // No Content
-             // Type assertion needed as response body is empty
-              return undefined as unknown as T;
-          }
-
-          // Assuming successful responses return JSON
-          const responseData = await response.json();
-          return responseData as T;
-
-      } catch (networkError: any) {
-          // Delegate network errors (fetch failure) to the other handler
-          return await this.handleNetworkOrFetchError<T>(networkError, method, endpoint, data, options, retryCount);
+      // Handle successful responses
+      if (response.status === 204) { // No Content
+        return undefined as unknown as T;
       }
+
+      // Assuming successful responses return JSON
+      const responseData = await response.json();
+      return responseData as T;
+
+    } catch (networkError: any) {
+      // Handle network failures (never retry orders)
+      if (endpoint.includes('/orders/submit') || endpoint.includes('/orders/cancel')) {
+        this.logger.error(`Network error for order endpoint: ${endpoint} - NO RETRY`, { 
+          error: networkError.message 
+        });
+        throw new Error(`Network error for order operation: ${networkError.message} - NOT RETRIED`);
+      }
+      
+      return await this.handleNetworkOrFetchError<T>(networkError, method, endpoint, data, options, retryCount);
+    }
   }
 
-  /* SERVER | REQUEST ISSUES */
   private async handleHttpErrorResponse<T>(
     response: Response,
     method: string,
     endpoint: string,
-    data: any, // Include data for potential retries
+    data: any,
     options: RequestOptions,
     retryCount: number
   ): Promise<T> {
+    console.log(`🔍 HTTP: Error response from ${method} ${endpoint}:`, {
+      status: response.status,
+      statusText: response.statusText
+    });
+
     let errorMessage = options.customErrorMessage || `HTTP Error ${response.status}: ${response.statusText}`;
     let errorDetails: any = null;
+
     try {
-        // Attempt to parse error details from the response body
-        errorDetails = await response.json();
-        // Use detailed message from API if available
-        if (typeof errorDetails?.message === 'string') {
-          errorMessage = errorDetails.message;
-        } else if (typeof errorDetails?.error === 'string') {
-           errorMessage = errorDetails.error;
-        }
+      // Parse the error response body
+      errorDetails = await response.json();
+      console.log("🔍 HTTP: Error response body:", JSON.stringify(errorDetails));
+      
+      // For authentication endpoints, handle verification required case
+      if (endpoint.includes('/auth/login') && 
+          response.status === 401 && 
+          errorDetails && 
+          errorDetails.requiresVerification) {
+        
+        // Return the parsed response even though it's a 401
+        // This allows the login component to handle the verification redirect
+        console.log("🔍 HTTP: Detected verification required response");
+        return errorDetails as T;
+      }
+      
+      // Normal error message handling
+      if (typeof errorDetails?.message === 'string') {
+        errorMessage = errorDetails.message;
+      } else if (typeof errorDetails?.error === 'string') {
+        errorMessage = errorDetails.error;
+      }
     } catch (e) {
-        // Ignore if body isn't valid JSON or empty
-        this.logger.debug('Could not parse error response body as JSON', { status: response.status, endpoint });
+      console.error("🔍 HTTP: Could not parse error response body:", e);
+      this.logger.debug('Could not parse error response body as JSON', { status: response.status, endpoint });
     }
 
-    // --- Specific Status Code Handling ---
-    if (response.status === 401 && !options.skipAuth && retryCount < 1) { // Only retry 401 once
-       this.logger.warn('Received 401 Unauthorized, attempting token refresh...', { endpoint });
+    // Check if this is an auth endpoint with special error handling
+    if (endpoint.includes('/auth/login') && response.status === 401) {
+      console.log("🔍 HTTP: Special handling for login 401 response");
+      
+      if (errorDetails) {
+        console.log("🔍 HTTP: Returning error details as response");
+        return errorDetails as T;
+      }
+    }
+    
+    // Check if this is an order endpoint - never retry
+    if (endpoint.includes('/orders/submit') || endpoint.includes('/orders/cancel')) {
+      this.logger.error(`Error for order endpoint ${endpoint}: ${response.status} - NO RETRY`, { 
+        status: response.status, 
+        error: errorMessage
+      });
+      
+      // Show error toast for order operations unless suppressed
+      if (!options.suppressErrorToast) {
+        toastService.error(`Order operation failed: ${errorMessage}`);
+      }
+      
+      throw new Error(`Order operation failed (${response.status}): ${errorMessage} - NOT RETRIED`);
+    }
+
+    // --- Handle different status codes ---
+    if (response.status === 401 && !options.skipAuth && retryCount < 1) {
+      this.logger.warn('Received 401 Unauthorized, attempting token refresh...', { endpoint });
       try {
         const refreshed = await this.tokenManager.refreshAccessToken();
         if (refreshed) {
@@ -128,49 +202,114 @@ export class HttpClient {
         } else {
           errorMessage = options.customErrorMessage || 'Session expired or invalid. Please log in again.';
           this.logger.error(`Token refresh failed after 401. ${errorMessage}`);
-          throw new Error(errorMessage); // Throw after handling
+          
+          // Show session expired toast unless suppressed
+          if (!options.suppressErrorToast) {
+            toastService.error(errorMessage, 0); // Manual dismiss for important auth errors
+          }
+          
+          throw new Error(errorMessage);
         }
       } catch (refreshError: any) {
         errorMessage = options.customErrorMessage || 'Session refresh failed. Please log in again.';
         this.logger.error(`Error during token refresh attempt. ${errorMessage}`);
-        throw new Error(errorMessage); // Throw after handling
+        
+        // Show session refresh error toast unless suppressed
+        if (!options.suppressErrorToast) {
+          toastService.error(errorMessage, 0);
+        }
+        
+        throw new Error(errorMessage);
       }
-    } else if (response.status === 403) { // Forbidden
-        errorMessage = options.customErrorMessage || errorDetails?.message || 'Permission denied.';
-        this.logger.error(`[Forbidden] ${errorMessage}`);
-    } else if (response.status === 404) { // Not Found
-        errorMessage = options.customErrorMessage || errorDetails?.message || 'Resource not found.';
-        this.logger.error(`[NotFound] ${errorMessage}`);
-    } else if (response.status >= 400 && response.status < 500) { // Other Client Errors (e.g., 400 Bad Request, 409 Conflict)
-        errorMessage = options.customErrorMessage || errorDetails?.message || `Client error ${response.status}.`;
-        this.logger.error(`.ClientError${response.status} ${errorMessage}`);
-    } else if (response.status >= 500) { // Server Errors (500, 502, 503, 504)
-        errorMessage = options.customErrorMessage || `Server error (${response.status}). Please try again later.`;
-        // Retry mechanism for server errors (simple example)
-        const maxRetriesForServerError = options.retries ?? this.maxRetries; // Use option or default
+    } else if (response.status === 403) {
+      errorMessage = options.customErrorMessage || errorDetails?.message || 'Permission denied.';
+      this.logger.error(`[Forbidden] ${errorMessage}`);
+      
+      // Show permission error toast unless suppressed
+      if (!options.suppressErrorToast) {
+        toastService.error(`Access denied: ${errorMessage}`);
+      }
+    } else if (response.status === 404) {
+      errorMessage = options.customErrorMessage || errorDetails?.message || 'Resource not found.';
+      this.logger.error(`[NotFound] ${errorMessage}`);
+      
+      // Show not found toast unless suppressed
+      if (!options.suppressErrorToast) {
+        toastService.warning(`Not found: ${errorMessage}`);
+      }
+    } else if (response.status >= 400 && response.status < 500) {
+      errorMessage = options.customErrorMessage || errorDetails?.message || `Client error ${response.status}.`;
+      this.logger.error(`.ClientError${response.status} ${errorMessage}`);
+      
+      // Show client error toast unless suppressed
+      if (!options.suppressErrorToast) {
+        toastService.error(errorMessage);
+      }
+    } else if (response.status >= 500) {
+      errorMessage = options.customErrorMessage || `Server error (${response.status}). NOT RETRYING.`;
+      
+      // Never retry 5xx errors for order endpoints
+      if (!endpoint.includes('/orders/submit') && !endpoint.includes('/orders/cancel')) {
+        const maxRetriesForServerError = options.retries ?? this.maxRetries;
         if (retryCount < maxRetriesForServerError) {
-          const delay = Math.pow(2, retryCount) * 500 + (Math.random() * 500); // Exponential backoff + jitter
+          const delay = Math.pow(2, retryCount) * 500 + (Math.random() * 500);
           this.logger.warn(`Server error ${response.status}. Retrying request in ${delay.toFixed(0)}ms (attempt ${retryCount + 1}/${maxRetriesForServerError})`, { endpoint });
+          
+          // Show retry toast unless suppressed
+          if (!options.suppressErrorToast) {
+            toastService.info(`Server error. Retrying in ${Math.round(delay/1000)} seconds...`);
+          }
+          
           await new Promise(resolve => setTimeout(resolve, delay));
           return this.request<T>(method, endpoint, data, options, retryCount + 1);
         } else {
           this.logger.error(`Server error ${response.status} persisted after ${maxRetriesForServerError} retries.`, { endpoint, details: errorDetails });
+          
+          // Show persistent server error toast unless suppressed
+          if (!options.suppressErrorToast) {
+            toastService.error(`Server error persisted after multiple retries: ${errorMessage}`, 0);
+          }
         }
+      } else {
+        this.logger.error(`Server error ${response.status} for order endpoint: ${endpoint} - NO RETRY ATTEMPTED`, { endpoint });
+        
+        // Show server error toast for order endpoints unless suppressed
+        if (!options.suppressErrorToast) {
+          toastService.error(`Server error for order operation: ${errorMessage}`);
+        }
+      }
     }
 
-    // --- Default Error Handling for unhandled status codes ---
-    if (response.status >= 400) { // Ensure only errors are thrown
-        // Use generic error for anything not specifically handled above
-        this.logger.error(`.Unhandled${response.status} ${errorMessage}`);
-        throw new Error(errorMessage);
+    if (response.status >= 400) {
+      this.logger.error(`.Unhandled${response.status} ${errorMessage}`);
+      
+      // Show general error toast unless suppressed
+      if (!options.suppressErrorToast) {
+        toastService.error(errorMessage);
+      }
+      
+      throw new Error(errorMessage);
     }
 
-    // Should not be reached if response.ok was false, but satisfy TS path checks
     this.logger.error("handleHttpErrorResponse reached unexpectedly for non-error response", { status: response.status });
     throw new Error("Unexpected non-error response in error handler");
   }
 
-  /* NETWORK ISSUES */
+  private async getCsrfHeader(): Promise<Record<string, string>> {
+    // Only add CSRF token for authenticated endpoints
+    if (!this.tokenManager.isAuthenticated()) {
+      return {};
+    }
+    
+    try {
+      const csrfToken = await this.tokenManager.getCsrfToken();
+      return { 'X-CSRF-Token': csrfToken };
+    } catch (e) {
+      this.logger.warn('Failed to get CSRF token for request', { error: e });
+      return {};
+    }
+  }
+
   private async handleNetworkOrFetchError<T>(
       error: Error,
       method: string,
@@ -179,24 +318,46 @@ export class HttpClient {
       options: RequestOptions,
       retryCount: number
   ): Promise<T> {
-      /* --- FULL IMPLEMENTATION IS MISSING --- */
-      // This should contain logic for handling fetch exceptions (e.g., network down, DNS error).
-      // It might include retries similar to the 5xx handling.
       const errorMessage = options.customErrorMessage || `Network error: ${error.message}`;
 
       this.logger.error('Network or fetch error occurred', { endpoint, error: error.message, retryCount });
 
-      // Example: Simple retry logic (adjust as needed)
+      // Never retry order operations
+      if (endpoint.includes('/orders/submit') || endpoint.includes('/orders/cancel')) {
+        this.logger.error(`Network error for order endpoint: ${endpoint} - NO RETRY`, { 
+          error: error.message 
+        });
+        
+        // Show network error toast for order operations unless suppressed
+        if (!options.suppressErrorToast) {
+          toastService.error(`Network error for order operation: ${error.message}`);
+        }
+        
+        throw new Error(`Network error for order operation: ${error.message} - NOT RETRIED`);
+      }
+      
+      // Simple retry logic for non-order operations
       const maxRetriesForNetworkError = options.retries ?? this.maxRetries;
       if (retryCount < maxRetriesForNetworkError) {
-          const delay = Math.pow(2, retryCount) * 1000 + (Math.random() * 1000); // Exponential backoff + jitter
+          const delay = Math.pow(2, retryCount) * 1000 + (Math.random() * 1000);
           this.logger.warn(`Network error. Retrying request in ${delay.toFixed(0)}ms (attempt ${retryCount + 1}/${maxRetriesForNetworkError})`, { endpoint });
+          
+          // Show retry toast unless suppressed
+          if (!options.suppressErrorToast) {
+            toastService.info(`Connection issue. Retrying in ${Math.round(delay/1000)} seconds...`);
+          }
+          
           await new Promise(resolve => setTimeout(resolve, delay));
-          // FIX: Pass 5 arguments to request
           return this.request<T>(method, endpoint, data, options, retryCount + 1);
       } else {
           this.logger.error(`Network error persisted after. ${errorMessage}`);
-          throw new Error(errorMessage); // Throw final error
+          
+          // Show persistent network error toast unless suppressed
+          if (!options.suppressErrorToast) {
+            toastService.error(`Connection failed: ${errorMessage}`, 0); // Manual dismiss for persistent errors
+          }
+          
+          throw new Error(errorMessage);
       }
   }
 }

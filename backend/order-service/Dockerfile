@@ -2,6 +2,10 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+# Create a non-root user
+RUN addgroup --system appuser && \
+    adduser --system --ingroup appuser appuser
+
 # Install system dependencies
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -14,7 +18,7 @@ RUN apt-get update \
 COPY requirements.txt .
 RUN pip install --no-cache-dir --prefer-binary -r requirements.txt
 
-# Copy the source code (which already includes compiled proto files)
+# Copy the source code
 COPY . .
 
 # Set environment variables
@@ -32,7 +36,6 @@ ENV PYTHONUNBUFFERED=1 \
     # Service Configuration
     REST_PORT="8001" \
     AUTH_SERVICE_URL="http://auth-service:8000" \
-    SESSION_SERVICE_URL="http://session-service:8080" \
     # Tracing Configuration
     ENABLE_TRACING="true" \
     METRICS_PORT="9091" \
@@ -40,6 +43,13 @@ ENV PYTHONUNBUFFERED=1 \
     OTEL_EXPORTER_JAEGER_ENDPOINT="http://jaeger-collector:14268/api/traces" \
     # Logging and Security
     LOG_LEVEL="INFO"
+
+# Create log directory and set permissions
+RUN mkdir -p /app/logs && \
+    chown -R appuser:appuser /app/logs
+
+# Switch to non-root user
+USER appuser
 
 # Expose REST port
 EXPOSE 8001

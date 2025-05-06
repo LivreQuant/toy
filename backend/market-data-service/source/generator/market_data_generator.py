@@ -83,10 +83,10 @@ class MarketDataGenerator:
     
     def get_market_data(self) -> List[Dict[str, Any]]:
         """
-        Generate complete market data records for all symbols.
+        Generate market data records with OHLCV and additional fields.
         
         Returns:
-            List of market data dictionaries with bid, ask, etc.
+            List of market data dictionaries
         """
         market_data = []
         current_time = int(time.time() * 1000)  # Milliseconds
@@ -94,39 +94,29 @@ class MarketDataGenerator:
         for symbol in self.symbols:
             price = self.prices[symbol]
             
-            # Calculate realistic spread based on price
-            # Higher priced stocks generally have tighter spreads in percentage terms
-            base_spread_pct = 0.0005  # 0.05% base spread
-            spread_pct = base_spread_pct + (10 / price)  # Add inverse price component
-            spread = round(price * spread_pct, 2)
+            # Generate realistic OHLC data
+            open_price = round(price * (1 - random.uniform(0, 0.005)), 2)
+            high_price = round(price * (1 + random.uniform(0, 0.005)), 2)
+            low_price = round(price * (1 - random.uniform(0, 0.005)), 2)
+            close_price = price
             
-            # Make sure spread is at least $0.01
-            spread = max(0.01, spread)
+            # Generate volume and trade count
+            volume = random.randint(1000, 100000)
+            trade_count = random.randint(10, 1000)
             
-            # Generate realistic bid/ask sizes
-            base_size = int(100000 / price)  # Higher sizes for lower-priced stocks
-            size_variance = base_size * 0.3  # 30% variance
-            
-            bid_size = int(max(100, base_size + random.uniform(-size_variance, size_variance)))
-            ask_size = int(max(100, base_size + random.uniform(-size_variance, size_variance)))
-            
-            # Generate last trade size
-            last_size = int(max(1, min(bid_size, ask_size) * random.uniform(0.1, 0.5)))
+            # Calculate VWAP (Volume Weighted Average Price)
+            vwap = round((open_price + high_price + low_price + close_price) / 4, 2)
             
             market_data.append({
                 'symbol': symbol,
                 'timestamp': current_time,
-                'bid': round(price - (spread / 2), 2),
-                'ask': round(price + (spread / 2), 2),
-                'bid_size': bid_size,
-                'ask_size': ask_size,
-                'last_price': price,
-                'last_size': last_size,
-                'volume': random.randint(1000, 100000),
-                'open': round(price * (1 - random.uniform(0, 0.005)), 2),
-                'high': round(price * (1 + random.uniform(0, 0.005)), 2),
-                'low': round(price * (1 - random.uniform(0, 0.005)), 2),
-                'close': price  # Current price is the close for this bar
+                'open': open_price,
+                'high': high_price,
+                'low': low_price,
+                'close': close_price,
+                'volume': volume,
+                'trade_count': trade_count,
+                'vwap': vwap
             })
         
         return market_data

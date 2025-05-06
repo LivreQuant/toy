@@ -11,9 +11,7 @@ service SessionExchangeSimulator {
 }
 
 message StreamRequest {
-  string session_id = 1;
-  string client_id = 2;
-  repeated string symbols = 3;
+  string client_id = 1;
 }
 
 message ExchangeDataUpdate {
@@ -25,12 +23,13 @@ message ExchangeDataUpdate {
 
 message MarketData {
   string symbol = 1;
-  double bid = 2;
-  double ask = 3;
-  int32 bid_size = 4;
-  int32 ask_size = 5;
-  double last_price = 6;
-  int32 last_size = 7;
+  double open = 2;
+  double high = 3;
+  double low = 4;
+  double close = 5;
+  int32 volume = 6;
+  int32 trade_count = 7;
+  double vwap = 8;
 }
 
 message OrderData {

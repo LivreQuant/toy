@@ -1,4 +1,4 @@
-// market_data_distributor.proto
+// market_exchange_interface.proto
 syntax = "proto3";
 
 package market_data;
@@ -21,14 +21,14 @@ message MarketDataUpdate {
   repeated SymbolData data = 2;
 }
 
-// Data for a single symbol
+// Data for a single symbol - minute bars
 message SymbolData {
   string symbol = 1;
-  double bid = 2;
-  double ask = 3;
-  int32 bid_size = 4;
-  int32 ask_size = 5;
-  double last_price = 6;
-  int32 last_size = 7;
-  // Additional fields as needed
+  double open = 2;
+  double high = 3;
+  double low = 4;
+  double close = 5;
+  int32 volume = 6;
+  int32 trade_count = 7;
+  double vwap = 8;
 }

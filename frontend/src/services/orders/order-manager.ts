@@ -1,8 +1,42 @@
 // src/services/orders/order-manager.ts
-import { TokenManager } from '../auth/token-manager';
-import { OrdersApi, OrderSide, OrderType, SubmitOrderRequest } from '../../api/order';
 import { getLogger } from '../../boot/logging';
-import { handleError } from '../../utils/error-handling';
+import { TokenManager } from '../auth/token-manager';
+import { OrdersApi } from '../../api/order';
+import { toastService } from '../notification/toast-service';
+
+// Define the types we need
+interface OrderRequest {
+  symbol: string;
+  side: 'BUY' | 'SELL';
+  type: 'MARKET' | 'LIMIT';
+  quantity: number;
+  price?: number;
+  requestId?: string;
+}
+
+interface OrderResult {
+  success: boolean;
+  orderId?: string;
+  errorMessage?: string;
+}
+
+interface BatchResponse {
+  success: boolean;
+  results: OrderResult[];
+  errorMessage?: string;
+}
+
+interface CancelResult {
+  orderId: string;
+  success: boolean;
+  errorMessage?: string;
+}
+
+interface BatchCancelResponse {
+  success: boolean;
+  results: CancelResult[];
+  errorMessage?: string;
+}
 
 export class OrderManager {
   private logger = getLogger('OrderManager');
@@ -15,133 +49,126 @@ export class OrderManager {
     this.logger.info('OrderManager initialized');
   }
 
-  async submitOrder(order: {
-    symbol: string;
-    side: OrderSide;
-    quantity: number;
-    price?: number;
-    type: OrderType;
-  }): Promise<{ success: boolean; orderId?: string; error?: string }> {
+  async submitOrders(orders: OrderRequest[]): Promise<BatchResponse> {
     // Check authentication
     if (!this.tokenManager.isAuthenticated()) {
       this.logger.warn('Order submission attempted without authentication');
+      
+      // Add toast notification for unauthenticated user
+      toastService.error('Cannot submit orders: You are not logged in');
+      
       return { 
         success: false, 
-        error: 'Not authenticated' 
+        errorMessage: 'Not authenticated',
+        results: []
+      };
+    }
+
+    if (!orders || orders.length === 0) {
+      return {
+        success: false,
+        errorMessage: 'No orders provided',
+        results: []
       };
     }
 
     const logContext = {
-      symbol: order.symbol,
-      side: order.side,
-      type: order.type,
-      quantity: order.quantity
+      orderCount: orders.length,
+      firstSymbol: orders[0].symbol,
+      firstSide: orders[0].side
     };
 
-    this.logger.info('Attempting to submit order', logContext);
-
-    // Basic client-side validation
-    if (order.type === 'LIMIT' && (typeof order.price !== 'number' || order.price <= 0)) {
-      const errorMsg = 'Invalid limit price for LIMIT order.';
-      return handleError(errorMsg, 'SubmitOrderValidation', 'low', logContext);
-    }
-    
-    if (typeof order.quantity !== 'number' || order.quantity <= 0) {
-      const errorMsg = 'Invalid order quantity.';
-      return handleError(errorMsg, 'SubmitOrderValidation', 'low', logContext);
-    }
+    this.logger.info('Attempting to submit orders', logContext);
 
     try {
-      // Add idempotency key
-      const requestId = `order-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-      
-      const submitRequest: SubmitOrderRequest = {
-        ...order,
-        requestId
-      };
-
-      const response = await this.ordersApi.submitOrder(submitRequest);
+      // Submit orders to API
+      const response = await this.ordersApi.submitOrders(orders);
 
       if (response.success) {
-        this.logger.info(`Order submitted successfully`, {
+        this.logger.info(`Orders submitted successfully`, {
           ...logContext,
-          orderId: response.orderId
+          successCount: response.results.filter(r => r.success).length
         });
       } else {
-        this.logger.warn(`Order submission failed via API`, {
+        this.logger.warn(`Order submission failed`, {
           ...logContext,
           error: response.errorMessage
         });
         
-        return handleError(
-          response.errorMessage || `Failed to submit ${order.type} ${order.side} order for ${order.symbol}`,
-          'OrderSubmissionApiFail',
-          'medium',
-          { orderDetails: logContext }
-        );
+        // Return error with empty results array
+        return {
+          success: false,
+          errorMessage: response.errorMessage || 'Failed to submit orders',
+          results: []
+        };
       }
 
-      return {
-        success: response.success,
-        orderId: response.orderId,
-        error: response.errorMessage
-      };
+      return response;
     } catch (error: any) {
       this.logger.error(`Exception during order submission`, {
         ...logContext,
         error: error.message
       });
       
-      return handleError(
-        error instanceof Error ? error.message : String(error || 'Order submission failed unexpectedly'),
-        'OrderSubmissionException',
-        'high',
-        { orderDetails: logContext }
-      );
+      // Return error with empty results array
+      return {
+        success: false,
+        errorMessage: error instanceof Error ? error.message : String(error || 'Order submission failed unexpectedly'),
+        results: []
+      };
     }
   }
 
-  async cancelOrder(orderId: string): Promise<{ success: boolean; error?: string }> {
+  async cancelOrders(orderIds: string[]): Promise<BatchCancelResponse> {
     // Check authentication
     if (!this.tokenManager.isAuthenticated()) {
       this.logger.warn('Order cancellation attempted without authentication');
       return { 
         success: false, 
-        error: 'Not authenticated' 
+        errorMessage: 'Not authenticated',
+        results: []
       };
     }
 
-    this.logger.info(`Attempting to cancel order: ${orderId}`);
-
-    if (!orderId) {
-      const errorMsg = "Cannot cancel order: No Order ID provided.";
-      return handleError(errorMsg, 'CancelOrderValidation', 'low');
+    if (!orderIds || orderIds.length === 0) {
+      return {
+        success: false,
+        errorMessage: 'No order IDs provided',
+        results: []
+      };
     }
 
+    this.logger.info(`Attempting to cancel ${orderIds.length} orders`);
+
     try {
-      const response = await this.ordersApi.cancelOrder(orderId);
+      // Cancel orders via API
+      const response = await this.ordersApi.cancelOrders(orderIds);
 
       if (response.success) {
-        this.logger.info(`Order cancellation request successful for ID: ${orderId}`);
+        this.logger.info(`Orders cancelled successfully`);
       } else {
-        const errorMsg = `API failed to cancel order ${orderId}`;
-        this.logger.warn(errorMsg, { orderId });
+        this.logger.warn(`Order cancellation failed: ${response.errorMessage}`);
         
-        return handleError(errorMsg, 'OrderCancellationApiFail', 'medium', { orderId });
+        // Return error with empty results array
+        return {
+          success: false,
+          errorMessage: response.errorMessage || 'Failed to cancel orders',
+          results: []
+        };
       }
 
-      return { success: true };
+      return response;
     } catch (error: any) {
-      this.logger.error(`Exception during order cancellation for ID: ${orderId}`, {
+      this.logger.error(`Exception during order cancellation`, {
         error: error.message
       });
       
-      return handleError(
-        error instanceof Error ? error.message : String(error || 'Order cancellation failed unexpectedly'),
-        'OrderCancellationException',
-        'high',
-        { orderId }
-      );
+      // Return error with empty results array
+      return {
+        success: false,
+        errorMessage: error instanceof Error ? error.message : String(error || 'Order cancellation failed unexpectedly'),
+        results: []
+      };
     }
   }
 }

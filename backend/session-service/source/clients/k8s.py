@@ -144,10 +144,11 @@ class KubernetesClient(BaseClient):
             client.V1EnvVar(name="DB_PORT", value="5432"),
             client.V1EnvVar(
                 name="DB_NAME",
-                value_from=client.V1EnvVarSource(
+                value="opentp" if app_config.environment == "development" else None,
+                value_from=None if app_config.environment == "development" else client.V1EnvVarSource(
                     secret_key_ref=client.V1SecretKeySelector(
                         name="db-credentials",
-                        key="database"  # Make sure this matches the secret
+                        key="database"
                     )
                 )
             ),

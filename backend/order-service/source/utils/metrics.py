@@ -2,7 +2,6 @@
 import logging
 import os
 import threading
-import time
 from prometheus_client import Counter, Histogram, Gauge, start_http_server
 
 logger = logging.getLogger('metrics')
@@ -12,6 +11,12 @@ ORDER_CREATED = Counter(
     'order_created_total',
     'Total number of orders created',
     ['order_type', 'symbol', 'side']
+)
+
+BOOK_CREATED = Counter(
+    'book_created_total',
+    'Total number of books created',
+    ['user_id']
 )
 
 ORDER_SUBMITTED = Counter(
@@ -37,12 +42,6 @@ USER_ORDER_COUNT = Counter(
     'user_order_count_total',
     'Total number of orders per user',
     ['user_id']
-)
-
-SESSION_ORDER_COUNT = Counter(
-    'session_order_count_total',
-    'Total number of orders per session',
-    ['session_id']
 )
 
 # External Service Metrics
@@ -138,11 +137,11 @@ def track_user_order(user_id):
     USER_ORDER_COUNT.labels(user_id=user_id).inc()
 
 
-def track_session_order(session_id):
-    """Track orders per session"""
-    SESSION_ORDER_COUNT.labels(session_id=session_id).inc()
+def track_book_created(user_id):
+    """Track book creation"""
+    BOOK_CREATED.labels(user_id=user_id).inc()
 
-
+    
 def track_auth_request(endpoint, success, duration_seconds):
     """Track auth service request latency"""
     AUTH_REQUEST_LATENCY.labels(endpoint=endpoint, success=str(success).lower()).observe(duration_seconds)

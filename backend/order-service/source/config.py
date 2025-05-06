@@ -1,5 +1,4 @@
 import os
-from typing import Dict, Any
 
 
 class Config:
@@ -18,13 +17,12 @@ class Config:
     db_name = os.getenv('DB_NAME', 'opentp')
     db_user = os.getenv('DB_USER', 'opentp')
     db_password = os.getenv('DB_PASSWORD', 'samaral')
-    db_min_connections = int(os.getenv('DB_MIN_CONNECTIONS', '2'))
-    db_max_connections = int(os.getenv('DB_MAX_CONNECTIONS', '20'))
+    db_min_connections = int(os.getenv('DB_MIN_CONNECTIONS', '10'))
+    db_max_connections = int(os.getenv('DB_MAX_CONNECTIONS', '100'))
 
-    # Service URLs
+    # Authentication Service
     auth_service_url = os.getenv('AUTH_SERVICE_URL', 'http://auth-service:8000')
-    session_service_url = os.getenv('SESSION_SERVICE_URL', 'http://session-service:8080')  # New setting
-
+    
     # Logging
     log_level = os.getenv('LOG_LEVEL', 'INFO')
 
@@ -33,6 +31,7 @@ class Config:
 
     # Feature flags
     enable_metrics = os.getenv('ENABLE_METRICS', 'true').lower() == 'true'
+    enable_tracing = os.getenv('ENABLE_TRACING', 'true').lower() == 'true'
 
     @property
     def db_connection_string(self) -> str:

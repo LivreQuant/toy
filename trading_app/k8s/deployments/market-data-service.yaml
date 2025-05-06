@@ -1,62 +1,89 @@
-# kubernetes/deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: market-data-distributor
-  labels:
-    app: market-data-distributor
+  name: market-data-service
 spec:
-  replicas: 1  # Single instance since we want centralized distribution
+  replicas: 1
   selector:
     matchLabels:
-      app: market-data-distributor
+      app: market-data-service
   template:
     metadata:
       labels:
-        app: market-data-distributor
+        app: market-data-service
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
     spec:
       containers:
-      - name: market-data-distributor
-        image: ${YOUR_REGISTRY}/market-data-distributor:latest
-        imagePullPolicy: Always
+      - name: market-data-service
+        image: opentp/market-data-service:latest
+        imagePullPolicy: Never
         ports:
-        - containerPort: 50060
-          name: http
-        resources:
-          requests:
-            cpu: "100m"
-            memory: "256Mi"
-          limits:
-            cpu: "500m"
-            memory: "512Mi"
+        - containerPort: 50060  # gRPC service port
+        - containerPort: 50061  # HTTP health check port
         env:
+        - name: DB_HOST
+          value: pgbouncer
+        - name: DB_PORT
+          value: "5432"
+        - name: DB_NAME
+          value: opentp
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: username
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: password
         - name: API_HOST
           value: "0.0.0.0"
         - name: API_PORT
           value: "50060"
         - name: SYMBOLS
-          value: "AAPL,GOOGL,MSFT,AMZN,TSLA,FB,NVDA,JPM,V,DIS"
+          value: "AAPL,GOOGL,MSFT,AMZN,TSLA,META"
         - name: UPDATE_INTERVAL
           value: "60"
-        - name: STARTUP_HOUR
-          value: "3"
-        - name: SHUTDOWN_HOUR
-          value: "20"
-        - name: LOG_LEVEL
-          value: "INFO"
-        - name: EXCHANGE_SERVICE_NAME
-          value: "exchange-simulator"
-        - name: EXCHANGE_SERVICE_PORT
-          value: "50055"
-        livenessProbe:
-          httpGet:
-            path: /health
-            port: 50060
-          initialDelaySeconds: 30
-          periodSeconds: 30
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
         readinessProbe:
           httpGet:
             path: /health
-            port: 50060
-          initialDelaySeconds: 10
+            port: 50061
+          initialDelaySeconds: 5
           periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 50061
+          initialDelaySeconds: 15
+          periodSeconds: 20
+      initContainers:
+      - name: wait-for-db
+        image: postgres:13
+        command: ['sh', '-c', 'until pg_isready -h pgbouncer -p 5432; do echo waiting for database; sleep 2; done;']
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: market-data-service
+spec:
+  selector:
+    app: market-data-service
+  ports:
+  - port: 50060
+    targetPort: 50060
+    name: grpc
+  - port: 50061
+    targetPort: 50061
+    name: http
+  type: ClusterIP

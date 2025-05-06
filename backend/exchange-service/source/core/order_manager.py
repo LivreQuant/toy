@@ -1,13 +1,11 @@
 # source/core/order_manager.py
-import time
 import logging
-import asyncio
 import grpc
 from typing import Dict, List, Optional
 
 from source.models.order import Order
 from source.models.enums import OrderSide, OrderType, OrderStatus
-from source.api.grpc.order_exchange_interface_pb2 import SubmitOrderRequest, CancelOrderRequest
+from source.api.grpc.order_exchange_interface_pb2 import BatchOrderRequest, BatchCancelRequest, OrderRequest
 from source.api.grpc.order_exchange_interface_pb2_grpc import OrderExchangeSimulatorStub
 from source.config import config
 
@@ -17,7 +15,6 @@ class OrderManager:
     def __init__(self, exchange_manager):
         self.exchange_manager = exchange_manager
         self.orders: Dict[str, Order] = {}
-        self.session_orders: Dict[str, List[str]] = {}
         self.order_service_url = config.order_exchange.service_url
         self.channel = None
         self.stub = None
@@ -48,7 +45,6 @@ class OrderManager:
 
     async def submit_order(
             self,
-            session_id: str,
             symbol: str,
             side: OrderSide,
             quantity: float,
@@ -57,7 +53,6 @@ class OrderManager:
     ) -> Order:
         """Submit a new order through the order exchange service"""
         order = Order(
-            session_id=session_id,
             symbol=symbol,
             side=side,
             quantity=quantity,
@@ -74,12 +69,11 @@ class OrderManager:
                     return order
 
             # Convert to the appropriate enum values for gRPC
-            side_enum = SubmitOrderRequest.Side.BUY if side == OrderSide.BUY else SubmitOrderRequest.Side.SELL
-            type_enum = SubmitOrderRequest.Type.MARKET if order_type == OrderType.MARKET else SubmitOrderRequest.Type.LIMIT
+            side_enum = 0 if side == OrderSide.BUY else 1
+            type_enum = 0 if order_type == OrderType.MARKET else 1
 
             # Create the gRPC request
-            request = SubmitOrderRequest(
-                session_id=session_id,
+            order_request = OrderRequest(
                 symbol=symbol,
                 side=side_enum,
                 quantity=float(quantity),
@@ -88,20 +82,31 @@ class OrderManager:
                 request_id=order.order_id
             )
 
-            # Send the request
-            response = await self.stub.SubmitOrder(request)
+            batch_request = BatchOrderRequest(
+                orders=[order_request]
+            )
 
-            if response.success:
-                # Update the order with the response
-                order.order_id = response.order_id
-                order.status = OrderStatus.FILLED  # Simplified - assume immediate fill
-                order.update(quantity, price or 0.0)
-                logger.info(f"Order {order.order_id} submitted successfully")
+            # Send the request
+            response = await self.stub.SubmitOrders(batch_request)
+
+            if response.success and len(response.results) > 0:
+                result = response.results[0]
+                if result.success:
+                    # Update the order with the response
+                    order.order_id = result.order_id
+                    order.status = OrderStatus.FILLED  # Simplified - assume immediate fill
+                    order.update(quantity, price or 0.0)
+                    logger.info(f"Order {order.order_id} submitted successfully")
+                else:
+                    # Handle failure
+                    order.status = OrderStatus.REJECTED
+                    order.error_message = result.error_message
+                    logger.warning(f"Order submission failed: {result.error_message}")
             else:
-                # Handle failure
+                # Handle batch failure
                 order.status = OrderStatus.REJECTED
                 order.error_message = response.error_message
-                logger.warning(f"Order submission failed: {response.error_message}")
+                logger.warning(f"Order batch submission failed: {response.error_message}")
 
         except Exception as e:
             order.status = OrderStatus.REJECTED
@@ -111,13 +116,9 @@ class OrderManager:
         # Store order
         self.orders[order.order_id] = order
 
-        if session_id not in self.session_orders:
-            self.session_orders[session_id] = []
-        self.session_orders[session_id].append(order.order_id)
-
         return order
 
-    async def cancel_order(self, session_id: str, order_id: str) -> bool:
+    async def cancel_order(self, order_id: str) -> bool:
         """Cancel an existing order through the order exchange service"""
         try:
             if not self.connected:
@@ -125,43 +126,27 @@ class OrderManager:
                 if not success:
                     return False
 
-            # Check if order exists
-            order = self.get_order_status(session_id, order_id)
-            if not order:
-                return False
-
-            # Cannot cancel already filled, canceled, or rejected orders
-            if order.status in [OrderStatus.FILLED, OrderStatus.CANCELED, OrderStatus.REJECTED]:
-                return False
-
             # Create the gRPC request
-            request = CancelOrderRequest(
-                session_id=session_id,
-                order_id=order_id
+            request = BatchCancelRequest(
+                order_ids=[order_id]
             )
 
             # Send the request
-            response = await self.stub.CancelOrder(request)
+            response = await self.stub.CancelOrders(request)
 
-            if response.success:
-                # Update order status
-                order.status = OrderStatus.CANCELED
-                order.updated_at = time.time()
-                logger.info(f"Order {order_id} canceled successfully")
-                return True
+            if response.success and len(response.results) > 0:
+                result = response.results[0]
+                if result.success:
+                    # Update order status
+                    logger.info(f"Order {order_id} canceled successfully")
+                    return True
+                else:
+                    logger.warning(f"Order cancellation failed: {result.error_message}")
+                    return False
             else:
-                logger.warning(f"Order cancellation failed: {response.error_message}")
+                logger.warning(f"Order batch cancellation failed: {response.error_message}")
                 return False
 
         except Exception as e:
             logger.error(f"Error canceling order: {e}")
             return False
-
-    def get_order_status(self, session_id: str, order_id: str) -> Optional[Order]:
-        """Retrieve order status"""
-        order = self.orders.get(order_id)
-
-        if not order or order.session_id != session_id:
-            return None
-
-        return order
