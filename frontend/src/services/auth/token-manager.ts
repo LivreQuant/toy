@@ -38,15 +38,8 @@ export class TokenManager {
     }
 
     // Store tokens using injected storage service
-    public storeTokens(tokenData: TokenData, rememberMe: boolean = false): void {
-        try {
-            // Update the expiry times based on rememberMe flag
-            // For refresh tokens, extend to 30 days if rememberMe is true
-            if (rememberMe) {
-            // Store a flag to indicate this is a long-lived session
-            tokenData.isLongLivedSession = true;
-            }
-            
+    public storeTokens(tokenData: TokenData): void {
+        try {            
             this.storageService.setItem(this.STORAGE_KEY, JSON.stringify(tokenData));
         } catch (e: any) {
             this.logger.error(`Failed to store tokens: ${e.message}`);

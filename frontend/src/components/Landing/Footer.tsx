@@ -10,7 +10,7 @@ const footerLinks = [
   },
   {
     title: 'Company',
-    links: ['About Us', 'Blog', 'Careers', 'Contact']
+    links: ['About Us', 'Blog', 'Contact']
   },
   {
     title: 'Resources',

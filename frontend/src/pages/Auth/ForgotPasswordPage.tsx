@@ -63,7 +63,7 @@ const ForgotPasswordPage: React.FC = () => {
   return (
     <AuthLayout 
       title="Forgot Password" 
-      subtitle="Enter your email address to receive a password reset link"
+      subtitle="Enter your email to receive a password reset link"
     >
       <form className="auth-form" onSubmit={handleSubmit}>
         <div className="form-group">

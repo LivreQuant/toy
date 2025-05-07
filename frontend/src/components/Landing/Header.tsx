@@ -146,7 +146,7 @@ const Header: React.FC = () => {
                 }
               }}
             >
-              Testimonials
+              Enterprise
             </Button>
           </Box>
           

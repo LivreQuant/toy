@@ -120,7 +120,7 @@ const SignupPage: React.FC = () => {
   return (
     <AuthLayout 
       title="Create an Account" 
-      subtitle="Join our trading platform to get started"
+      subtitle="Join DigitalTrader to get started"
     >
       <form className="auth-form" onSubmit={handleSubmit}>
         {errors.form && <div className="form-error">{errors.form}</div>}

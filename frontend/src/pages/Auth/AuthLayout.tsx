@@ -13,7 +13,7 @@ const AuthLayout: React.FC<AuthLayoutProps> = ({ children, title, subtitle }) =>
     <div className="auth-layout">
       <div className="auth-logo">
         <Link to="/">
-          <h1>Trading Platform</h1>
+          <h1>The DigitalTrader Platform</h1>
         </Link>
       </div>
       

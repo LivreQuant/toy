@@ -96,15 +96,6 @@
   margin-bottom: 20px;
 }
 
-.remember-me {
-  display: flex;
-  align-items: center;
-}
-
-.remember-me input {
-  margin-right: 8px;
-}
-
 .forgot-link {
   color: #3498db;
   text-decoration: none;

@@ -17,7 +17,6 @@ interface LocationState {
 const LoginPage: React.FC = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
@@ -63,7 +62,6 @@ const LoginPage: React.FC = () => {
       const response = await login({ 
         username, 
         password,
-        rememberMe
       });
       
       console.log("🔍 LOGIN: Got response from login API:", JSON.stringify(response));
@@ -113,7 +111,7 @@ const LoginPage: React.FC = () => {
   return (
     <AuthLayout 
       title="Log In" 
-      subtitle="Welcome back to the Trading Platform"
+      subtitle="Welcome back to the DigitalTrader"
     >
       <form className="auth-form" onSubmit={handleSubmit}>
         {error && <div className="form-error">{error}</div>}
@@ -143,20 +141,6 @@ const LoginPage: React.FC = () => {
           />
         </div>
         
-        <div className="form-options">
-          <div className="remember-me">
-            <input
-              id="rememberMe"
-              type="checkbox"
-              checked={rememberMe}
-              onChange={(e) => setRememberMe(e.target.checked)}
-              disabled={isSubmitting}
-            />
-            <label htmlFor="rememberMe">Remember me</label>
-          </div>
-          <Link to="/forgot-password" className="forgot-link">Forgot password?</Link>
-        </div>
-        
         <button 
           type="submit" 
           className="auth-button" 
@@ -167,8 +151,8 @@ const LoginPage: React.FC = () => {
         
         <div className="auth-links">
           <p>Don't have an account? <Link to="/signup">Sign up</Link></p>
-          {/* Add the Forgot Username link here */}
           <p>Forgot your username? <Link to="/forgot-username">Recover username</Link></p>
+          <p>Forgot your password? <Link to="/forgot-password">Reset password</Link></p>
         </div>
       </form>
     </AuthLayout>

@@ -61,7 +61,7 @@ const ForgotUsernamePage: React.FC = () => {
   return (
     <AuthLayout 
       title="Forgot Username" 
-      subtitle="Enter your email address to receive your username"
+      subtitle="Enter your email to receive your username"
     >
       <form className="auth-form" onSubmit={handleSubmit}>
         <div className="form-group">

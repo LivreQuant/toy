@@ -4,7 +4,6 @@ import { HttpClient } from './http-client';
 export interface LoginRequest {
   username: string;
   password: string;
-  rememberMe?: boolean;
 }
 
 export interface LoginResponse {
@@ -67,13 +66,13 @@ export class AuthApi {
     this.client = client;
   }
 
-  async login(username: string, password: string, rememberMe: boolean = false): Promise<LoginResponse> {
+  async login(username: string, password: string): Promise<LoginResponse> {
     console.log("🔍 API: Attempting login for user:", username);
     
     try {
       const response = await this.client.post<LoginResponse>(
         '/auth/login',
-        { username, password, rememberMe },
+        { username, password },
         { skipAuth: true }
       );
       
