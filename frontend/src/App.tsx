@@ -53,6 +53,7 @@ import BookDetailsPage from './pages/BookDetailsPage';
 import BookSetupPage from './pages/BookSetupPage';
 import SessionDeactivatedPage from './pages/SessionDeactivatedPage';
 import EnterpriseContactPage from './pages/EnterpriseContactPage';
+import FundProfileForm from './components/Profile/FundProfileForm';
 
 // Initialize Logging First
 initializeLogging();
@@ -132,6 +133,14 @@ const AppRoutes: React.FC = () => {
         <ProtectedRoute>
           <AuthenticatedLayout>
             <HomePage />
+          </AuthenticatedLayout>
+        </ProtectedRoute>
+      } />
+
+      <Route path="/profile/create" element={
+        <ProtectedRoute>
+          <AuthenticatedLayout>
+            <FundProfileForm />
           </AuthenticatedLayout>
         </ProtectedRoute>
       } />
