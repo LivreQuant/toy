@@ -1,31 +1,25 @@
-// src/pages/LandingPage.tsx
 import React, { useEffect, useRef } from 'react';
-import { Box, useTheme } from '@mui/material';
-import { useTheme as useCustomTheme } from '../contexts/ThemeContext';
+import { Box } from '@mui/material';
+import { useTheme } from '../contexts/ThemeContext'; // Just import your custom hook
 import './LandingPage.css';
 
 import {
   Header,
   Hero,
-  TrustedBySection,
   FeaturesSection,
   HowItWorksSection,
-  StatsSection,
-  TestimonialsSection,
   CtaSection,
   Footer
 } from '../components/Landing';
 
 const LandingPage: React.FC = () => {
-  const theme = useTheme();
-  const { mode, toggleTheme } = useCustomTheme();
+  const { mode, toggleTheme } = useTheme();
   
   // Refs for scroll animation elements
   const heroRef = useRef<HTMLDivElement>(null);
   const featuresRef = useRef<HTMLDivElement>(null);
-  const testimonialsRef = useRef<HTMLDivElement>(null);
   
-  // Set up animations
+  // Set up animations (unchanged from your code)
   useEffect(() => {
     // Intersection Observer for scroll animations
     const observerOptions = {
@@ -42,7 +36,7 @@ const LandingPage: React.FC = () => {
     }, observerOptions);
     
     // Observe all animation elements
-    const elements = [heroRef.current, featuresRef.current, testimonialsRef.current];
+    const elements = [heroRef.current, featuresRef.current];
     elements.forEach(el => el && observer.observe(el));
     
     return () => {
@@ -53,18 +47,15 @@ const LandingPage: React.FC = () => {
   return (
     <Box 
       sx={{ 
-        bgcolor: 'background.default',
-        color: 'text.primary',
+        bgcolor: mode === 'dark' ? '#121212' : '#f5f7fa',
+        color: mode === 'dark' ? '#ffffff' : '#333333',
         minHeight: '100vh'
       }}
     >
       <Header />
       <Hero ref={heroRef} className="animate-on-scroll" />
-      {/*<TrustedBySection />*/}
       <FeaturesSection ref={featuresRef} className="animate-on-scroll" />
       <HowItWorksSection />
-      {/*<StatsSection />*/}
-      {/*<TestimonialsSection ref={testimonialsRef} className="animate-on-scroll" />*/}
       <CtaSection />
       <Footer />
     </Box>

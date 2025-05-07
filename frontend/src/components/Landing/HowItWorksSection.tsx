@@ -2,21 +2,28 @@
 import React from 'react';
 import { Box, Container, Typography, useTheme } from '@mui/material';
 
+// Import your images
+// For example:
+import trackPortfolioImage from '../../assets/howItWorks/dashboard.png';
+
 const steps = [
   {
     step: 1,
-    title: 'Create Your Book',
-    description: 'Configure your trading book with custom parameters, capital allocation, and risk limits.'
+    title: 'Track Your Portfolio',
+    description: 'Configure your trading book with custom parameters, capital allocation, and risk limits.',
+    image: trackPortfolioImage
   },
   {
     step: 2,
-    title: 'Develop Strategy',
-    description: 'Build and refine your trading strategies using our intuitive interface or API integration.'
+    title: 'Trusted Timestamps',
+    description: 'Build and refine your trading strategies using our intuitive interface or API integration.',
+    image: trackPortfolioImage
   },
   {
     step: 3,
     title: 'Simulate & Analyze',
-    description: 'Run your strategies in our realistic market environment and analyze performance in real-time.'
+    description: 'Run your strategies in our realistic market environment and analyze performance in real-time.',
+    image: trackPortfolioImage
   }
 ];
 
@@ -37,7 +44,7 @@ const HowItWorksSection: React.FC = () => {
         </Typography>
         
         <Typography variant="h6" color="textSecondary" sx={{ mb: 6 }}>
-          Start simulating your trading strategies in minutes
+          Start creating your provable track record today
         </Typography>
         
         <Box sx={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 4 }}>
@@ -78,6 +85,7 @@ const HowItWorksSection: React.FC = () => {
                 {step.description}
               </Typography>
               
+              {/* Replace the empty box with an actual image */}
               <Box 
                 sx={{ 
                   mt: 'auto',
@@ -85,8 +93,11 @@ const HowItWorksSection: React.FC = () => {
                   height: 200,
                   bgcolor: 'background.paper',
                   borderRadius: 2,
-                  boxShadow: '0 10px 30px rgba(0, 0, 0, 0.08)'
-                }} 
+                  boxShadow: '0 10px 30px rgba(0, 0, 0, 0.08)',
+                  backgroundImage: `url(${step.image})`,
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
+                }}
               />
             </Box>
           ))}

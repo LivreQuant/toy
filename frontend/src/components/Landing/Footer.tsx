@@ -14,11 +14,11 @@ const footerLinks = [
   },
   {
     title: 'Resources',
-    links: ['Documentation', 'API Reference', 'Help Center', 'Community']
+    links: ['Documentation', 'API Reference', 'Community']
   },
   {
     title: 'Legal',
-    links: ['Terms of Service', 'Privacy Policy', 'Security']
+    links: ['Terms & Conditions', 'Privacy Policy']
   }
 ];
 
@@ -49,7 +49,7 @@ const Footer: React.FC = () => {
                 WebkitTextFillColor: 'transparent'
               }}
             >
-              Quantum Trade
+              DigitalTrader
             </Typography>
           </Grid>
           
@@ -91,7 +91,7 @@ const Footer: React.FC = () => {
         
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
           <Typography variant="body2" color="rgba(255,255,255,0.5)">
-            &copy; {new Date().getFullYear()} Quantum Trade. All rights reserved.
+            &copy; {new Date().getFullYear()} DigitalTrader. All rights reserved.
           </Typography>
           
           <Box sx={{ display: 'flex', gap: 2 }}>

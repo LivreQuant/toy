@@ -2,6 +2,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Box, Container, Typography, Button, Grid, useTheme } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 
 const CtaSection: React.FC = () => {
   const theme = useTheme();
@@ -19,34 +20,40 @@ const CtaSection: React.FC = () => {
         <Grid container spacing={6} alignItems="center">
           <Grid {...{component: "div", item: true, xs: 12, md: 6} as any}>
             <Typography variant="h3" component="h2" gutterBottom>
-              Ready to transform your trading strategy?
+              Ready to prove your track record?
             </Typography>
             
             <Typography variant="h6" color="textSecondary" paragraph>
-              Join thousands of professional traders using our platform today.
+              Join our platform today.
             </Typography>
             
-            <Button 
-              component={Link} 
-              to="/signup" 
-              variant="contained" 
+            <Button
+              component={Link}
+              to="/signup"
+              variant="contained"
               color="primary"
               size="large"
-              sx={{ 
-                mt: 2,
-                py: 1.5, 
+              sx={{
+                py: 1.5,
                 px: 4,
                 borderRadius: 2,
-                fontWeight: 600
+                fontWeight: 600,
+                transition: 'all 0.3s ease',
+                border: '2px solid',             // Add border with current color
+                borderColor: 'primary.main',     // Set border color to match button color
+                '&:hover': {
+                  backgroundColor: alpha(theme.palette.background.default, 0.75),
+                  borderColor: theme.palette.primary.main,  // Keep border visible on hover
+                }
               }}
             >
-              Start Your Free Trial
+              Get Started
             </Button>
           </Grid>
           
           <Grid {...{component: "div", item: true, xs: 12, md: 6} as any}>
             <Box 
-              sx={{ 
+              sx={{
                 height: 400, 
                 bgcolor: 'action.disabled', 
                 borderRadius: 3 

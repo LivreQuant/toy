@@ -1,10 +1,23 @@
-// Updated Hero component with reduced bottom spacing only
-import React, { forwardRef } from 'react';
+import React, { useState, forwardRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Box, Container, Typography, Button, Grid, Stack, useTheme } from '@mui/material';
-import backgroundImage from '../../assets/yarn.png';
-import dashImage from '../../assets/dashboard.png';
-import factImage from '../../assets/factsheet.jpg';
+import { 
+  Box, 
+  Container, 
+  Typography, 
+  Button, 
+  Grid, 
+  Stack, 
+  useTheme,
+  Dialog, 
+  DialogTitle, 
+  DialogContent, 
+  DialogActions,
+  TextField
+} from '@mui/material';
+import { alpha } from '@mui/material/styles';
+import backgroundImage from '../../assets/hero/yarn.png';
+import dashImage from '../../assets/hero/dashboard.png';
+import factImage from '../../assets/hero/factsheet.jpg';
 
 interface HeroProps {
   className?: string;
@@ -12,6 +25,40 @@ interface HeroProps {
 
 const Hero = forwardRef<HTMLDivElement, HeroProps>(({ className }, ref) => {
   const theme = useTheme();
+  
+  // State for consultation form
+  const [showConsultationForm, setShowConsultationForm] = useState(false);
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    company: '',
+    message: ''
+  });
+
+  // Handle form input changes
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  // Handle form submission
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    // Handle form submission logic here
+    console.log('Form submitted:', formData);
+    
+    // Reset form and close dialog
+    setFormData({
+      name: '',
+      email: '',
+      company: '',
+      message: ''
+    });
+    setShowConsultationForm(false);
+  };
   
   return (
     <Box 
@@ -127,33 +174,41 @@ const Hero = forwardRef<HTMLDivElement, HeroProps>(({ className }, ref) => {
                       boxShadow: '0 8px 20px rgba(33, 150, 243, 0.3)',
                       fontWeight: 600,
                       transition: 'all 0.3s ease',
+                      border: '2px solid',             // Add border with current color
+                      borderColor: theme.palette.primary.main,  // Keep border visible on hover
                       '&:hover': {
                           transform: 'translateY(-5px)',
-                          boxShadow: '0 12px 30px rgba(33, 150, 243, 0.5)',
-                          backgroundColor: theme.palette.primary.dark, // Darken the button on hover
+                          boxShadow: '0 8px 20px rgba(33, 150, 243, 0.5)',
+                          backgroundColor: alpha(theme.palette.background.default, 0.75),
+                          border: '2px solid',
+                          borderColor: theme.palette.primary.main,  // Keep border visible on hover
                       }
                     }}
                 >
-                    Start Free Trial
+                    Get Started
                 </Button>
               
-              <Button 
-                component={Link} 
-                to="/demo" 
-                variant="text" 
-                color="primary"
-                size="large"
-                startIcon={<span>▶</span>}
-                sx={{ 
-                  py: 1.5,
-                  fontWeight: 600,
-                  '&:hover': {
-                    transform: 'translateY(-3px)',
-                  }
-                }}
-              >
-                Watch Demo
-              </Button>
+                {/* Consultation Request Button */}
+                <Button 
+                  onClick={() => setShowConsultationForm(true)}
+                  variant="outlined"
+                  color="primary"
+                  size="large"
+                  sx={{
+                    py: 1.5,
+                    px: 3,
+                    fontWeight: 600,
+                    borderWidth: 2,
+                    transition: 'all 0.3s ease',
+                    backgroundColor: alpha(theme.palette.background.default, 0.5),
+                    '&:hover': {
+                      transform: 'translateY(-5px)',
+                      backgroundColor: `${theme.palette.background.default} !important`,
+                    }
+                  }}
+                >
+                  Request Consultation
+                </Button>
             </Stack>
           </Grid>
           
@@ -216,6 +271,71 @@ const Hero = forwardRef<HTMLDivElement, HeroProps>(({ className }, ref) => {
           </Grid>
         </Grid>
       </Container>
+
+      {/* Consultation Form Dialog */}
+      <Dialog 
+        open={showConsultationForm} 
+        onClose={() => setShowConsultationForm(false)}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle>Request a Consultation</DialogTitle>
+        <form onSubmit={handleSubmit}>
+          <DialogContent>
+            <Stack spacing={3}>
+              <TextField
+                label="Name"
+                name="name"
+                value={formData.name}
+                onChange={handleInputChange}
+                fullWidth
+                required
+              />
+              <TextField
+                label="Email"
+                name="email"
+                type="email"
+                value={formData.email}
+                onChange={handleInputChange}
+                fullWidth
+                required
+              />
+              <TextField
+                label="Company"
+                name="company"
+                value={formData.company}
+                onChange={handleInputChange}
+                fullWidth
+              />
+              <TextField
+                label="Message"
+                name="message"
+                value={formData.message}
+                onChange={handleInputChange}
+                multiline
+                rows={4}
+                fullWidth
+                required
+              />
+            </Stack>
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 3 }}>
+            <Button 
+              onClick={() => setShowConsultationForm(false)} 
+              color="inherit"
+            >
+              Cancel
+            </Button>
+            <Button 
+              type="submit" 
+              variant="contained" 
+              color="primary"
+            >
+              Submit Request
+            </Button>
+          </DialogActions>
+        </form>
+      </Dialog>
     </Box>
   );
 });

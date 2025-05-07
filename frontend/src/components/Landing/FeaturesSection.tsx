@@ -2,34 +2,44 @@
 import React, { forwardRef } from 'react';
 import { Box, Container, Typography, Grid, Card, CardContent } from '@mui/material';
 
+// Import your images
+// For example:
+import realTimeImage from '../../assets/features/dashboard.png';
+
 interface FeaturesSectionProps {
   className?: string;
 }
 
 const features = [
   {
+    title: 'Professional Trading Dashboard',
+    description: 'Create and manage separate trading books for different strategies, asset classes, or risk profiles.',
+    image: realTimeImage
+  },
+  {
     title: 'Real-Time Market Simulation',
-    description: 'Experience institutional-grade market simulation with accurate price dynamics, order book depth, and latency modeling.'
+    description: 'Experience institutional-grade market simulation with accurate price dynamics, order book depth, and latency modeling.',
+    image: realTimeImage
   },
   {
-    title: 'Multiple Trading Books',
-    description: 'Create and manage separate trading books for different strategies, asset classes, or risk profiles.'
+    title: 'Provable Track Record',
+    description: 'Test your strategies against historical data with accurate slippage and transaction cost modeling.',
+    image: realTimeImage
   },
   {
-    title: 'Performance Analytics',
-    description: 'Comprehensive analytics dashboards with P&L tracking, risk metrics, and strategy performance indicators.'
+    title: 'In Depth Analytics',
+    description: 'Comprehensive analytics dashboards with P&L tracking, risk metrics, and strategy performance indicators.',
+    image: realTimeImage
   },
   {
-    title: 'Advanced Backtesting',
-    description: 'Test your strategies against historical data with accurate slippage and transaction cost modeling.'
+    title: 'Protect Your IP',
+    description: 'Built-in compliance checks and risk limits to ensure trading strategies meet regulatory requirements.',
+    image: realTimeImage
   },
   {
     title: 'API Integration',
-    description: 'Connect your custom trading algorithms via our robust REST and WebSocket APIs.'
-  },
-  {
-    title: 'Compliance Tools',
-    description: 'Built-in compliance checks and risk limits to ensure trading strategies meet regulatory requirements.'
+    description: 'Connect your custom trading algorithms via our robust REST and WebSocket APIs.',
+    image: realTimeImage
   }
 ];
 
@@ -43,11 +53,11 @@ const FeaturesSection = forwardRef<HTMLDivElement, FeaturesSectionProps>(({ clas
     >
       <Container maxWidth="lg" sx={{ textAlign: 'center' }}>
         <Typography variant="h3" component="h2" gutterBottom>
-          Professional Trading Features
+          The Fund Simulator
         </Typography>
         
         <Typography variant="h6" color="textSecondary" sx={{ mb: 6, maxWidth: 700, mx: 'auto' }}>
-          Everything you need to build and test sophisticated trading strategies
+          Everything you need to demonstrate your investment aptitude
         </Typography>
         
         <Box sx={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 4 }}>
@@ -63,6 +73,7 @@ const FeaturesSection = forwardRef<HTMLDivElement, FeaturesSectionProps>(({ clas
                 sx={{
                   height: '100%',
                   borderRadius: 3,
+                  overflow: 'hidden', // Important for containing the image
                   transition: 'all 0.3s',
                   '&:hover': {
                     transform: 'translateY(-10px)',
@@ -70,25 +81,18 @@ const FeaturesSection = forwardRef<HTMLDivElement, FeaturesSectionProps>(({ clas
                   }
                 }}
               >
-                <CardContent sx={{ p: 4, textAlign: 'left' }}>
-                  <Box
-                    sx={{
-                      width: 60,
-                      height: 60,
-                      borderRadius: 2,
-                      bgcolor: 'primary.light',
-                      opacity: 0.2,
-                      mb: 2,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: 'primary.main',
-                      fontSize: 24
-                    }}
-                  >
-                    {index + 1}
-                  </Box>
-                  
+                {/* Image at the top of the card */}
+                <Box
+                  sx={{
+                    height: 160, // Set a fixed height for the image section
+                    width: '100%',
+                    backgroundImage: `url(${feature.image})`,
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                  }}
+                />
+                
+                <CardContent sx={{ p: 4, textAlign: 'left' }}>                  
                   <Typography variant="h5" component="h3" gutterBottom sx={{ fontWeight: 600 }}>
                     {feature.title}
                   </Typography>
