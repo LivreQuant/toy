@@ -118,7 +118,7 @@ const Header: React.FC = () => {
             </Button>
             <Button 
               color="inherit" 
-              href="#testimonials"
+              href="#enterprise"
               sx={{
                 padding: "8px 16px",
                 margin: 0,

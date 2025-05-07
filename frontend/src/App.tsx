@@ -49,6 +49,7 @@ import SimulatorPage from './pages/SimulatorPage';
 import BookDetailsPage from './pages/BookDetailsPage';
 import BookSetupPage from './pages/BookSetupPage';
 import SessionDeactivatedPage from './pages/SessionDeactivatedPage';
+import EnterpriseContactPage from './pages/EnterpriseContactPage';
 
 // Initialize Logging First
 initializeLogging();
@@ -121,6 +122,7 @@ const AppRoutes: React.FC = () => {
       <Route path="/forgot-username" element={<ForgotUsernamePage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
+      <Route path="/enterprise-contact" element={<EnterpriseContactPage />} />
       
       {/* Session page */}
       <Route path="/home" element={

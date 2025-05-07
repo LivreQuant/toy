@@ -8,6 +8,7 @@ import {
   Hero,
   FeaturesSection,
   HowItWorksSection,
+  EnterpriseSection,
   CtaSection,
   Footer
 } from '../components/Landing';
@@ -18,6 +19,7 @@ const LandingPage: React.FC = () => {
   // Refs for scroll animation elements
   const heroRef = useRef<HTMLDivElement>(null);
   const featuresRef = useRef<HTMLDivElement>(null);
+  const enterpriseRef = useRef<HTMLDivElement>(null);
   
   // Set up animations (unchanged from your code)
   useEffect(() => {
@@ -56,6 +58,7 @@ const LandingPage: React.FC = () => {
       <Hero ref={heroRef} className="animate-on-scroll" />
       <FeaturesSection ref={featuresRef} className="animate-on-scroll" />
       <HowItWorksSection />
+      <EnterpriseSection ref={enterpriseRef} className="animate-on-scroll" />
       <CtaSection />
       <Footer />
     </Box>
