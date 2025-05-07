@@ -11,8 +11,11 @@ import {
   Paper,
   MenuItem,
   Snackbar,
-  Alert
+  Alert,
+  useTheme
+  // CircularProgress // Optional for loading state
 } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 
 const institutionTypes = [
@@ -28,16 +31,19 @@ const institutionTypes = [
 
 const EnterpriseContactPage: React.FC = () => {
   const navigate = useNavigate();
+  const theme = useTheme();
+
   const [formData, setFormData] = useState({
-    name: '',
+    firstName: '',
+    lastName: '',
     email: '',
     company: '',
     role: '',
     institutionType: '',
-    assetsUnderManagement: '',
     message: ''
   });
   const [success, setSuccess] = useState(false);
+  // const [loading, setLoading] = useState(false); // Optional
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -49,61 +55,108 @@ const EnterpriseContactPage: React.FC = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    // setLoading(true); // Optional
     // Here you would handle the form submission to your backend
     console.log('Form submitted:', formData);
-    
-    // Show success message
+
+    // Simulate API call
+    // await new Promise(resolve => setTimeout(resolve, 1000));
+
     setSuccess(true);
-    
+    // setLoading(false); // Optional
+
     // Reset form
     setFormData({
-      name: '',
+      firstName: '',
+      lastName: '',
       email: '',
       company: '',
       role: '',
       institutionType: '',
-      assetsUnderManagement: '',
       message: ''
     });
   };
 
+  const handleCloseSnackbar = (event?: React.SyntheticEvent | Event, reason?: string) => {
+    if (reason === 'clickaway') {
+      return;
+    }
+    setSuccess(false);
+  };
+
   return (
-    <Box sx={{ bgcolor: '#f5f7fa', minHeight: '100vh', py: 6 }}>
-      <Container maxWidth="md">
-        <Button
-          startIcon={<ArrowBackIcon />}
-          onClick={() => navigate('/')}
-          sx={{ mb: 4 }}
+    <Box sx={{ bgcolor: '#f5f7fa', minHeight: '100vh', py: { xs: 4, sm: 6 } }}>
+      <Container sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }} maxWidth="md">
+
+        {/* Main Form Paper */}
+        <Paper 
+          elevation={0}
+          sx={{ 
+            p: { xs: 3, sm: 4 },
+            borderRadius: 2,
+            boxShadow: '0px 4px 20px rgba(0, 0, 0, 0.05)'
+          }}
         >
-          Back to Home
-        </Button>
-        
-        <Paper elevation={3} sx={{ p: 4, borderRadius: 3 }}>
-          <Typography variant="h4" component="h1" gutterBottom sx={{ mb: 4 }}>
+          {/* Title and Description */}
+          <Typography 
+            variant="h4" 
+            component="h1" 
+            gutterBottom 
+            sx={{ 
+              mb: 2,
+              fontWeight: 'bold',
+              textAlign: 'center',
+              color: 'primary.main'
+            }}
+          >
             Enterprise Consultation Request
           </Typography>
-          
-          <Typography variant="body1" paragraph>
+
+          <Typography 
+            variant="body1" 
+            paragraph
+            sx={{ 
+              mb: 4,
+              textAlign: 'center',
+              color: 'text.secondary'
+            }}
+          >
             Complete the form below to schedule a consultation with our team. We'll discuss how our platform can help your institution identify and evaluate investment talent.
           </Typography>
-          
+
+          {/* Form */}
           <form onSubmit={handleSubmit}>
             <Grid container spacing={3}>
-              <Grid {...{component: "div", item: true, xs: 12, sm: 6} as any}>
+              {/* First & Last Name in same row */}
+              <Grid {...{component: "div", item: true, size: 6} as any}>
                 <TextField
                   required
                   fullWidth
-                  label="Full Name"
-                  name="name"
-                  value={formData.name}
+                  variant="outlined"
+                  label="First Name"
+                  name="firstName"
+                  value={formData.firstName}
                   onChange={handleChange}
                 />
               </Grid>
-              
-              <Grid {...{component: "div", item: true, xs: 12, sm: 6} as any}>
+              <Grid {...{component: "div", item: true, size: 6} as any}>
                 <TextField
                   required
                   fullWidth
+                  variant="outlined"
+                  label="Last Name"
+                  name="lastName"
+                  value={formData.lastName}
+                  onChange={handleChange}
+                />
+              </Grid>
+
+              {/* Email on its own row */}
+              <Grid {...{component: "div", item: true, size: 6} as any}>
+                <TextField
+                  required
+                  fullWidth
+                  variant="outlined"
                   label="Email Address"
                   name="email"
                   type="email"
@@ -111,34 +164,36 @@ const EnterpriseContactPage: React.FC = () => {
                   onChange={handleChange}
                 />
               </Grid>
-              
-              <Grid {...{component: "div", item: true, xs: 12, sm: 6} as any}>
+              <Grid {...{component: "div", item: true, size: 6} as any}>
                 <TextField
                   required
                   fullWidth
-                  label="Company/Institution"
-                  name="company"
-                  value={formData.company}
-                  onChange={handleChange}
-                />
-              </Grid>
-              
-              <Grid {...{component: "div", item: true, xs: 12, sm: 6} as any}>
-                <TextField
-                  required
-                  fullWidth
+                  variant="outlined"
                   label="Your Role"
                   name="role"
                   value={formData.role}
                   onChange={handleChange}
                 />
               </Grid>
-              
-              <Grid {...{component: "div", item: true, xs: 12, sm: 6} as any}>
+
+              {/* Company / Role / Institution Type in same row */}
+              <Grid {...{component: "div", item: true, size: 6} as any}>
+                <TextField
+                  required
+                  fullWidth
+                  variant="outlined"
+                  label="Company/Institution"
+                  name="company"
+                  value={formData.company}
+                  onChange={handleChange}
+                />
+              </Grid>
+              <Grid {...{component: "div", item: true, size: 6} as any}>
                 <TextField
                   select
                   required
                   fullWidth
+                  variant="outlined"
                   label="Institution Type"
                   name="institutionType"
                   value={formData.institutionType}
@@ -151,59 +206,89 @@ const EnterpriseContactPage: React.FC = () => {
                   ))}
                 </TextField>
               </Grid>
-              
-              <Grid {...{component: "div", item: true, xs: 12} as any}>
+
+              {/* Message on its own row */}
+              <Grid {...{component: "div", item: true, size: 12} as any}>
                 <TextField
-                  fullWidth
-                  label="Assets Under Management (optional)"
-                  name="assetsUnderManagement"
-                  value={formData.assetsUnderManagement}
-                  onChange={handleChange}
-                  placeholder="e.g., $500M-1B"
-                />
-              </Grid>
-              
-              <Grid {...{component: "div", item: true, xs: 12} as any}>
-                <TextField
-                  required
                   fullWidth
                   multiline
                   rows={4}
-                  label="How can we help your institution?"
+                  variant="outlined"
+                  label="How can we help you?"
                   name="message"
                   value={formData.message}
                   onChange={handleChange}
                 />
               </Grid>
-              
-              <Grid {...{component: "div", item: true, xs: 12} as any}>
-                <Button
-                  type="submit"
-                  variant="contained"
-                  color="primary"
-                  size="large"
-                  fullWidth
-                  sx={{
-                    py: 1.5,
-                    mt: 2,
-                    fontWeight: 600
-                  }}
-                >
-                  Submit Request
-                </Button>
+
+              {/* Submit Button */}
+              <Grid {...{component: "div", item: true, size: 12} as any}>
+                <Box display="flex" justifyContent="flex-end">
+                  <Button
+                    type="submit"
+                    variant="contained"
+                    color="primary"
+                    size="large"
+                    sx={{
+                      py: 1,         // Increased vertical padding
+                      px: 2,           // Increased horizontal padding
+                      fontWeight: 600,
+                      borderRadius: 2,
+                      textTransform: 'none',
+                      display: 'flex',  // Added display flex
+                      alignItems: 'center', // Added to center text vertically
+                      justifyContent: 'center', // Added to center text horizontally
+                      height: '48px'    // Set a fixed height
+                    }}
+                  >
+                    Submit Request
+                  </Button>
+                </Box>
               </Grid>
             </Grid>
-          </form>
+          </form>          
         </Paper>
+
+          
+        <Button
+          startIcon={<ArrowBackIcon />}
+          onClick={() => navigate('/')}
+          variant="contained" 
+          color="secondary" 
+          size="medium"
+          sx={{
+            py: 1,         // Increased vertical padding
+            px: 2,           // Increased horizontal padding
+            fontWeight: 600,
+            marginTop: 2,
+            width: '150px',
+            borderRadius: 2,
+            textTransform: 'none',
+            display: 'flex',  // Added display flex
+            align: 'center', // Added to center text vertically
+            alignItems: 'center', // Added to center text vertically
+            justifyContent: 'center', // Added to center text horizontally
+            height: '48px'    // Set a fixed height
+          }}
+        >
+          Back to Home
+        </Button>
+
       </Container>
-      
-      <Snackbar 
-        open={success} 
-        autoHideDuration={6000} 
-        onClose={() => setSuccess(false)}
+
+      {/* Success Snackbar */}
+      <Snackbar
+        open={success}
+        autoHideDuration={6000}
+        onClose={handleCloseSnackbar}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       >
-        <Alert onClose={() => setSuccess(false)} severity="success" sx={{ width: '100%' }}>
+        <Alert 
+          onClose={handleCloseSnackbar} 
+          severity="success" 
+          variant="filled"
+          sx={{ width: '100%' }}
+        >
           Your consultation request has been submitted successfully! Our team will contact you shortly.
         </Alert>
       </Snackbar>

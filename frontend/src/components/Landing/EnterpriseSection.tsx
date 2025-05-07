@@ -18,9 +18,14 @@ const benefits = [
     iconText: "🔍" // Using emoji as a fallback
   },
   {
-    title: "Data-Driven Allocation Decisions",
-    description: "Make allocation decisions based on comprehensive performance metrics and risk analytics, not just interviews and resumes.",
+    title: "Data-Driven Decisions",
+    description: "Make decisions based on comprehensive performance metrics and risk analytics, not just interviews and resumes.",
     iconText: "📊"
+  },
+  {
+    title: "Detailed Search Criteria",
+    description: "Identify candidates that best satisfy you requirements and constraints.",
+    iconText: "🔎"
   },
   {
     title: "Streamline Hiring Process",
@@ -56,7 +61,7 @@ const EnterpriseSection = forwardRef<HTMLDivElement, EnterpriseSectionProps>(({ 
               mx: 'auto'
             }}
           >
-            For Institutions & Allocators
+            Enterprise Solutions
           </Typography>
           
           <Typography 
@@ -68,19 +73,26 @@ const EnterpriseSection = forwardRef<HTMLDivElement, EnterpriseSectionProps>(({ 
               mb: 2
             }}
           >
-            Discover proven investment talent for your institution's portfolio
+            Discover proven investment talent for your institution's team or portfolio
           </Typography>
         </Box>
         
-        <Grid container spacing={4} sx={{ mb: 6 }}>
+        {/* New layout similar to FeaturesSection */}
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 4 }}>
           {benefits.map((benefit, index) => (
-            <Grid {...{component: "div", item: true, xs: 12, md: 4, key: index} as any}>
-              <Card 
-                sx={{ 
+            <Box 
+              key={index}
+              sx={{ 
+                width: '45%', 
+                mb: 4
+              }}
+            >
+              <Card
+                sx={{
                   height: '100%',
                   borderRadius: 3,
                   overflow: 'hidden',
-                  transition: 'transform 0.3s, box-shadow 0.3s',
+                  transition: 'all 0.3s',
                   '&:hover': {
                     transform: 'translateY(-10px)',
                     boxShadow: '0 15px 35px rgba(0, 0, 0, 0.1)',
@@ -96,7 +108,9 @@ const EnterpriseSection = forwardRef<HTMLDivElement, EnterpriseSectionProps>(({ 
                       ? 'linear-gradient(135deg, #0288d1 0%, #01579b 100%)'
                       : index === 1
                         ? 'linear-gradient(135deg, #0097a7 0%, #006064 100%)'
-                        : 'linear-gradient(135deg, #00897b 0%, #004d40 100%)',
+                        : index === 2
+                          ? 'linear-gradient(135deg, #00796b 0%, #004d40 100%)'
+                          : 'linear-gradient(135deg, #00897b 0%, #004d40 100%)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -115,11 +129,11 @@ const EnterpriseSection = forwardRef<HTMLDivElement, EnterpriseSectionProps>(({ 
                   </Typography>
                 </CardContent>
               </Card>
-            </Grid>
+            </Box>
           ))}
-        </Grid>
+        </Box>
         
-        {/* Adding a more substantial CTA section */}
+        {/* CTA section remains unchanged */}
         <Box 
           sx={{ 
             textAlign: 'center',
@@ -133,6 +147,7 @@ const EnterpriseSection = forwardRef<HTMLDivElement, EnterpriseSectionProps>(({ 
             boxShadow: '0 10px 30px rgba(0, 0, 0, 0.05)',
             position: 'relative',
             overflow: 'hidden',
+            mt: 4  // Added margin-top for spacing from the cards
           }}
         >
           {/* Background decoration */}
@@ -158,57 +173,64 @@ const EnterpriseSection = forwardRef<HTMLDivElement, EnterpriseSectionProps>(({ 
               Whether you're an endowment, pension fund, fund-of-funds, or investment committee, 
               our platform helps you identify and evaluate portfolio managers with verified track
               records in our realistic market environment. Access our growing database of skilled 
-              investors with transparent performance metrics.
+              investors with transparent and auditable performance metrics.
             </Typography>
             
             <Grid container spacing={3} justifyContent="center" sx={{ mt: 3 }}>
-              <Grid {...{component: "div", item: true, xs: 12, sm: 6, md: 4} as any}>
-                <Box sx={{ 
-                  p: 2, 
-                  textAlign: 'center',
-                  borderRadius: 2,
-                  bgcolor: alpha(theme.palette.primary.main, 0.07)
-                }}>
-                  <Typography variant="h5" component="div" sx={{ fontWeight: 700, mb: 1 }}>
-                    Transparent
-                  </Typography>
-                  <Typography variant="body2">
-                    Access verified trading history and performance metrics
-                  </Typography>
-                </Box>
-              </Grid>
-              
-              <Grid {...{component: "div", item: true, xs: 12, sm: 6, md: 4} as any}>
-                <Box sx={{ 
-                  p: 2, 
-                  textAlign: 'center',
-                  borderRadius: 2,
-                  bgcolor: alpha(theme.palette.primary.main, 0.07)
-                }}>
-                  <Typography variant="h5" component="div" sx={{ fontWeight: 700, mb: 1 }}>
-                    Reliable
-                  </Typography>
-                  <Typography variant="body2">
-                    Performance data validated through our simulation platform
-                  </Typography>
-                </Box>
-              </Grid>
-              
-              <Grid {...{component: "div", item: true, xs: 12, sm: 6, md: 4} as any}>
-                <Box sx={{ 
-                  p: 2, 
-                  textAlign: 'center',
-                  borderRadius: 2,
-                  bgcolor: alpha(theme.palette.primary.main, 0.07)
-                }}>
-                  <Typography variant="h5" component="div" sx={{ fontWeight: 700, mb: 1 }}>
-                    Diverse
-                  </Typography>
-                  <Typography variant="body2">
-                    Find talent across various strategies and investment styles
-                  </Typography>
-                </Box>
-              </Grid>
+                {/* Force items to stay on one row by specifying fixed widths at different breakpoints */}
+                <Grid {...{component: "div", item: true, xs: 12, md: 4, sm: 4} as any}>
+                    <Box sx={{ 
+                    p: 2, 
+                    textAlign: 'center',
+                    borderRadius: 2,
+                    height: '100%', // Make boxes the same height
+                    width: '300px',
+                    bgcolor: alpha(theme.palette.primary.main, 0.07)
+                    }}>
+                    <Typography variant="h5" component="div" sx={{ fontWeight: 700, mb: 1 }}>
+                        Auditable
+                    </Typography>
+                    <Typography variant="body2">
+                        Access verified trading history and performance metrics
+                    </Typography>
+                    </Box>
+                </Grid>
+                
+                <Grid {...{component: "div", item: true, xs: 12, md: 4, sm: 4} as any}>
+                    <Box sx={{ 
+                    p: 2, 
+                    textAlign: 'center',
+                    borderRadius: 2,
+                    height: '100%', // Make boxes the same height
+                    width: '300px',
+                    bgcolor: alpha(theme.palette.primary.main, 0.07)
+                    }}>
+                    <Typography variant="h5" component="div" sx={{ fontWeight: 700, mb: 1 }}>
+                        Robust
+                    </Typography>
+                    <Typography variant="body2">
+                        Performance data validated through our simulation platform
+                    </Typography>
+                    </Box>
+                </Grid>
+                
+                <Grid {...{component: "div", item: true, xs: 12, md: 4, sm: 4} as any}>
+                    <Box sx={{ 
+                    p: 2, 
+                    textAlign: 'center',
+                    borderRadius: 2,
+                    height: '100%', // Make boxes the same height
+                    width: '300px',
+                    bgcolor: alpha(theme.palette.primary.main, 0.07)
+                    }}>
+                    <Typography variant="h5" component="div" sx={{ fontWeight: 700, mb: 1 }}>
+                        Diverse
+                    </Typography>
+                    <Typography variant="body2">
+                        Find talent across various strategies and investment styles
+                    </Typography>
+                    </Box>
+                </Grid>
             </Grid>
             
             <Button 
@@ -223,14 +245,14 @@ const EnterpriseSection = forwardRef<HTMLDivElement, EnterpriseSectionProps>(({ 
                 mt: 6,
                 borderRadius: 2,
                 fontWeight: 600,
-                fontSize: '1.1rem',
-                boxShadow: '0 8px 20px rgba(33, 150, 243, 0.3)',
                 transition: 'all 0.3s ease',
+                border: '2px solid',             // Add border with current color
+                borderColor: 'primary.main',     // Set border color to match button color
                 '&:hover': {
-                  transform: 'translateY(-5px)',
-                  boxShadow: '0 12px 25px rgba(33, 150, 243, 0.4)',
+                backgroundColor: alpha(theme.palette.background.default, 0.75),
+                borderColor: theme.palette.primary.main,  // Keep border visible on hover
                 }
-              }}
+                }}
             >
               Schedule a Consultation
             </Button>

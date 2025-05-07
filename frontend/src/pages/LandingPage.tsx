@@ -38,7 +38,7 @@ const LandingPage: React.FC = () => {
     }, observerOptions);
     
     // Observe all animation elements
-    const elements = [heroRef.current, featuresRef.current];
+    const elements = [heroRef.current, featuresRef.current, enterpriseRef.current];
     elements.forEach(el => el && observer.observe(el));
     
     return () => {

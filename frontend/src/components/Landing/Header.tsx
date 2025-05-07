@@ -181,7 +181,11 @@ const Header: React.FC = () => {
                 fontWeight: 500,
                 textTransform: 'none',
                 boxShadow: 'none',
+                border: '2px solid',             // Add border with current color
+                borderColor: theme.palette.primary.main,  // Keep border visible on hover
                 '&:hover': {
+                  border: '2px solid',
+                  borderColor: theme.palette.primary.main,  // Keep border visible on hover
                   backgroundColor: theme.palette.background.default,
                   boxShadow: '0 4px 8px rgba(33, 150, 243, 0.25)', // Blue shadow with offset and blur
                   transform: 'none', // Remove any transform animation

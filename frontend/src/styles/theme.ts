@@ -10,9 +10,9 @@ const lightTheme = {
     contrastText: '#ffffff',
   },
   secondary: {
-    main: '#26a69a',  // Teal for accents
-    dark: '#00796b',
-    light: '#4db6ac',
+    main: '#757575', // Gray secondary color
+    dark: '#616161',
+    light: '#9e9e9e',
     contrastText: '#ffffff',
   },
   background: {
@@ -54,9 +54,9 @@ const darkTheme = {
     contrastText: '#ffffff',
   },
   secondary: {
-    main: '#26a69a',  // Keep accent color
-    dark: '#00796b',
-    light: '#4db6ac',
+    main: '#757575', // Gray secondary color
+    dark: '#616161',
+    light: '#9e9e9e',
     contrastText: '#ffffff',
   },
   background: {
