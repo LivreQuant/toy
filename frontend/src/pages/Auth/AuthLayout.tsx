@@ -17,15 +17,6 @@ const AuthLayout: React.FC<AuthLayoutProps> = ({ children, title, subtitle }) =>
   return (
     <div className="auth-layout">
       
-      <div className="auth-card">
-        <div className="auth-header">
-          <h2>{title}</h2>
-          {subtitle && <p className="auth-subtitle">{subtitle}</p>}
-        </div>
-        <div className="auth-content">
-          {children}
-        </div>
-      </div>
 
       <div className="auth-logo">
         <Button
@@ -38,7 +29,7 @@ const AuthLayout: React.FC<AuthLayoutProps> = ({ children, title, subtitle }) =>
             py: 1,         // Increased vertical padding
             px: 2,           // Increased horizontal padding
             fontWeight: 600,
-            marginTop: 2,
+            marginBottom: 2,
             borderRadius: 2,
             textTransform: 'none',
             display: 'flex',  // Added display flex
@@ -49,6 +40,16 @@ const AuthLayout: React.FC<AuthLayoutProps> = ({ children, title, subtitle }) =>
         >
           Back to Home
         </Button>
+      </div>
+
+      <div className="auth-card">
+        <div className="auth-header">
+          <h2>{title}</h2>
+          {subtitle && <p className="auth-subtitle">{subtitle}</p>}
+        </div>
+        <div className="auth-content">
+          {children}
+        </div>
       </div>
 
     </div>

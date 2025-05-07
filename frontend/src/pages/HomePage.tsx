@@ -6,7 +6,6 @@ import { useRequireAuth } from '../hooks/useRequireAuth';
 import { useConnection } from '../hooks/useConnection';
 import { useBookManager } from '../hooks/useBookManager';
 import { Book } from '../types';
-import ConnectionStatusIndicator from '../components/Common/ConnectionStatusIndicator';
 import './HomePage.css';
 
 // Instead of relying solely on the local state, let's also directly access the global state
@@ -15,7 +14,7 @@ import { bookState } from '../state/book-state';
 const HomePage: React.FC = () => {
   useRequireAuth();
   const { logout } = useAuth();
-  const { connectionManager, connectionState, isConnected } = useConnection();
+  const { isConnected } = useConnection();
   const { addToast } = useToast();
   const bookManager = useBookManager();
   const navigate = useNavigate();
@@ -82,13 +81,6 @@ const HomePage: React.FC = () => {
     navigate(`/books/${bookId}`);
   };
 
-  const handleManualReconnect = () => {
-    if (connectionManager) {
-      connectionManager.manualReconnect();
-      addToast('info', 'Attempting to reconnect...');
-    }
-  };
-
   console.log('Books array in component:', books);
   console.log('Books length:', books.length);
   console.log('isLoading:', isLoading);
@@ -101,18 +93,6 @@ const HomePage: React.FC = () => {
           Logout
         </button>
       </header>
-
-      <div className="status-panel">
-        <h2>Connection</h2>
-        {connectionState ? (
-          <ConnectionStatusIndicator
-            state={connectionState}
-            onManualReconnect={handleManualReconnect}
-          />
-        ) : (
-          <p>Loading connection state...</p>
-        )}
-      </div>
 
       <div className="books-panel">
         <div className="panel-header">

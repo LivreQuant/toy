@@ -4,7 +4,6 @@ import { useNavigate } from 'react-router-dom';
 import { useConnection } from '../hooks/useConnection';
 import { useRequireAuth } from '../hooks/useRequireAuth';
 import { useToast } from '../hooks/useToast';
-import ConnectionStatusIndicator from '../components/Common/ConnectionStatusIndicator';
 import CsvOrderUpload from '../components/Simulator/CsvOrderUpload';
 import './SimulatorPage.css';
 
@@ -112,15 +111,6 @@ const SimulatorPage: React.FC = () => {
                 </button>
             </div>
         </header>
-
-        {connectionState ? (
-            <ConnectionStatusIndicator
-                state={connectionState}
-                onManualReconnect={handleManualReconnect}
-            />
-        ) : (
-            <p>Loading connection state...</p>
-        )}
 
         <div className="simulator-content">
             <div className="order-entry-container">

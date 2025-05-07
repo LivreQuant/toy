@@ -36,6 +36,9 @@ import { BookManagerProvider } from './contexts/BookContext';
 // COMPONENTS
 import ProtectedRoute from './components/Common/ProtectedRoute'; // Component for protected routes
 
+// LAYOUT 
+import AuthenticatedLayout from './components/Layout/AuthenticatedLayout';
+
 // PAGES
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/Auth/LoginPage';
@@ -127,33 +130,43 @@ const AppRoutes: React.FC = () => {
       {/* Session page */}
       <Route path="/home" element={
         <ProtectedRoute>
-          <HomePage />
+          <AuthenticatedLayout>
+            <HomePage />
+          </AuthenticatedLayout>
         </ProtectedRoute>
       } />
 
       {/* Book initialize */}
       <Route path="/books/new" element={
         <ProtectedRoute>
-          <BookSetupPage />
+          <AuthenticatedLayout>
+            <BookSetupPage />
+          </AuthenticatedLayout>
         </ProtectedRoute>
       } />
 
       <Route path="/books/:bookId" element={
         <ProtectedRoute>
-          <BookDetailsPage />
+          <AuthenticatedLayout>
+            <BookDetailsPage />
+          </AuthenticatedLayout>
         </ProtectedRoute>
       } />
 
       {/* Simulator page */}
       <Route path="/simulator/:simulationId" element={
         <ProtectedRoute>
-          <SimulatorPage />
+          <AuthenticatedLayout>
+            <SimulatorPage />
+          </AuthenticatedLayout>
         </ProtectedRoute>
       } />
 
       {/* Deactivate session */}
       <Route path="/session-deactivated" element={
-        <SessionDeactivatedPage />
+          <AuthenticatedLayout>
+            <SessionDeactivatedPage />
+          </AuthenticatedLayout>
       } />
 
       {/* Default route - Redirect to home */}

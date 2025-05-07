@@ -88,6 +88,31 @@ const EnterpriseContactPage: React.FC = () => {
     <Box sx={{ bgcolor: '#f5f7fa', minHeight: '100vh', py: { xs: 4, sm: 6 } }}>
       <Container sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }} maxWidth="md">
 
+      <Button
+          startIcon={<ArrowBackIcon />}
+          onClick={() => navigate('/')}
+          variant="contained" 
+          color="secondary" 
+          size="medium"
+          sx={{
+            py: 1,         // Increased vertical padding
+            px: 2,           // Increased horizontal padding
+            fontWeight: 600,
+            marginBottom: 2,
+            width: '150px',
+            borderRadius: 2,
+            textTransform: 'none',
+            display: 'flex',  // Added display flex
+            align: 'center', // Added to center text vertically
+            alignItems: 'center', // Added to center text vertically
+            justifyContent: 'center', // Added to center text horizontally
+            height: '48px'    // Set a fixed height
+          }}
+        >
+          Back to Home
+        </Button>
+
+
         {/* Main Form Paper */}
         <Paper 
           elevation={0}
@@ -250,30 +275,6 @@ const EnterpriseContactPage: React.FC = () => {
         </Paper>
 
           
-        <Button
-          startIcon={<ArrowBackIcon />}
-          onClick={() => navigate('/')}
-          variant="contained" 
-          color="secondary" 
-          size="medium"
-          sx={{
-            py: 1,         // Increased vertical padding
-            px: 2,           // Increased horizontal padding
-            fontWeight: 600,
-            marginTop: 2,
-            width: '150px',
-            borderRadius: 2,
-            textTransform: 'none',
-            display: 'flex',  // Added display flex
-            align: 'center', // Added to center text vertically
-            alignItems: 'center', // Added to center text vertically
-            justifyContent: 'center', // Added to center text horizontally
-            height: '48px'    // Set a fixed height
-          }}
-        >
-          Back to Home
-        </Button>
-
       </Container>
 
       {/* Success Snackbar */}
