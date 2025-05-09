@@ -39,7 +39,7 @@ ENV PYTHONUNBUFFERED=1 \
     # Tracing Configuration
     ENABLE_TRACING="true" \
     METRICS_PORT="9091" \
-    OTEL_SERVICE_NAME="order-service" \
+    OTEL_SERVICE_NAME="book-service" \
     OTEL_EXPORTER_JAEGER_ENDPOINT="http://jaeger-collector:14268/api/traces" \
     # Logging and Security
     LOG_LEVEL="INFO"
