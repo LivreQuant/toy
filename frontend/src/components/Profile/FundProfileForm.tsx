@@ -24,7 +24,9 @@ import {
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack'; // Import the back arrow icon
 import { useToast } from '../../hooks/useToast';
+import { useNavigate } from 'react-router-dom'; // Import useNavigate
 import './FundProfileForm.css';
 
 // Define types
@@ -104,8 +106,10 @@ const AUM_RANGES = [
   'Over $1B'
 ];
 
+
 const FundProfileForm: React.FC = () => {
   const { addToast } = useToast();
+  const navigate = useNavigate(); // Add the useNavigate hook
   const [activeStep, setActiveStep] = useState(0);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isProcessing, setIsProcessing] = useState(false);
@@ -1010,10 +1014,35 @@ const FundProfileForm: React.FC = () => {
 
   return (
     <Box className="fund-profile-form">
+      {/* Add Back Button at the top */}
+      <Button
+        startIcon={<ArrowBackIcon />}
+        onClick={() => navigate('/home')} // Navigate to home page
+        variant="contained"
+        color="secondary"
+        size="medium"
+        sx={{
+          py: 1,
+          px: 2,
+          fontWeight: 600,
+          marginBottom: 2,
+          width: '150px',
+          borderRadius: 2,
+          textTransform: 'none',
+          display: 'flex',
+          alignItems: 'center', // Corrected from align: 'center'
+          justifyContent: 'center',
+          height: '48px'
+        }}
+      >
+        Back to Home
+      </Button>
+
       <Paper elevation={3} sx={{ p: 4 }}>
         <Typography variant="h4" component="h1" align="center" gutterBottom>
           Fund Profile
         </Typography>
+
         <Typography variant="subtitle1" color="textSecondary" align="center" paragraph>
           Create your fund's profile for investors and allocators
         </Typography>

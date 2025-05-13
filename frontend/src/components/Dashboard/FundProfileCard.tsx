@@ -130,37 +130,64 @@ const FundProfileCard: React.FC<FundProfileCardProps> = ({ fundProfile, onEditPr
       </Box>
 
       <CardContent sx={{ p: 0, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-        <Grid container sx={{ flexGrow: 1 }}>
-          <Grid {...{component: "div", item: true, xs: 12, sm: 7, md: 8} as any}>
-            <Box sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column' }}>
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 3 }}>
-                {fundProfile?.yearEstablished && (
-                  <Chip 
-                    icon={<CalendarTodayIcon fontSize="small" />}
-                    label={`Est. ${fundProfile.yearEstablished}`} 
-                    size="small"
-                    variant="outlined"
-                  />
-                )}
-                {fundProfile?.aumRange && (
-                  <Chip 
-                    icon={<AccountBalanceIcon fontSize="small" />}
-                    label={fundProfile.aumRange} 
-                    size="small"
-                    variant="outlined"
-                  />
-                )}
-                {fundProfile?.teamMembers?.length > 0 && (
-                  <Chip 
-                    icon={<PeopleIcon fontSize="small" />}
-                    label={`${fundProfile.teamMembers.length} Team Member${fundProfile.teamMembers.length !== 1 ? 's' : ''}`} 
-                    size="small"
-                    variant="outlined"
-                  />
-                )}
-              </Box>
+        <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, width: '100%', height: '100%' }}>
+          {/* Fund info section */}
+          <Box sx={{ 
+            p: 3, 
+            flex: { xs: '1 1 auto', md: '1 1 70%' }, 
+            display: 'flex', 
+            flexDirection: 'column'
+          }}>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 3 }}>
+              {fundProfile?.yearEstablished && (
+                <Chip 
+                  icon={<CalendarTodayIcon fontSize="small" />}
+                  label={`Est. ${fundProfile.yearEstablished}`} 
+                  size="small"
+                  variant="outlined"
+                />
+              )}
+              {fundProfile?.aumRange && (
+                <Chip 
+                  icon={<AccountBalanceIcon fontSize="small" />}
+                  label={fundProfile.aumRange} 
+                  size="small"
+                  variant="outlined"
+                />
+              )}
+              {fundProfile?.teamMembers?.length > 0 && (
+                <Chip 
+                  icon={<PeopleIcon fontSize="small" />}
+                  label={`${fundProfile.teamMembers.length} Team Member${fundProfile.teamMembers.length !== 1 ? 's' : ''}`} 
+                  size="small"
+                  variant="outlined"
+                />
+              )}
+            </Box>
 
-              <Box sx={{ mb: 3, flexGrow: 1 }}>
+            <Box sx={{ mb: 3, flexGrow: 1 }}>
+              <Box sx={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                mb: 1,
+                pb: 1,
+                borderBottom: `1px solid ${theme.palette.divider}`
+              }}>
+                <StrategyIcon fontSize="small" sx={{ mr: 1, color: 'primary.main' }} />
+                <Typography variant="h6">Investment Strategy</Typography>
+              </Box>
+              <Typography 
+                variant="body1" 
+                color="text.secondary" 
+                paragraph 
+                sx={{ px: 1, mt: 1 }}
+              >
+                {fundProfile?.investmentStrategy || 'No investment strategy defined yet.'}
+              </Typography>
+            </Box>
+
+            {fundProfile?.profilePurpose?.length > 0 && (
+              <Box sx={{ mt: 'auto' }}>
                 <Box sx={{ 
                   display: 'flex', 
                   alignItems: 'center', 
@@ -168,153 +195,129 @@ const FundProfileCard: React.FC<FundProfileCardProps> = ({ fundProfile, onEditPr
                   pb: 1,
                   borderBottom: `1px solid ${theme.palette.divider}`
                 }}>
-                  <StrategyIcon fontSize="small" sx={{ mr: 1, color: 'primary.main' }} />
-                  <Typography variant="h6">Investment Strategy</Typography>
+                  <Typography variant="h6">Investment Objectives</Typography>
                 </Box>
-                <Typography 
-                  variant="body1" 
-                  color="text.secondary" 
-                  paragraph 
-                  sx={{ px: 1, mt: 1 }}
-                >
-                  {fundProfile?.investmentStrategy || 'No investment strategy defined yet.'}
-                </Typography>
-              </Box>
-
-              {fundProfile?.profilePurpose?.length > 0 && (
-                <Box sx={{ mt: 'auto' }}>
-                  <Box sx={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    mb: 1,
-                    pb: 1,
-                    borderBottom: `1px solid ${theme.palette.divider}`
-                  }}>
-                    <Typography variant="h6">Investment Objectives</Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 2 }}>
-                    {fundProfile.profilePurpose.map((purpose: string) => (
-                      <Chip 
-                        key={purpose}
-                        label={purpose.replace('_', ' ').split(' ').map((word: string) => 
-                          word.charAt(0).toUpperCase() + word.slice(1)
-                        ).join(' ')} 
-                        size="small"
-                        color="primary"
-                        variant="outlined"
-                      />
-                    ))}
-                  </Box>
-                </Box>
-              )}
-            </Box>
-          </Grid>
-          
-          <Grid {...{component: "div", item: true, xs: 12, sm: 5, md: 4} as any}>
-            <Box 
-              sx={{ 
-                p: 3, 
-                backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.01)',
-                height: '100%',
-                borderLeft: `1px solid ${theme.palette.divider}`
-              }}
-            >
-              <Box sx={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                mb: 2,
-                pb: 1,
-                borderBottom: `1px solid ${theme.palette.divider}`
-              }}>
-                <PeopleIcon fontSize="small" sx={{ mr: 1, color: 'primary.main' }} />
-                <Typography variant="h6">Management Team</Typography>
-              </Box>
-              
-              {fundProfile?.teamMembers && fundProfile.teamMembers.length > 0 ? (
-                <List disablePadding sx={{ mt: 2 }}>
-                  {fundProfile.teamMembers.map((member: any) => (
-                    <ListItem 
-                      key={member.id} 
-                      disablePadding 
-                      sx={{ 
-                        mb: 2, 
-                        pb: 2,
-                        borderBottom: fundProfile.teamMembers.indexOf(member) !== fundProfile.teamMembers.length - 1 
-                          ? `1px solid ${theme.palette.divider}` 
-                          : 'none'
-                      }}
-                    >
-                      <ListItemAvatar>
-                        <Avatar 
-                          sx={{ 
-                            bgcolor: theme.palette.primary.main,
-                            width: 48,
-                            height: 48
-                          }}
-                        >
-                          {member.firstName?.charAt(0) || ''}{member.lastName?.charAt(0) || ''}
-                        </Avatar>
-                      </ListItemAvatar>
-                      <ListItemText
-                        primary={
-                          <Typography variant="subtitle1" sx={{ fontWeight: 'medium' }}>
-                            {member.firstName} {member.lastName}
-                          </Typography>
-                        }
-                        secondary={
-                          <>
-                            <Typography variant="body2" component="span" color="text.primary">
-                              {member.role}
-                            </Typography>
-                            {member.yearsExperience && (
-                              <>
-                                <br />
-                                <Typography variant="caption" color="text.secondary">
-                                  {member.yearsExperience} years experience
-                                </Typography>
-                              </>
-                            )}
-                            {member.education && (
-                              <>
-                                <br />
-                                <Typography variant="caption" color="text.secondary">
-                                  {member.education}
-                                </Typography>
-                              </>
-                            )}
-                          </>
-                        }
-                      />
-                    </ListItem>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 2 }}>
+                  {fundProfile.profilePurpose.map((purpose: string) => (
+                    <Chip 
+                      key={purpose}
+                      label={purpose.replace('_', ' ').split(' ').map((word: string) => 
+                        word.charAt(0).toUpperCase() + word.slice(1)
+                      ).join(' ')} 
+                      size="small"
+                      color="primary"
+                      variant="outlined"
+                    />
                   ))}
-                </List>
-              ) : (
-                <Box sx={{ 
-                  mt: 3, 
-                  p: 3, 
-                  textAlign: 'center', 
-                  border: `1px dashed ${theme.palette.divider}`,
-                  borderRadius: 1
-                }}>
-                  <Typography variant="body2" color="text.secondary">
-                    No team members added yet. 
-                    <br /><br />
-                    Edit your fund profile to add team members.
-                  </Typography>
-                  <Button 
-                    variant="outlined" 
-                    size="small" 
-                    onClick={onEditProfile}
-                    startIcon={<EditIcon />}
-                    sx={{ mt: 2 }}
-                  >
-                    Add Team Members
-                  </Button>
                 </Box>
-              )}
+              </Box>
+            )}
+          </Box>
+          
+          {/* Team section - now using Box layout with flex to ensure it's at the far right */}
+          <Box sx={{ 
+            p: 3, 
+            backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.01)',
+            flex: { xs: '1 1 auto', md: '1 1 30%' },
+            borderLeft: { xs: 'none', md: `1px solid ${theme.palette.divider}` },
+            ml: 'auto',
+            alignSelf: 'stretch'
+          }}>
+            <Box sx={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              mb: 2,
+              pb: 1,
+              borderBottom: `1px solid ${theme.palette.divider}`
+            }}>
+              <PeopleIcon fontSize="small" sx={{ mr: 1, color: 'primary.main' }} />
+              <Typography variant="h6">Management Team</Typography>
             </Box>
-          </Grid>
-        </Grid>
+            
+            {fundProfile?.teamMembers && fundProfile.teamMembers.length > 0 ? (
+              <List disablePadding sx={{ mt: 2 }}>
+                {fundProfile.teamMembers.map((member: any) => (
+                  <ListItem 
+                    key={member.id} 
+                    disablePadding 
+                    sx={{ 
+                      mb: 2, 
+                      pb: 2,
+                      borderBottom: fundProfile.teamMembers.indexOf(member) !== fundProfile.teamMembers.length - 1 
+                        ? `1px solid ${theme.palette.divider}` 
+                        : 'none'
+                    }}
+                  >
+                    <ListItemAvatar>
+                      <Avatar 
+                        sx={{ 
+                          bgcolor: theme.palette.primary.main,
+                          width: 48,
+                          height: 48
+                        }}
+                      >
+                        {member.firstName?.charAt(0) || ''}{member.lastName?.charAt(0) || ''}
+                      </Avatar>
+                    </ListItemAvatar>
+                    <ListItemText
+                      primary={
+                        <Typography variant="subtitle1" sx={{ fontWeight: 'medium' }}>
+                          {member.firstName} {member.lastName}
+                        </Typography>
+                      }
+                      secondary={
+                        <>
+                          <Typography variant="body2" component="span" color="text.primary">
+                            {member.role}
+                          </Typography>
+                          {member.yearsExperience && (
+                            <>
+                              <br />
+                              <Typography variant="caption" color="text.secondary">
+                                {member.yearsExperience} years experience
+                              </Typography>
+                            </>
+                          )}
+                          {member.education && (
+                            <>
+                              <br />
+                              <Typography variant="caption" color="text.secondary">
+                                {member.education}
+                              </Typography>
+                            </>
+                          )}
+                        </>
+                      }
+                    />
+                  </ListItem>
+                ))}
+              </List>
+            ) : (
+              <Box sx={{ 
+                mt: 3, 
+                p: 3, 
+                textAlign: 'center', 
+                border: `1px dashed ${theme.palette.divider}`,
+                borderRadius: 1
+              }}>
+                <Typography variant="body2" color="text.secondary">
+                  No team members added yet. 
+                  <br /><br />
+                  Edit your fund profile to add team members.
+                </Typography>
+                <Button 
+                  variant="outlined" 
+                  size="small" 
+                  onClick={onEditProfile}
+                  startIcon={<EditIcon />}
+                  sx={{ mt: 2 }}
+                >
+                  Add Team Members
+                </Button>
+              </Box>
+            )}
+          </Box>
+        </Box>
       </CardContent>
     </Card>
   );

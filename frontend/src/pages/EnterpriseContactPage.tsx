@@ -88,7 +88,7 @@ const EnterpriseContactPage: React.FC = () => {
     <Box sx={{ bgcolor: '#f5f7fa', minHeight: '100vh', py: { xs: 4, sm: 6 } }}>
       <Container sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }} maxWidth="md">
 
-      <Button
+        <Button
           startIcon={<ArrowBackIcon />}
           onClick={() => navigate('/')}
           variant="contained" 
