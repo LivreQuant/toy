@@ -1,6 +1,7 @@
+// Update src/pages/LandingPage.tsx
 import React, { useEffect, useRef } from 'react';
 import { Box } from '@mui/material';
-import { useTheme } from '../contexts/ThemeContext'; // Just import your custom hook
+import { useTheme } from '../contexts/ThemeContext';
 import './LandingPage.css';
 
 import {
@@ -9,6 +10,9 @@ import {
   FeaturesSection,
   HowItWorksSection,
   EnterpriseSection,
+  StatsSection,
+  TestimonialsSection,
+  FaqSection, // Import the new component
   CtaSection,
   Footer
 } from '../components/Landing';
@@ -20,6 +24,7 @@ const LandingPage: React.FC = () => {
   const heroRef = useRef<HTMLDivElement>(null);
   const featuresRef = useRef<HTMLDivElement>(null);
   const enterpriseRef = useRef<HTMLDivElement>(null);
+  const faqRef = useRef<HTMLDivElement>(null); // Add a ref for FAQ section
   
   // Set up animations (unchanged from your code)
   useEffect(() => {
@@ -38,7 +43,7 @@ const LandingPage: React.FC = () => {
     }, observerOptions);
     
     // Observe all animation elements
-    const elements = [heroRef.current, featuresRef.current, enterpriseRef.current];
+    const elements = [heroRef.current, featuresRef.current, enterpriseRef.current, faqRef.current];
     elements.forEach(el => el && observer.observe(el));
     
     return () => {
@@ -59,6 +64,8 @@ const LandingPage: React.FC = () => {
       <FeaturesSection ref={featuresRef} className="animate-on-scroll" />
       <HowItWorksSection />
       <EnterpriseSection ref={enterpriseRef} className="animate-on-scroll" />
+      {/*<TestimonialsSection />*/}
+      <FaqSection ref={faqRef} className="animate-on-scroll" /> {/* Add FAQ section */}
       <CtaSection />
       <Footer />
     </Box>

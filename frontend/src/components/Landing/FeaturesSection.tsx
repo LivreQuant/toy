@@ -1,10 +1,15 @@
 // src/components/landing/FeaturesSection.tsx
 import React, { forwardRef } from 'react';
-import { Box, Container, Typography, Grid, Card, CardContent } from '@mui/material';
+import { Box, Container, Typography, Card, CardContent } from '@mui/material';
 
 // Import your images
 // For example:
 import realTimeImage from '../../assets/features/dashboard.png';
+import marketImage from '../../assets/features/market_simulator.jpeg';
+import qedImage from '../../assets/features/qed.jpg';
+import analyticsImage from '../../assets/features/analytics.jpeg';
+import lockImage from '../../assets/features/lock.jpg';
+import apiImage from '../../assets/features/api.jpeg';
 
 interface FeaturesSectionProps {
   className?: string;
@@ -13,33 +18,33 @@ interface FeaturesSectionProps {
 const features = [
   {
     title: 'Professional Trading Dashboard',
-    description: 'Create and manage separate trading books for different strategies, asset classes, or risk profiles.',
+    description: 'Emulate a professional portfolio manager with our institutional-grade dashboard. Meticulously organize and oversee your portfolio through a sophisticated, hedge fund-level interface.',
     image: realTimeImage
   },
   {
     title: 'Real-Time Market Simulation',
-    description: 'Experience institutional-grade market simulation with accurate price dynamics, order book depth, and latency modeling.',
-    image: realTimeImage
+    description: 'Experience an institutional-grade market simulation environment, delivering accurate price dynamics and realistic trade execution, complemented by authentic latency modeling.',
+    image: marketImage
   },
   {
     title: 'Provable Track Record',
-    description: 'Test your strategies against historical data with accurate slippage and transaction cost modeling.',
-    image: realTimeImage
+    description: 'Establish and maintain a cryptographically verifiable and immutable track record of your trading convictions and performance.',
+    image: qedImage
   },
   {
     title: 'In Depth Analytics',
-    description: 'Comprehensive analytics dashboards with P&L tracking, risk metrics, and strategy performance indicators.',
-    image: realTimeImage
+    description: 'Leverage detailed analytics dashboards for in-depth P&L tracking, robust attribution analysis, comprehensive risk metrics, and personalized performance factsheets.',
+    image: analyticsImage
   },
   {
-    title: 'Protect Your IP',
-    description: 'Built-in compliance checks and risk limits to ensure trading strategies meet regulatory requirements.',
-    image: realTimeImage
+    title: 'Safeguard Your IP',
+    description: 'Safeguard your intellectual property. Our platform operates on processes that do not necessitate access to your strategy details or live trades, ensuring your IP remains confidential.',
+    image: lockImage
   },
   {
     title: 'API Integration',
-    description: 'Connect your custom trading algorithms via our robust REST and WebSocket APIs.',
-    image: realTimeImage
+    description: 'Integrate custom trading algorithms effortlessly via our robust and well-documented REST and WebSocket APIs for enhanced automation and control.',
+    image: apiImage
   }
 ];
 
@@ -57,7 +62,7 @@ const FeaturesSection = forwardRef<HTMLDivElement, FeaturesSectionProps>(({ clas
         </Typography>
         
         <Typography variant="h6" color="textSecondary" sx={{ mb: 6, maxWidth: 700, mx: 'auto' }}>
-          Everything you need to demonstrate your investment aptitude
+          Ready to experience being a portfolio manager? Your hedge fund seat awaits.
         </Typography>
         
         <Box sx={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 4 }}>

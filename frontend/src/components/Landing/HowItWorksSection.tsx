@@ -1,34 +1,53 @@
 // src/components/landing/HowItWorksSection.tsx
 import React from 'react';
-import { Box, Container, Typography, useTheme } from '@mui/material';
+import { Box, Container, Typography, useTheme, useMediaQuery } from '@mui/material';
 
 // Import your images
-// For example:
-import trackPortfolioImage from '../../assets/howItWorks/dashboard.png';
+import strategyImage from '../../assets/howItWorks/strategy.jpeg';
+import blockchainImage from '../../assets/howItWorks/blockchain.jpeg';
+import tradesImage from '../../assets/howItWorks/trades.png';
+import factsheetImage from '../../assets/howItWorks/factsheet.jpg';
 
 const steps = [
   {
     step: 1,
-    title: 'Track Your Portfolio',
-    description: 'Configure your trading book with custom parameters, capital allocation, and risk limits.',
-    image: trackPortfolioImage
+    title: 'Generate & Encrypt Convictions',
+    description: 'Develop your trading strategies and generate market convictions on your personal and secured device. Your convictions are encrypted with your unique key, securing your intellectual property from the moment it you generated them.',
+    image: strategyImage
   },
   {
     step: 2,
-    title: 'Trusted Timestamps',
-    description: 'Build and refine your trading strategies using our intuitive interface or API integration.',
-    image: trackPortfolioImage
+    title: 'Commit to Public Blockchain',
+    description: 'Upload your encrypted convictions and we will securely commit them to a public blockchain. This creates an immutable and independently verifiable record of their existence and precise origination time.',
+    image: blockchainImage
   },
   {
     step: 3,
-    title: 'Simulate & Analyze',
-    description: 'Run your strategies in our realistic market environment and analyze performance in real-time.',
-    image: trackPortfolioImage
+    title: 'Selective Disclosure & Verification',
+    description: 'Reveal your original unencrypted convictions at your chosen time, under your complete control. This platform performs verificaties them against the blockchain record, confirming authenticity and timestamp integrity.',
+    image: tradesImage
+  },
+  {
+    step: 4,
+    title: 'Generate Provable Track Record',
+    description: 'Upon verification, our simulation engine processes your authentically time-stamped convictions. This generates a comprehensive, provable performance record and detailed portfolio factsheets that validate your investment aptitude.',
+    image: factsheetImage
   }
 ];
 
 const HowItWorksSection: React.FC = () => {
   const theme = useTheme();
+  const isLgUp = useMediaQuery(theme.breakpoints.up('lg'));
+  const isMdUp = useMediaQuery(theme.breakpoints.up('md'));
+  const isSmUp = useMediaQuery(theme.breakpoints.up('sm'));
+  
+  // Set the appropriate layout based on screen size
+  const getStepWidth = () => {
+    if (isLgUp) return 'calc(25% - 24px)'; // For large screens, 4 items per row with gap
+    if (isMdUp) return 'calc(50% - 16px)';  // For medium screens, 2 items per row
+    if (isSmUp) return 'calc(50% - 16px)';  // For small screens, 2 items per row
+    return '100%';                          // For extra small screens, 1 item per row
+  };
   
   return (
     <Box 
@@ -47,13 +66,18 @@ const HowItWorksSection: React.FC = () => {
           Start creating your provable track record today
         </Typography>
         
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 4 }}>
+        <Box sx={{ 
+          display: 'flex', 
+          flexWrap: { xs: 'wrap', lg: 'nowrap' }, 
+          justifyContent: 'center', 
+          gap: { xs: 2, md: 3 } 
+        }}>
           {steps.map((step) => (
             <Box 
               key={step.step}
               sx={{ 
-                width: '30%', 
-                mb: 4,
+                width: getStepWidth(),
+                mb: { xs: 4, lg: 0 },
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center'
@@ -77,20 +101,27 @@ const HowItWorksSection: React.FC = () => {
                 {step.step}
               </Box>
               
-              <Typography variant="h5" component="h3" gutterBottom sx={{ fontWeight: 600 }}>
+              <Typography variant="h5" component="h3" gutterBottom sx={{ fontWeight: 600, marginBottom: 4 }}>
                 {step.title}
               </Typography>
               
-              <Typography variant="body1" color="textSecondary" paragraph>
+              <Typography variant="body1" color="textSecondary" paragraph sx={{
+                // Make text smaller on smaller screens
+                fontSize: { xs: '0.875rem', md: '1rem' },
+                // Set a consistent height for text containers
+                height: { lg: '130px' },
+                display: 'flex',
+                alignItems: 'center',
+                marginBottom: 4
+              }}>
                 {step.description}
               </Typography>
               
-              {/* Replace the empty box with an actual image */}
               <Box 
                 sx={{ 
                   mt: 'auto',
                   width: '100%',
-                  height: 200,
+                  height: { xs: 160, md: 200 },
                   bgcolor: 'background.paper',
                   borderRadius: 2,
                   boxShadow: '0 10px 30px rgba(0, 0, 0, 0.08)',

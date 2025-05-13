@@ -118,6 +118,38 @@ const Header: React.FC = () => {
             </Button>
             <Button 
               color="inherit" 
+              href="#faq" // Add this href
+              sx={{
+                padding: "8px 16px",
+                margin: 0,
+                minHeight: 0,
+                lineHeight: 1,
+                borderRadius: 0,
+                textTransform: 'none',
+                position: 'relative',
+                '&::after': {
+                  content: '""',
+                  position: 'absolute',
+                  bottom: 0,
+                  left: 0,
+                  width: 0,
+                  height: '2px',
+                  backgroundColor: 'primary.main',
+                  transition: 'width 0.3s ease'
+                },
+                '&:hover': {
+                  boxShadow: 'none',
+                  backgroundColor: 'transparent',
+                  '&::after': {
+                    width: '100%'
+                  }
+                }
+              }}
+            >
+              FAQ
+            </Button>
+            <Button 
+              color="inherit" 
               href="#enterprise"
               sx={{
                 padding: "8px 16px",

@@ -4,8 +4,12 @@ import { Link } from 'react-router-dom';
 import { Box, Container, Typography, Button, Grid, Card, CardContent, useTheme } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 
-// Use the image you already have access to
-import dashboardImage from '../../assets/hero/dashboard.png';
+// Import images for each benefit card
+// You'll need to create these images or use from your assets
+import accessTalentImage from '../../assets/enterprise/candidate.png';
+import moneyballImage from '../../assets/enterprise/moneyball.jpg';
+import needleImage from '../../assets/enterprise/needle.jpeg';
+import dueDiligenceImage from '../../assets/enterprise/vet.jpg';
 
 interface EnterpriseSectionProps {
   className?: string;
@@ -15,22 +19,22 @@ const benefits = [
   {
     title: "Access Verified Talent Pool",
     description: "Connect with portfolio managers who have demonstrable track records verified through our simulation platform.",
-    iconText: "🔍" // Using emoji as a fallback
+    image: accessTalentImage
   },
   {
     title: "Data-Driven Decisions",
-    description: "Make decisions based on comprehensive performance metrics and risk analytics, not just interviews and resumes.",
-    iconText: "📊"
+    description: "Make decisions based on comprehensive performance metrics and risk analytics, not just endless exhaustive interviews.",
+    image: moneyballImage
   },
   {
     title: "Detailed Search Criteria",
-    description: "Identify candidates that best satisfy you requirements and constraints.",
-    iconText: "🔎"
+    description: "Identify individuals and funds that best satisfy your requirements and constraints.",
+    image: needleImage
   },
   {
-    title: "Streamline Hiring Process",
-    description: "Identify promising candidates who have proven their investment strategies in our realistic market environment.",
-    iconText: "🚀"
+    title: "Outsource Your Due Diligence",
+    description: "Let us handle the complex vetting process for your investment candidates with our rigorous evaluation framework and blockchain-verified performance data.",
+    image: dueDiligenceImage
   }
 ];
 
@@ -77,13 +81,18 @@ const EnterpriseSection = forwardRef<HTMLDivElement, EnterpriseSectionProps>(({ 
           </Typography>
         </Box>
         
-        {/* New layout similar to FeaturesSection */}
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 4 }}>
+        {/* Benefits cards layout */}
+        <Box sx={{ 
+          display: 'flex', 
+          flexWrap: 'wrap', 
+          justifyContent: 'center', 
+          gap: { xs: 2, md: 4 } 
+        }}>
           {benefits.map((benefit, index) => (
             <Box 
               key={index}
               sx={{ 
-                width: '45%', 
+                width: { xs: '100%', sm: '45%' }, 
                 mb: 4
               }}
             >
@@ -99,29 +108,52 @@ const EnterpriseSection = forwardRef<HTMLDivElement, EnterpriseSectionProps>(({ 
                   }
                 }}
               >
-                {/* Using a gradient background with an emoji icon instead of image */}
+                {/* Image section instead of gradient background with emoji */}
                 <Box
                   sx={{
-                    height: 180,
+                    height: 200,
                     width: '100%',
-                    background: index === 0 
-                      ? 'linear-gradient(135deg, #0288d1 0%, #01579b 100%)'
-                      : index === 1
-                        ? 'linear-gradient(135deg, #0097a7 0%, #006064 100%)'
-                        : index === 2
-                          ? 'linear-gradient(135deg, #00796b 0%, #004d40 100%)'
-                          : 'linear-gradient(135deg, #00897b 0%, #004d40 100%)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
+                    position: 'relative',
+                    overflow: 'hidden'
                   }}
                 >
-                  <Typography variant="h1" sx={{ color: 'white' }}>
-                    {benefit.iconText}
-                  </Typography>
+                  <Box
+                    component="img"
+                    src={benefit.image}
+                    alt={benefit.title}
+                    sx={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                      transition: 'transform 0.6s ease',
+                      '&:hover': {
+                        transform: 'scale(1.1)',
+                      }
+                    }}
+                  />
+                  
+                  {/* Optional overlay to ensure text readability */}
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: '100%',
+                      height: '100%',
+                      background: 'linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.2) 50%, rgba(0,0,0,0) 100%)',
+                      display: 'flex',
+                      alignItems: 'flex-end',
+                      p: 2
+                    }}
+                  >
+                  </Box>
                 </Box>
-                <CardContent sx={{ p: 4 }}>
-                  <Typography variant="h5" component="h3" gutterBottom sx={{ fontWeight: 600 }}>
+                
+                <CardContent sx={{ p: 3 }}>
+                  <Typography 
+                    variant="h5" 
+                    component="h3" 
+                  >
                     {benefit.title}
                   </Typography>
                   <Typography variant="body1" color="textSecondary">
@@ -177,60 +209,60 @@ const EnterpriseSection = forwardRef<HTMLDivElement, EnterpriseSectionProps>(({ 
             </Typography>
             
             <Grid container spacing={3} justifyContent="center" sx={{ mt: 3 }}>
-                {/* Force items to stay on one row by specifying fixed widths at different breakpoints */}
-                <Grid {...{component: "div", item: true, xs: 12, md: 4, sm: 4} as any}>
-                    <Box sx={{ 
-                    p: 2, 
-                    textAlign: 'center',
-                    borderRadius: 2,
-                    height: '100%', // Make boxes the same height
-                    width: '300px',
-                    bgcolor: alpha(theme.palette.primary.main, 0.07)
-                    }}>
-                    <Typography variant="h5" component="div" sx={{ fontWeight: 700, mb: 1 }}>
-                        Auditable
-                    </Typography>
-                    <Typography variant="body2">
-                        Access verified trading history and performance metrics
-                    </Typography>
-                    </Box>
-                </Grid>
-                
-                <Grid {...{component: "div", item: true, xs: 12, md: 4, sm: 4} as any}>
-                    <Box sx={{ 
-                    p: 2, 
-                    textAlign: 'center',
-                    borderRadius: 2,
-                    height: '100%', // Make boxes the same height
-                    width: '300px',
-                    bgcolor: alpha(theme.palette.primary.main, 0.07)
-                    }}>
-                    <Typography variant="h5" component="div" sx={{ fontWeight: 700, mb: 1 }}>
-                        Robust
-                    </Typography>
-                    <Typography variant="body2">
-                        Performance data validated through our simulation platform
-                    </Typography>
-                    </Box>
-                </Grid>
-                
-                <Grid {...{component: "div", item: true, xs: 12, md: 4, sm: 4} as any}>
-                    <Box sx={{ 
-                    p: 2, 
-                    textAlign: 'center',
-                    borderRadius: 2,
-                    height: '100%', // Make boxes the same height
-                    width: '300px',
-                    bgcolor: alpha(theme.palette.primary.main, 0.07)
-                    }}>
-                    <Typography variant="h5" component="div" sx={{ fontWeight: 700, mb: 1 }}>
-                        Diverse
-                    </Typography>
-                    <Typography variant="body2">
-                        Find talent across various strategies and investment styles
-                    </Typography>
-                    </Box>
-                </Grid>
+              {/* Force items to stay on one row by specifying fixed widths at different breakpoints */}
+              <Grid {...{component: "div", item: true, xs: 12, md: 4, sm: 4} as any}>
+                <Box sx={{ 
+                  p: 2, 
+                  textAlign: 'center',
+                  borderRadius: 2,
+                  height: '100%', // Make boxes the same height
+                  width: '300px',
+                  bgcolor: alpha(theme.palette.primary.main, 0.07)
+                }}>
+                  <Typography variant="h5" component="div" sx={{ fontWeight: 700, mb: 1 }}>
+                    Auditable
+                  </Typography>
+                  <Typography variant="body2">
+                    Access verified trading history and performance metrics
+                  </Typography>
+                </Box>
+              </Grid>
+              
+              <Grid {...{component: "div", item: true, xs: 12, md: 4, sm: 4} as any}>
+                <Box sx={{ 
+                  p: 2, 
+                  textAlign: 'center',
+                  borderRadius: 2,
+                  height: '100%',
+                  width: '300px',
+                  bgcolor: alpha(theme.palette.primary.main, 0.07)
+                }}>
+                  <Typography variant="h5" component="div" sx={{ fontWeight: 700, mb: 1 }}>
+                    Robust
+                  </Typography>
+                  <Typography variant="body2">
+                    Performance data validated through our simulation platform
+                  </Typography>
+                </Box>
+              </Grid>
+              
+              <Grid {...{component: "div", item: true, xs: 12, md: 4, sm: 4} as any}>
+                <Box sx={{ 
+                  p: 2, 
+                  textAlign: 'center',
+                  borderRadius: 2,
+                  height: '100%',
+                  width: '300px',
+                  bgcolor: alpha(theme.palette.primary.main, 0.07)
+                }}>
+                  <Typography variant="h5" component="div" sx={{ fontWeight: 700, mb: 1 }}>
+                    Diverse
+                  </Typography>
+                  <Typography variant="body2">
+                    Find talent across various strategies and investment styles
+                  </Typography>
+                </Box>
+              </Grid>
             </Grid>
             
             <Button 
@@ -246,13 +278,13 @@ const EnterpriseSection = forwardRef<HTMLDivElement, EnterpriseSectionProps>(({ 
                 borderRadius: 2,
                 fontWeight: 600,
                 transition: 'all 0.3s ease',
-                border: '2px solid',             // Add border with current color
-                borderColor: 'primary.main',     // Set border color to match button color
+                border: '2px solid',
+                borderColor: 'primary.main',
                 '&:hover': {
-                backgroundColor: alpha(theme.palette.background.default, 0.75),
-                borderColor: theme.palette.primary.main,  // Keep border visible on hover
+                  backgroundColor: alpha(theme.palette.background.default, 0.75),
+                  borderColor: theme.palette.primary.main,
                 }
-                }}
+              }}
             >
               Schedule a Consultation
             </Button>

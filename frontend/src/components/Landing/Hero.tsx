@@ -157,7 +157,7 @@ const Hero = forwardRef<HTMLDivElement, HeroProps>(({ className }, ref) => {
                   width: '100%' // Ensure it takes full width up to maxWidth
               }}
             >
-              Our platform provides a realistic, risk-free environment to demonstrate and prove your investment aptitude so you can stand out from the crowd.
+              Our platform provides a realistic, risk-free environment for you to demonstrate and prove your investment aptitude so you can stand out from the crowd.
             </Typography>
             
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
