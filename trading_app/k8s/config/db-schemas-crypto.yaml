@@ -10,8 +10,8 @@ data:
 
     -- User-Wallet relationship table
     CREATE TABLE crypto.wallets (
-      user_id INTEGER NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-      fund_id UUID NOT NULL REFERENCES fund.funds(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES auth.users(user_id) ON DELETE CASCADE,
+      fund_id UUID NOT NULL REFERENCES fund.funds(fund_id) ON DELETE CASCADE,
       address VARCHAR(255) NOT NULL,
       mnemonic VARCHAR(255) NOT NULL,
       created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
@@ -25,9 +25,9 @@ data:
 
     -- User-Contracts relationship table
     CREATE TABLE crypto.contracts (
-      id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-      user_id INTEGER NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-      fund_id UUID NOT NULL REFERENCES fund.funds(id) ON DELETE CASCADE,
+      contract_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+      user_id INTEGER NOT NULL REFERENCES auth.users(user_id) ON DELETE CASCADE,
+      fund_id UUID NOT NULL REFERENCES fund.funds(fund_id) ON DELETE CASCADE,
       app_id VARCHAR(255) NOT NULL,
       app_address VARCHAR(255) NOT NULL,
       parameters TEXT,
@@ -45,10 +45,10 @@ data:
     CREATE INDEX IF NOT EXISTS idx_crypto_contracts_app_id ON crypto.contracts(app_id);
     
     CREATE TABLE crypto.txs (
-      id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-      user_id UUID NOT NULL REFERENCES auth.users(id),
-      fund_id UUID NOT NULL REFERENCES fund.funds(id),
-      contract_id UUID NOT NULL REFERENCES crypto.contracts(id) ON DELETE CASCADE,
+      tx_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+      user_id UUID NOT NULL REFERENCES auth.users(user_id),
+      fund_id UUID NOT NULL REFERENCES fund.funds(fund_id),
+      contract_id UUID NOT NULL REFERENCES crypto.contracts(contract_id) ON DELETE CASCADE,
       app_id VARCHAR(255) NOT NULL,
       transaction_id VARCHAR(255) NOT NULL,
       date TIMESTAMP WITH TIME ZONE NOT NULL,

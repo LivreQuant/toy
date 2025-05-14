@@ -7,14 +7,13 @@ data:
   extensions.sql: |
     -- PostgreSQL Extensions
     CREATE EXTENSION IF NOT EXISTS pgcrypto;
-    CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
   
   users.sql: |
     -- Users Schema
     CREATE SCHEMA IF NOT EXISTS auth;
     
     CREATE TABLE IF NOT EXISTS auth.users (
-        id SERIAL PRIMARY KEY,
+        user_id SERIAL PRIMARY KEY,
         username VARCHAR(50) UNIQUE NOT NULL,
         email VARCHAR(100) UNIQUE,
         password_hash VARCHAR(255) NOT NULL,
@@ -43,7 +42,7 @@ data:
     -- Function to verify passwords
     CREATE OR REPLACE FUNCTION auth.verify_password(p_username TEXT, p_password TEXT)
     RETURNS TABLE(
-        id INTEGER,
+        user_id INTEGER,
         username VARCHAR(50),
         email VARCHAR(100),
         password_hash VARCHAR(255),
@@ -53,7 +52,7 @@ data:
     ) AS $$
     BEGIN
         RETURN QUERY
-        SELECT u.id, u.username, u.email, u.password_hash, u.email_verified, u.is_active, u.user_role
+        SELECT u.user_id, u.username, u.email, u.password_hash, u.email_verified, u.is_active, u.user_role
         FROM auth.users u
         WHERE u.username = p_username
         AND u.password_hash = encode(digest(p_password || 'trading-simulator-salt', 'sha256'), 'hex');
@@ -70,8 +69,8 @@ data:
   auth_tokens.sql: |
     -- Token management
     CREATE TABLE IF NOT EXISTS auth.refresh_tokens (
-      id SERIAL PRIMARY KEY,
-      user_id INTEGER NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+      token_id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES auth.users(user_id) ON DELETE CASCADE,
       token_hash TEXT NOT NULL,
       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
       expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
@@ -98,8 +97,8 @@ data:
   password_reset.sql: |
     -- Password Reset Tokens Table
     CREATE TABLE IF NOT EXISTS auth.password_reset_tokens (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+        reset_token_id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES auth.users(user_id) ON DELETE CASCADE,
         token_hash TEXT NOT NULL,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
@@ -148,14 +147,14 @@ data:
   user_feedback.sql: |
     -- User Feedback Table
     CREATE TABLE IF NOT EXISTS auth.user_feedback (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES auth.users(id) ON DELETE SET NULL,
+        feedback_id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES auth.users(user_id) ON DELETE SET NULL,
         feedback_type VARCHAR(50) NOT NULL DEFAULT 'general',
         title VARCHAR(200),
         content TEXT NOT NULL,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         status VARCHAR(20) DEFAULT 'new',
-        reviewed_by INTEGER REFERENCES auth.users(id) ON DELETE SET NULL,
+        reviewed_by INTEGER REFERENCES auth.users(user_id) ON DELETE SET NULL,
         reviewed_at TIMESTAMP WITH TIME ZONE
     );
     

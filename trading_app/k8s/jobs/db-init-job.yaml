@@ -71,20 +71,6 @@ spec:
               fi
             done
 
-            echo "Applying session schema files..."
-            for schema in sessions.sql market_data.sql simulator_sessions.sql trading.sql; do
-              echo "Applying $schema..."
-              if [ -f "/schemas-session/$schema" ]; then
-                PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -f /schemas-session/$schema
-                if [ $? -ne 0 ]; then
-                  echo "Error applying $schema"
-                  exit 1
-                fi
-              else
-                echo "WARNING: File /schemas-session/$schema not found"
-              fi
-            done
-
             echo "Applying fund schema files..."
             for schema in funds.sql; do
               echo "Applying $schema..."
@@ -96,6 +82,20 @@ spec:
                 fi
               else
                 echo "WARNING: File /schemas-fund/$schema not found"
+              fi
+            done
+
+            echo "Applying session schema files..."
+            for schema in sessions.sql market_data.sql simulator_sessions.sql trading.sql; do
+              echo "Applying $schema..."
+              if [ -f "/schemas-session/$schema" ]; then
+                PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -f /schemas-session/$schema
+                if [ $? -ne 0 ]; then
+                  echo "Error applying $schema"
+                  exit 1
+                fi
+              else
+                echo "WARNING: File /schemas-session/$schema not found"
               fi
             done
 
@@ -133,49 +133,15 @@ spec:
               END;
               \$\$ LANGUAGE plpgsql;"
             fi
-            
-            # Check for data directory
-            if [ -d "/data" ]; then
-              # Apply data files
-              echo "Applying data files..."
-              if [ -f "/data/auth_functions.sql" ]; then
-                PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -f /data/auth_functions.sql
-              else
-                echo "WARNING: /data/auth_functions.sql not found"
-              fi
-              
-              if [ -f "/data/users.sql" ]; then
-                PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -f /data/users.sql
-              else
-                echo "WARNING: /data/users.sql not found"
-                
-                # Create a default test user
-                echo "Creating a default test user..."
-                PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -c "
-                INSERT INTO auth.users (username, email, password_hash, email_verified, is_active, user_role)
-                VALUES ('testuser', 'test@example.com', 
-                       encode(digest('password123' || 'trading-simulator-salt', 'sha256'), 'hex'),
-                       TRUE, TRUE, 'user')
-                ON CONFLICT (username) DO NOTHING;"
-              fi
-            else
-              echo "WARNING: /data directory not found. Creating default test user..."
-              PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -c "
-              INSERT INTO auth.users (username, email, password_hash, email_verified, is_active, user_role)
-              VALUES ('testuser', 'test@example.com', 
-                     encode(digest('password123' || 'trading-simulator-salt', 'sha256'), 'hex'),
-                     TRUE, TRUE, 'user')
-              ON CONFLICT (username) DO NOTHING;"
-            fi
-            
+                        
             echo "Database initialization completed successfully."
         volumeMounts:
         - name: db-schemas-auth
           mountPath: /schemas-auth
-        - name: db-schemas-session
-          mountPath: /schemas-session
         - name: db-schemas-fund
           mountPath: /schemas-fund
+        - name: db-schemas-session
+          mountPath: /schemas-session
         - name: db-schemas-crypto
           mountPath: /schemas-crypto
         - name: db-credentials
@@ -185,12 +151,12 @@ spec:
       - name: db-schemas-auth
         configMap:
           name: db-schemas-auth
-      - name: db-schemas-session
-        configMap:
-          name: db-schemas-session
       - name: db-schemas-fund
         configMap:
           name: db-schemas-fund
+      - name: db-schemas-session
+        configMap:
+          name: db-schemas-session
       - name: db-schemas-crypto
         configMap:
           name: db-schemas-crypto

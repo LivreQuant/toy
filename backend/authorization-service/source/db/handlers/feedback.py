@@ -22,7 +22,7 @@ class FeedbackDatabaseManager(BaseDatabaseManager):
                 INSERT INTO auth.user_feedback
                 (user_id, feedback_type, title, content)
                 VALUES ($1, $2, $3, $4)
-                RETURNING id
+                RETURNING user_id
             """
             span.set_attribute("db.statement", query)
 

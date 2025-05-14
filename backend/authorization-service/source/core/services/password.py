@@ -157,5 +157,5 @@ class PasswordService(BaseManager):
         """Generate a secure password hash"""
         # Use bcrypt through the PostgreSQL crypt function
         async with self.db.pool.acquire() as conn:
-            query = "SELECT crypt($1, gen_salt('bf'))"
+            query = "SELECT auth.hash_password($1)"
             return await conn.fetchval(query, password)

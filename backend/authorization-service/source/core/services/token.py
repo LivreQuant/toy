@@ -93,7 +93,7 @@ class TokenService(BaseManager):
 
                 span.set_attribute("token_valid", token_data.get('valid', False))
                 if user_id:
-                    span.set_attribute("user.id", str(user_id))
+                    span.set_attribute("user.user_id", str(user_id))
 
                 if refresh_token:
                     # Revoke the specific refresh token
@@ -138,7 +138,7 @@ class TokenService(BaseManager):
                     }
 
                 user_id = validation.get('user_id')
-                span.set_attribute("user.id", str(user_id))
+                span.set_attribute("user.user_id", str(user_id))
 
                 # Check if token exists in database
                 token_hash = self.token_manager.hash_token(refresh_token)
@@ -224,7 +224,7 @@ class TokenService(BaseManager):
                     }
 
                 user_id = validation.get('user_id')
-                span.set_attribute("user.id", str(user_id))
+                span.set_attribute("user.user_id", str(user_id))
                 span.set_attribute("user.role", validation.get('user_role', 'user'))
 
                 # Get user info

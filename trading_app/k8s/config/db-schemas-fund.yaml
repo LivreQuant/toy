@@ -10,17 +10,17 @@ data:
 
     -- User (Fund) table - Each user_id represents a fund entity
     CREATE TABLE fund.funds (
-        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        fund_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
         name VARCHAR(255) NOT NULL,
         status VARCHAR(50) NOT NULL DEFAULT 'active',  -- active, archived, pending
         created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-        user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE UNIQUE  -- One-to-one with auth.users
+        user_id UUID NOT NULL REFERENCES auth.users(user_id) ON DELETE CASCADE UNIQUE  -- One-to-one with auth.users
     );
 
     -- Fund properties using EAV (Entity-Attribute-Value) model for flexibility
     CREATE TABLE fund.properties (
-        fund_id UUID NOT NULL REFERENCES funds(id) ON DELETE CASCADE,
+        fund_id UUID NOT NULL REFERENCES funds(fund_id) ON DELETE CASCADE,
         category VARCHAR(100) NOT NULL,  -- e.g., 'general', 'strategy', 'team', 'compliance'
         subcategory VARCHAR(100) NOT NULL, -- e.g., 'legalStructure', 'investmentThesis', 'teamMemberRole'
         key VARCHAR(100) NOT NULL,  -- For array items like 'objective[0]', 'objective[1]'
@@ -32,8 +32,8 @@ data:
 
     -- Fund team members table - Each fund can have multiple team members
     CREATE TABLE fund.team_members (
-        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-        fund_id UUID NOT NULL REFERENCES funds(id) ON DELETE CASCADE,
+        team_member_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        fund_id UUID NOT NULL REFERENCES funds(fund_id) ON DELETE CASCADE,
         status VARCHAR(50) NOT NULL DEFAULT 'active',  -- active, inactive
         created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
@@ -41,7 +41,7 @@ data:
 
     -- Fund team member properties using EAV model
     CREATE TABLE fund.team_member_properties (
-        member_id UUID NOT NULL REFERENCES fund_team_members(id) ON DELETE CASCADE,
+        member_id UUID NOT NULL REFERENCES fund_team_members(team_member_id) ON DELETE CASCADE,
         category VARCHAR(100) NOT NULL,  -- e.g., 'personal', 'professional', 'education'
         subcategory VARCHAR(100) NOT NULL, -- e.g., 'name', 'contact', 'experience'
         key VARCHAR(100) NOT NULL,  -- e.g., 'first_name', 'last_name', 'email', 'phone', 'linkedin'
@@ -53,8 +53,8 @@ data:
 
     -- Fund portfolios (smart contracts) table - One-to-many relationship with fund
     CREATE TABLE fund.portfolios (
-        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-        fund_id UUID NOT NULL REFERENCES funds(id) ON DELETE CASCADE,
+        portfolio_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        fund_id UUID NOT NULL REFERENCES funds(fund_id) ON DELETE CASCADE,
         book_id VARCHAR(255) NOT NULL,
         app_id VARCHAR(255) NOT NULL,
         app_address VARCHAR(255) NOT NULL,

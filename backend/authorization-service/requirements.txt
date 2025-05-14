@@ -17,6 +17,7 @@ requests>=2.31.0
 
 # UTILITIES
 python-dotenv==1.0.0
+pytz==2025.2
 
 # PROMETHEUS TRACING
 prometheus-client>=0.16.0

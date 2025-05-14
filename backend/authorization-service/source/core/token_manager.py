@@ -28,7 +28,7 @@ class TokenManager:
     def generate_tokens(self, user_id, user_role='user'):
         """Generate access and refresh tokens"""
         with optional_trace_span(self.tracer, "generate_tokens") as span:
-            span.set_attribute("user.id", str(user_id))
+            span.set_attribute("user.user_id", str(user_id))
             span.set_attribute("user.role", user_role)
 
             # Generate access token
@@ -76,7 +76,7 @@ class TokenManager:
                     span.set_attribute("valid", False)
                     return {'valid': False}
 
-                span.set_attribute("user.id", str(payload.get('user_id')))
+                span.set_attribute("user.user_id", str(payload.get('user_id')))
                 span.set_attribute("user.role", payload.get('user_role', 'user'))
                 span.set_attribute("valid", True)
 
@@ -115,7 +115,7 @@ class TokenManager:
                     span.set_attribute("valid", False)
                     return {'valid': False}
 
-                span.set_attribute("user.id", str(payload.get('user_id')))
+                span.set_attribute("user.user_id", str(payload.get('user_id')))
                 span.set_attribute("valid", True)
 
                 return {

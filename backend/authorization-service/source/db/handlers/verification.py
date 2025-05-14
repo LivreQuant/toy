@@ -25,7 +25,7 @@ class VerificationDatabaseManager(BaseDatabaseManager):
             query = """
                 UPDATE auth.users
                 SET verification_code = $2, verification_sent_at = $3
-                WHERE id = $1
+                WHERE user_id = $1
             """
             span.set_attribute("db.statement", query)
 
@@ -57,7 +57,7 @@ class VerificationDatabaseManager(BaseDatabaseManager):
                 SET email_verified = TRUE,
                     verification_code = NULL,
                     verification_sent_at = NULL
-                WHERE id = $1
+                WHERE user_id = $1
             """
             span.set_attribute("db.statement", query)
 

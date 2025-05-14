@@ -18,7 +18,7 @@ class UserDatabaseManager(BaseDatabaseManager):
                 await self.connect()
 
             query = """
-                SELECT id, username, password_hash, is_active, user_role, email, email_verified, created_at, last_login
+                SELECT user_id, username, password_hash, is_active, user_role, email, email_verified, created_at, last_login
                 FROM auth.users
                 WHERE username = $1
             """
@@ -41,10 +41,10 @@ class UserDatabaseManager(BaseDatabaseManager):
 
             # Update this query to include verification_code and verification_sent_at
             query = """
-                SELECT id, username, email, is_active, user_role, 
+                SELECT user_id, username, email, is_active, user_role, 
                     email_verified, created_at, last_login, verification_code, verification_sent_at
                 FROM auth.users
-                WHERE id = $1
+                WHERE user_id = $1
             """
             span.set_attribute("db.statement", query)
 
@@ -64,7 +64,7 @@ class UserDatabaseManager(BaseDatabaseManager):
                 await self.connect()
 
             query = """
-                SELECT id, username, email, is_active, email_verified, user_role
+                SELECT user_id, username, email, is_active, email_verified, user_role
                 FROM auth.users
                 WHERE email = $1
             """
@@ -95,7 +95,7 @@ class UserDatabaseManager(BaseDatabaseManager):
                 INSERT INTO auth.users 
                 (username, email, password_hash)
                 VALUES ($1, $2, $3)
-                RETURNING id
+                RETURNING user_id
             """
             span.set_attribute("db.statement", query)
 
@@ -157,7 +157,7 @@ class UserDatabaseManager(BaseDatabaseManager):
             query = """
                 UPDATE auth.users
                 SET password_hash = $2
-                WHERE id = $1
+                WHERE user_id = $1
             """
             span.set_attribute("db.statement", query)
 
