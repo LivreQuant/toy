@@ -2,11 +2,16 @@ import logging
 import aiohttp_cors
 from aiohttp import web
 
-from source.api.rest.controllers import OrderController
+from source.api.rest.fund_controller import FundController
 from source.api.rest.book_controller import BookController
-from source.core.order_manager import OrderManager
+from source.api.rest.order_controller import OrderController
+
 from source.core.state_manager import StateManager
-from source.db.book_repository import BookRepository
+from source.core.validation_manager import ValidationManager
+from source.core.fund_manager import FundManager
+from source.core.book_manager import BookManager
+from source.core.order_manager import OrderManager
+
 from source.config import config
 
 logger = logging.getLogger('rest_routes')
@@ -37,7 +42,13 @@ async def cors_middleware(request, handler):
     response.headers.update(cors_headers)
     return response
 
-async def setup_app(order_manager: OrderManager, state_manager: StateManager) -> tuple:
+async def setup_app( 
+    state_manager: StateManager,
+    validation_manager: ValidationManager,
+    fund_manager: FundManager,
+    book_manager: BookManager,
+    order_manager: OrderManager,
+    ) -> tuple:
     """
     Set up the REST API application with routes and middleware
     """
@@ -45,15 +56,20 @@ async def setup_app(order_manager: OrderManager, state_manager: StateManager) ->
     app = web.Application(middlewares=[cors_middleware])
 
     # Create controllers
-    order_controller = OrderController(order_manager, state_manager)
-    
-    # Create book repository and controller
-    book_repository = BookRepository()
-    book_controller = BookController(
-        book_repository,
-        order_manager.auth_client,
-        order_manager.validation_manager
+    fund_controller = FundController(
+        fund_manager,
+        auth_client,
+        validation_manager
     )
+
+    book_controller = BookController(
+        book_manager.book_repository,
+        auth_client,
+        validation_manager
+    )
+
+    order_controller = OrderController(order_manager, 
+                                       state_manager)
 
     # Add order routes
     app.router.add_post('/api/orders/submit', order_controller.submit_orders)
@@ -65,6 +81,11 @@ async def setup_app(order_manager: OrderManager, state_manager: StateManager) ->
     app.router.add_get('/api/books/{id}', book_controller.get_book)
     app.router.add_put('/api/books/{id}', book_controller.update_book)
     
+    # Add fund routes
+    app.router.add_post('/api/funds', fund_controller.create_fund)
+    app.router.add_get('/api/funds', fund_controller.get_fund)
+    app.router.add_put('/api/funds', fund_controller.update_fund)
+
     # Add health check routes
     app.router.add_get('/health', order_controller.health_check)
     app.router.add_get('/readiness', order_controller.readiness_check)

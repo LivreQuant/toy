@@ -82,6 +82,12 @@ CIRCUIT_STATE = Gauge(
     ['service']
 )
 
+FUND_CREATED = Counter(
+    'fund_created_total',
+    'Total number of funds created',
+    ['user_id']
+)
+
 CIRCUIT_FAILURE_COUNT = Counter(
     'circuit_breaker_failures_total',
     'Total number of circuit breaker failures',
@@ -180,3 +186,8 @@ def set_circuit_state(service, state):
 def track_circuit_failure(service):
     """Track circuit breaker failures"""
     CIRCUIT_FAILURE_COUNT.labels(service=service).inc()
+
+def track_fund_created(user_id):
+    """Track fund creation"""
+    FUND_CREATED.labels(user_id=user_id).inc()
+    
