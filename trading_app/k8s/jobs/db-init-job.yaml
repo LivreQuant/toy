@@ -30,33 +30,35 @@ spec:
               sleep 2
             done
             
-            # Apply extensions first - FIX: Use schemas-auth instead of schemas
-            echo "Applying database extensions..."
-            PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -f /schemas-auth/extensions.sql
+            
+            # CRITICAL FIX: Create extensions first - directly, no files
+            echo "Creating required extensions..."
+            PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -c "
+            CREATE EXTENSION IF NOT EXISTS pgcrypto;
+            CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";"
+            
             if [ $? -ne 0 ]; then
-              echo "Error applying extensions, trying alternative paths..."
-              
-              # Try to find the extensions.sql file in any of the schema directories
-              for dir in /schemas-auth /schemas-session /schemas-fund /schemas-crypto; do
-                echo "Checking $dir for extensions.sql..."
-                if [ -f "$dir/extensions.sql" ]; then
-                  echo "Found extensions.sql in $dir!"
-                  PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -f "$dir/extensions.sql"
-                  if [ $? -eq 0 ]; then
-                    echo "Successfully applied extensions from $dir/extensions.sql"
-                    break
-                  fi
-                fi
-              done
-              
-              # If we reach here and still failed, create the extensions manually
-              echo "Creating extensions manually..."
-              PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -c "
-              CREATE EXTENSION IF NOT EXISTS pgcrypto;
-              CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";"
+              echo "CRITICAL ERROR: Failed to create extensions. Cannot proceed."
+              exit 1
+            else
+              echo "Successfully created extensions."
             fi
             
-            # Apply schema files in order with proper error checking
+            # Now continue with schema creation
+            echo "Applying auth schema files..."
+            for schema in users.sql auth_tokens.sql password_reset.sql user_feedback.sql; do
+              echo "Applying $schema..."
+              if [ -f "/schemas-auth/$schema" ]; then
+                PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -f /schemas-auth/$schema
+                if [ $? -ne 0 ]; then
+                  echo "Error applying $schema"
+                  exit 1
+                fi
+              else
+                echo "WARNING: File /schemas-auth/$schema not found"
+              fi
+            done
+            
             echo "Applying auth schema files..."
             for schema in users.sql auth_tokens.sql password_reset.sql user_feedback.sql; do
               echo "Applying $schema..."

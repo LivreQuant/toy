@@ -10,7 +10,7 @@ data:
     
     -- Create market data table for storing minute bars
     CREATE TABLE IF NOT EXISTS marketdata.market_data (
-      market_data_id SERIAL PRIMARY KEY,
+      market_data_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
       symbol VARCHAR(20) NOT NULL,
       timestamp BIGINT NOT NULL,
       open NUMERIC(18, 8) NOT NULL,
@@ -40,8 +40,8 @@ data:
     CREATE SCHEMA IF NOT EXISTS session;
     
     CREATE TABLE IF NOT EXISTS session.active_sessions (
-      session_id TEXT PRIMARY KEY,
-      user_id INTEGER NOT NULL REFERENCES auth.users(user_id) ON DELETE CASCADE,
+      session_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+      user_id UUID NOT NULL REFERENCES auth.users(user_id) ON DELETE CASCADE,
       status TEXT NOT NULL,
       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
       last_active TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -55,8 +55,8 @@ data:
     
     -- Create session metadata table
     CREATE TABLE session.session_details (
-      session_id VARCHAR(36) PRIMARY KEY REFERENCES session.active_sessions(session_id) ON DELETE CASCADE,
-      
+      session_id UUID PRIMARY KEY REFERENCES session.active_sessions(session_id) ON DELETE CASCADE,
+            
       -- Device and connection information
       device_id VARCHAR(64),
       user_agent TEXT,
@@ -104,9 +104,9 @@ data:
     CREATE SCHEMA IF NOT EXISTS simulator;
 
     CREATE TABLE IF NOT EXISTS simulator.instances (
-      simulator_id TEXT PRIMARY KEY,
-      session_id TEXT NOT NULL REFERENCES session.active_sessions(session_id) ON DELETE CASCADE,
-      user_id INTEGER NOT NULL REFERENCES auth.users(user_id) ON DELETE CASCADE,
+      simulator_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+      session_id UUID NOT NULL REFERENCES session.active_sessions(session_id) ON DELETE CASCADE,
+      user_id UUID NOT NULL REFERENCES auth.users(user_id) ON DELETE CASCADE,
       status TEXT NOT NULL,
       endpoint TEXT,
       exchange_type VARCHAR(20),
@@ -132,9 +132,9 @@ data:
     
     -- Create orders table if not exists
     CREATE TABLE IF NOT EXISTS trading.orders (
-      order_id UUID PRIMARY KEY,
+      order_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
       status VARCHAR(20) PRIMARY NOT NULL,
-      user_id INTEGER NOT NULL REFERENCES auth.users(user_id) ON DELETE CASCADE,
+      user_id UUID NOT NULL REFERENCES auth.users(user_id) ON DELETE CASCADE,
       symbol VARCHAR(20) NOT NULL,
       side VARCHAR(10) NOT NULL,
       quantity NUMERIC(18,8) NOT NULL,
@@ -155,8 +155,8 @@ data:
     CREATE INDEX IF NOT EXISTS idx_orders_created_at ON trading.orders(created_at);
     
     CREATE TABLE IF NOT EXISTS trading.books (
-      book_id UUID PRIMARY KEY,
-      user_id INTEGER NOT NULL REFERENCES auth.users(user_id) ON DELETE CASCADE,
+      book_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+      user_id UUID NOT NULL REFERENCES auth.users(user_id) ON DELETE CASCADE,
       name VARCHAR(255) NOT NULL,
       parameters JSONB,
       created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,

@@ -60,7 +60,7 @@ class LoginService(BaseManager):
                         'success': False,
                         'error': "Email verification required",
                         'requiresVerification': True,
-                        'userId': user['user_id'],
+                        'userId': str(user['user_id']),
                         'email': user_details.get('email')
                     }
 
@@ -87,7 +87,7 @@ class LoginService(BaseManager):
                     'accessToken': tokens['accessToken'],
                     'refreshToken': tokens['refreshToken'],
                     'expiresIn': tokens['expiresIn'],
-                    'userId': user['user_id'],
+                    'userId': str(user['user_id']),
                     'userRole': user.get('user_role', 'user')
                 }
 

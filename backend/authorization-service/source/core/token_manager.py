@@ -34,7 +34,7 @@ class TokenManager:
             # Generate access token
             access_token_expires = datetime.datetime.utcnow() + datetime.timedelta(seconds=self.access_token_expiry)
             access_token_payload = {
-                'user_id': user_id,
+                'user_id': str(user_id),
                 'user_role': user_role,
                 'exp': access_token_expires,
                 'iat': datetime.datetime.utcnow(),
@@ -47,7 +47,7 @@ class TokenManager:
             # Generate refresh token
             refresh_token_expires = datetime.datetime.utcnow() + datetime.timedelta(seconds=self.refresh_token_expiry)
             refresh_token_payload = {
-                'user_id': user_id,
+                'user_id': str(user_id),
                 'exp': refresh_token_expires,
                 'iat': datetime.datetime.utcnow(),
                 'jti': str(uuid.uuid4()),
@@ -82,7 +82,7 @@ class TokenManager:
 
                 return {
                     'valid': True,
-                    'user_id': payload.get('user_id'),
+                    'user_id': str(payload.get('user_id')),
                     'user_role': payload.get('user_role', 'user')
                 }
             except jwt.ExpiredSignatureError:
@@ -120,7 +120,7 @@ class TokenManager:
 
                 return {
                     'valid': True,
-                    'user_id': payload.get('user_id')
+                    'user_id': str(payload.get('user_id'))
                 }
             except jwt.ExpiredSignatureError:
                 span.set_attribute("error", "Refresh token expired")

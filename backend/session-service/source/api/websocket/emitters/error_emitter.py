@@ -16,7 +16,8 @@ async def send_error(
         *,
         error_code: str,
         message: str,
-        request_id: Optional[str] = None
+        request_id: Optional[str] = None,
+        span = None  # Add default None parameter
 ):
     """
     Sends a standardized error payload to the client.

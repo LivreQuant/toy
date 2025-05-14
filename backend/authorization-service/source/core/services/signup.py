@@ -56,7 +56,7 @@ class SignupService(BaseManager):
 
                 return {
                     'success': True,
-                    'userId': user_id,
+                    'userId': str(user_id),
                     'message': "Registration successful. Please check your email to verify your account."
                 }
             except Exception as e:

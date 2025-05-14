@@ -10,7 +10,7 @@ data:
 
     -- User-Wallet relationship table
     CREATE TABLE crypto.wallets (
-      user_id INTEGER NOT NULL REFERENCES auth.users(user_id) ON DELETE CASCADE,
+      user_id UUID NOT NULL REFERENCES auth.users(user_id) ON DELETE CASCADE,
       fund_id UUID NOT NULL REFERENCES fund.funds(fund_id) ON DELETE CASCADE,
       address VARCHAR(255) NOT NULL,
       mnemonic VARCHAR(255) NOT NULL,
@@ -26,7 +26,7 @@ data:
     -- User-Contracts relationship table
     CREATE TABLE crypto.contracts (
       contract_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-      user_id INTEGER NOT NULL REFERENCES auth.users(user_id) ON DELETE CASCADE,
+      user_id UUID NOT NULL REFERENCES auth.users(user_id) ON DELETE CASCADE,
       fund_id UUID NOT NULL REFERENCES fund.funds(fund_id) ON DELETE CASCADE,
       app_id VARCHAR(255) NOT NULL,
       app_address VARCHAR(255) NOT NULL,

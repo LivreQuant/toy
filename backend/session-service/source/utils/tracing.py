@@ -80,6 +80,12 @@ def optional_trace_span(tracer, name, attributes=None):
             # Do work
             span.set_attribute("key", "value")  # No-op if tracing disabled
     """
+    class DummySpan:
+        def set_attribute(self, key, value): pass
+        def record_exception(self, exception): pass
+        def add_event(self, name, attributes=None): pass
+        def set_status(self, status): pass
+
     try:
         with tracer.start_as_current_span(name) as span:
             # Set initial attributes if provided
@@ -88,30 +94,11 @@ def optional_trace_span(tracer, name, attributes=None):
                     span.set_attribute(key, value)
             yield span
     except Exception as e:
-        # If tracing fails or is disabled, return a dummy span object
-        class DummySpan:
-            def set_attribute(self, key, value):
-                pass
-
-            def record_exception(self, exception):
-                pass
-
-            def add_event(self, name, attributes=None):
-                pass
-
-            def set_status(self, status):
-                pass
-
-        # Log only if it's an unexpected error, not if tracing is just disabled
+        # Log only if it's an unexpected error
         if str(e) != "No TracerProvider configured":
             logger.debug(f"Tracing disabled or failed: {e}")
-
-        dummy = DummySpan()
         
+        # Return dummy span without trying to yield again, which was causing errors
+        dummy = DummySpan()
         yield dummy
-        # Yield the dummy span to prevent the generator from not stopping after throw exception
-        try:
-            yield dummy
-        except Exception:
-            # Just swallow the exception and continue with the dummy span
-            pass
+        
