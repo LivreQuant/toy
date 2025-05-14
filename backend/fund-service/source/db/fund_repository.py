@@ -49,7 +49,7 @@ class FundRepository:
         pool = await self.db_pool.get_pool()
         
         query = """
-        INSERT INTO funds (
+        INSERT INTO fund.funds (
             id, name, status, user_id, created_at, updated_at
         ) VALUES (
             $1, $2, $3, $4, to_timestamp($5), to_timestamp($6)
@@ -101,7 +101,7 @@ class FundRepository:
             Success flag
         """
         query = """
-        INSERT INTO fund_properties (
+        INSERT INTO fund.properties (
             fund_id, category, subcategory, key, value, created_at, updated_at
         ) VALUES (
             $1, $2, $3, $4, $5, to_timestamp($6), to_timestamp($7)
@@ -154,7 +154,7 @@ class FundRepository:
             status,
             extract(epoch from created_at) as created_at,
             extract(epoch from updated_at) as updated_at
-        FROM funds 
+        FROM fund.funds 
         WHERE user_id = $1
         """
         
@@ -164,7 +164,7 @@ class FundRepository:
             subcategory,
             key,
             value
-        FROM fund_properties
+        FROM fund.properties
         WHERE fund_id = $1
         """
         
@@ -292,7 +292,7 @@ class FundRepository:
         pool = await self.db_pool.get_pool()
         
         query = """
-        SELECT 1 FROM funds WHERE user_id = $1 LIMIT 1
+        SELECT 1 FROM fund.funds WHERE user_id = $1 LIMIT 1
         """
         
         try:
