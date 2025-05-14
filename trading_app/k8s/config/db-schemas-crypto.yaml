@@ -1,0 +1,79 @@
+# k8s/config/db-schemas.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: db-schemas
+data:
+  crypto.sql: |
+    -- Crypto Schema
+    CREATE SCHEMA IF NOT EXISTS crypto;
+
+    -- User-Wallet relationship table
+    CREATE TABLE crypto.wallets (
+      user_id INTEGER NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+      fund_id UUID NOT NULL REFERENCES fund.funds(id) ON DELETE CASCADE,
+      address VARCHAR(255) NOT NULL,
+      mnemonic VARCHAR(255) NOT NULL,
+      created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (user_id, fund_id),
+      UNIQUE(address)
+    );
+  
+    CREATE INDEX IF NOT EXISTS idx_crypto_wallets_user_id ON crypto.wallets(user_id);
+    CREATE INDEX IF NOT EXISTS idx_crypto_wallets_fund_id ON crypto.wallets(fund_id);
+
+    -- User-Contracts relationship table
+    CREATE TABLE crypto.contracts (
+      id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+      user_id INTEGER NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+      fund_id UUID NOT NULL REFERENCES fund.funds(id) ON DELETE CASCADE,
+      app_id VARCHAR(255) NOT NULL,
+      app_address VARCHAR(255) NOT NULL,
+      parameters TEXT,
+      status VARCHAR(50) NOT NULL DEFAULT 'ACTIVE',
+      blockchain_status VARCHAR(50) NOT NULL DEFAULT 'Active',
+      created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+      deleted_at TIMESTAMP WITH TIME ZONE,
+      deletion_note TEXT,
+      UNIQUE(app_address)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_crypto_contracts_user_id ON crypto.contracts(user_id);
+    CREATE INDEX IF NOT EXISTS idx_crypto_contracts_fund_id ON crypto.contracts(fund_id);
+    CREATE INDEX IF NOT EXISTS idx_crypto_contracts_app_id ON crypto.contracts(app_id);
+    
+    CREATE TABLE crypto.txs (
+      id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+      user_id UUID NOT NULL REFERENCES auth.users(id),
+      fund_id UUID NOT NULL REFERENCES fund.funds(id),
+      contract_id UUID NOT NULL REFERENCES crypto.contracts(id) ON DELETE CASCADE,
+      app_id VARCHAR(255) NOT NULL,
+      transaction_id VARCHAR(255) NOT NULL,
+      date TIMESTAMP WITH TIME ZONE NOT NULL,
+      sender VARCHAR(255) NOT NULL,
+      action VARCHAR(50) NOT NULL,
+      g_user_id VARCHAR(255),
+      g_book_id VARCHAR(255),
+      g_status VARCHAR(50),
+      g_params VARCHAR(255),
+      l_book_hash VARCHAR(255),
+      l_research_hash VARCHAR(255),
+      l_params VARCHAR(255),
+      created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+      UNIQUE(transaction_id)
+    );
+  
+    CREATE INDEX IF NOT EXISTS idx_crypto_txs_user_id ON crypto.txs(user_id);
+    CREATE INDEX IF NOT EXISTS idx_crypto_txs_fund_id ON crypto.txs(fund_id);
+    CREATE INDEX IF NOT EXISTS idx_crypto_txs_contract_id ON crypto.txs(contract_id);
+    CREATE INDEX IF NOT EXISTS idx_crypto_txs_app_id ON crypto.txs(app_id);
+    CREATE INDEX IF NOT EXISTS idx_crypto_txs_date ON crypto.txs(date);
+        
+    -- Grant permissions
+    GRANT USAGE ON SCHEMA crypto TO opentp;
+    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA crypto TO opentp;
+    GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA crypto TO opentp;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA crypto GRANT ALL ON TABLES TO opentp;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA crypto GRANT ALL ON SEQUENCES TO opentp;

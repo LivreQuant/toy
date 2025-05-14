@@ -308,52 +308,6 @@ data:
     CREATE INDEX idx_fund_team_members_fund ON fund_team_members(fund_id);
     CREATE INDEX idx_fund_team_member_properties_lookup ON fund_team_member_properties(id, category, subcategory);
 
-  user_wallets.sql: |
-    -- User-Wallet relationship table
-    CREATE TABLE user_wallets (
-        user_id UUID NOT NULL REFERENCES auth.users(id),
-        address VARCHAR(255) NOT NULL,
-        mnemonic VARCHAR(255) NOT NULL,
-        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-        UNIQUE(address)
-    );
-
-  user_contracts.sql: |
-    -- User-Contracts relationship table
-    CREATE TABLE user_contracts (
-        user_id UUID NOT NULL REFERENCES auth.users(id),
-        app_id VARCHAR(255) NOT NULL,
-        app_address": "O2IPY3DLOANIDGR6MRBKYLMPOI6UBGSXX53RTU75ZPQ3J7EOCXQGJURSZY",
-        book_id: "test_book_002",
-        parameters: "region:NA|asset_class:EQUITIES|instrument_class:STOCKS",
-        status: "ACTIVE",
-        blockchain_status: "Deleted",
-        deletion_timestamp: 1747085658.0364165,
-        deletion_note: "Contract no longer exists on blockchain"
-        mnemonic VARCHAR(255) NOT NULL,
-        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-        UNIQUE(address)
-    );
-
-    CREATE TABLE user_txs (
-        user_id UUID NOT NULL REFERENCES auth.users(id),
-        app_id VARCHAR(255) NOT NULL,
-        transaction_id,
-        date "O2IPY3DLOANIDGR6MRBKYLMPOI6UBGSXX53RTU75ZPQ3J7EOCXQGJURSZY",
-        sender "O2IPY3DLOANIDGR6MRBKYLMPOI6UBGSXX53RTU75ZPQ3J7EOCXQGJURSZY",
-        action "O2IPY3DLOANIDGR6MRBKYLMPOI6UBGSXX53RTU75ZPQ3J7EOCXQGJURSZY",
-        g_user_id "O2IPY3DLOANIDGR6MRBKYLMPOI6UBGSXX53RTU75ZPQ3J7EOCXQGJURSZY",
-        g_book_id "O2IPY3DLOANIDGR6MRBKYLMPOI6UBGSXX53RTU75ZPQ3J7EOCXQGJURSZY",
-        g_status "O2IPY3DLOANIDGR6MRBKYLMPOI6UBGSXX53RTU75ZPQ3J7EOCXQGJURSZY",
-        g_params "O2IPY3DLOANIDGR6MRBKYLMPOI6UBGSXX53RTU75ZPQ3J7EOCXQGJURSZY",
-        l_book_hash "O2IPY3DLOANIDGR6MRBKYLMPOI6UBGSXX53RTU75ZPQ3J7EOCXQGJURSZY",
-        l_research_hash "O2IPY3DLOANIDGR6MRBKYLMPOI6UBGSXX53RTU75ZPQ3J7EOCXQGJURSZY",
-        l_params "O2IPY3DLOANIDGR6MRBKYLMPOI6UBGSXX53RTU75ZPQ3J7EOCXQGJURSZY",
-        UNIQUE(transaction_id)
-    );
-
   password_reset.sql: |
     -- Password Reset Tokens Table
     CREATE TABLE IF NOT EXISTS auth.password_reset_tokens (

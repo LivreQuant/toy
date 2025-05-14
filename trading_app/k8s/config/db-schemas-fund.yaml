@@ -5,8 +5,11 @@ metadata:
   name: db-schemas
 data:
   funds.sql: |
+    -- Fund Schema
+    CREATE SCHEMA IF NOT EXISTS fund;
+
     -- User (Fund) table - Each user_id represents a fund entity
-    CREATE TABLE funds (
+    CREATE TABLE fund.funds (
         id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
         name VARCHAR(255) NOT NULL,
         status VARCHAR(50) NOT NULL DEFAULT 'active',  -- active, archived, pending
@@ -16,7 +19,7 @@ data:
     );
 
     -- Fund properties using EAV (Entity-Attribute-Value) model for flexibility
-    CREATE TABLE fund_properties (
+    CREATE TABLE fund.properties (
         fund_id UUID NOT NULL REFERENCES funds(id) ON DELETE CASCADE,
         category VARCHAR(100) NOT NULL,  -- e.g., 'general', 'strategy', 'team', 'compliance'
         subcategory VARCHAR(100) NOT NULL, -- e.g., 'legalStructure', 'investmentThesis', 'teamMemberRole'
@@ -28,7 +31,7 @@ data:
     );
 
     -- Fund team members table - Each fund can have multiple team members
-    CREATE TABLE fund_team_members (
+    CREATE TABLE fund.team_members (
         id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
         fund_id UUID NOT NULL REFERENCES funds(id) ON DELETE CASCADE,
         status VARCHAR(50) NOT NULL DEFAULT 'active',  -- active, inactive
@@ -37,7 +40,7 @@ data:
     );
 
     -- Fund team member properties using EAV model
-    CREATE TABLE fund_team_member_properties (
+    CREATE TABLE fund.team_member_properties (
         member_id UUID NOT NULL REFERENCES fund_team_members(id) ON DELETE CASCADE,
         category VARCHAR(100) NOT NULL,  -- e.g., 'personal', 'professional', 'education'
         subcategory VARCHAR(100) NOT NULL, -- e.g., 'name', 'contact', 'experience'
@@ -48,19 +51,8 @@ data:
         PRIMARY KEY (member_id, category, subcategory, key)
     );
 
-    -- Fund wallet table - One-to-one relationship with fund
-    CREATE TABLE fund_wallets (
-        fund_id UUID NOT NULL REFERENCES funds(id) ON DELETE CASCADE,
-        address VARCHAR(255) NOT NULL,
-        mnemonic VARCHAR(255) NOT NULL,
-        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-        PRIMARY KEY (fund_id),
-        UNIQUE(address)
-    );
-
     -- Fund portfolios (smart contracts) table - One-to-many relationship with fund
-    CREATE TABLE fund_portfolios (
+    CREATE TABLE fund.portfolios (
         id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
         fund_id UUID NOT NULL REFERENCES funds(id) ON DELETE CASCADE,
         book_id VARCHAR(255) NOT NULL,
@@ -76,28 +68,18 @@ data:
         UNIQUE(fund_id, book_id)
     );
 
-    -- Portfolio transactions table
-    CREATE TABLE portfolio_transactions (
-        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-        portfolio_id UUID NOT NULL REFERENCES fund_portfolios(id) ON DELETE CASCADE,
-        transaction_id VARCHAR(255) NOT NULL,
-        date TIMESTAMP WITH TIME ZONE NOT NULL,
-        sender VARCHAR(255) NOT NULL,
-        action VARCHAR(100) NOT NULL,
-        g_user_id VARCHAR(255),
-        g_book_id VARCHAR(255),
-        g_status VARCHAR(50),
-        g_params TEXT,
-        l_book_hash VARCHAR(255),
-        l_research_hash VARCHAR(255),
-        l_params TEXT,
-        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-        UNIQUE(transaction_id)
-    );
-
     -- Create indexes for performance
-    CREATE INDEX idx_fund_properties_lookup ON fund_properties(fund_id, category, subcategory);
-    CREATE INDEX idx_fund_team_members_fund ON fund_team_members(fund_id);
-    CREATE INDEX idx_fund_team_member_properties_lookup ON fund_team_member_properties(member_id, category, subcategory);
-    CREATE INDEX idx_fund_portfolios_fund ON fund_portfolios(fund_id);
-    CREATE INDEX idx_portfolio_transactions_portfolio ON portfolio_transactions(portfolio_id);
+    CREATE INDEX idx_fund_funds_user_id ON fund.funds(user_id);
+    CREATE INDEX idx_fund_properties_lookup ON fund.properties(fund_id, category, subcategory);
+    CREATE INDEX idx_fund_team_members_fund ON fund.team_members(fund_id);
+    CREATE INDEX idx_fund_team_member_properties_lookup ON fund.team_member_properties(member_id, category, subcategory);
+    CREATE INDEX idx_fund_portfolios_fund ON fund.portfolios(fund_id);
+    CREATE INDEX idx_fund_portfolios_book_id ON fund.portfolios(book_id);
+
+    -- Grant permissions
+    GRANT USAGE ON SCHEMA fund TO opentp;
+    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA fund TO opentp;
+    GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA fund TO opentp;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA fund GRANT ALL ON TABLES TO opentp;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA fund GRANT ALL ON SEQUENCES TO opentp;
+    

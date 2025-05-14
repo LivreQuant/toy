@@ -1,0 +1,175 @@
+# k8s/config/db-schemas.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: db-schemas
+data:
+  market_data.sql: |
+    -- Market Data Schema for Minute Bars
+    CREATE SCHEMA IF NOT EXISTS marketdata;
+    
+    -- Create market data table for storing minute bars
+    CREATE TABLE IF NOT EXISTS marketdata.market_data (
+      id SERIAL PRIMARY KEY,
+      symbol VARCHAR(20) NOT NULL,
+      timestamp BIGINT NOT NULL,
+      open NUMERIC(18, 8) NOT NULL,
+      high NUMERIC(18, 8) NOT NULL,
+      low NUMERIC(18, 8) NOT NULL,
+      close NUMERIC(18, 8) NOT NULL,
+      volume INTEGER NOT NULL,
+      trade_count INTEGER,
+      vwap NUMERIC(18, 8),
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+    
+    -- Create indexes for efficient queries
+    CREATE INDEX IF NOT EXISTS idx_market_data_symbol ON marketdata.market_data(symbol);
+    CREATE INDEX IF NOT EXISTS idx_market_data_timestamp ON marketdata.market_data(timestamp);
+    CREATE INDEX IF NOT EXISTS idx_market_data_symbol_timestamp ON marketdata.market_data(symbol, timestamp);
+    
+    -- Grant permissions
+    GRANT USAGE ON SCHEMA marketdata TO opentp;
+    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA marketdata TO opentp;
+    GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA marketdata TO opentp;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA marketdata GRANT ALL ON TABLES TO opentp;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA marketdata GRANT ALL ON SEQUENCES TO opentp;
+
+  sessions.sql: |
+    -- Session Schema
+    CREATE SCHEMA IF NOT EXISTS session;
+    
+    CREATE TABLE IF NOT EXISTS session.active_sessions (
+      session_id TEXT PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+      status TEXT NOT NULL,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      last_active TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+      token TEXT
+    );
+    
+    -- Add indexes
+    CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON session.active_sessions(user_id);
+    CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON session.active_sessions(expires_at);
+    
+    -- Create session metadata table
+    CREATE TABLE session.session_details (
+      session_id VARCHAR(36) PRIMARY KEY REFERENCES session.active_sessions(session_id) ON DELETE CASCADE,
+      
+      -- Device and connection information
+      device_id VARCHAR(64),
+      user_agent TEXT,
+      ip_address VARCHAR(45),  -- Supports IPv6
+      pod_name VARCHAR(255),
+      
+      -- Status and quality metrics
+      connection_quality VARCHAR(20) CHECK (connection_quality IN ('good', 'degraded', 'poor')),
+      heartbeat_latency INTEGER,
+      missed_heartbeats INTEGER DEFAULT 0,
+      reconnect_count INTEGER DEFAULT 0,
+              
+      -- Timestamps
+      last_reconnect TIMESTAMP WITH TIME ZONE,
+      last_device_update TIMESTAMP WITH TIME ZONE,
+      last_quality_update TIMESTAMP WITH TIME ZONE
+    );
+
+    -- Index for faster lookups
+    CREATE INDEX idx_session_details_device_id ON session.session_details(device_id);
+    
+    -- Create cleanup function for expired sessions
+    CREATE OR REPLACE FUNCTION session.cleanup_expired_sessions() 
+    RETURNS INTEGER AS $$
+    DECLARE
+        deleted_count INTEGER;
+    BEGIN
+        DELETE FROM session.active_sessions
+        WHERE expires_at < NOW();
+        
+        GET DIAGNOSTICS deleted_count = ROW_COUNT;
+        RETURN deleted_count;
+    END;
+    $$ LANGUAGE plpgsql;
+    
+    -- Grant permissions for session schema
+    GRANT USAGE ON SCHEMA session TO opentp;
+    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA session TO opentp;
+    GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA session TO opentp;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA session GRANT ALL ON TABLES TO opentp;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA session GRANT ALL ON SEQUENCES TO opentp;
+
+  simulator_sessions.sql: |
+    -- Simulator Schema
+    CREATE SCHEMA IF NOT EXISTS simulator;
+
+    CREATE TABLE IF NOT EXISTS simulator.instances (
+      simulator_id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL REFERENCES session.active_sessions(session_id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+      status TEXT NOT NULL,
+      endpoint TEXT,
+      exchange_type VARCHAR(20),
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      last_active TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- Indexes for performance
+    CREATE INDEX IF NOT EXISTS idx_simulator_session_id ON simulator.instances(session_id);
+    CREATE INDEX IF NOT EXISTS idx_simulator_user_id ON simulator.instances(user_id);
+    CREATE INDEX IF NOT EXISTS idx_simulator_status ON simulator.instances(status);
+
+    -- Grant permissions for simulator schema
+    GRANT USAGE ON SCHEMA simulator TO opentp;
+    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA simulator TO opentp;
+    GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA simulator TO opentp;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA simulator GRANT ALL ON TABLES TO opentp;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA simulator GRANT ALL ON SEQUENCES TO opentp;
+
+  trading.sql: |
+    -- Trading Schema
+    CREATE SCHEMA IF NOT EXISTS trading;
+    
+    -- Create orders table if not exists
+    CREATE TABLE IF NOT EXISTS trading.orders (
+      order_id UUID PRIMARY KEY,
+      status VARCHAR(20) PRIMARY NOT NULL,
+      user_id INTEGER NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+      symbol VARCHAR(20) NOT NULL,
+      side VARCHAR(10) NOT NULL,
+      quantity NUMERIC(18,8) NOT NULL,
+      price NUMERIC(18,8),
+      order_type VARCHAR(20) NOT NULL,
+      filled_quantity NUMERIC(18,8) NOT NULL DEFAULT 0,
+      avg_price NUMERIC(18,8) NOT NULL DEFAULT 0,
+      created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+      updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
+      request_id VARCHAR(100),
+      error_message TEXT
+    );
+    
+    -- Create indexes
+    CREATE INDEX IF NOT EXISTS idx_orders_order_id ON trading.orders(order_id);
+    CREATE INDEX IF NOT EXISTS idx_orders_status ON trading.orders(status);
+    CREATE INDEX IF NOT EXISTS idx_orders_user_id ON trading.orders(user_id);
+    CREATE INDEX IF NOT EXISTS idx_orders_created_at ON trading.orders(created_at);
+    
+    CREATE TABLE IF NOT EXISTS trading.books (
+      book_id UUID PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+      name VARCHAR(255) NOT NULL,
+      parameters JSONB,
+      created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- Add indexes
+    CREATE INDEX IF NOT EXISTS idx_books_user_id ON trading.books(user_id);
+
+    -- Grant permissions
+    GRANT USAGE ON SCHEMA trading TO opentp;
+    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA trading TO opentp;
+    GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA trading TO opentp;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA trading GRANT ALL ON TABLES TO opentp;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA trading GRANT ALL ON SEQUENCES TO opentp;
+  
