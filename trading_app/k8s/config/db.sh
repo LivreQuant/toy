@@ -6,5 +6,7 @@ PGPASSWORD=AVNS_VN880hV484uy523rqrS
 PGDATABASE=defaultdb
 
 # Run the scripts
-psql -h $PGHOST -p $PGPORT -U $PGUSER -d $PGDATABASE -f db-schemas.sql
-psql -h $PGHOST -p $PGPORT -U $PGUSER -d $PGDATABASE -f db-data.sql
+psql -h $PGHOST -p $PGPORT -U $PGUSER -d $PGDATABASE -f db-schemas-auth.sql
+psql -h $PGHOST -p $PGPORT -U $PGUSER -d $PGDATABASE -f db-schemas-session.sql
+psql -h $PGHOST -p $PGPORT -U $PGUSER -d $PGDATABASE -f db-schemas-fund.sql
+psql -h $PGHOST -p $PGPORT -U $PGUSER -d $PGDATABASE -f db-schemas-crypto.sql

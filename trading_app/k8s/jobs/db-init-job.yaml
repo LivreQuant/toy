@@ -31,8 +31,10 @@ spec:
             fi
             
             # Apply schema files in order with proper error checking
-            echo "Applying schema files..."
-            for schema in users.sql auth_tokens.sql sessions.sql market_data.sql simulator_sessions.sql trading.sql user_profiles.sql password_reset.sql user_feedback.sql; do
+
+
+            echo "Applying auth schema files..."
+            for schema in extensions.sql users.sql auth_tokens.sql password_reset.sql user_feedback.sql; do
               echo "Applying $schema..."
               PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -f /schemas/$schema
               if [ $? -ne 0 ]; then
@@ -40,6 +42,37 @@ spec:
                 exit 1
               fi
             done
+
+            echo "Applying session schema files..."
+            for schema in sessions.sql market_data.sql simulator_sessions.sql trading.sql; do
+              echo "Applying $schema..."
+              PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -f /schemas/$schema
+              if [ $? -ne 0 ]; then
+                echo "Error applying $schema"
+                exit 1
+              fi
+            done
+
+            echo "Applying fund schema files..."
+            for schema in funds.sql; do
+              echo "Applying $schema..."
+              PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -f /schemas/$schema
+              if [ $? -ne 0 ]; then
+                echo "Error applying $schema"
+                exit 1
+              fi
+            done
+
+            echo "Applying crypto schema files..."
+            for schema in crypto.sql; do
+              echo "Applying $schema..."
+              PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -f /schemas/$schema
+              if [ $? -ne 0 ]; then
+                echo "Error applying $schema"
+                exit 1
+              fi
+            done
+
             
             # Verify the function exists
             echo "Verifying session.cleanup_expired_sessions exists..."
@@ -68,20 +101,30 @@ spec:
             
             echo "Database initialization completed successfully."
         volumeMounts:
-        - name: db-schemas
-          mountPath: /schemas
-        - name: db-data
-          mountPath: /data
+        - name: db-schemas-auth
+          mountPath: /schemas-auth
+        - name: db-schemas-session
+          mountPath: /schemas-session
+        - name: db-schemas-fund
+          mountPath: /schemas-fund
+        - name: db-schemas-crypto
+          mountPath: /schemas-crypto
         - name: db-credentials
           mountPath: /db-credentials
           readOnly: true
       volumes:
-      - name: db-schemas
+      - name: db-schemas-auth
         configMap:
-          name: db-schemas
-      - name: db-data
+          name: db-schemas-auth
+      - name: db-schemas-session
         configMap:
-          name: db-data
+          name: db-schemas-session
+      - name: db-schemas-fund
+        configMap:
+          name: db-schemas-fund
+      - name: db-schemas-crypto
+        configMap:
+          name: db-schemas-crypto
       - name: db-credentials
         secret:
           secretName: db-credentials

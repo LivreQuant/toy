@@ -7,8 +7,10 @@ BASE_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
 K8S_DIR="$BASE_DIR/k8s"
 
 # Apply database schema and data ConfigMaps
-kubectl apply -f "$K8S_DIR/config/db-schemas.yaml"
-kubectl apply -f "$K8S_DIR/config/db-data.yaml"
+kubectl apply -f "$K8S_DIR/config/db-schemas-auth.yaml"
+kubectl apply -f "$K8S_DIR/config/db-schemas-session.yaml"
+kubectl apply -f "$K8S_DIR/config/db-schemas-fund.yaml"
+kubectl apply -f "$K8S_DIR/config/db-schemas-crypto.yaml"
 
 # Initialize database with the job
 kubectl apply -f "$K8S_DIR/jobs/db-init-job.yaml"

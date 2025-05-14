@@ -1,8 +1,8 @@
-# k8s/config/db-schemas.yaml
+# k8s/config/db-schemas-auto.yaml
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: db-schemas
+  name: db-schemas-auto
 data:
   extensions.sql: |
     -- PostgreSQL Extensions
