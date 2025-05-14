@@ -10,20 +10,26 @@ from source.api.rest.routes import setup_app
 
 from source.config import config
 
+# DB
 from source.db.connection_pool import DatabasePool
+from source.db.state_repository import StateRepository
+from source.db.session_repository import SessionRepository
 from source.db.fund_repository import FundRepository
 from source.db.book_repository import BookRepository
 from source.db.order_repository import OrderRepository
 
+# MANAGERS
 from source.core.state_manager import StateManager
-from source.core.validation_manager import ValidationManager
+from source.core.session_manager import SessionManager
 from source.core.fund_manager import FundManager
 from source.core.book_manager import BookManager
 from source.core.order_manager import OrderManager
 
+# CLIENTS
 from source.clients.auth_client import AuthClient
 from source.clients.exchange_client import ExchangeClient
 
+# METRICS
 from source.utils.metrics import setup_metrics
 from source.utils.tracing import setup_tracing
 
@@ -56,6 +62,7 @@ async def main():
     resources = {
         'runner': None,
         'db_pool': None,
+        'session_repository': None,
         'fund_repository': None,
         'book_repository': None,
         'order_repository': None,
@@ -65,14 +72,19 @@ async def main():
     }
 
     try:
-        # Initialize state manager
-        state_manager = StateManager(timeout_seconds=30)  # Optional: Set timeout
-        resources['state_manager'] = state_manager
 
         # Initialize database
         db_pool = DatabasePool()
         await db_pool.get_pool()  # Ensure connection is established
         resources['db_pool'] = db_pool
+
+        # Initialize state repository
+        state_repository = StateRepository()
+        resources['state_repository'] = state_repository
+
+        # Initialize session repository
+        session_repository = SessionRepository()
+        resources['session_repository'] = session_repository
 
         # Initialize fund repository
         fund_repository = FundRepository()
@@ -92,33 +104,30 @@ async def main():
         resources['auth_client'] = auth_client
         resources['exchange_client'] = exchange_client
 
-        # Initialize validation manager
-        validation_manager = ValidationManager(order_repository, auth_client)
+        # Initialize state manager
+        state_manager = StateManager(state_repository,
+                                     timeout_seconds=30)  # Optional: Set timeout
+        resources['state_manager'] = state_manager
+
+        # Initialize session manager (not state dependent)
+        session_manager = SessionManager(session_repository,
+                                         auth_client)
 
         # Initialize fund manager
-        fund_manager = FundManager(
-            fund_repository,
-            validation_manager
-        )
+        fund_manager = FundManager(fund_repository)
 
         # Initialize book manager
-        book_manager = BookManager(
-            book_repository,
-            validation_manager
-        )
+        book_manager = BookManager(book_repository)
         
         # Initialize order manager
-        order_manager = OrderManager(
-            order_repository,
-            auth_client,
-            exchange_client,
-        )
+        order_manager = OrderManager(order_repository,
+                                     exchange_client)
 
         # Setup and start REST API
         app, runner, site = await setup_app(state_manager,
-                                            validation_manager,
-                                            fund_manager, 
-                                            book_manager, 
+                                            session_manager,
+                                            fund_manager,
+                                            book_manager,
                                             order_manager)
         resources['runner'] = runner
 

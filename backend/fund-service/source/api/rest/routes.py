@@ -1,13 +1,16 @@
+# source/rest/routes.py
 import logging
-import aiohttp_cors
 from aiohttp import web
 
+from source.api.rest.state_controller import StateController
 from source.api.rest.fund_controller import FundController
 from source.api.rest.book_controller import BookController
 from source.api.rest.order_controller import OrderController
 
+
 from source.core.state_manager import StateManager
-from source.core.validation_manager import ValidationManager
+from source.core.session_manager import SessionManager
+
 from source.core.fund_manager import FundManager
 from source.core.book_manager import BookManager
 from source.core.order_manager import OrderManager
@@ -44,7 +47,7 @@ async def cors_middleware(request, handler):
 
 async def setup_app( 
     state_manager: StateManager,
-    validation_manager: ValidationManager,
+    session_manager: SessionManager,
     fund_manager: FundManager,
     book_manager: BookManager,
     order_manager: OrderManager,
@@ -55,40 +58,28 @@ async def setup_app(
     # Create application with CORS middleware
     app = web.Application(middlewares=[cors_middleware])
 
-    # Create controllers
-    fund_controller = FundController(
-        fund_manager,
-        auth_client,
-        validation_manager
-    )
+    # Add session routes
+    state_controller = StateController(state_manager)
+    app.router.add_get('/health', state_controller.health_check)
+    app.router.add_get('/readiness', state_controller.readiness_check)
 
-    book_controller = BookController(
-        book_manager.book_repository,
-        auth_client,
-        validation_manager
-    )
-
-    order_controller = OrderController(order_manager, 
-                                       state_manager)
-
-    # Add order routes
-    app.router.add_post('/api/orders/submit', order_controller.submit_orders)
-    app.router.add_post('/api/orders/cancel', order_controller.cancel_orders)
-    
-    # Add book routes
-    app.router.add_get('/api/books', book_controller.get_books)
-    app.router.add_post('/api/books', book_controller.create_book)
-    app.router.add_get('/api/books/{id}', book_controller.get_book)
-    app.router.add_put('/api/books/{id}', book_controller.update_book)
-    
     # Add fund routes
+    fund_controller = FundController(state_manager, session_manager, fund_manager)
     app.router.add_post('/api/funds', fund_controller.create_fund)
     app.router.add_get('/api/funds', fund_controller.get_fund)
     app.router.add_put('/api/funds', fund_controller.update_fund)
 
-    # Add health check routes
-    app.router.add_get('/health', order_controller.health_check)
-    app.router.add_get('/readiness', order_controller.readiness_check)
+    # Add book routes
+    book_controller = BookController(state_manager, session_manager, book_manager)
+    app.router.add_get('/api/books', book_controller.get_books)
+    app.router.add_post('/api/books', book_controller.create_book)
+    app.router.add_get('/api/books/{id}', book_controller.get_book)
+    app.router.add_put('/api/books/{id}', book_controller.update_book)
+
+    # Add order routes
+    order_controller = OrderController(state_manager, session_manager, order_manager)
+    app.router.add_post('/api/orders/submit', order_controller.submit_orders)
+    app.router.add_post('/api/orders/cancel', order_controller.cancel_orders)
 
     # Start the application
     runner = web.AppRunner(app)

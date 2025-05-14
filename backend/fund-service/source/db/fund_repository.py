@@ -1,12 +1,12 @@
+# source/db/fund_repository.py
 import logging
 import time
 import decimal
 import uuid
 import json
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, Optional
 
 from source.db.connection_pool import DatabasePool
-from source.models.fund import Fund, FundProperty
 from source.utils.metrics import track_db_operation
 
 logger = logging.getLogger('fund_repository')

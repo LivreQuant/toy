@@ -1,3 +1,4 @@
+# source/core/operation_manager.py
 import logging
 import time
 import uuid
@@ -5,10 +6,10 @@ from typing import Dict, Any, List
 
 from source.models.order import Order
 from source.models.enums import OrderStatus, OrderSide, OrderType
-from source.core.validation_manager import ValidationManager
-from source.core.record_manager import RecordManager
-from source.core.exchange_manager import ExchangeManager
 from source.utils.metrics import track_order_submission_latency
+
+from source.core.order_manager_record import RecordManager
+from source.core.order_manager_exchange import ExchangeManager
 
 logger = logging.getLogger('operation_manager')
 
@@ -18,11 +19,9 @@ class OperationManager:
 
     def __init__(
             self,
-            validation_manager: ValidationManager,
             record_manager: RecordManager,
             exchange_manager: ExchangeManager
     ):
-        self.validation_manager = validation_manager
         self.record_manager = record_manager
         self.exchange_manager = exchange_manager
 
@@ -43,7 +42,7 @@ class OperationManager:
         symbols = list(set(order.get('symbol') for order in orders_data if order.get('symbol')))
         
         # 1. Get simulator information for the user
-        simulator = await self.validation_manager.order_repository.get_session_simulator(user_id)
+        simulator = await self.session_manager.session_repository.get_session_simulator(user_id)
         simulator_id = simulator.get('simulator_id') if simulator else None
         simulator_endpoint = simulator.get('endpoint') if simulator else None
         
@@ -94,7 +93,7 @@ class OperationManager:
         # 5. Check all request IDs simultaneously
         duplicate_responses = {}
         if request_ids:
-            duplicate_responses = await self.validation_manager.order_repository.check_duplicate_requests(
+            duplicate_responses = await self.order_repository.check_duplicate_requests(
                 user_id, request_ids
             )
         
@@ -114,7 +113,7 @@ class OperationManager:
                 continue
                 
             # Validate order parameters
-            order_validation = await self.validation_manager.validate_order_parameters(order_data)
+            order_validation = await self.order_repository.validate_order_parameters(order_data)
             if not order_validation.get('valid'):
                 error_msg = order_validation.get('error', 'Invalid order parameters')
                 
@@ -245,7 +244,7 @@ class OperationManager:
         start_time = time.time()
         
         # 1. Get simulator information for the user
-        simulator = await self.validation_manager.order_repository.get_session_simulator(user_id)
+        simulator = await self.session_manager.session_repository.get_session_simulator(user_id)
         simulator_endpoint = simulator.get('endpoint') if simulator else None
         
         # 2. Get all order information in a single query

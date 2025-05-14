@@ -1,11 +1,11 @@
+# source/core/fund_manager.py
 import logging
 import time
 import uuid
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any
 
 from source.models.fund import Fund
 from source.db.fund_repository import FundRepository
-from source.core.validation_manager import ValidationManager
 from source.utils.metrics import track_fund_created
 
 logger = logging.getLogger('fund_manager')
@@ -17,12 +17,10 @@ class FundManager:
     def __init__(
             self,
             fund_repository: FundRepository,
-            validation_manager: ValidationManager
     ):
         """Initialize the fund manager with dependencies"""
         self.fund_repository = fund_repository
-        self.validation_manager = validation_manager
-    
+
     async def create_fund(self, fund_data: Dict[str, Any], user_id: str) -> Dict[str, Any]:
         """
         Create a new fund for a user

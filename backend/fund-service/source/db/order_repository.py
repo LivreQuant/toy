@@ -1,6 +1,6 @@
+# source/db/order_repository.py
 import logging
 import time
-import json
 from typing import Dict, Any, List, Optional
 
 from source.db.connection_pool import DatabasePool
@@ -88,39 +88,6 @@ class OrderRepository:
                 "failed": failed_order_ids if failed_order_ids else [o.order_id for o in orders]
             }
 
-    async def validate_device_id(self, device_id: str) -> bool:
-        """Validate if the device ID is associated with the session directly from database"""
-        if not device_id:
-            return False
-            
-        pool = await self.db_pool.get_pool()
-
-        query = """
-        SELECT 1 FROM session.session_details
-        WHERE device_id = $1
-        """
-
-        start_time = time.time()
-        try:
-            async with pool.acquire() as conn:
-                # Cast the parameter to text explicitly
-                row = await conn.fetchrow(query, str(device_id))
-
-                duration = time.time() - start_time
-                valid = row is not None
-                track_db_operation("validate_device_id", valid, duration)
-
-                return valid
-        except Exception as e:
-            duration = time.time() - start_time
-            track_db_operation("validate_device_id", False, duration)
-            logger.error(f"Error validating device ID: {e}")
-            
-            # For development purposes, temporarily skip device ID validation
-            # REMOVE THIS IN PRODUCTION!
-            logger.warning("⚠️ Skipping device ID validation due to database error")
-            return True  # Temporarily return True to bypass the check
-
     async def check_duplicate_requests(self, user_id: str, request_ids: List[str]) -> Dict[str, Dict[str, Any]]:
         """
         Check multiple request IDs for duplicates in a single query
@@ -198,30 +165,7 @@ class OrderRepository:
         except Exception as e:
             logger.error(f"Error checking duplicate request: {e}")
             return None
-
-    async def get_session_simulator(self, user_id: str) -> Dict[str, Any]:
-        """Get simulator information for a user directly from database"""
-        pool = await self.db_pool.get_pool()
-
-        query = """
-        SELECT simulator_id, endpoint, status
-        FROM simulator.instances
-        WHERE user_id = $1 
-        AND status IN ('RUNNING')
-        ORDER BY created_at DESC
-        LIMIT 1
-        """
-
-        try:
-            async with pool.acquire() as conn:
-                row = await conn.fetchrow(query, user_id)
-                if not row:
-                    return None
-                return dict(row)
-        except Exception as e:
-            logger.error(f"Error getting user simulator: {e}")
-            return None
-            
+      
     async def save_order(self, order: Order) -> bool:
         """Save a single order to the database"""
         pool = await self.db_pool.get_pool()
@@ -530,15 +474,4 @@ class OrderRepository:
         except Exception as e:
             logger.error(f"Error getting order {order_id}: {e}")
             return None
-            
-    async def check_connection(self) -> bool:
-        """Check if database connection is working"""
-        try:
-            pool = await self.db_pool.get_pool()
-            async with pool.acquire() as conn:
-                await conn.execute("SELECT 1")
-                return True
-        except Exception as e:
-            logger.error(f"Database connection check failed: {e}")
-            return False
-        
+    

@@ -250,24 +250,6 @@ data:
     GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA trading TO opentp;
     ALTER DEFAULT PRIVILEGES IN SCHEMA trading GRANT ALL ON TABLES TO opentp;
     ALTER DEFAULT PRIVILEGES IN SCHEMA trading GRANT ALL ON SEQUENCES TO opentp;
-    
-  user_profiles.sql: |
-    -- User Profiles Table
-    CREATE TABLE IF NOT EXISTS auth.user_profiles (
-        user_id INTEGER PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-        display_name VARCHAR(100),
-        bio TEXT,
-        profile_picture_url TEXT,
-        preferences JSONB DEFAULT '{}',
-        metadata JSONB DEFAULT '{}',
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-    );
-    
-    -- Create index for performance
-    CREATE INDEX IF NOT EXISTS idx_user_profiles_updated_at ON auth.user_profiles(updated_at);
-    
-    -- Grant permissions
-    GRANT ALL PRIVILEGES ON TABLE auth.user_profiles TO opentp;
   
   user_funds.sql: |
     -- User-Fund relationship table

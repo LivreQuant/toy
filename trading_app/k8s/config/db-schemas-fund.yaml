@@ -1,0 +1,103 @@
+# k8s/config/db-schemas.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: db-schemas
+data:
+  funds.sql: |
+    -- User (Fund) table - Each user_id represents a fund entity
+    CREATE TABLE funds (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        name VARCHAR(255) NOT NULL,
+        status VARCHAR(50) NOT NULL DEFAULT 'active',  -- active, archived, pending
+        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+        user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE UNIQUE  -- One-to-one with auth.users
+    );
+
+    -- Fund properties using EAV (Entity-Attribute-Value) model for flexibility
+    CREATE TABLE fund_properties (
+        fund_id UUID NOT NULL REFERENCES funds(id) ON DELETE CASCADE,
+        category VARCHAR(100) NOT NULL,  -- e.g., 'general', 'strategy', 'team', 'compliance'
+        subcategory VARCHAR(100) NOT NULL, -- e.g., 'legalStructure', 'investmentThesis', 'teamMemberRole'
+        key VARCHAR(100) NOT NULL,  -- For array items like 'objective[0]', 'objective[1]'
+        value TEXT,  -- Using TEXT for maximum flexibility
+        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (fund_id, category, subcategory, key)
+    );
+
+    -- Fund team members table - Each fund can have multiple team members
+    CREATE TABLE fund_team_members (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        fund_id UUID NOT NULL REFERENCES funds(id) ON DELETE CASCADE,
+        status VARCHAR(50) NOT NULL DEFAULT 'active',  -- active, inactive
+        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+    );
+
+    -- Fund team member properties using EAV model
+    CREATE TABLE fund_team_member_properties (
+        member_id UUID NOT NULL REFERENCES fund_team_members(id) ON DELETE CASCADE,
+        category VARCHAR(100) NOT NULL,  -- e.g., 'personal', 'professional', 'education'
+        subcategory VARCHAR(100) NOT NULL, -- e.g., 'name', 'contact', 'experience'
+        key VARCHAR(100) NOT NULL,  -- e.g., 'first_name', 'last_name', 'email', 'phone', 'linkedin'
+        value TEXT,
+        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (member_id, category, subcategory, key)
+    );
+
+    -- Fund wallet table - One-to-one relationship with fund
+    CREATE TABLE fund_wallets (
+        fund_id UUID NOT NULL REFERENCES funds(id) ON DELETE CASCADE,
+        address VARCHAR(255) NOT NULL,
+        mnemonic VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (fund_id),
+        UNIQUE(address)
+    );
+
+    -- Fund portfolios (smart contracts) table - One-to-many relationship with fund
+    CREATE TABLE fund_portfolios (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        fund_id UUID NOT NULL REFERENCES funds(id) ON DELETE CASCADE,
+        book_id VARCHAR(255) NOT NULL,
+        app_id VARCHAR(255) NOT NULL,
+        app_address VARCHAR(255) NOT NULL,
+        parameters TEXT,
+        status VARCHAR(50) NOT NULL DEFAULT 'ACTIVE',
+        blockchain_status VARCHAR(50) NOT NULL DEFAULT 'Active',
+        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+        deletion_timestamp TIMESTAMP WITH TIME ZONE,
+        deletion_note TEXT,
+        UNIQUE(fund_id, book_id)
+    );
+
+    -- Portfolio transactions table
+    CREATE TABLE portfolio_transactions (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        portfolio_id UUID NOT NULL REFERENCES fund_portfolios(id) ON DELETE CASCADE,
+        transaction_id VARCHAR(255) NOT NULL,
+        date TIMESTAMP WITH TIME ZONE NOT NULL,
+        sender VARCHAR(255) NOT NULL,
+        action VARCHAR(100) NOT NULL,
+        g_user_id VARCHAR(255),
+        g_book_id VARCHAR(255),
+        g_status VARCHAR(50),
+        g_params TEXT,
+        l_book_hash VARCHAR(255),
+        l_research_hash VARCHAR(255),
+        l_params TEXT,
+        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+        UNIQUE(transaction_id)
+    );
+
+    -- Create indexes for performance
+    CREATE INDEX idx_fund_properties_lookup ON fund_properties(fund_id, category, subcategory);
+    CREATE INDEX idx_fund_team_members_fund ON fund_team_members(fund_id);
+    CREATE INDEX idx_fund_team_member_properties_lookup ON fund_team_member_properties(member_id, category, subcategory);
+    CREATE INDEX idx_fund_portfolios_fund ON fund_portfolios(fund_id);
+    CREATE INDEX idx_portfolio_transactions_portfolio ON portfolio_transactions(portfolio_id);

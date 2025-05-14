@@ -1,11 +1,11 @@
+# source/core/book_manager.py
 import logging
 import time
 import uuid
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any
 
 from source.models.book import Book
 from source.db.book_repository import BookRepository
-from source.core.validation_manager import ValidationManager
 from source.utils.metrics import track_book_created
 
 logger = logging.getLogger('book_manager')
@@ -17,12 +17,10 @@ class BookManager:
     def __init__(
             self,
             book_repository: BookRepository,
-            validation_manager: ValidationManager
     ):
         """Initialize the book manager with dependencies"""
         self.book_repository = book_repository
-        self.validation_manager = validation_manager
-    
+
     async def create_book(self, book_data: Dict[str, Any], user_id: str) -> Dict[str, Any]:
         """
         Create a new book for a user

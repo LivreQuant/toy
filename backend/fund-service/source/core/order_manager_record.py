@@ -1,3 +1,4 @@
+# source/core/record_manager.py
 import logging
 import time
 import uuid
@@ -136,4 +137,50 @@ class RecordManager:
         logger.info(f"Successfully created and saved order {order.order_id}")
         return order
 
-    
+    async def validate_order_parameters(self, order_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Validate order parameters
+
+        Args:
+            order_data: Order data to validate
+
+        Returns:
+            Validation result with extracted parameters if valid
+        """
+        try:
+            symbol = order_data.get('symbol')
+            side = order_data.get('side')
+            quantity = float(order_data.get('quantity', 0))
+            order_type = order_data.get('type')
+            price = float(order_data.get('price', 0)) if 'price' in order_data else None
+
+            # Basic validation
+            if not symbol or not side or not order_type or quantity <= 0:
+                logger.warning(f"Order validation failed: {order_data}")
+                return {
+                    "valid": False,
+                    "error": "Invalid order parameters"
+                }
+
+            # For limit orders, price is required
+            if order_type == 'LIMIT' and (price is None or price <= 0):
+                return {
+                    "valid": False,
+                    "error": "Limit orders require a valid price greater than zero"
+                }
+
+            # Return validated parameters
+            return {
+                "valid": True,
+                "symbol": symbol,
+                "side": side,
+                "quantity": quantity,
+                "order_type": order_type,
+                "price": price
+            }
+
+        except ValueError:
+            return {
+                "valid": False,
+                "error": "Invalid order parameters: quantity and price must be numeric"
+            }

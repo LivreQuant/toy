@@ -1,7 +1,10 @@
+# source/core/order_manager.py
 import logging
-from source.core.validation_manager import ValidationManager
-from source.core.exchange_manager import ExchangeManager
-from source.core.operation_manager import OperationManager
+
+from source.core.order_manager_exchange import ExchangeManager
+from source.core.order_manager_operation import OperationManager
+
+from source.db.order_repository import OrderRepository
 
 logger = logging.getLogger('order_manager')
 
@@ -11,16 +14,13 @@ class OrderManager:
     
     def __init__(
             self,
-            order_repository,
-            auth_client,
-            exchange_client
+            order_repository: OrderRepository,
+            exchange_client,
     ):
         """Initialize the order manager with dependencies"""
         self.order_repository = order_repository
-        self.auth_client = auth_client
-        
+
         # Create specialized managers
-        self.validation_manager = ValidationManager(order_repository, auth_client)
         self.exchange_manager = ExchangeManager(exchange_client)
         self.operation_manager = OperationManager(
             self.validation_manager,

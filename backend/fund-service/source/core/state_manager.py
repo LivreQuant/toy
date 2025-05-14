@@ -1,7 +1,10 @@
+# source/core/state_manager.py
 import asyncio
 import time
 import logging
 from enum import Enum
+
+from source.db.state_repository import StateRepository
 
 logger = logging.getLogger('state_manager')
 
@@ -13,12 +16,15 @@ class ServiceState(Enum):
 
 
 class StateManager:
-    def __init__(self, timeout_seconds=30):
+    def __init__(self,
+                 state_repository: StateRepository,
+                 timeout_seconds=30):
+        self.state_repository = state_repository
         self._lock = asyncio.Lock()
         self._state = ServiceState.READY
         self._state_start_time = None
         self._timeout_seconds = timeout_seconds
-
+        
     async def acquire(self) -> bool:
         """
         Attempt to acquire the service
@@ -77,3 +83,6 @@ class StateManager:
         finally:
             # Always attempt to release, even if operation fails
             await self.release()
+
+    async def validate_connection(self):
+        return await self.state_repository.check_connection()
