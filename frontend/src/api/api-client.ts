@@ -6,6 +6,7 @@ import { TokenManager } from '../services/auth/token-manager';
 import { DeviceIdManager } from '../services/auth/device-id-manager';
 import { LocalStorageService } from '../services/storage/local-storage-service';
 import { SessionStorageService } from '../services/storage/session-storage-service';
+import { FundApi } from './fund';
 
 // Create storage services
 const localStorageService = new LocalStorageService();
@@ -23,7 +24,8 @@ export const httpClient = new HttpClient(tokenManager);
 // Create API clients
 export const authApi = new AuthApi(httpClient);
 export const ordersApi = new OrdersApi(httpClient);
-export const bookApi = new BookApi(httpClient); // Add this
+export const bookApi = new BookApi(httpClient);
+export const fundApi = new FundApi(httpClient);
 
 // Set the auth API on the token manager to handle token refreshes
 tokenManager.setAuthApi(authApi);

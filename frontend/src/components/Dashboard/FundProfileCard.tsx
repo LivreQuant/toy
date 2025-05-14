@@ -1,5 +1,5 @@
 // src/components/Dashboard/FundProfileCard.tsx
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Avatar,
   Box,
@@ -14,7 +14,8 @@ import {
   ListItemAvatar,
   ListItemText,
   Typography,
-  useTheme
+  useTheme,
+  CircularProgress
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import BusinessIcon from '@mui/icons-material/Business';
@@ -23,14 +24,65 @@ import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import StrategyIcon from '@mui/icons-material/Psychology';
 import PeopleIcon from '@mui/icons-material/People';
+import { useFundManager } from '../../hooks/useFundManager';
+import { FundProfile } from '../../types';
 
 interface FundProfileCardProps {
-  fundProfile: any;
   onEditProfile: () => void;
 }
 
-const FundProfileCard: React.FC<FundProfileCardProps> = ({ fundProfile, onEditProfile }) => {
+const FundProfileCard: React.FC<FundProfileCardProps> = ({ onEditProfile }) => {
   const theme = useTheme();
+  const { getFundProfile } = useFundManager();
+  const [fundProfile, setFundProfile] = useState<FundProfile | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadFundProfile = async () => {
+      setIsLoading(true);
+      setError(null);
+      
+      try {
+        const response = await getFundProfile();
+        
+        if (response.success && response.fund) {
+          setFundProfile(response.fund);
+        } else if (response.error) {
+          setError(response.error);
+        }
+      } catch (err: any) {
+        setError(err.message || 'Failed to load fund profile');
+        console.error('Error loading fund profile:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    loadFundProfile();
+  }, [getFundProfile]);
+
+  if (isLoading) {
+    return (
+      <Card 
+        elevation={0} 
+        sx={{ 
+          mb: 3, 
+          border: `1px solid ${theme.palette.divider}`,
+          borderRadius: 2,
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          padding: 4
+        }}
+      >
+        <CircularProgress size={40} />
+        <Typography variant="body1" sx={{ ml: 2 }}>
+          Loading fund profile...
+        </Typography>
+      </Card>
+    );
+  }
 
   if (!fundProfile) {
     return (
@@ -96,7 +148,7 @@ const FundProfileCard: React.FC<FundProfileCardProps> = ({ fundProfile, onEditPr
             mb: 0.5
           }}
         >
-          {fundProfile?.fundName}
+          {fundProfile.fundName}
         </Typography>
         
         <Typography 
@@ -106,7 +158,7 @@ const FundProfileCard: React.FC<FundProfileCardProps> = ({ fundProfile, onEditPr
             opacity: 0.9
           }}
         >
-          {fundProfile?.legalStructure || ''} {fundProfile?.location ? `• ${fundProfile.location}` : ''}
+          {fundProfile.legalStructure || ''} {fundProfile.location ? `• ${fundProfile.location}` : ''}
         </Typography>
         
         <Button
@@ -139,7 +191,7 @@ const FundProfileCard: React.FC<FundProfileCardProps> = ({ fundProfile, onEditPr
             flexDirection: 'column'
           }}>
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 3 }}>
-              {fundProfile?.yearEstablished && (
+              {fundProfile.yearEstablished && (
                 <Chip 
                   icon={<CalendarTodayIcon fontSize="small" />}
                   label={`Est. ${fundProfile.yearEstablished}`} 
@@ -147,7 +199,7 @@ const FundProfileCard: React.FC<FundProfileCardProps> = ({ fundProfile, onEditPr
                   variant="outlined"
                 />
               )}
-              {fundProfile?.aumRange && (
+              {fundProfile.aumRange && (
                 <Chip 
                   icon={<AccountBalanceIcon fontSize="small" />}
                   label={fundProfile.aumRange} 
@@ -155,7 +207,7 @@ const FundProfileCard: React.FC<FundProfileCardProps> = ({ fundProfile, onEditPr
                   variant="outlined"
                 />
               )}
-              {fundProfile?.teamMembers?.length > 0 && (
+              {fundProfile.teamMembers?.length > 0 && (
                 <Chip 
                   icon={<PeopleIcon fontSize="small" />}
                   label={`${fundProfile.teamMembers.length} Team Member${fundProfile.teamMembers.length !== 1 ? 's' : ''}`} 
@@ -182,11 +234,11 @@ const FundProfileCard: React.FC<FundProfileCardProps> = ({ fundProfile, onEditPr
                 paragraph 
                 sx={{ px: 1, mt: 1 }}
               >
-                {fundProfile?.investmentStrategy || 'No investment strategy defined yet.'}
+                {fundProfile.investmentStrategy || 'No investment strategy defined yet.'}
               </Typography>
             </Box>
 
-            {fundProfile?.profilePurpose?.length > 0 && (
+            {fundProfile.profilePurpose && fundProfile.profilePurpose.length > 0 && (
               <Box sx={{ mt: 'auto' }}>
                 <Box sx={{ 
                   display: 'flex', 
@@ -198,7 +250,7 @@ const FundProfileCard: React.FC<FundProfileCardProps> = ({ fundProfile, onEditPr
                   <Typography variant="h6">Investment Objectives</Typography>
                 </Box>
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 2 }}>
-                  {fundProfile.profilePurpose.map((purpose: string) => (
+                  {fundProfile.profilePurpose?.map((purpose: string) => (
                     <Chip 
                       key={purpose}
                       label={purpose.replace('_', ' ').split(' ').map((word: string) => 
@@ -234,7 +286,7 @@ const FundProfileCard: React.FC<FundProfileCardProps> = ({ fundProfile, onEditPr
               <Typography variant="h6">Management Team</Typography>
             </Box>
             
-            {fundProfile?.teamMembers && fundProfile.teamMembers.length > 0 ? (
+            {fundProfile.teamMembers && fundProfile.teamMembers.length > 0 ? (
               <List disablePadding sx={{ mt: 2 }}>
                 {fundProfile.teamMembers.map((member: any) => (
                   <ListItem 

@@ -53,3 +53,56 @@ export interface CreateBookRequest {
   name: string;
   parameters: Array<[string, string, string]>; // [category, subcategory, value]
 }
+
+export interface TeamMember {
+  id: string;
+  firstName: string;
+  lastName: string;
+  role: string;
+  yearsExperience?: string;
+  education?: string;
+  currentEmployment?: string;
+  investmentExpertise?: string;
+  birthDate?: string;
+  linkedin?: string;
+}
+
+export interface FundProfile {
+  id?: string;
+  userId?: string;
+  fundName: string;
+  legalStructure?: string;
+  location?: string;
+  yearEstablished?: string;
+  aumRange?: string;
+  investmentStrategy?: string;
+  profilePurpose?: string[];
+  otherPurposeDetails?: string;
+  teamMembers: TeamMember[];
+  createdAt?: number;
+  updatedAt?: number;
+}
+
+export interface CreateFundProfileRequest {
+  fundName: string;
+  legalStructure?: string;
+  location?: string;
+  yearEstablished?: string;
+  aumRange?: string;
+  investmentStrategy?: string;
+  profilePurpose?: string[];
+  otherPurposeDetails?: string;
+  teamMembers: TeamMember[];
+}
+
+export interface UpdateFundProfileRequest {
+  fundName?: string;
+  legalStructure?: string;
+  location?: string;
+  yearEstablished?: string;
+  aumRange?: string;
+  investmentStrategy?: string;
+  profilePurpose?: string[];
+  otherPurposeDetails?: string;
+  teamMembers?: TeamMember[];
+}

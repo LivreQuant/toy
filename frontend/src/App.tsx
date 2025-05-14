@@ -32,6 +32,7 @@ import { TokenManagerProvider } from './contexts/TokenManagerContext';
 import { ConnectionProvider } from './contexts/ConnectionContext';
 import { OrderProvider } from './contexts/OrderContext';
 import { BookManagerProvider } from './contexts/BookContext';
+import { FundProvider } from './contexts/FundContext';
 
 // COMPONENTS
 import ProtectedRoute from './components/Common/ProtectedRoute'; // Component for protected routes
@@ -54,6 +55,7 @@ import BookSetupPage from './pages/BookSetupPage';
 import SessionDeactivatedPage from './pages/SessionDeactivatedPage';
 import EnterpriseContactPage from './pages/EnterpriseContactPage';
 import FundProfileForm from './components/Profile/FundProfileForm';
+import EditFundProfileForm from './components/Profile/EditFundProfileForm';
 
 // Initialize Logging First
 initializeLogging();
@@ -145,6 +147,15 @@ const AppRoutes: React.FC = () => {
         </ProtectedRoute>
       } />
 
+      {/* Add this new route */}
+      <Route path="/profile/edit" element={
+        <ProtectedRoute>
+          <AuthenticatedLayout>
+            <EditFundProfileForm />
+          </AuthenticatedLayout>
+        </ProtectedRoute>
+      } />
+
       {/* Book initialize */}
       <Route path="/books/new" element={
         <ProtectedRoute>
@@ -195,11 +206,13 @@ function App() {
             <BookManagerProvider>
               <OrderProvider orderManager={orderManager}>
                 <ConnectionProvider connectionManager={connectionManager}>
-                  <Router>
-                    <DeviceIdInvalidationHandler>
-                      <AppRoutes />
-                    </DeviceIdInvalidationHandler>
-                  </Router>
+                  <FundProvider>  
+                    <Router>
+                      <DeviceIdInvalidationHandler>
+                        <AppRoutes />
+                      </DeviceIdInvalidationHandler>
+                    </Router>
+                  </FundProvider>
                 </ConnectionProvider>
               </OrderProvider>
             </BookManagerProvider>

@@ -1,5 +1,5 @@
-// src/components/Profile/FundProfileForm.tsx
-import React, { useState } from 'react';
+// src/components/Profile/EditFundProfileForm.tsx
+import React, { useState, useEffect } from 'react';
 import { 
   Box, 
   Button, 
@@ -20,68 +20,17 @@ import {
   IconButton,
   SelectChangeEvent,
   Tooltip,
-  Grid
+  Grid,
+  CircularProgress
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
-import ArrowBackIcon from '@mui/icons-material/ArrowBack'; // Import the back arrow icon
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { useToast } from '../../hooks/useToast';
-import { useNavigate } from 'react-router-dom'; // Import useNavigate
+import { useNavigate } from 'react-router-dom';
 import { useFundManager } from '../../hooks/useFundManager';
-import './FundProfileForm.css';
-
-// Define types
-interface TeamMember {
-  id: string;
-  firstName: string;
-  lastName: string;
-  role: string;
-  yearsExperience: string;
-  education: string;
-  //certifications: string;
-  currentEmployment: string;
-  investmentExpertise: string;
-  birthDate: string;
-  //biography: string;
-  //email: string;
-  //phone: string;
-  linkedin?: string;
-  //twitter?: string;
-  //photoUrl?: string;
-}
-
-interface FundProfileData {
-  // Fund Information
-  fundName: string;
-  legalStructure: string;
-  location: string;
-  yearEstablished: string;
-  aumRange: string;
-  investmentStrategy: string;
-  
-  // Purpose of the profile
-  profilePurpose: string[];
-  otherPurposeDetails?: string;
-  //targetRaise?: string;
-  //minimumInvestment?: string;
-  //requiredRoles?: string;
-  
-  // Team Members
-  teamMembers: TeamMember[];
-  
-  // Institutional Information
-  //complianceOfficer: string;
-  //complianceEmail: string;
-  //fundAdministrator: string;
-  //primeBroker: string;
-  //auditor: string;
-  //legalCounsel: string;
-  //regulatoryRegistrations: string;
-  
-  // Track Record
-  //previousPerformance: string;
-  //references: string;
-}
+import { FundProfile, TeamMember } from '../../types';
+import './FundProfileForm.css'; // Reuse the same CSS
 
 const LEGAL_STRUCTURES = [
   'Personal Account',
@@ -107,59 +56,81 @@ const AUM_RANGES = [
   'Over $1B'
 ];
 
-
-const FundProfileForm: React.FC = () => {
+const EditFundProfileForm: React.FC = () => {
   const { addToast } = useToast();
-  const navigate = useNavigate(); // Add the useNavigate hook
+  const navigate = useNavigate();
+  const { getFundProfile, updateFundProfile } = useFundManager();
+  
   const [activeStep, setActiveStep] = useState(0);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isProcessing, setIsProcessing] = useState(false);
-
-  const { createFundProfile } = useFundManager();
-
-  const [formData, setFormData] = useState<FundProfileData>({
-    // Fund Information
+  const [isLoading, setIsLoading] = useState(true);
+  const [fundId, setFundId] = useState<string | undefined>(undefined);
+  
+  const [formData, setFormData] = useState<Omit<FundProfile, 'id' | 'userId' | 'createdAt' | 'updatedAt'>>({
     fundName: '',
     legalStructure: '',
     location: '',
     yearEstablished: new Date().getFullYear().toString(),
     aumRange: '',
     investmentStrategy: '',
-    
-    // Profile purpose
     profilePurpose: [],
     otherPurposeDetails: '',
-    //targetRaise: '',
-    //minimumInvestment: '',
-    //requiredRoles: '',
-    
-    // Team Members (initialize with one empty member)
-    teamMembers: [{
-      id: '1',
-      firstName: '',
-      lastName: '',
-      role: '',
-      yearsExperience: '',
-      education: '',
-      currentEmployment: '',
-      investmentExpertise: '',
-      birthDate: '',
-      linkedin: '',
-    }],
-    
-    // Institutional Information
-    //complianceOfficer: '',
-    //complianceEmail: '',
-    //fundAdministrator: '',
-    //primeBroker: '',
-    //auditor: '',
-    //legalCounsel: '',
-    //regulatoryRegistrations: '',
-    
-    // Track Record
-    //previousPerformance: '',
-    //references: ''
+    teamMembers: []
   });
+
+  // Fetch current fund profile
+  useEffect(() => {
+    const loadFundProfile = async () => {
+      setIsLoading(true);
+      
+      try {
+        const response = await getFundProfile();
+        
+        if (response.success && response.fund) {
+          const fund = response.fund;
+          setFundId(fund.id);
+          
+          // Initialize form with fund data
+          setFormData({
+            fundName: fund.fundName || '',
+            legalStructure: fund.legalStructure || '',
+            location: fund.location || '',
+            yearEstablished: fund.yearEstablished || new Date().getFullYear().toString(),
+            aumRange: fund.aumRange || '',
+            investmentStrategy: fund.investmentStrategy || '',
+            profilePurpose: fund.profilePurpose || [],
+            otherPurposeDetails: fund.otherPurposeDetails || '',
+            teamMembers: fund.teamMembers.length > 0 
+              ? fund.teamMembers 
+              : [{
+                  id: '1',
+                  firstName: '',
+                  lastName: '',
+                  role: '',
+                  yearsExperience: '',
+                  education: '',
+                  currentEmployment: '',
+                  investmentExpertise: '',
+                  birthDate: '',
+                  linkedin: '',
+                }]
+          });
+        } else {
+          // No fund profile found, redirect to create
+          addToast('warning', 'No fund profile found. Please create one first.');
+          navigate('/profile/create');
+        }
+      } catch (error: any) {
+        addToast('error', `Error loading fund profile: ${error.message}`);
+        console.error('Error loading fund profile:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    loadFundProfile();
+  }, [getFundProfile, addToast, navigate]);
 
   const steps = ['Fund Information', 'Team Members', 'Objectives'];
 
@@ -229,7 +200,7 @@ const FundProfileForm: React.FC = () => {
     const { name, checked } = event.target;
     
     setFormData(prev => {
-      let newPurposes = [...prev.profilePurpose];
+      let newPurposes = [...(prev.profilePurpose || [])];
       
       if (checked) {
         // Add purpose if not already in array
@@ -280,16 +251,10 @@ const FundProfileForm: React.FC = () => {
           role: '',
           yearsExperience: '',
           education: '',
-          //certifications: '',
           currentEmployment: '',
           investmentExpertise: '',
           birthDate: '',
-          //biography: '',
-          //email: '',
-          //phone: '',
           linkedin: '',
-          //twitter: '',
-          //photoUrl: ''
         }
       ]
     });
@@ -308,31 +273,16 @@ const FundProfileForm: React.FC = () => {
     });
   };
 
-  // Validation functions
+  // Validation functions - same as in FundProfileForm.tsx
   const validatePurpose = () => {
     const newErrors: Record<string, string> = {};
     
-    if (formData.profilePurpose.length === 0) {
+    if (!formData.profilePurpose || formData.profilePurpose.length === 0) {
       newErrors.profilePurpose = 'Please select at least one purpose';
     }
     
-    if (formData.profilePurpose.includes('other') && !formData.otherPurposeDetails) {
+    if (formData.profilePurpose?.includes('other') && !formData.otherPurposeDetails) {
       newErrors.otherPurposeDetails = 'Please specify your purpose';
-    }
-    
-    /*
-    if (formData.profilePurpose.includes('raise_capital')) {
-      if (!formData.targetRaise) {
-        newErrors.targetRaise = 'Target raise amount is required';
-      }
-      if (!formData.minimumInvestment) {
-        newErrors.minimumInvestment = 'Minimum investment amount is required';
-      }
-    }
-    */
-    
-    if (formData.profilePurpose.includes('find_members')) { // && !formData.requiredRoles) {
-      newErrors.requiredRoles = 'Please specify what roles you are looking to fill';
     }
     
     setErrors(newErrors);
@@ -350,8 +300,8 @@ const FundProfileForm: React.FC = () => {
       newErrors.legalStructure = 'Legal structure is required';
     }
     
-    if (!formData.location.trim()) {
-      newErrors.location = 'Fund location is required';
+    if (!formData.location?.trim()) {
+        newErrors.location = 'Fund location is required';
     }
     
     setErrors(newErrors);
@@ -379,57 +329,27 @@ const FundProfileForm: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    // Validate form
-    let isValid = false;
     
-    // Validate current step - since we're submitting, validate the last step
-    switch (activeStep) {
-      case 0: // Fund Info
-        isValid = validateFundInfo();
-        break;
-      case 1: // Team Members
-        isValid = validateTeamMembers();
-        break;
-      case 2: // Purpose
-        isValid = validatePurpose();
-        break;
-      default:
-        isValid = true;
-    }
-    
-    if (!isValid) {
+    if (!fundId) {
+      addToast('error', 'No fund ID found. Cannot update profile.');
       return;
     }
     
     setIsProcessing(true);
     
-    // Convert formData to the format expected by the API
-    const profileData = {
-      fundName: formData.fundName,
-      legalStructure: formData.legalStructure,
-      location: formData.location,
-      yearEstablished: formData.yearEstablished,
-      aumRange: formData.aumRange,
-      investmentStrategy: formData.investmentStrategy,
-      profilePurpose: formData.profilePurpose,
-      otherPurposeDetails: formData.otherPurposeDetails,
-      teamMembers: formData.teamMembers
-    };
-    
     try {
-      // Call the API instead of localStorage
-      const result = await createFundProfile(profileData);
+      // Call API to update fund profile
+      const result = await updateFundProfile(formData);
       
       if (result.success) {
-        addToast('success', 'Fund profile created successfully!');
+        addToast('success', 'Fund profile updated successfully!');
         navigate('/home');
       } else {
-        addToast('error', result.error || 'Failed to create fund profile');
+        addToast('error', result.error || 'Failed to update fund profile');
       }
     } catch (error: any) {
-      console.error('Error saving fund profile:', error);
-      addToast('error', `Failed to save profile: ${error.message}`);
+      console.error('Error updating fund profile:', error);
+      addToast('error', `Failed to update profile: ${error.message}`);
     } finally {
       setIsProcessing(false);
     }
@@ -446,7 +366,7 @@ const FundProfileForm: React.FC = () => {
         <FormControlLabel
           control={
             <Checkbox 
-              checked={formData.profilePurpose.includes('raise_capital')}
+              checked={formData.profilePurpose?.includes('raise_capital')}
               onChange={handlePurposeChange}
               name="raise_capital"
             />
@@ -457,7 +377,7 @@ const FundProfileForm: React.FC = () => {
         <FormControlLabel
           control={
             <Checkbox 
-              checked={formData.profilePurpose.includes('join_team')}
+              checked={formData.profilePurpose?.includes('join_team')}
               onChange={handlePurposeChange}
               name="join_team"
             />
@@ -468,7 +388,7 @@ const FundProfileForm: React.FC = () => {
         <FormControlLabel
           control={
             <Checkbox 
-              checked={formData.profilePurpose.includes('find_members')}
+              checked={formData.profilePurpose?.includes('find_members')}
               onChange={handlePurposeChange}
               name="find_members"
             />
@@ -479,7 +399,7 @@ const FundProfileForm: React.FC = () => {
         <FormControlLabel
           control={
             <Checkbox 
-              checked={formData.profilePurpose.includes('sell_strategy')}
+              checked={formData.profilePurpose?.includes('sell_strategy')}
               onChange={handlePurposeChange}
               name="sell_strategy"
             />
@@ -490,7 +410,7 @@ const FundProfileForm: React.FC = () => {
         <FormControlLabel
           control={
             <Checkbox 
-              checked={formData.profilePurpose.includes('track_record')}
+              checked={formData.profilePurpose?.includes('track_record')}
               onChange={handlePurposeChange}
               name="track_record"
             />
@@ -501,7 +421,7 @@ const FundProfileForm: React.FC = () => {
         <FormControlLabel
           control={
             <Checkbox 
-              checked={formData.profilePurpose.includes('other')}
+              checked={formData.profilePurpose?.includes('other')}
               onChange={handlePurposeChange}
               name="other"
             />
@@ -514,7 +434,7 @@ const FundProfileForm: React.FC = () => {
         <Typography color="error" variant="body2">{errors.profilePurpose}</Typography>
       )}
       
-      {formData.profilePurpose.includes('other') && (
+      {formData.profilePurpose?.includes('other') && (
         <div className="form-group">
           <TextField
             fullWidth
@@ -530,74 +450,15 @@ const FundProfileForm: React.FC = () => {
           />
         </div>
       )}
-      
-      {/*
-      {formData.profilePurpose.includes('raise_capital') && (
-        <Box sx={{ mt: 3, p: 2, bgcolor: 'background.paper', borderRadius: 1 }}>
-          <Typography variant="subtitle1" gutterBottom>
-            Fundraising Details
-          </Typography>
-          
-          <Grid container spacing={2}>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="Target Amount"
-                name="targetRaise"
-                value={formData.targetRaise || ''}
-                onChange={handleInputChange}
-                placeholder="e.g., $5M, $10-20M"
-                error={!!errors.targetRaise}
-                helperText={errors.targetRaise}
-                sx={{ mb: 2 }}
-              />
-            </Grid>
-            
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="Minimum Investment"
-                name="minimumInvestment"
-                value={formData.minimumInvestment || ''}
-                onChange={handleInputChange}
-                placeholder="e.g., $250K, $1M"
-                error={!!errors.minimumInvestment}
-                helperText={errors.minimumInvestment}
-              />
-            </Grid>
-          </Grid>
-        </Box>
-      )}
-      
-      {formData.profilePurpose.includes('find_members') && (
-        <Box sx={{ mt: 3, p: 2, bgcolor: 'background.paper', borderRadius: 1 }}>
-          <Typography variant="subtitle1" gutterBottom>
-            Team Building
-          </Typography>
-          <TextField
-            fullWidth
-            multiline
-            rows={2}
-            label="What roles are you looking to fill?"
-            name="requiredRoles"
-            value={formData.requiredRoles || ''}
-            onChange={handleInputChange}
-            placeholder="e.g., Portfolio Manager, Research Analyst, Risk Manager"
-            error={!!errors.requiredRoles}
-            helperText={errors.requiredRoles}
-          />
-        </Box>
-      )}
-      */}
     </div>
   );
 
   // Render fund info section
   const renderFundInfo = () => (
     <Grid container spacing={3}>
-      <Grid {...{component: "div", item: true, xs: 12,size: 12} as any}>  
+      <Grid {...{component: "div", item: true, xs: 12} as any}>
       <Tooltip
-        title="Information text here"
+        title="The official name of your fund or investment entity"
         arrow
         placement="top"
         componentsProps={{
@@ -624,7 +485,7 @@ const FundProfileForm: React.FC = () => {
         </Tooltip>
       </Grid>
       
-      <Grid {...{component: "div", item: true, xs: 12,size: 6} as any}>
+      <Grid {...{component: "div", item: true, xs: 12, md: 6} as any}>
         <TextField
           required
           fullWidth
@@ -637,12 +498,12 @@ const FundProfileForm: React.FC = () => {
         />
       </Grid>
       
-      <Grid {...{component: "div", item: true, xs: 12,size: 6} as any}>
+      <Grid {...{component: "div", item: true, xs: 12, md: 6} as any}>
         <FormControl fullWidth required>
           <InputLabel>Legal Structure</InputLabel>
           <Select
             name="legalStructure"
-            value={formData.legalStructure}
+            value={formData.legalStructure || ''}
             onChange={handleSelectChange}
             label="Legal Structure"
             error={!!errors.legalStructure}
@@ -659,12 +520,12 @@ const FundProfileForm: React.FC = () => {
         </FormControl>
       </Grid>
       
-      <Grid {...{component: "div", item: true, xs: 12,size: 6} as any}>
+      <Grid {...{component: "div", item: true, xs: 12, md: 6} as any}>
         <FormControl fullWidth>
           <InputLabel>Assets Under Management</InputLabel>
           <Select
             name="aumRange"
-            value={formData.aumRange}
+            value={formData.aumRange || ''}
             onChange={handleSelectChange}
             label="Assets Under Management"
           >
@@ -677,7 +538,7 @@ const FundProfileForm: React.FC = () => {
         </FormControl>
       </Grid>
       
-      <Grid {...{component: "div", item: true, xs: 12,size: 6} as any}>
+      <Grid {...{component: "div", item: true, xs: 12, md: 6} as any}>
         <TextField
           fullWidth
           label="Year Established"
@@ -689,14 +550,14 @@ const FundProfileForm: React.FC = () => {
         />
       </Grid>
       
-      <Grid {...{component: "div", item: true, xs: 12,size: 12} as any}>
+      <Grid {...{component: "div", item: true, xs: 12} as any}>
         <TextField
           fullWidth
           multiline
           rows={4}
           label="Investment Thesis"
           name="investmentStrategy"
-          value={formData.investmentStrategy}
+          value={formData.investmentStrategy || ''}
           onChange={handleInputChange}
           placeholder="Describe your fund's investment philosophy, thesis, and core beliefs about markets"
         />
@@ -725,7 +586,7 @@ const FundProfileForm: React.FC = () => {
           
           <Grid container spacing={2}>
             {/* Basic Information */}
-            <Grid {...{component: "div", item: true, xs: 12,size: 6} as any}>
+            <Grid {...{component: "div", item: true, xs: 12, sm: 6} as any}>
               <TextField
                 required
                 fullWidth
@@ -737,7 +598,7 @@ const FundProfileForm: React.FC = () => {
               />
             </Grid>
             
-            <Grid {...{component: "div", item: true, xs: 12,size: 6} as any}>
+            <Grid {...{component: "div", item: true, xs: 12, sm: 6} as any}>
               <TextField
                 required
                 fullWidth
@@ -749,7 +610,7 @@ const FundProfileForm: React.FC = () => {
               />
             </Grid>
             
-            <Grid {...{component: "div", item: true, xs: 12,size: 6} as any}>
+            <Grid {...{component: "div", item: true, xs: 12, sm: 6} as any}>
               <TextField
                 required
                 fullWidth
@@ -762,60 +623,48 @@ const FundProfileForm: React.FC = () => {
               />
             </Grid>
             
-            <Grid {...{component: "div", item: true, xs: 12,size: 3} as any}>
+            <Grid {...{component: "div", item: true, xs: 12, sm: 3} as any}>
               <TextField
                 fullWidth
                 label="Years of Experience"
                 type="number"
-                value={member.yearsExperience}
+                value={member.yearsExperience || ''}
                 onChange={(e) => handleTeamMemberChange(member.id, 'yearsExperience', e.target.value)}
                 inputProps={{ min: "0", max: "70" }}
               />
             </Grid>
             
             {/* Personal Details */}
-            <Grid {...{component: "div", item: true, xs: 12,size: 3} as any}>
+            <Grid {...{component: "div", item: true, xs: 12, sm: 3} as any}>
               <TextField
                 fullWidth
                 label="Birth Date"
                 type="date"
                 InputLabelProps={{ shrink: true }}
-                value={member.birthDate}
+                value={member.birthDate || ''}
                 onChange={(e) => handleTeamMemberChange(member.id, 'birthDate', e.target.value)}
               />
             </Grid>
 
             {/* Professional Qualifications */}
-            <Grid {...{component: "div", item: true, xs: 12,size: 12} as any}>
+            <Grid {...{component: "div", item: true, xs: 12} as any}>
               <TextField
                 fullWidth
                 label="Education"
-                value={member.education}
+                value={member.education || ''}
                 onChange={(e) => handleTeamMemberChange(member.id, 'education', e.target.value)}
                 placeholder="e.g., MBA Harvard, BS Finance NYU"
                 multiline
                 rows={2}
               />
             </Grid>
-            
-            {/*
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="Professional Certifications"
-                value={member.certifications}
-                onChange={(e) => handleTeamMemberChange(member.id, 'certifications', e.target.value)}
-                placeholder="e.g., CFA, CAIA, CFP, Series 7/63"
-              />
-            </Grid>
-            */}
 
             {/* Experience and Expertise */}
-            <Grid {...{component: "div", item: true, xs: 12,size: 12} as any}>
+            <Grid {...{component: "div", item: true, xs: 12} as any}>
               <TextField
                 fullWidth
                 label="Current Employment"
-                value={member.currentEmployment}
+                value={member.currentEmployment || ''}
                 onChange={(e) => handleTeamMemberChange(member.id, 'currentEmployment', e.target.value)}
                 placeholder="Previous firms, positions, and responsibilities"
                 multiline
@@ -823,11 +672,11 @@ const FundProfileForm: React.FC = () => {
               />
             </Grid>
             
-            <Grid {...{component: "div", item: true, xs: 12,size: 12} as any}>
+            <Grid {...{component: "div", item: true, xs: 12} as any}>
               <TextField
                 fullWidth
                 label="Investment Expertise"
-                value={member.investmentExpertise}
+                value={member.investmentExpertise || ''}
                 onChange={(e) => handleTeamMemberChange(member.id, 'investmentExpertise', e.target.value)}
                 placeholder="e.g., Value investing, Small-cap equities, Fixed income, Emerging markets"
                 multiline
@@ -835,7 +684,7 @@ const FundProfileForm: React.FC = () => {
               />
             </Grid>
                         
-            <Grid {...{component: "div", item: true, xs: 12,size: 12} as any}>
+            <Grid {...{component: "div", item: true, xs: 12} as any}>
               <TextField
                 fullWidth
                 label="LinkedIn Profile URL"
@@ -844,68 +693,6 @@ const FundProfileForm: React.FC = () => {
                 placeholder="https://linkedin.com/in/username"
               />
             </Grid>
-            
-            {/*
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="Photo URL (Optional)"
-                value={member.photoUrl || ''}
-                onChange={(e) => handleTeamMemberChange(member.id, 'photoUrl', e.target.value)}
-                placeholder="Link to professional headshot"
-              />
-            </Grid>
-            */}
-
-            {/* Biography */}
-            {/*
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Professional Biography"
-                value={member.biography || ''}
-                onChange={(e) => handleTeamMemberChange(member.id, 'biography', e.target.value)}
-                placeholder="A brief professional biography highlighting career achievements and investment philosophy"
-                multiline
-                rows={3}
-              />
-            </Grid>
-            */}
-
-            {/* Contact Information */}
-            {/*
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="Email"
-                type="email"
-                value={member.email || ''}
-                onChange={(e) => handleTeamMemberChange(member.id, 'email', e.target.value)}
-              />
-            </Grid>
-            
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="Phone"
-                value={member.phone || ''}
-                onChange={(e) => handleTeamMemberChange(member.id, 'phone', e.target.value)}
-              />
-            </Grid>
-            */}
-
-            {/* Social Media */}
-            {/*
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="Twitter/X Handle (Optional)"
-                value={member.twitter || ''}
-                onChange={(e) => handleTeamMemberChange(member.id, 'twitter', e.target.value)}
-                placeholder="@username"
-              />
-            </Grid>
-            */}
           </Grid>
         </Paper>
       ))}
@@ -922,118 +709,6 @@ const FundProfileForm: React.FC = () => {
     </div>
   );
 
-  // Render institutional info section
-  /*
-  const renderInstitutionalInfo = () => (
-    <Grid container spacing={3}>
-      <Grid item xs={12} sm={6}>
-        <TextField
-          fullWidth
-          label="Compliance Officer"
-          name="complianceOfficer"
-          value={formData.complianceOfficer}
-          onChange={handleInputChange}
-        />
-      </Grid>
-      
-      <Grid item xs={12} sm={6}>
-        <TextField
-          fullWidth
-          label="Compliance Email"
-          name="complianceEmail"
-          type="email"
-          value={formData.complianceEmail}
-          onChange={handleInputChange}
-        />
-      </Grid>
-      
-      <Grid item xs={12} sm={6}>
-        <TextField
-          fullWidth
-          label="Fund Administrator"
-          name="fundAdministrator"
-          value={formData.fundAdministrator}
-          onChange={handleInputChange}
-        />
-      </Grid>
-      
-      <Grid item xs={12} sm={6}>
-        <TextField
-          fullWidth
-          label="Prime Broker"
-          name="primeBroker"
-          value={formData.primeBroker}
-          onChange={handleInputChange}
-        />
-      </Grid>
-      
-      <Grid item xs={12} sm={6}>
-        <TextField
-          fullWidth
-          label="Auditor"
-          name="auditor"
-          value={formData.auditor}
-          onChange={handleInputChange}
-        />
-      </Grid>
-      
-      <Grid item xs={12} sm={6}>
-        <TextField
-          fullWidth
-          label="Legal Counsel"
-          name="legalCounsel"
-          value={formData.legalCounsel}
-          onChange={handleInputChange}
-        />
-      </Grid>
-      
-      <Grid item xs={12}>
-        <TextField
-          fullWidth
-          label="Regulatory Registrations"
-          name="regulatoryRegistrations"
-          value={formData.regulatoryRegistrations}
-          onChange={handleInputChange}
-          placeholder="e.g., SEC, FINRA, FCA, other regulatory bodies"
-        />
-      </Grid>
-    </Grid>
-  );
-  */
-
-  // Render track record section
-  /*
-  const renderTrackRecord = () => (
-    <Grid container spacing={3}>
-      <Grid item xs={12}>
-        <TextField
-          fullWidth
-          multiline
-          rows={6}
-          label="Previous Performance History"
-          name="previousPerformance"
-          value={formData.previousPerformance}
-          onChange={handleInputChange}
-          placeholder="Briefly describe your historical performance, previous funds managed, or notable achievements"
-        />
-      </Grid>
-      
-      <Grid item xs={12}>
-        <TextField
-          fullWidth
-          multiline
-          rows={4}
-          label="References"
-          name="references"
-          value={formData.references}
-          onChange={handleInputChange}
-          placeholder="References from investors, industry professionals, or service providers (optional)"
-        />
-      </Grid>
-    </Grid>
-  );
-  */
-
   // Render the appropriate step content
   const renderStepContent = (step: number) => {
     switch (step) {
@@ -1043,21 +718,28 @@ const FundProfileForm: React.FC = () => {
         return renderTeamMembers();
       case 2:
         return renderPurposeSection();
-      //case 3:
-      //  return renderInstitutionalInfo();
-      //case 4:
-      //  return renderTrackRecord();
       default:
         return null;
     }
   };
+
+  if (isLoading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
+        <CircularProgress />
+        <Typography variant="h6" sx={{ ml: 2 }}>
+          Loading fund profile...
+        </Typography>
+      </Box>
+    );
+  }
 
   return (
     <Box className="fund-profile-form">
       {/* Add Back Button at the top */}
       <Button
         startIcon={<ArrowBackIcon />}
-        onClick={() => navigate('/home')} // Navigate to home page
+        onClick={() => navigate('/home')}
         variant="contained"
         color="secondary"
         size="medium"
@@ -1070,7 +752,7 @@ const FundProfileForm: React.FC = () => {
           borderRadius: 2,
           textTransform: 'none',
           display: 'flex',
-          alignItems: 'center', // Corrected from align: 'center'
+          alignItems: 'center',
           justifyContent: 'center',
           height: '48px'
         }}
@@ -1080,11 +762,11 @@ const FundProfileForm: React.FC = () => {
 
       <Paper elevation={3} sx={{ p: 4 }}>
         <Typography variant="h4" component="h1" align="center" gutterBottom>
-          Fund Profile
+          Edit Fund Profile
         </Typography>
 
         <Typography variant="subtitle1" color="textSecondary" align="center" paragraph>
-          Create your fund's profile for investors and allocators
+          Update your fund's profile for investors and allocators
         </Typography>
         
         <Stepper activeStep={activeStep} sx={{ mb: 4, pt: 2, pb: 4 }}>
@@ -1123,7 +805,7 @@ const FundProfileForm: React.FC = () => {
               onClick={handleSubmit}
               disabled={isProcessing}
             >
-              {isProcessing ? 'Submitting...' : 'Submit Profile'}
+              {isProcessing ? 'Updating Profile...' : 'Update Profile'}
             </Button>
           )}
         </Box>
@@ -1132,4 +814,4 @@ const FundProfileForm: React.FC = () => {
   );
 };
 
-export default FundProfileForm;
+export default EditFundProfileForm;

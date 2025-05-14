@@ -3,9 +3,10 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Box, Grid, useMediaQuery, useTheme } from '@mui/material';
 import { useAuth } from '../hooks/useAuth';
-import { useConnection } from '../hooks/useConnection'; // Add this import
+import { useConnection } from '../hooks/useConnection';
 import { useBookManager } from '../hooks/useBookManager';
-import { Book } from '../types';
+import { useFundManager } from '../hooks/useFundManager';
+import { Book, FundProfile } from '../types';
 
 // Dashboard Components
 import DashboardHeader from '../components/Layout/DashboardHeader';
@@ -26,19 +27,6 @@ const HomePage: React.FC = () => {
 
   const [books, setBooks] = useState<Book[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [fundProfile, setFundProfile] = useState<any>(null);
-
-  // Fetch fund profile from localStorage
-  useEffect(() => {
-    try {
-      const savedProfile = localStorage.getItem('fundProfile');
-      if (savedProfile) {
-        setFundProfile(JSON.parse(savedProfile));
-      }
-    } catch (error) {
-      console.error('Error fetching fund profile:', error);
-    }
-  }, []);
 
   // Fetch books
   useEffect(() => {
@@ -92,10 +80,7 @@ const HomePage: React.FC = () => {
         <Grid {...{component: "div", spacing: 3} as any}>
           {/* Main column - Fund Profile & Books */}
           <Grid {...{component: "div", item: true, xs: 12, lg: 8} as any}>
-            <FundProfileCard 
-              fundProfile={fundProfile} 
-              onEditProfile={() => navigate('/profile/create')} 
-            />
+            <FundProfileCard onEditProfile={() => navigate('/profile/create')} />
             
             <TradingBooksGrid 
               books={books} 
