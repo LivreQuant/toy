@@ -21,6 +21,7 @@ class OrderController(BaseController):
         """Initialize controller with dependencies"""
         super().__init__(session_manager)
         self.state_manager = state_manager
+        self.session_manager = session_manager
         self.order_manager = order_manager
         
     async def submit_orders(self, request: web.Request) -> web.Response:

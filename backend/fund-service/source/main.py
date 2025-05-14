@@ -121,6 +121,7 @@ async def main():
         
         # Initialize order manager
         order_manager = OrderManager(order_repository,
+                                     session_manager,
                                      exchange_client)
 
         # Setup and start REST API

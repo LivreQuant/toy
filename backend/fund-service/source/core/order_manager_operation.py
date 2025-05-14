@@ -8,6 +8,9 @@ from source.models.order import Order
 from source.models.enums import OrderStatus, OrderSide, OrderType
 from source.utils.metrics import track_order_submission_latency
 
+from source.db.order_repository import OrderRepository
+from source.core.session_manager import SessionManager
+
 from source.core.order_manager_record import RecordManager
 from source.core.order_manager_exchange import ExchangeManager
 
@@ -19,9 +22,14 @@ class OperationManager:
 
     def __init__(
             self,
+            order_repository: OrderRepository,
+            session_manager: SessionManager,
             record_manager: RecordManager,
             exchange_manager: ExchangeManager
     ):
+        self.order_repository = order_repository
+        self.session_manager = session_manager
+
         self.record_manager = record_manager
         self.exchange_manager = exchange_manager
 
@@ -78,7 +86,7 @@ class OperationManager:
                 
                 # Log the result but continue regardless
                 if not cancel_result.get('success'):
-                    logger.warning(f"Failed to cancel some existing orders: {cancel_result.get('errorMessage')}")
+                    logger.warning(f"Failed to cancel some existing orders: {cancel_result.get('error')}")
                     
             # Record cancellations in database
             for order_id in open_order_ids:
@@ -119,7 +127,7 @@ class OperationManager:
                 
                 result = {
                     "success": False,
-                    "errorMessage": error_msg,
+                    "error": error_msg,
                     "index": i
                 }
                 
@@ -149,7 +157,7 @@ class OperationManager:
                 
                 result = {
                     "success": False,
-                    "errorMessage": f"Order parsing error: {str(e)}",
+                    "error": f"Order parsing error: {str(e)}",
                     "index": i
                 }
                 
@@ -171,7 +179,7 @@ class OperationManager:
                 else:
                     results.append({
                         "success": False,
-                        "errorMessage": "Failed to save order to database",
+                        "error": "Failed to save order to database",
                         "index": idx
                     })
         
@@ -189,7 +197,7 @@ class OperationManager:
                 
                 if not exchange_result.get('success'):
                     # All orders rejected by exchange - record new status
-                    error_msg = exchange_result.get('errorMessage', 'Batch rejected by exchange')
+                    error_msg = exchange_result.get('error', 'Batch rejected by exchange')
                     
                     for order in orders_to_submit:
                         # Create new row with REJECTED status
@@ -202,7 +210,7 @@ class OperationManager:
                             if res.get('orderId') == order.order_id:
                                 results[j] = {
                                     "success": False,
-                                    "errorMessage": error_msg,
+                                    "error": error_msg,
                                     "orderId": order.order_id,
                                     "index": res.get('index')
                                 }
@@ -224,7 +232,7 @@ class OperationManager:
                 {
                     "success": r.get('success', False),
                     "orderId": r.get('orderId'),
-                    "errorMessage": r.get('errorMessage')
+                    "error": r.get('error')
                 }
                 for r in sorted_results
             ]
@@ -263,7 +271,7 @@ class OperationManager:
                 results.append({
                     "orderId": order_id,
                     "success": False,
-                    "errorMessage": "Order not found",
+                    "error": "Order not found",
                     "index": i
                 })
                 continue
@@ -274,7 +282,7 @@ class OperationManager:
                 results.append({
                     "orderId": order_id,
                     "success": False,
-                    "errorMessage": "Order does not belong to this user",
+                    "error": "Order does not belong to this user",
                     "index": i
                 })
                 continue
@@ -318,23 +326,23 @@ class OperationManager:
                                 "index": idx
                             })
                         else:
-                            error_msg = ex_result.get('errorMessage', 'Failed to cancel on exchange')
+                            error_msg = ex_result.get('error', 'Failed to cancel on exchange')
                             
                             results.append({
                                 "orderId": order.order_id,
                                 "success": False,
-                                "errorMessage": error_msg,
+                                "error": error_msg,
                                 "index": idx
                             })
             else:
                 # Batch cancellation failed on exchange
-                error_msg = exchange_result.get('errorMessage', 'Batch cancellation failed')
+                error_msg = exchange_result.get('error', 'Batch cancellation failed')
                 
                 for order, idx in valid_orders:
                     results.append({
                         "orderId": order.order_id,
                         "success": False,
-                        "errorMessage": error_msg,
+                        "error": error_msg,
                         "index": idx
                     })
         elif valid_orders:
@@ -364,7 +372,7 @@ class OperationManager:
                 {
                     "success": r.get('success', False),
                     "orderId": r.get('orderId'),
-                    "errorMessage": r.get('errorMessage')
+                    "error": r.get('error')
                 }
                 for r in sorted_results
             ]

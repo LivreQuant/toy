@@ -88,7 +88,7 @@ class BookManager:
         logger.info(f"Getting books for user {user_id}")
         
         try:
-            books = await self.book_repository.get_books_by_user(user_id)
+            books = await self.book_repository.get_user_books(user_id)
             
             # Convert Book objects to dictionaries
             book_dicts = [book.to_dict() for book in books]

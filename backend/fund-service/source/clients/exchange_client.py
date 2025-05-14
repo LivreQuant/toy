@@ -106,7 +106,7 @@ class ExchangeClient:
             logger.warning("Exchange service circuit breaker open")
             return {
                 "success": False,
-                "errorMessage": "Exchange service unavailable due to repeated failures",
+                "error": "Exchange service unavailable due to repeated failures",
                 "results": []
             }
 
@@ -145,7 +145,7 @@ class ExchangeClient:
             # Convert to dictionary format
             result = {
                 "success": response.success,
-                "errorMessage": response.error_message if hasattr(response, "error_message") else None,
+                "error": response.error_message if hasattr(response, "error_message") else None,
                 "results": []
             }
 
@@ -154,7 +154,7 @@ class ExchangeClient:
                 result["results"].append({
                     "success": order_result.success,
                     "orderId": order_result.order_id,
-                    "errorMessage": order_result.error_message
+                    "error": order_result.error_message
                 })
 
             return result
@@ -167,7 +167,7 @@ class ExchangeClient:
             logger.error(f"Unexpected error in submit_orders: {e}")
             return {
                 "success": False,
-                "errorMessage": f"Exchange communication error: {str(e)}",
+                "error": f"Exchange communication error: {str(e)}",
                 "results": []
             }
 
@@ -205,7 +205,7 @@ class ExchangeClient:
             logger.warning("Exchange service circuit breaker open")
             return {
                 "success": False,
-                "errorMessage": "Exchange service unavailable due to repeated failures",
+                "error": "Exchange service unavailable due to repeated failures",
                 "results": []
             }
 
@@ -226,7 +226,7 @@ class ExchangeClient:
             # Convert to dictionary format
             result = {
                 "success": response.success,
-                "errorMessage": response.error_message if hasattr(response, "error_message") else None,
+                "error": response.error_message if hasattr(response, "error_message") else None,
                 "results": []
             }
 
@@ -235,7 +235,7 @@ class ExchangeClient:
                 result["results"].append({
                     "success": cancel_result.success,
                     "orderId": cancel_result.order_id,
-                    "errorMessage": cancel_result.error_message if hasattr(cancel_result, "error_message") else None
+                    "error": cancel_result.error_message if hasattr(cancel_result, "error_message") else None
                 })
 
             return result
@@ -248,7 +248,7 @@ class ExchangeClient:
             logger.error(f"Unexpected error in cancel_orders: {e}")
             return {
                 "success": False,
-                "errorMessage": f"Exchange communication error: {str(e)}",
+                "error": f"Exchange communication error: {str(e)}",
                 "results": []
             }
 
@@ -259,20 +259,20 @@ class ExchangeClient:
             logger.error(f"Exchange unavailable during {operation}: {error.details()}")
             return {
                 "success": False,
-                "errorMessage": "Exchange service unavailable, please try again later",
+                "error": "Exchange service unavailable, please try again later",
                 "results": []
             }
         elif status_code == grpc.StatusCode.DEADLINE_EXCEEDED:
             logger.error(f"Exchange request timed out during {operation}: {error.details()}")
             return {
                 "success": False,
-                "errorMessage": "Exchange service timed out, please try again",
+                "error": "Exchange service timed out, please try again",
                 "results": []
             }
         else:
             logger.error(f"gRPC error during {operation} ({status_code}): {error.details()}")
             return {
                 "success": False,
-                "errorMessage": f"Communication error: {error.details()}",
+                "error": f"Communication error: {error.details()}",
                 "results": []
             }

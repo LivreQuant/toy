@@ -138,12 +138,12 @@ class BookController(BaseController):
         }
 
         # Create book in database
-        book_id = await self.book_repository.create_book(book_data)
+        result = await self.book_manager.create_book(book_data, user_id)
 
-        if not book_id:
+        if not result:
             return self.create_error_response("Failed to create book in database", 500)
 
-        return self.create_success_response({"bookId": book_id})
+        return self.create_success_response({"bookId": result["book_id"]})
 
     async def _get_books(self, request: web.Request) -> web.Response:
         """Handle books retrieval endpoint"""
@@ -155,9 +155,12 @@ class BookController(BaseController):
         user_id = auth_result["user_id"]
 
         # Retrieve books for this user
-        books = await self.book_repository.get_user_books(user_id)
+        result = await self.book_manager.get_books(user_id)
 
-        return self.create_success_response({"books": books})
+        if not result["success"]:
+            return self.create_error_response(result["error"], 500)
+
+        return self.create_success_response({"books": result["books"]})
 
 
     async def _get_book(self, request: web.Request) -> web.Response:
@@ -175,12 +178,12 @@ class BookController(BaseController):
             return self.create_error_response("Book ID is required", 400)
 
         # Retrieve book
-        book = await self.book_repository.get_book(book_id, user_id)
+        result = await self.book_manager.get_book(book_id, user_id)
 
-        if not book:
+        if not result:
             return self.create_error_response("Book not found or does not belong to user", 404)
 
-        return self.create_success_response({"book": book})
+        return self.create_success_response({"book": result["book"]})
 
 
     async def _update_book(self, request: web.Request) -> web.Response:
@@ -203,7 +206,7 @@ class BookController(BaseController):
             return self.create_error_response(data["error"], data["status"])
 
         # Verify book exists and belongs to user
-        existing_book = await self.book_repository.get_book(book_id, user_id)
+        existing_book = await self.book_manager.get_book(book_id, user_id)
         if not existing_book:
             return self.create_error_response("Book not found or does not belong to user", 404)
 
@@ -218,7 +221,7 @@ class BookController(BaseController):
         update_data['updated_at'] = time.time()
 
         # Update book in database
-        success = await self.book_repository.update_book(book_id, user_id, update_data)
+        success = await self.book_manager.update_book(book_id, update_data, user_id)
 
         if not success:
             return self.create_error_response("Failed to update book in database", 500)

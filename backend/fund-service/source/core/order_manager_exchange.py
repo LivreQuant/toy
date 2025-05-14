@@ -70,7 +70,7 @@ class ExchangeManager:
             logger.error(f"Error submitting {len(orders)} orders to exchange: {e}")
             return {
                 "success": False,
-                "errorMessage": f"Exchange communication error: {str(e)}",
+                "error": f"Exchange communication error: {str(e)}",
                 "results": []
             }
 
@@ -108,6 +108,6 @@ class ExchangeManager:
             logger.error(f"Error cancelling {len(orders)} orders on exchange: {e}")
             return {
                 "success": False,
-                "errorMessage": f"Exchange communication error: {str(e)}",
+                "error": f"Exchange communication error: {str(e)}",
                 "results": []
             }
