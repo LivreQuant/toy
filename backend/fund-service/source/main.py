@@ -33,7 +33,7 @@ from source.clients.exchange_client import ExchangeClient
 from source.utils.metrics import setup_metrics
 from source.utils.tracing import setup_tracing
 
-logger = logging.getLogger('order_service')
+logger = logging.getLogger('fund_service')
 
 
 class GracefulExit(SystemExit):
@@ -42,11 +42,11 @@ class GracefulExit(SystemExit):
 
 
 async def main():
-    """Initialize and run the order service"""
+    """Initialize and run the fund service"""
     # Setup logging
     setup_logging()
 
-    logger.info("Starting order service")
+    logger.info("Starting fund service")
 
     # Initialize tracing
     if config.enable_tracing:
@@ -140,7 +140,7 @@ async def main():
         for sig in (signal.SIGINT, signal.SIGTERM):
             loop.add_signal_handler(sig, handle_signal)
 
-        logger.info(f"Order service started on port {config.rest_port}")
+        logger.info(f"Fund service started on port {config.rest_port}")
 
         # Keep the service running until a signal is received
         while True:

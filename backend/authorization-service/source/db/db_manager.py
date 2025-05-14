@@ -1,7 +1,6 @@
 from source.db.base_manager import BaseDatabaseManager
 from source.db.handlers.user import UserDatabaseManager
 from source.db.handlers.auth import AuthDatabaseManager
-from source.db.handlers.profile import ProfileDatabaseManager
 from source.db.handlers.verification import VerificationDatabaseManager
 from source.db.handlers.password_reset import PasswordResetDatabaseManager
 from source.db.handlers.feedback import FeedbackDatabaseManager
@@ -21,13 +20,12 @@ class DatabaseManager(BaseDatabaseManager):
         super().__init__()
         self.user = UserDatabaseManager()
         self.auth = AuthDatabaseManager()
-        self.profile = ProfileDatabaseManager()
         self.verification = VerificationDatabaseManager()
         self.password_reset = PasswordResetDatabaseManager()
         self.feedback = FeedbackDatabaseManager()
 
         # Share the connection pool with all handlers
-        for handler in [self.user, self.auth, self.profile, self.verification,
+        for handler in [self.user, self.auth, self.verification,
                         self.password_reset, self.feedback]:
             handler.pool = None  # Will be set when connected
 
@@ -36,7 +34,7 @@ class DatabaseManager(BaseDatabaseManager):
         await super().connect()
 
         # Share the connection pool with all handlers
-        for handler in [self.user, self.auth, self.profile, self.verification,
+        for handler in [self.user, self.auth, self.verification,
                         self.password_reset, self.feedback]:
             handler.pool = self.pool
 
@@ -80,13 +78,6 @@ class DatabaseManager(BaseDatabaseManager):
 
     async def cleanup_expired_tokens(self):
         return await self.auth.cleanup_expired_tokens()
-
-    # Profile methods
-    async def get_user_profile(self, user_id):
-        return await self.profile.get_user_profile(user_id)
-
-    async def update_user_profile(self, user_id, profile_data):
-        return await self.profile.update_user_profile(user_id, profile_data)
 
     # Verification methods
     async def update_verification_code(self, user_id, code, expires_at):

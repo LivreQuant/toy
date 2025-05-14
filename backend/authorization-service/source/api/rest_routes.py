@@ -13,7 +13,6 @@ from source.utils.tracing import optional_trace_span
 from source.api.handlers.auth import handle_login, handle_logout, handle_refresh_token, handle_validate_token
 from source.api.handlers.feedback import handle_feedback
 from source.api.handlers.password import handle_reset_password, handle_forgot_password, handle_forgot_username
-from source.api.handlers.profile import handle_update_profile
 from source.api.handlers.signup import handle_signup, handle_verify_email, handle_resend_verification
 
 from source.api.middlewares.rate_limiting import RateLimiter
@@ -41,7 +40,6 @@ def setup_rest_app(auth_manager):
     app.router.add_post('/api/auth/forgot-username', handle_forgot_username(auth_manager))
     app.router.add_post('/api/auth/forgot-password', handle_forgot_password(auth_manager))
     app.router.add_post('/api/auth/reset-password', handle_reset_password(auth_manager))
-    app.router.add_put('/api/auth/profile', handle_update_profile(auth_manager))
     app.router.add_post('/api/auth/feedback', handle_feedback(auth_manager))
 
     app.router.add_get('/health', handle_health_check)

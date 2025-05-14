@@ -22,8 +22,6 @@ CREATE TABLE auth.users (
     username VARCHAR(100) NOT NULL UNIQUE,
     password_hash VARCHAR(200) NOT NULL,
     email VARCHAR(200),
-    first_name VARCHAR(100),
-    last_name VARCHAR(100),
     user_role VARCHAR(50) DEFAULT 'user',  -- Renamed from 'role' to avoid ambiguity
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -113,16 +111,12 @@ INSERT INTO auth.users (
     username,
     password_hash,
     email,
-    first_name,
-    last_name,
     user_role,
     is_active
 ) VALUES (
     'testuser',
     crypt('password123', gen_salt('bf')),
     'testuser@example.com',
-    'Test',
-    'User',
     'user',
     TRUE
 ) ON CONFLICT (username) DO NOTHING;

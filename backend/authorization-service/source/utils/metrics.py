@@ -36,13 +36,6 @@ DB_CONNECTION_ATTEMPTS = Counter(
     ['result']
 )
 
-# Profile Metrics
-PROFILE_UPDATES = Counter(
-    'auth_profile_updates_total',
-    'Total number of profile updates',
-    ['result']
-)
-
 # User Registration Metrics
 SIGNUP_ATTEMPTS = Counter(
     'auth_signup_attempts_total',
@@ -130,12 +123,6 @@ def track_db_connection(success):
     """Track database connection attempts"""
     result = 'success' if success else 'failure'
     DB_CONNECTION_ATTEMPTS.labels(result=result).inc()
-
-
-def track_profile_update(success):
-    """Track profile update metrics"""
-    result = 'success' if success else 'failure'
-    PROFILE_UPDATES.labels(result=result).inc()
 
 
 def track_signup_attempt(success):

@@ -1,25 +1,25 @@
-# k8s/deployments/order-service.yaml
+# k8s/deployments/fund-service.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: order-service
+  name: fund-service
 spec:
   replicas: 2  # Multiple replicas for horizontal scaling
   selector:
     matchLabels:
-      app: order-service
+      app: fund-service
   template:
     metadata:
       labels:
-        app: order-service
+        app: fund-service
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9091"
         prometheus.io/path: "/metrics"
     spec:
       containers:
-      - name: order-service
-        image: opentp/order-service:latest
+      - name: fund-service
+        image: opentp/fund-service:latest
         imagePullPolicy: Never
         ports:
         - containerPort: 8001  # REST service
@@ -52,7 +52,7 @@ spec:
         - name: OTEL_EXPORTER_JAEGER_AGENT_PORT
           value: "6831"
         - name: OTEL_SERVICE_NAME
-          value: "order-service"
+          value: "fund-service"
         - name: ENABLE_TRACING
           value: "true"
         - name: ENABLE_METRICS
@@ -86,10 +86,10 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: order-service
+  name: fund-service
 spec:
   selector:
-    app: order-service
+    app: fund-service
   ports:
   - name: http
     port: 8001

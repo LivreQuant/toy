@@ -25,7 +25,6 @@ class AuthManager(BaseManager):
         # These will be set via dependency injection
         self.email_manager = None
         self.verification_manager = None
-        self.profile_manager = None
 
     async def initialize(self):
         """Initialize all services"""
@@ -43,9 +42,6 @@ class AuthManager(BaseManager):
         else:
             self.signup_service.verification_manager = self.verification_manager
             self.password_service.verification_manager = self.verification_manager
-
-        if not self.profile_manager:
-            self.logger.warning("ProfileManager dependency not registered")
 
         # Initialize token cleanup process
         await self.token_service.initialize()
@@ -99,10 +95,6 @@ class AuthManager(BaseManager):
     async def reset_password(self, reset_token, new_password):
         """Handle password reset request"""
         return await self.password_service.reset_password(reset_token, new_password)
-
-    async def update_profile(self, user_id, profile_data):
-        """Handle profile update request"""
-        return await self.profile_manager.update_profile(user_id, profile_data)
 
     async def submit_feedback(self, user_id, feedback_type, title, content):
         """Handle feedback submission"""

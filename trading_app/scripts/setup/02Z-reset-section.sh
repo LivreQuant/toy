@@ -26,7 +26,7 @@ case $SECTION in
     db-init)
         echo "Resetting database initialization..."
         kubectl delete job db-init-job
-        kubectl delete configmap db-schemas db-data
+        kubectl delete configmap db-schemas-auth db-schemas-session db-schemas-fund db-schemas-crypto
         ;;
     jaeger)
         echo "Resetting Jaeger..."

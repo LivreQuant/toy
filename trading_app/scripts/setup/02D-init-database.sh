@@ -28,3 +28,23 @@ if [ $? -ne 0 ]; then
 fi
 
 echo "Database initialization completed successfully."
+
+# kubectl delete job db-init-job
+
+
+# kubectl get pods -l app=postgres
+
+# kubectl exec -it postgres-758f96d9c-x5z7j -- psql -U opentp -d opentp
+
+# Once inside psql, you can run various commands:
+# List all schemas
+#\dn
+
+# List all tables in a specific schema (e.g., auth schema)
+#\dt auth.*
+
+# Query specific tables
+#SELECT * FROM auth.users;
+
+# Exit psql
+#\q

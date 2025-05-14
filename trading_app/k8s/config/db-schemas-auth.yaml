@@ -31,20 +31,32 @@ data:
     CREATE INDEX IF NOT EXISTS idx_users_username ON auth.users(username);
     CREATE INDEX IF NOT EXISTS idx_users_email ON auth.users(email);
     CREATE INDEX IF NOT EXISTS idx_users_role ON auth.users(user_role);
-    
-    -- User preferences table for app settings
-    CREATE TABLE IF NOT EXISTS auth.user_preferences (
-        user_id INTEGER PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-        theme VARCHAR(20) DEFAULT 'light',
-        default_simulator_config JSONB,
-        last_modified TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-    );
-    
+        
     -- Function to hash passwords
     CREATE OR REPLACE FUNCTION auth.hash_password(password TEXT)
     RETURNS TEXT AS $$
     BEGIN
         RETURN encode(digest(password || 'trading-simulator-salt', 'sha256'), 'hex');
+    END;
+    $$ LANGUAGE plpgsql;
+
+    -- Function to verify passwords
+    CREATE OR REPLACE FUNCTION auth.verify_password(p_username TEXT, p_password TEXT)
+    RETURNS TABLE(
+        id INTEGER,
+        username VARCHAR(50),
+        email VARCHAR(100),
+        password_hash VARCHAR(255),
+        email_verified BOOLEAN,
+        is_active BOOLEAN,
+        user_role VARCHAR(20)
+    ) AS $$
+    BEGIN
+        RETURN QUERY
+        SELECT u.id, u.username, u.email, u.password_hash, u.email_verified, u.is_active, u.user_role
+        FROM auth.users u
+        WHERE u.username = p_username
+        AND u.password_hash = encode(digest(p_password || 'trading-simulator-salt', 'sha256'), 'hex');
     END;
     $$ LANGUAGE plpgsql;
     

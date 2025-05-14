@@ -7,14 +7,6 @@ from source.db.base_manager import BaseDatabaseManager
 logger = logging.getLogger('user_db')
 
 
-async def _create_default_profile(conn, user_id):
-    """Create default user profile (internal method)"""
-    query = """
-        INSERT INTO auth.user_profiles (user_id)
-        VALUES ($1)
-    """
-    await conn.execute(query, user_id)
-
 
 class UserDatabaseManager(BaseDatabaseManager):
     async def get_user_by_username(self, username):
@@ -26,8 +18,7 @@ class UserDatabaseManager(BaseDatabaseManager):
                 await self.connect()
 
             query = """
-                SELECT id, username, password_hash, is_active, user_role, email, email_verified, 
-                       first_name, last_name, created_at, last_login
+                SELECT id, username, password_hash, is_active, user_role, email, email_verified, created_at, last_login
                 FROM auth.users
                 WHERE username = $1
             """
@@ -50,7 +41,7 @@ class UserDatabaseManager(BaseDatabaseManager):
 
             # Update this query to include verification_code and verification_sent_at
             query = """
-                SELECT id, username, email, first_name, last_name, is_active, user_role, 
+                SELECT id, username, email, is_active, user_role, 
                     email_verified, created_at, last_login, verification_code, verification_sent_at
                 FROM auth.users
                 WHERE id = $1
@@ -112,8 +103,6 @@ class UserDatabaseManager(BaseDatabaseManager):
                 async with self.pool.acquire() as conn:
                     async with conn.transaction():
                         user_id = await conn.fetchval(query, username, email, password_hash)
-                        # Create default profile
-                        await _create_default_profile(conn, user_id)
                     
                     span.set_attribute("success", True)
                     span.set_attribute("user_id", str(user_id))

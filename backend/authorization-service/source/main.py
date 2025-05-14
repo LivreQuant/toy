@@ -12,7 +12,6 @@ from source.db.db_manager import DatabaseManager
 from source.core.auth_manager import AuthManager
 from source.core.email_manager import EmailManager
 from source.core.verification_manager import VerificationManager
-from source.core.profile_manager import ProfileManager
 from source.api.rest_routes import setup_rest_app
 from source.utils.tracing import setup_tracing
 from source.utils.metrics import setup_metrics
@@ -98,17 +97,10 @@ async def serve():
         managers['verification_manager'] = verification_manager
         logger.info("Verification manager initialized")
 
-        # Create and initialize profile manager
-        profile_manager = ProfileManager(db_manager)
-        await profile_manager.initialize()
-        managers['profile_manager'] = profile_manager
-        logger.info("Profile manager initialized")
-
         # Create and initialize auth manager with all dependencies
         auth_manager = AuthManager(db_manager)
         auth_manager.register_dependency('email_manager', email_manager)
         auth_manager.register_dependency('verification_manager', verification_manager)
-        auth_manager.register_dependency('profile_manager', profile_manager)
         await auth_manager.initialize()
         managers['auth_manager'] = auth_manager
         logger.info("Auth manager initialized with dependencies")

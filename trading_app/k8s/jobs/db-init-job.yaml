@@ -16,63 +16,102 @@ spec:
           - |
             echo "Starting database initialization..."
             
+            # Debug: List all mounted volumes and their contents
+            echo "DEBUG: Listing all mounted volumes:"
+            ls -la /schemas-auth/ || echo "No schemas-auth directory"
+            ls -la /schemas-session/ || echo "No schemas-session directory"
+            ls -la /schemas-fund/ || echo "No schemas-fund directory" 
+            ls -la /schemas-crypto/ || echo "No schemas-crypto directory"
+            ls -la /schemas/ || echo "No schemas directory"
+            
             # Wait for database to be fully ready
             until PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -c "SELECT 1" > /dev/null 2>&1; do
               echo "Waiting for PostgreSQL to be ready..."
               sleep 2
             done
             
-            # Apply extensions first
+            # Apply extensions first - FIX: Use schemas-auth instead of schemas
             echo "Applying database extensions..."
-            PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -f /schemas/extensions.sql
+            PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -f /schemas-auth/extensions.sql
             if [ $? -ne 0 ]; then
-              echo "Error applying extensions"
-              exit 1
+              echo "Error applying extensions, trying alternative paths..."
+              
+              # Try to find the extensions.sql file in any of the schema directories
+              for dir in /schemas-auth /schemas-session /schemas-fund /schemas-crypto; do
+                echo "Checking $dir for extensions.sql..."
+                if [ -f "$dir/extensions.sql" ]; then
+                  echo "Found extensions.sql in $dir!"
+                  PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -f "$dir/extensions.sql"
+                  if [ $? -eq 0 ]; then
+                    echo "Successfully applied extensions from $dir/extensions.sql"
+                    break
+                  fi
+                fi
+              done
+              
+              # If we reach here and still failed, create the extensions manually
+              echo "Creating extensions manually..."
+              PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -c "
+              CREATE EXTENSION IF NOT EXISTS pgcrypto;
+              CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";"
             fi
             
             # Apply schema files in order with proper error checking
-
-
             echo "Applying auth schema files..."
-            for schema in extensions.sql users.sql auth_tokens.sql password_reset.sql user_feedback.sql; do
+            for schema in users.sql auth_tokens.sql password_reset.sql user_feedback.sql; do
               echo "Applying $schema..."
-              PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -f /schemas/$schema
-              if [ $? -ne 0 ]; then
-                echo "Error applying $schema"
-                exit 1
+              if [ -f "/schemas-auth/$schema" ]; then
+                PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -f /schemas-auth/$schema
+                if [ $? -ne 0 ]; then
+                  echo "Error applying $schema"
+                  exit 1
+                fi
+              else
+                echo "WARNING: File /schemas-auth/$schema not found"
               fi
             done
 
             echo "Applying session schema files..."
             for schema in sessions.sql market_data.sql simulator_sessions.sql trading.sql; do
               echo "Applying $schema..."
-              PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -f /schemas/$schema
-              if [ $? -ne 0 ]; then
-                echo "Error applying $schema"
-                exit 1
+              if [ -f "/schemas-session/$schema" ]; then
+                PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -f /schemas-session/$schema
+                if [ $? -ne 0 ]; then
+                  echo "Error applying $schema"
+                  exit 1
+                fi
+              else
+                echo "WARNING: File /schemas-session/$schema not found"
               fi
             done
 
             echo "Applying fund schema files..."
             for schema in funds.sql; do
               echo "Applying $schema..."
-              PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -f /schemas/$schema
-              if [ $? -ne 0 ]; then
-                echo "Error applying $schema"
-                exit 1
+              if [ -f "/schemas-fund/$schema" ]; then
+                PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -f /schemas-fund/$schema
+                if [ $? -ne 0 ]; then
+                  echo "Error applying $schema"
+                  exit 1
+                fi
+              else
+                echo "WARNING: File /schemas-fund/$schema not found"
               fi
             done
 
             echo "Applying crypto schema files..."
             for schema in crypto.sql; do
               echo "Applying $schema..."
-              PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -f /schemas/$schema
-              if [ $? -ne 0 ]; then
-                echo "Error applying $schema"
-                exit 1
+              if [ -f "/schemas-crypto/$schema" ]; then
+                PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -f /schemas-crypto/$schema
+                if [ $? -ne 0 ]; then
+                  echo "Error applying $schema"
+                  exit 1
+                fi
+              else
+                echo "WARNING: File /schemas-crypto/$schema not found"
               fi
             done
-
             
             # Verify the function exists
             echo "Verifying session.cleanup_expired_sessions exists..."
@@ -80,6 +119,7 @@ spec:
             if [ "$func_exists" -eq "0" ]; then
               echo "Function session.cleanup_expired_sessions not found, creating it..."
               PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -c "
+              CREATE SCHEMA IF NOT EXISTS session;
               CREATE OR REPLACE FUNCTION session.cleanup_expired_sessions() 
               RETURNS INTEGER AS \$\$
               DECLARE
@@ -94,10 +134,39 @@ spec:
               \$\$ LANGUAGE plpgsql;"
             fi
             
-            # Apply data files
-            echo "Applying data files..."
-            PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -f /data/auth_functions.sql
-            PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -f /data/users.sql
+            # Check for data directory
+            if [ -d "/data" ]; then
+              # Apply data files
+              echo "Applying data files..."
+              if [ -f "/data/auth_functions.sql" ]; then
+                PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -f /data/auth_functions.sql
+              else
+                echo "WARNING: /data/auth_functions.sql not found"
+              fi
+              
+              if [ -f "/data/users.sql" ]; then
+                PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -f /data/users.sql
+              else
+                echo "WARNING: /data/users.sql not found"
+                
+                # Create a default test user
+                echo "Creating a default test user..."
+                PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -c "
+                INSERT INTO auth.users (username, email, password_hash, email_verified, is_active, user_role)
+                VALUES ('testuser', 'test@example.com', 
+                       encode(digest('password123' || 'trading-simulator-salt', 'sha256'), 'hex'),
+                       TRUE, TRUE, 'user')
+                ON CONFLICT (username) DO NOTHING;"
+              fi
+            else
+              echo "WARNING: /data directory not found. Creating default test user..."
+              PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -c "
+              INSERT INTO auth.users (username, email, password_hash, email_verified, is_active, user_role)
+              VALUES ('testuser', 'test@example.com', 
+                     encode(digest('password123' || 'trading-simulator-salt', 'sha256'), 'hex'),
+                     TRUE, TRUE, 'user')
+              ON CONFLICT (username) DO NOTHING;"
+            fi
             
             echo "Database initialization completed successfully."
         volumeMounts:

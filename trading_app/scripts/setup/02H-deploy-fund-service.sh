@@ -1,5 +1,5 @@
 #!/bin/bash
-echo "Deploying order service..."
+echo "Deploying fund service..."
 
 # Get the correct path to the directories
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -21,30 +21,30 @@ done
 eval $(minikube docker-env)
 
 # Check if image exists or rebuild is requested
-if [[ "$REBUILD" == "true" ]] || ! docker images opentp/order-service:latest --format "{{.Repository}}:{{.Tag}}" | grep -q "opentp/order-service:latest"; then
-    echo "Building order-service Docker image..."
-    cd "$BACKEND_DIR/order-service"
+if [[ "$REBUILD" == "true" ]] || ! docker images opentp/fund-service:latest --format "{{.Repository}}:{{.Tag}}" | grep -q "opentp/fund-service:latest"; then
+    echo "Building fund-service Docker image..."
+    cd "$BACKEND_DIR/fund-service"
     if [[ "$REBUILD" == "true" ]]; then
         echo "Rebuilding without cache..."
-        docker build --no-cache -t opentp/order-service:latest .
+        docker build --no-cache -t opentp/fund-service:latest .
     else
-        docker build -t opentp/order-service:latest .
+        docker build -t opentp/fund-service:latest .
     fi
     
     if [ $? -ne 0 ]; then
-        echo "Error: Failed to build order-service image"
+        echo "Error: Failed to build fund-service image"
         exit 1
     fi
     
-    echo "Order service image built successfully"
+    echo "Fund service image built successfully"
     cd - > /dev/null
 else
-    echo "Using existing order-service image"
+    echo "Using existing fund-service image"
 fi
 
 # Apply the service
-kubectl apply -f "$K8S_DIR/deployments/order-service.yaml"
+kubectl apply -f "$K8S_DIR/deployments/fund-service.yaml"
 
 # Check status
-echo "Waiting for order-service pods to start..."
-kubectl get pods -l app=order-service
+echo "Waiting for fund-service pods to start..."
+kubectl get pods -l app=fund-service
