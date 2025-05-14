@@ -66,7 +66,6 @@ class OrderController(BaseController):
         """
         Handle order submission endpoint - Only batch submission is supported
         """
-
         # Authenticate request
         auth_success, auth_result = await self.authenticate(request)
         if not auth_success:

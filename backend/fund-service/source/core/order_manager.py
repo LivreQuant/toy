@@ -2,6 +2,7 @@
 import logging
 
 from source.core.order_manager_exchange import ExchangeManager
+from source.core.order_manager_record import RecordManager
 from source.core.order_manager_operation import OperationManager
 
 from source.db.order_repository import OrderRepository
@@ -18,13 +19,11 @@ class OrderManager:
             exchange_client,
     ):
         """Initialize the order manager with dependencies"""
-        self.order_repository = order_repository
-
         # Create specialized managers
+        self.record_manager = RecordManager(order_repository)
         self.exchange_manager = ExchangeManager(exchange_client)
         self.operation_manager = OperationManager(
-            self.validation_manager,
-            self.order_repository,
+            self.record_manager,
             self.exchange_manager
         )
 

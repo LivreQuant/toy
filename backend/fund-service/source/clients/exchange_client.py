@@ -1,8 +1,9 @@
+# source/clients/exchange_client.py
 import logging
 import grpc
 import asyncio
 import time
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
 from source.utils.circuit_breaker import CircuitBreaker, CircuitOpenError
 from source.api.grpc.order_exchange_interface_pb2 import (

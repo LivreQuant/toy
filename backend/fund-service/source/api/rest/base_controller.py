@@ -4,7 +4,6 @@ import json
 from typing import Tuple, Dict, Any, Optional
 
 from aiohttp import web
-from source.utils.auth_utils import authenticate_request
 
 logger = logging.getLogger('base_controller')
 
@@ -17,7 +16,7 @@ class BaseController:
     
     async def authenticate(self, request: web.Request) -> Tuple[bool, Dict[str, Any]]:
         """Authenticate and validate a request"""
-        return await authenticate_request(request, self.session_manager)
+        return await self.session_manager.authenticate_request(request, self.session_manager)
     
     async def parse_json_body(self, request: web.Request) -> Tuple[bool, Any]:
         """
