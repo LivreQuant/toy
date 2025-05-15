@@ -1,5 +1,5 @@
 // src/components/Dashboard/FundProfileCard.tsx
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import {
   Avatar,
   Box,
@@ -24,43 +24,20 @@ import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import StrategyIcon from '@mui/icons-material/Psychology';
 import PeopleIcon from '@mui/icons-material/People';
-import { useFundManager } from '../../hooks/useFundManager';
 import { FundProfile } from '../../types';
 
 interface FundProfileCardProps {
   onEditProfile: () => void;
+  fundProfile: FundProfile | null;
+  isLoading: boolean;
 }
 
-const FundProfileCard: React.FC<FundProfileCardProps> = ({ onEditProfile }) => {
+const FundProfileCard: React.FC<FundProfileCardProps> = ({ 
+  onEditProfile, 
+  fundProfile, 
+  isLoading 
+}) => {
   const theme = useTheme();
-  const { getFundProfile } = useFundManager();
-  const [fundProfile, setFundProfile] = useState<FundProfile | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const loadFundProfile = async () => {
-      setIsLoading(true);
-      setError(null);
-      
-      try {
-        const response = await getFundProfile();
-        
-        if (response.success && response.fund) {
-          setFundProfile(response.fund);
-        } else if (response.error) {
-          setError(response.error);
-        }
-      } catch (err: any) {
-        setError(err.message || 'Failed to load fund profile');
-        console.error('Error loading fund profile:', err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
-    loadFundProfile();
-  }, [getFundProfile]);
 
   if (isLoading) {
     return (

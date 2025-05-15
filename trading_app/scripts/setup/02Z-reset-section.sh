@@ -3,7 +3,7 @@ SECTION=$1
 
 if [ -z "$SECTION" ]; then
     echo "Usage: $0 <section>"
-    echo "Sections: storage databases pgbouncer db-init auth session order simulator market jaeger ingress monitor all"
+    echo "Sections: storage databases pgbouncer db-init auth session fund simulator market jaeger ingress monitor all"
     exit 1
 fi
 
@@ -47,10 +47,10 @@ case $SECTION in
         kubectl delete role session-service-role
         kubectl delete rolebinding session-service-role-binding
         ;;
-    order)
-        echo "Resetting order service..."
-        kubectl delete service order-service
-        kubectl delete deployment order-service
+    fund)
+        echo "Resetting fund service..."
+        kubectl delete service fund-service
+        kubectl delete deployment fund-service
         ;;
     simulator)
         echo "Resetting exchange simulator resources..."

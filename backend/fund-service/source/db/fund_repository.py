@@ -4,7 +4,8 @@ import time
 import decimal
 import uuid
 import json
-from typing import Dict, Any, Optional
+import asyncpg
+from typing import Dict, Any, Optional, List
 
 from source.db.connection_pool import DatabasePool
 from source.utils.metrics import track_db_operation
@@ -50,10 +51,10 @@ class FundRepository:
         
         query = """
         INSERT INTO fund.funds (
-            id, name, status, user_id, created_at, updated_at
+            fund_id, name, status, user_id, created_at, updated_at
         ) VALUES (
             $1, $2, $3, $4, to_timestamp($5), to_timestamp($6)
-        ) RETURNING id
+        ) RETURNING fund_id
         """
         
         start_time = time.time()
@@ -88,7 +89,97 @@ class FundRepository:
             logger.error(f"Error creating fund: {e}")
             return None
 
-    async def _save_fund_properties(self, conn, fund_id: str, properties: Dict[str, Dict[str, Dict[str, Any]]]) -> bool:
+    async def create_fund_with_details(self, fund_data: Dict[str, Any],
+                                       properties: Dict[str, Any], 
+                                       team_members: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Create a fund with its properties and team members
+        
+        Args:
+            fund_data: Fund basic data
+            properties: Nested properties dict
+            team_members: List of team member data
+            
+        Returns:
+            Dictionary with fund_id if successful
+        """
+        pool = await self.db_pool.get_pool()
+        
+        try:
+            logger.info(f"Creating fund: {fund_data['name']}")
+            logger.info(f"Properties structure: {type(properties)}, Counts: {len(properties) if isinstance(properties, dict) else 'N/A'}")
+            logger.info(f"Team members structure: {type(team_members)}, Counts: {len(team_members) if isinstance(team_members, list) else 'N/A'}")
+            
+            async with pool.acquire() as conn:
+                # Start a transaction
+                async with conn.transaction():
+                    # 1. Create the fund
+                    fund_query = """
+                    INSERT INTO fund.funds (
+                        fund_id, name, status, user_id, created_at, updated_at
+                    ) VALUES (
+                        $1, $2, $3, $4, to_timestamp($5), to_timestamp($6)
+                    ) RETURNING fund_id
+                    """
+                    
+                    fund_id = await conn.fetchval(
+                        fund_query,
+                        fund_data['fund_id'],
+                        fund_data['name'],
+                        fund_data.get('status', 'active'),
+                        fund_data['user_id'],
+                        fund_data['created_at'],
+                        fund_data['updated_at']
+                    )
+                    
+                    # Convert UUID to string
+                    if isinstance(fund_id, uuid.UUID):
+                        fund_id = str(fund_id)
+                    
+                    logger.info(f"Fund created with ID: {fund_id}")
+                    
+                    # 2. Save fund properties
+                    if properties:
+                        logger.info(f"Saving fund properties")
+                        await self._save_fund_properties(conn, fund_id, properties)
+                    
+                    # 3. Create team members
+                    for i, team_member_data in enumerate(team_members):
+                        logger.info(f"Processing team member #{i}: {team_member_data}")
+                        
+                        # Create team member
+                        team_query = """
+                        INSERT INTO fund.team_members (
+                            fund_id, status, created_at, updated_at
+                        ) VALUES (
+                            $1, $2, NOW(), NOW()
+                        ) RETURNING team_member_id
+                        """
+                        
+                        team_member_id = await conn.fetchval(
+                            team_query,
+                            fund_id,
+                            'active'
+                        )
+                        
+                        # Convert UUID to string
+                        if isinstance(team_member_id, uuid.UUID):
+                            team_member_id = str(team_member_id)
+                        
+                        logger.info(f"Created team member with ID: {team_member_id}")
+                        
+                        # Save team member properties
+                        logger.info(f"Saving team member properties")
+                        await self._save_team_member_properties(conn, team_member_id, team_member_data)
+                    
+                    return {"fund_id": fund_id, "success": True}
+                    
+        except Exception as e:
+            logger.error(f"Error creating fund with details: {e}")
+            return {"success": False, "error": str(e)}
+
+
+    async def _save_fund_properties(self, conn, fund_id: str, properties: Dict[str, Dict[str, Any]]) -> bool:
         """
         Save fund properties using the EAV model
         
@@ -104,12 +195,10 @@ class FundRepository:
         INSERT INTO fund.properties (
             fund_id, category, subcategory, key, value, created_at, updated_at
         ) VALUES (
-            $1, $2, $3, $4, $5, to_timestamp($6), to_timestamp($7)
+            $1, $2, $3, $4, $5, NOW(), NOW()
         ) ON CONFLICT (fund_id, category, subcategory, key) 
-        DO UPDATE SET value = $5, updated_at = to_timestamp($7)
+        DO UPDATE SET value = $5, updated_at = NOW()
         """
-        
-        now = time.time()
         
         try:
             for category, subcategories in properties.items():
@@ -125,13 +214,64 @@ class FundRepository:
                             category,
                             subcategory,
                             key,
-                            value,
-                            now,
-                            now
+                            value
                         )
             return True
         except Exception as e:
             logger.error(f"Error saving fund properties for {fund_id}: {e}")
+            raise
+
+    async def _save_team_member_properties(self, conn, team_member_id: str, properties: Dict[str, Dict[str, Any]]) -> None:
+        """
+        Save team member properties
+        
+        Args:
+            conn: Database connection
+            team_member_id: Team member ID
+            properties: Properties structure {category: {key: value}}
+        """
+        query = """
+        INSERT INTO fund.team_member_properties (
+            member_id, category, subcategory, key, value, created_at, updated_at
+        ) VALUES (
+            $1, $2, $3, $4, $5, NOW(), NOW()
+        ) ON CONFLICT (member_id, category, subcategory, key) 
+        DO UPDATE SET value = $5, updated_at = NOW()
+        """
+        
+        try:
+            for category, subcategories in properties.items():
+                logger.info(f"Processing category: {category}, Type: {type(subcategories)}")
+                
+                if not isinstance(subcategories, dict):
+                    logger.error(f"Expected dict for subcategories, got {type(subcategories)}: {subcategories}")
+                    continue
+                
+                for key, value in subcategories.items():
+                    # Here, key is the subcategory (firstName, lastName, etc.)
+                    # And value is the actual value (Sergio, Amaral, etc.)
+                    logger.info(f"Processing key: {key}, Value: {value}, Type: {type(value)}")
+                    
+                    # For the subcategory, use the key and set subcategory to "info"
+                    subcategory = "info"
+                    
+                    # Convert non-string values to JSON strings
+                    if not isinstance(value, str):
+                        value = json.dumps(value)
+                    
+                    logger.info(f"Executing query with values: {team_member_id}, {category}, {subcategory}, {key}, {value}")
+                    
+                    await conn.execute(
+                        query,
+                        team_member_id,
+                        category,
+                        subcategory,
+                        key,
+                        value
+                    )
+            
+        except Exception as e:
+            logger.error(f"Error saving team member properties for {team_member_id}: {e}")
             raise
     
     async def get_fund_by_user(self, user_id: str) -> Optional[Dict[str, Any]]:
@@ -148,7 +288,7 @@ class FundRepository:
         
         fund_query = """
         SELECT 
-            id as fund_id, 
+            fund_id, 
             user_id, 
             name,
             status,
@@ -166,6 +306,23 @@ class FundRepository:
             value
         FROM fund.properties
         WHERE fund_id = $1
+        """
+        
+        team_members_query = """
+        SELECT 
+            team_member_id
+        FROM fund.team_members
+        WHERE fund_id = $1
+        """
+        
+        team_member_properties_query = """
+        SELECT 
+            category,
+            subcategory,
+            key,
+            value
+        FROM fund.team_member_properties
+        WHERE member_id = $1
         """
         
         start_time = time.time()
@@ -195,7 +352,7 @@ class FundRepository:
                     
                     # Try to parse JSON values
                     try:
-                        if value.startswith('{') or value.startswith('['):
+                        if value and (value.startswith('{') or value.startswith('[')):
                             value = json.loads(value)
                     except (json.JSONDecodeError, AttributeError):
                         pass
@@ -210,6 +367,51 @@ class FundRepository:
                 
                 # Add properties to fund data
                 fund_data['properties'] = properties
+                
+                # Get team members
+                team_member_rows = await conn.fetch(team_members_query, fund_data['fund_id'])
+                team_members = []
+                
+                for team_row in team_member_rows:
+                    team_member_id = team_row['team_member_id']
+                    
+                    # Get team member properties
+                    member_property_rows = await conn.fetch(
+                        team_member_properties_query, 
+                        team_member_id
+                    )
+                    
+                    # Organize team member properties
+                    member_properties = {}
+                    for row in member_property_rows:
+                        category = row['category']
+                        subcategory = row['subcategory']
+                        key = row['key']
+                        value = row['value']
+                        
+                        # Try to parse JSON values
+                        try:
+                            if value and (value.startswith('{') or value.startswith('[')):
+                                value = json.loads(value)
+                        except (json.JSONDecodeError, AttributeError):
+                            pass
+                        
+                        # Create nested structure
+                        if category not in member_properties:
+                            member_properties[category] = {}
+                        if subcategory not in member_properties[category]:
+                            member_properties[category][subcategory] = {}
+                        
+                        member_properties[category][subcategory][key] = value
+                    
+                    # Add team member with properties
+                    team_members.append({
+                        "team_member_id": str(team_member_id),
+                        "properties": member_properties
+                    })
+                
+                # Add team members to fund data
+                fund_data['team_members'] = team_members
                 
                 duration = time.time() - start_time
                 track_db_operation("get_fund_by_user", True, duration)
@@ -237,47 +439,44 @@ class FundRepository:
         
         # We'll handle properties separately
         properties = update_data.pop('properties', None)
+        team_members = update_data.pop('team_members', None)
         
-        # Only proceed with basic update if there are fields to update
         fund_updated = True
-        if update_data:
-            # Build dynamic query based on provided fields
-            set_clauses = [f"{key} = ${i+3}" for i, key in enumerate(update_data.keys())]
-            set_clauses.append("updated_at = to_timestamp($" + str(len(update_data) + 3) + ")")
-            set_clause = ", ".join(set_clauses)
-            
-            query = f"""
-            UPDATE funds 
-            SET {set_clause}
-            WHERE id = $1 AND user_id = $2
-            """
-            
-            start_time = time.time()
-            try:
-                async with pool.acquire() as conn:
-                    params = [fund_id, user_id] + list(update_data.values()) + [time.time()]
-                    result = await conn.execute(query, *params)
-                    
-                    duration = time.time() - start_time
-                    fund_updated = result == "UPDATE 1"
-                    track_db_operation("update_fund", fund_updated, duration)
-                    
-            except Exception as e:
-                duration = time.time() - start_time
-                track_db_operation("update_fund", False, duration)
-                logger.error(f"Error updating fund {fund_id}: {e}")
-                return False
         
-        # Update properties if provided
-        if properties:
-            try:
-                async with pool.acquire() as conn:
-                    await self._save_fund_properties(conn, fund_id, properties)
-            except Exception as e:
-                logger.error(f"Error updating fund properties for {fund_id}: {e}")
-                return False
-        
-        return fund_updated
+        try:
+            async with pool.acquire() as conn:
+                async with conn.transaction():
+                    # Only proceed with basic update if there are fields to update
+                    if update_data:
+                        # Build dynamic query based on provided fields
+                        set_clauses = [f"{key} = ${i+3}" for i, key in enumerate(update_data.keys())]
+                        set_clauses.append("updated_at = NOW()")
+                        set_clause = ", ".join(set_clauses)
+                        
+                        query = f"""
+                        UPDATE fund.funds 
+                        SET {set_clause}
+                        WHERE fund_id = $1 AND user_id = $2
+                        """
+                        
+                        result = await conn.execute(query, fund_id, user_id, *update_data.values())
+                        fund_updated = result == "UPDATE 1"
+                    
+                    # Update properties if provided
+                    if properties:
+                        await self._save_fund_properties(conn, fund_id, properties)
+                    
+                    # Update team members if provided
+                    if team_members:
+                        # This would be a more complex implementation
+                        # For now, a simple approach is to just update existing team members' properties
+                        # A full implementation would handle adding/removing team members as well
+                        pass
+                    
+            return fund_updated
+        except Exception as e:
+            logger.error(f"Error updating fund {fund_id}: {e}")
+            return False
     
     async def check_fund_exists(self, user_id: str) -> bool:
         """

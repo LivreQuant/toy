@@ -92,7 +92,7 @@ class BookRepository:
         
         query = """
         SELECT 
-            book_id as id, 
+            book_id, 
             user_id, 
             name, 
             parameters,
@@ -126,7 +126,7 @@ class BookRepository:
         
         query = """
         SELECT 
-            book_id as id, 
+            book_id, 
             user_id, 
             name, 
             parameters,

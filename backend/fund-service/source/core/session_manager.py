@@ -80,7 +80,7 @@ class SessionManager:
             User ID if token is valid, None otherwise
         """
         try:
-            validation_result = await self.validate_token(token, csrf_token)
+            validation_result = await self.auth_client.validate_token(token, csrf_token)
 
             if not validation_result.get('valid', False):
                 logger.warning(f"Invalid authentication token")
@@ -115,7 +115,7 @@ class SessionManager:
             If success is True, result_dict contains 'user_id'
         """
         # Extract token and device ID
-        token, device_id, csrf_token = self.get_token(request)
+        token, device_id, csrf_token = await self.get_token(request)
 
         if not token:
             return False, {

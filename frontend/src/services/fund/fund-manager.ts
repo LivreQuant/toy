@@ -58,6 +58,7 @@ export class FundManager {
   /**
    * Retrieves the current user's fund profile
    */
+  // Updated useFundManager hook implementation (partial) to handle the API response format
   async getFundProfile(): Promise<{ 
     success: boolean; 
     fund?: FundProfile;
@@ -71,9 +72,52 @@ export class FundManager {
       const response = await this.fundApi.getFundProfile();
       
       if (response.success && response.fund) {
+        // Transform the API response structure to match our FundProfile type
+        const apiData = response.fund;
+        
+        // Extract profile data from the nested structure
+        const profileData = apiData.properties?.general?.profile || {};
+        
+        // Map team members from the API format to our format
+        const teamMembers = apiData.team_members?.map(member => {
+          const personal = member.properties?.personal?.info || {};
+          const professional = member.properties?.professional?.info || {};
+          const education = member.properties?.education?.info || {};
+          
+          return {
+            id: member.team_member_id,
+            firstName: personal.firstName || '',
+            lastName: personal.lastName || '',
+            role: professional.role || '',
+            yearsExperience: professional.yearsExperience || '',
+            education: education.institution || '',
+            currentEmployment: professional.currentEmployment || '',
+            investmentExpertise: professional.investmentExpertise || '',
+            birthDate: personal.birthDate || '',
+            linkedin: professional.linkedin || '',
+          };
+        }) || [];
+        
+        // Create a properly formatted FundProfile
+        const formattedFund: FundProfile = {
+          id: apiData.fund_id,
+          userId: apiData.user_id,
+          fundName: apiData.name,
+          legalStructure: profileData.legalStructure,
+          location: profileData.location,
+          yearEstablished: profileData.yearEstablished,
+          aumRange: profileData.aumRange,
+          investmentStrategy: apiData.properties?.general?.strategy?.thesis || '',
+          profilePurpose: profileData.purpose || [],
+          otherPurposeDetails: profileData.otherDetails,
+          teamMembers: teamMembers,
+          createdAt: apiData.created_at,
+          updatedAt: apiData.updated_at
+        };
+        
         return { 
           success: true, 
-          fund: response.fund 
+          fund: formattedFund 
         };
       } else {
         // Not finding a fund is a legitimate case, not an error
@@ -90,7 +134,7 @@ export class FundManager {
       };
     }
   }
-
+  
   /**
    * Updates an existing fund profile
    */

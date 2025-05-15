@@ -60,21 +60,20 @@ class FundManager:
                 updated_at=time.time()
             )
             
-            # Prepare data for repository with properties
-            fund_dict = fund.to_dict()
-            if 'properties' in fund_data:
-                fund_dict['properties'] = fund_data['properties']
+            # Save fund to database including properties and team members
+            result = await self.fund_repository.create_fund_with_details(
+                fund.to_dict(),
+                fund_data.get('properties', {}),
+                fund_data.get('team_members', [])
+            )
             
-            # Save to database
-            fund_id = await self.fund_repository.create_fund(fund_dict)
-            
-            if fund_id:
+            if result and result.get('fund_id'):
                 # Track metrics
                 track_fund_created(user_id)
                 
                 return {
                     "success": True,
-                    "fund_id": fund_id
+                    "fund_id": result['fund_id']
                 }
             else:
                 return {
@@ -87,6 +86,7 @@ class FundManager:
                 "success": False,
                 "error": f"Error creating fund: {str(e)}"
             }
+    
     
     async def get_fund(self, user_id: str) -> Dict[str, Any]:
         """
@@ -106,7 +106,8 @@ class FundManager:
             if not fund:
                 return {
                     "success": False,
-                    "error": "Fund not found"
+                    "error": "Fund not found",
+                    "fund": None
                 }
             
             return {
@@ -117,7 +118,8 @@ class FundManager:
             logger.error(f"Error getting fund for user {user_id}: {e}")
             return {
                 "success": False,
-                "error": f"Error getting fund: {str(e)}"
+                "error": f"Error getting fund: {str(e)}",
+                "fund": None
             }
     
     async def update_fund(self, fund_data: Dict[str, Any], user_id: str) -> Dict[str, Any]:

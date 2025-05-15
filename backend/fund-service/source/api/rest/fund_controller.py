@@ -97,14 +97,71 @@ class FundController(BaseController):
         parse_success, data = await self.parse_json_body(request)
         if not parse_success:
             return self.create_error_response(data["error"], data["status"])
-
+        
+        # Map frontend field names to expected field names
+        fund_data = {
+            'name': data.get('fundName', data.get('name', '')),
+            'user_id': user_id,
+            'properties': {},
+            'team_members': []
+        }
+        
         # Validate required fields
-        valid_fields, field_error = self.validate_required_fields(data, ['name'])
-        if not valid_fields:
-            return self.create_error_response(field_error["error"], field_error["status"])
-
+        if not fund_data['name']:
+            return self.create_error_response("Missing required field: name", 400)
+        
+        # Map general properties
+        general_properties = {
+            'profile': {},
+            'strategy': {}
+        }
+        
+        # Add profile properties
+        if 'legalStructure' in data:
+            general_properties['profile']['legalStructure'] = data['legalStructure']
+        if 'location' in data:
+            general_properties['profile']['location'] = data['location']
+        if 'yearEstablished' in data:
+            general_properties['profile']['yearEstablished'] = data['yearEstablished']
+        if 'aumRange' in data:
+            general_properties['profile']['aumRange'] = data['aumRange']
+        if 'profilePurpose' in data:
+            general_properties['profile']['purpose'] = data['profilePurpose']
+        if 'otherPurposeDetails' in data:
+            general_properties['profile']['otherDetails'] = data['otherPurposeDetails']
+        
+        # Add strategy properties
+        if 'investmentStrategy' in data:
+            general_properties['strategy']['thesis'] = data['investmentStrategy']
+        
+        # Add properties if they exist
+        if general_properties['profile'] or general_properties['strategy']:
+            fund_data['properties']['general'] = general_properties
+            
+        # Process team members
+        if 'teamMembers' in data and isinstance(data['teamMembers'], list):
+            for member in data['teamMembers']:
+                team_member = {
+                    'personal': {
+                        'firstName': member.get('firstName', ''),
+                        'lastName': member.get('lastName', ''),
+                        'birthDate': member.get('birthDate', '')
+                    },
+                    'professional': {
+                        'role': member.get('role', ''),
+                        'yearsExperience': member.get('yearsExperience', ''),
+                        'currentEmployment': member.get('currentEmployment', ''),
+                        'investmentExpertise': member.get('investmentExpertise', ''),
+                        'linkedin': member.get('linkedin', '')
+                    },
+                    'education': {
+                        'institution': member.get('education', '')
+                    }
+                }
+                fund_data['team_members'].append(team_member)
+        
         # Create fund
-        result = await self.fund_manager.create_fund(data, user_id)
+        result = await self.fund_manager.create_fund(fund_data, user_id)
 
         if not result["success"]:
             error = result.get("error", "Failed to create fund")
@@ -127,9 +184,13 @@ class FundController(BaseController):
         result = await self.fund_manager.get_fund(user_id)
 
         if not result["success"]:
-            error = result.get("error", "Failed to retrieve fund")
-            status = 404 if "not found" in error else 500
-            return self.create_error_response(error, status)
+            if "not found" in result.get("error", ""):
+                # Fund not found - return success with null fund
+                return self.create_success_response({"fund": None})
+            else:
+                # Other error - return error response
+                return self.create_error_response(result.get("error", "Failed to retrieve fund"), 500)
+
 
         return self.create_success_response({"fund": result["fund"]})
 

@@ -21,37 +21,41 @@ const HomePage: React.FC = () => {
   const { logout } = useAuth();
   const { isConnected } = useConnection();
   const bookManager = useBookManager();
+  const fundManager = useFundManager(); // Add this hook
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
   const [books, setBooks] = useState<Book[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [fundProfile, setFundProfile] = useState<FundProfile | null>(null); // Add this state
+  const [isFundLoading, setIsFundLoading] = useState(true); // Add this state
 
-  // Fetch books
+
+  // Fetch fund profile
   useEffect(() => {
-    const fetchBooks = async () => {
+    const fetchFundProfile = async () => {
       try {
-        setIsLoading(true);
-        const response = await bookManager.fetchBooks();
+        setIsFundLoading(true);
+        const response = await fundManager.getFundProfile();
         
-        if (response.success && response.books) {
-          setBooks(response.books);
+        if (response.success && response.fund) {
+          setFundProfile(response.fund);
         } else {
-          setBooks([]);
+          setFundProfile(null);
         }
       } catch (error) {
-        console.error('Error fetching books:', error);
-        setBooks([]);
+        console.error('Error fetching fund profile:', error);
+        setFundProfile(null);
       } finally {
-        setIsLoading(false);
+        setIsFundLoading(false);
       }
     };
   
     if (isConnected) {
-      fetchBooks();
+      fetchFundProfile();
     }
-  }, [isConnected, bookManager]);
+  }, [isConnected, fundManager]);
 
   const handleCreateBook = () => {
     navigate('/books/new');
@@ -77,10 +81,14 @@ const HomePage: React.FC = () => {
       <DashboardHeader onLogout={handleLogout} />
       
       <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 1400, mx: 'auto' }}>
-        <Grid {...{component: "div", spacing: 3} as any}>
+        <Grid container spacing={3}>
           {/* Main column - Fund Profile & Books */}
           <Grid {...{component: "div", item: true, xs: 12, lg: 8} as any}>
-            <FundProfileCard onEditProfile={() => navigate('/profile/create')} />
+            <FundProfileCard 
+              onEditProfile={() => navigate('/profile/edit')}
+              fundProfile={fundProfile}
+              isLoading={isFundLoading}
+            />
             
             <TradingBooksGrid 
               books={books} 

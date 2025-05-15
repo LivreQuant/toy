@@ -16,7 +16,7 @@ class BaseController:
     
     async def authenticate(self, request: web.Request) -> Tuple[bool, Dict[str, Any]]:
         """Authenticate and validate a request"""
-        return await self.session_manager.authenticate_request(request, self.session_manager)
+        return await self.session_manager.authenticate_request(request)
     
     async def parse_json_body(self, request: web.Request) -> Tuple[bool, Any]:
         """
