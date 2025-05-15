@@ -57,14 +57,21 @@ spec:
         pathType: ImplementationSpecific
         backend:
           service:
-            name: order-service
+            name: fund-service
             port:
               number: 8001
       - path: /api/books(/|$)(.*)
         pathType: ImplementationSpecific
         backend:
           service:
-            name: order-service
+            name: fund-service
+            port:
+              number: 8001
+      - path: /api/funds(/|$)(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: fund-service
             port:
               number: 8001
       - path: /ws/?(.*)

@@ -48,6 +48,12 @@ class PostgresBase:
 
                 while retry_count < max_retries:
                     try:
+                        def _uuid_encoder(value):
+                            return str(value)
+
+                        def _uuid_decoder(value):
+                            return value
+                        
                         self.pool = await asyncpg.create_pool(
                             host=self.db_config.host,
                             port=self.db_config.port,
@@ -55,7 +61,11 @@ class PostgresBase:
                             password=self.db_config.password,
                             database=self.db_config.database,
                             min_size=self.db_config.min_connections,
-                            max_size=self.db_config.max_connections
+                            max_size=self.db_config.max_connections,
+                            init=lambda conn: conn.set_type_codec(
+                                'uuid', encoder=_uuid_encoder, decoder=_uuid_decoder,
+                                schema='pg_catalog', format='text'
+                            )
                         )
 
                         logger.info("Successfully connected to PostgreSQL database")
