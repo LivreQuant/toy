@@ -229,6 +229,7 @@ export class BookManager {
     try {
       // Implement getBook in BookApi if it doesn't exist
       const response = await this.bookApi.getBook(bookId);
+      console.log('Raw book data from API:', response.book);
       
       if (response.success && response.book) {
         // Cast the response to any to handle the snake_case properties
@@ -236,33 +237,68 @@ export class BookManager {
         
         // Create a properly formatted Book object from the API response
         const formattedBook: Book = {
-          id: apiBook.id,
-          userId: apiBook.user_id,
+          id: apiBook.book_id || apiBook.id, // Handle both formats
+          userId: apiBook.user_id || apiBook.userId,
           name: apiBook.name,
-          initialCapital: Number(apiBook.initial_capital || 0),
-          riskLevel: (apiBook.risk_level || 'medium') as 'low' | 'medium' | 'high',
-          status: apiBook.status as 'CONFIGURED' | 'ACTIVE' | 'ARCHIVED',
-          createdAt: Number(apiBook.created_at || Date.now()),
-          updatedAt: Number(apiBook.updated_at || Date.now())
+          initialCapital: 0, // Default value, will update from parameters
+          riskLevel: 'medium', // Default value
+          status: apiBook.status,
+          createdAt: apiBook.created_at || apiBook.createdAt || Date.now(),
+          updatedAt: apiBook.updated_at || apiBook.updatedAt || Date.now(),
+          parameters: apiBook.parameters // Include parameters from API response
         };
         
-        // Add optional fields if they exist in the API response
-        if (apiBook.market_focus) {
-          formattedBook.marketFocus = apiBook.market_focus;
+        // Extract initialCapital from parameters if available
+        if (apiBook.parameters) {
+          const params = Array.isArray(apiBook.parameters) ? apiBook.parameters : JSON.parse(apiBook.parameters);
+          
+          // Find allocation parameter
+          const allocationParam = params.find((p: any) => 
+            Array.isArray(p) && p[0] === 'Allocation'
+          );
+          
+          if (allocationParam && allocationParam[2]) {
+            formattedBook.initialCapital = parseFloat(allocationParam[2]);
+          }
+          
+          // Find market focus parameter
+          const marketParam = params.find((p: any) => 
+            Array.isArray(p) && p[0] === 'Market'
+          );
+          
+          if (marketParam && marketParam[2]) {
+            formattedBook.marketFocus = marketParam[2];
+          }
+          
+          // Find investment approach parameter (trading strategy)
+          const approachParams = params.filter((p: any) => 
+            Array.isArray(p) && p[0] === 'Investment Approach'
+          );
+          
+          if (approachParams.length > 0) {
+            formattedBook.tradingStrategy = approachParams.map((p: any) => p[2]).join(', ');
+          }
+          
+          // Find region parameter
+          const regionParam = params.find((p: any) => 
+            Array.isArray(p) && p[0] === 'Region'
+          );
+          
+          if (regionParam && regionParam[2]) {
+            formattedBook.region = regionParam[2];
+          }
+          
+          // Find instrument parameter
+          const instrumentParam = params.find((p: any) => 
+            Array.isArray(p) && p[0] === 'Instrument'
+          );
+          
+          if (instrumentParam && instrumentParam[2]) {
+            formattedBook.instrument = instrumentParam[2];
+          }
         }
         
-        if (apiBook.trading_strategy) {
-          formattedBook.tradingStrategy = apiBook.trading_strategy;
-        }
-        
-        if (apiBook.max_position_size !== undefined) {
-          formattedBook.maxPositionSize = Number(apiBook.max_position_size);
-        }
-        
-        if (apiBook.max_total_risk !== undefined) {
-          formattedBook.maxTotalRisk = Number(apiBook.max_total_risk);
-        }
-        
+        console.log('Formatted book:', formattedBook);
         return { 
           success: true, 
           book: formattedBook 

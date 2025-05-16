@@ -13,8 +13,6 @@ class Book:
     name: str
     book_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     status: str = "active"
-    created_at: float = field(default_factory=time.time)
-    updated_at: float = field(default_factory=time.time)
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert book to dictionary for serialization"""
@@ -22,15 +20,20 @@ class Book:
             "book_id": self.book_id,
             "user_id": self.user_id,
             "name": self.name,
-            "status": self.status,
-            "created_at": self.created_at,
-            "updated_at": self.updated_at
+            "status": self.status
         }
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'Book':
         """Create book from dictionary"""
-        return cls(**data)
+        # Extract only the fields needed for the Book class
+        book_data = {
+            "book_id": data.get("book_id"),
+            "user_id": data.get("user_id"),
+            "name": data.get("name"),
+            "status": data.get("status", "active")
+        }
+        return cls(**book_data)
 
 
 @dataclass
@@ -42,8 +45,8 @@ class BookProperty:
     value: str
     subcategory: str = ""
     property_id: str = field(default_factory=lambda: str(uuid.uuid4()))
-    created_at: float = field(default_factory=time.time)
-    updated_at: float = field(default_factory=time.time)
+    active_at: float = field(default_factory=time.time)
+    expite_at: float = field(default_factory=time.time)
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert property to dictionary for serialization"""
@@ -54,6 +57,6 @@ class BookProperty:
             "subcategory": self.subcategory,
             "key": self.key,
             "value": self.value,
-            "created_at": self.created_at,
-            "updated_at": self.updated_at
+            "active_at": self.active_at,
+            "expite_at": self.expite_at
         }

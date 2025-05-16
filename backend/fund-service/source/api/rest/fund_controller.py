@@ -25,7 +25,7 @@ class FundController(BaseController):
 
     async def create_fund(self, request: web.Request) -> web.Response:
         """
-        Handle order submission endpoint - Only batch submission is supported
+        Handle fund creation endpoint
         """
         # Try to acquire the lock first
         acquired = await self.state_manager.acquire()
@@ -46,7 +46,7 @@ class FundController(BaseController):
 
     async def get_fund(self, request: web.Request) -> web.Response:
         """
-        Handle order submission endpoint - Only batch submission is supported
+        Handle fund retrieval endpoint
         """
         # Try to acquire the lock first
         acquired = await self.state_manager.acquire()
@@ -66,7 +66,7 @@ class FundController(BaseController):
 
     async def update_fund(self, request: web.Request) -> web.Response:
         """
-        Handle order submission endpoint - Only batch submission is supported
+        Handle fund update endpoint
         """
         # Try to acquire the lock first
         acquired = await self.state_manager.acquire()
@@ -163,7 +163,7 @@ class FundController(BaseController):
             if team_members:
                 fund_data['team_members'] = team_members
         
-        # Create fund
+        # Create fund using the temporal data pattern
         result = await self.fund_manager.create_fund(fund_data, user_id)
 
         if not result["success"]:
@@ -183,7 +183,7 @@ class FundController(BaseController):
 
         user_id = auth_result["user_id"]
 
-        # Get fund for this user
+        # Get active fund for this user
         result = await self.fund_manager.get_fund(user_id)
 
         if not result["success"]:
@@ -194,12 +194,11 @@ class FundController(BaseController):
                 # Other error - return error response
                 return self.create_error_response(result.get("error", "Failed to retrieve fund"), 500)
 
-
         return self.create_success_response({"fund": result["fund"]})
 
 
     async def _update_fund(self, request: web.Request) -> web.Response:
-        """Handle fund update endpoint"""
+        """Handle fund update endpoint using temporal data pattern"""
         # Authenticate request
         auth_success, auth_result = await self.authenticate(request)
         if not auth_success:
@@ -290,7 +289,7 @@ class FundController(BaseController):
         # Log the transformed update data
         logger.info(f"Transformed update data: {update_data}")
 
-        # Update fund
+        # Update fund using temporal data pattern
         result = await self.fund_manager.update_fund(update_data, user_id)
 
         if not result["success"]:

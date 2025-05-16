@@ -1,6 +1,5 @@
 # source/core/fund_manager.py
 import logging
-import time
 import uuid
 from typing import Dict, Any
 
@@ -55,9 +54,7 @@ class FundManager:
                 user_id=user_id,
                 name=fund_data['name'],
                 status=fund_data.get('status', 'active'),
-                fund_id=str(uuid.uuid4()),
-                created_at=time.time(),
-                updated_at=time.time()
+                fund_id=str(uuid.uuid4())
             )
             
             # Save fund to database including properties and team members
@@ -124,7 +121,7 @@ class FundManager:
     
     async def update_fund(self, fund_data: Dict[str, Any], user_id: str) -> Dict[str, Any]:
         """
-        Update a fund for a user
+        Update a fund for a user using temporal data pattern
         
         Args:
             fund_data: Fund data dictionary with updates

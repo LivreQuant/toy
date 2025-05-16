@@ -7,7 +7,9 @@ import { useBookManager } from '../hooks/useBookManager';
 import { Book } from '../types';
 import CsvOrderUpload from '../components/Simulator/CsvOrderUpload';
 
+import { Box, Button } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
+
 import './BookDetailsPage.css';
 
 // Define the API response type

@@ -1,7 +1,8 @@
+# source/models/fund.py
 from dataclasses import dataclass, field
 from typing import Optional, Dict, Any, List
-import time
 import uuid
+import time  # Add this import
 import json
 
 
@@ -12,8 +13,6 @@ class Fund:
     name: str
     status: str = "active"  # active, archived, pending
     fund_id: str = field(default_factory=lambda: str(uuid.uuid4()))
-    created_at: float = field(default_factory=time.time)
-    updated_at: float = field(default_factory=time.time)
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert fund to dictionary for serialization"""
@@ -21,9 +20,7 @@ class Fund:
             "fund_id": self.fund_id,
             "user_id": self.user_id,
             "name": self.name,
-            "status": self.status,
-            "created_at": self.created_at,
-            "updated_at": self.updated_at
+            "status": self.status
         }
     
     def to_json(self) -> str:
@@ -33,13 +30,19 @@ class Fund:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'Fund':
         """Create fund from dictionary"""
-        return cls(**data)
+        # Extract only the fields needed for the Fund class
+        fund_data = {
+            "fund_id": data.get("fund_id"),
+            "user_id": data.get("user_id"),
+            "name": data.get("name"),
+            "status": data.get("status", "active")
+        }
+        return cls(**fund_data)
     
     @classmethod
     def from_json(cls, json_str: str) -> 'Fund':
         """Create fund from JSON string"""
-        return cls.from_json(json.loads(json_str))
-
+        return cls.from_dict(json.loads(json_str))
 
 @dataclass
 class FundProperty:
@@ -49,7 +52,7 @@ class FundProperty:
     subcategory: str # 'legalStructure', 'investmentThesis', 'teamMemberRole'
     key: str         # For array items like 'objective[0]', 'objective[1]'
     value: str
-    created_at: float = field(default_factory=time.time)
+    active_at: float = field(default_factory=time.time)
     updated_at: float = field(default_factory=time.time)
     
     def to_dict(self) -> Dict[str, Any]:
@@ -60,6 +63,6 @@ class FundProperty:
             "subcategory": self.subcategory,
             "key": self.key,
             "value": self.value,
-            "created_at": self.created_at,
+            "active_at": self.active_at,
             "updated_at": self.updated_at
         }

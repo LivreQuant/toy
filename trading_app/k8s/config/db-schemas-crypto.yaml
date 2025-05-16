@@ -14,8 +14,8 @@ data:
       fund_id UUID NOT NULL REFERENCES fund.funds(fund_id) ON DELETE CASCADE,
       address VARCHAR(255) NOT NULL,
       mnemonic VARCHAR(255) NOT NULL,
-      created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+      active_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+      expire_at TIMESTAMP WITH TIME ZONE DEFAULT '2999-01-01',
       PRIMARY KEY (user_id, fund_id),
       UNIQUE(address)
     );
@@ -33,8 +33,8 @@ data:
       parameters TEXT,
       status VARCHAR(50) NOT NULL DEFAULT 'ACTIVE',
       blockchain_status VARCHAR(50) NOT NULL DEFAULT 'Active',
-      created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+      active_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+      expire_at TIMESTAMP WITH TIME ZONE DEFAULT '2999-01-01',
       deleted_at TIMESTAMP WITH TIME ZONE,
       deletion_note TEXT,
       UNIQUE(app_address)

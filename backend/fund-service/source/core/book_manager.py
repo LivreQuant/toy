@@ -30,7 +30,7 @@ class BookManager:
             Result dictionary with success flag and book_id
         """
         logger.info(f"Creating book for user {user_id}")
-        logger.info(f"Book data: {book_data}")
+        logger.debug(f"Book data: {book_data}")
         
         # Basic validation for required fields
         if 'name' not in book_data:
@@ -48,9 +48,7 @@ class BookManager:
                 user_id=user_id,
                 name=book_data['name'],
                 book_id=book_data.get('book_id', str(uuid.uuid4())),
-                status=book_data.get('status', 'active'),
-                created_at=book_data.get('created_at', time.time()),
-                updated_at=book_data.get('updated_at', time.time())
+                status=book_data.get('status', 'active')
             )
             
             logger.info(f"Created Book object with ID: {book.book_id}")
@@ -82,7 +80,7 @@ class BookManager:
                     "error": "Failed to save book"
                 }
         except Exception as e:
-            logger.error(f"Error creating book: {e}", exc_info=True)
+            logger.error(f"Error creating book: {e}")
             return {
                 "success": False,
                 "error": f"Error creating book: {str(e)}"
@@ -103,7 +101,6 @@ class BookManager:
         try:
             books = await self.book_repository.get_user_books(user_id)
             
-            # Books are already dictionaries
             logger.info(f"Retrieved {len(books)} books for user {user_id}")
             
             return {
@@ -111,7 +108,7 @@ class BookManager:
                 "books": books
             }
         except Exception as e:
-            logger.error(f"Error getting books for user {user_id}: {e}", exc_info=True)
+            logger.error(f"Error getting books for user {user_id}: {e}")
             return {
                 "success": False,
                 "error": f"Error getting books: {str(e)}"
@@ -151,13 +148,13 @@ class BookManager:
                 "book": book
             }
         except Exception as e:
-            logger.error(f"Error getting book {book_id}: {e}", exc_info=True)
+            logger.error(f"Error getting book {book_id}: {e}")
             return {
                 "success": False,
                 "error": f"Error getting book: {str(e)}"
             }
     
-    async def update_book(self, book_id: str, updates: Dict[str, Any], user_id: str) -> Dict[str, Any]:
+    async def update_book(self, book_id: str, update_data: Dict[str, Any], user_id: str) -> Dict[str, Any]:
         """
         Update a book's properties
         
@@ -188,8 +185,8 @@ class BookManager:
                     "error": "Book does not belong to this user"
                 }
             
-            # Apply updates
-            success = await self.book_repository.update_book(book_id, updates)
+            # Apply updates using temporal pattern
+            success = await self.book_repository.update_book(book_id, update_data)
             
             if success:
                 return {
@@ -201,8 +198,9 @@ class BookManager:
                     "error": "Failed to update book"
                 }
         except Exception as e:
-            logger.error(f"Error updating book {book_id}: {e}", exc_info=True)
+            logger.error(f"Error updating book {book_id}: {e}")
             return {
                 "success": False,
                 "error": f"Error updating book: {str(e)}"
             }
+    

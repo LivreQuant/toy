@@ -4,7 +4,7 @@ import time
 import decimal
 import uuid
 import json
-import asyncpg
+import datetime
 from typing import Dict, Any, Optional, List
 
 from source.db.connection_pool import DatabasePool
@@ -18,6 +18,8 @@ def serialize_json_safe(obj):
         return float(obj)
     elif isinstance(obj, uuid.UUID):
         return str(obj)
+    elif isinstance(obj, datetime.datetime):
+        return obj.timestamp()
     raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
 
 def ensure_json_serializable(data):
@@ -26,16 +28,18 @@ def ensure_json_serializable(data):
         return {k: ensure_json_serializable(v) for k, v in data.items()}
     elif isinstance(data, list):
         return [ensure_json_serializable(item) for item in data]
-    elif isinstance(data, (decimal.Decimal, uuid.UUID)):
+    elif isinstance(data, (decimal.Decimal, uuid.UUID, datetime.datetime)):
         return serialize_json_safe(data)
     return data
     
 class FundRepository:
-    """Data access layer for funds"""
+    """Data access layer for funds using temporal data pattern"""
 
     def __init__(self):
         """Initialize the fund repository"""
         self.db_pool = DatabasePool()
+        # Far future date used for active records
+        self.future_date = datetime.datetime(2999, 1, 1, tzinfo=datetime.timezone.utc)
 
     async def create_fund(self, fund_data: Dict[str, Any]) -> Optional[str]:
         """
@@ -51,9 +55,9 @@ class FundRepository:
         
         query = """
         INSERT INTO fund.funds (
-            fund_id, name, status, user_id, created_at, updated_at
+            fund_id, name, status, user_id, active_at, expire_at
         ) VALUES (
-            $1, $2, $3, $4, to_timestamp($5), to_timestamp($6)
+            $1, $2, $3, $4, NOW(), $5
         ) RETURNING fund_id
         """
         
@@ -67,8 +71,7 @@ class FundRepository:
                         fund_data['name'],
                         fund_data.get('status', 'active'),
                         fund_data['user_id'],
-                        fund_data['created_at'],
-                        fund_data['updated_at']
+                        self.future_date
                     )
                     
                     # If there are fund properties to save
@@ -104,6 +107,7 @@ class FundRepository:
             Dictionary with fund_id if successful
         """
         pool = await self.db_pool.get_pool()
+        now = datetime.datetime.now(datetime.timezone.utc)
         
         try:
             logger.info(f"Creating fund: {fund_data['name']}")
@@ -116,9 +120,9 @@ class FundRepository:
                     # 1. Create the fund
                     fund_query = """
                     INSERT INTO fund.funds (
-                        fund_id, name, status, user_id, created_at, updated_at
+                        fund_id, name, status, user_id, active_at, expire_at
                     ) VALUES (
-                        $1, $2, $3, $4, to_timestamp($5), to_timestamp($6)
+                        $1, $2, $3, $4, $5, $6
                     ) RETURNING fund_id
                     """
                     
@@ -128,8 +132,8 @@ class FundRepository:
                         fund_data['name'],
                         fund_data.get('status', 'active'),
                         fund_data['user_id'],
-                        fund_data['created_at'],
-                        fund_data['updated_at']
+                        now,
+                        self.future_date
                     )
                     
                     # Convert UUID to string
@@ -150,16 +154,18 @@ class FundRepository:
                         # Create team member
                         team_query = """
                         INSERT INTO fund.team_members (
-                            fund_id, status, created_at, updated_at
+                            fund_id, status, active_at, expire_at
                         ) VALUES (
-                            $1, $2, NOW(), NOW()
+                            $1, $2, $3, $4
                         ) RETURNING team_member_id
                         """
                         
                         team_member_id = await conn.fetchval(
                             team_query,
                             fund_id,
-                            'active'
+                            'active',
+                            now,
+                            self.future_date
                         )
                         
                         # Convert UUID to string
@@ -181,7 +187,7 @@ class FundRepository:
 
     async def _save_fund_properties(self, conn, fund_id: str, properties: Dict[str, Dict[str, Any]]) -> bool:
         """
-        Save fund properties using the EAV model
+        Save fund properties using the temporal EAV model
         
         Args:
             conn: Database connection
@@ -191,13 +197,13 @@ class FundRepository:
         Returns:
             Success flag
         """
+        now = datetime.datetime.now(datetime.timezone.utc)
         query = """
         INSERT INTO fund.properties (
-            fund_id, category, subcategory, key, value, created_at, updated_at
+            fund_id, category, subcategory, value, active_at, expire_at
         ) VALUES (
-            $1, $2, $3, $4, $5, NOW(), NOW()
-        ) ON CONFLICT (fund_id, category, subcategory, key) 
-        DO UPDATE SET value = $5, updated_at = NOW()
+            $1, $2, $3, $4, $5, $6
+        )
         """
         
         try:
@@ -213,8 +219,9 @@ class FundRepository:
                             fund_id,
                             category,
                             subcategory,
-                            key,
-                            value
+                            value,
+                            now,
+                            self.future_date
                         )
             return True
         except Exception as e:
@@ -230,13 +237,13 @@ class FundRepository:
             team_member_id: Team member ID
             properties: Properties structure {category: {key: value}}
         """
+        now = datetime.datetime.now(datetime.timezone.utc)
         query = """
         INSERT INTO fund.team_member_properties (
-            member_id, category, subcategory, key, value, created_at, updated_at
+            member_id, category, subcategory, value, active_at, expire_at
         ) VALUES (
-            $1, $2, $3, $4, $5, NOW(), NOW()
-        ) ON CONFLICT (member_id, category, subcategory, key) 
-        DO UPDATE SET value = $5, updated_at = NOW()
+            $1, $2, $3, $4, $5, $6
+        )
         """
         
         try:
@@ -270,8 +277,9 @@ class FundRepository:
                                 team_member_id,
                                 category,
                                 key,  # Use the original key as subcategory
-                                sub_key,  # Use the sub_key as the key
-                                sub_value
+                                sub_value,
+                                now,
+                                self.future_date
                             )
                     else:
                         # For the subcategory, use the key and set subcategory to "info"
@@ -288,8 +296,9 @@ class FundRepository:
                             team_member_id,
                             category,
                             subcategory,
-                            key,
-                            value
+                            value,
+                            now,
+                            self.future_date
                         )
                 
         except Exception as e:
@@ -309,42 +318,41 @@ class FundRepository:
         pool = await self.db_pool.get_pool()
         
         fund_query = """
-        SELECT 
+        SELECT DISTINCT ON (fund_id)
             fund_id, 
             user_id, 
             name,
             status,
-            extract(epoch from created_at) as created_at,
-            extract(epoch from updated_at) as updated_at
+            extract(epoch from active_at) as active_at
         FROM fund.funds 
-        WHERE user_id = $1
+        WHERE user_id = $1 AND expire_at > NOW()
+        ORDER BY fund_id, active_at DESC
         """
         
         properties_query = """
         SELECT 
             category,
             subcategory,
-            key,
             value
         FROM fund.properties
-        WHERE fund_id = $1
+        WHERE fund_id = $1 AND expire_at > NOW()
         """
         
         team_members_query = """
-        SELECT 
+        SELECT DISTINCT ON (team_member_id)
             team_member_id
         FROM fund.team_members
-        WHERE fund_id = $1
+        WHERE fund_id = $1 AND expire_at > NOW()
+        ORDER BY team_member_id, active_at DESC
         """
         
         team_member_properties_query = """
         SELECT 
             category,
             subcategory,
-            key,
             value
         FROM fund.team_member_properties
-        WHERE member_id = $1
+        WHERE member_id = $1 AND expire_at > NOW()
         """
         
         start_time = time.time()
@@ -369,7 +377,6 @@ class FundRepository:
                 for row in property_rows:
                     category = row['category']
                     subcategory = row['subcategory']
-                    key = row['key']
                     value = row['value']
                     
                     # Try to parse JSON values
@@ -385,7 +392,8 @@ class FundRepository:
                     if subcategory not in properties[category]:
                         properties[category][subcategory] = {}
                     
-                    properties[category][subcategory][key] = value
+                    # Use the property ID as the key to make it unique
+                    properties[category][subcategory][str(uuid.uuid4())] = value
                 
                 # Add properties to fund data
                 fund_data['properties'] = properties
@@ -408,7 +416,6 @@ class FundRepository:
                     for row in member_property_rows:
                         category = row['category']
                         subcategory = row['subcategory']
-                        key = row['key']
                         value = row['value']
                         
                         # Try to parse JSON values
@@ -424,7 +431,8 @@ class FundRepository:
                         if subcategory not in member_properties[category]:
                             member_properties[category][subcategory] = {}
                         
-                        member_properties[category][subcategory][key] = value
+                        # Use a random UUID as key since we don't need to track it
+                        member_properties[category][subcategory][str(uuid.uuid4())] = value
                     
                     # Add team member with properties
                     team_members.append({
@@ -447,7 +455,7 @@ class FundRepository:
     
     async def update_fund(self, fund_id: str, user_id: str, update_data: Dict[str, Any]) -> bool:
         """
-        Update a fund
+        Update a fund using temporal data pattern
         
         Args:
             fund_id: Fund ID to update
@@ -461,6 +469,7 @@ class FundRepository:
         logger.info(f"Repository: update data received: {update_data}")
         
         pool = await self.db_pool.get_pool()
+        now = datetime.datetime.now(datetime.timezone.utc)
         
         # We'll handle properties separately
         properties = update_data.pop('properties', None)
@@ -469,83 +478,205 @@ class FundRepository:
         logger.info(f"Repository: properties to update: {properties}")
         logger.info(f"Repository: team members to update: {team_members}")
         
-        fund_updated = True
-        
         try:
             async with pool.acquire() as conn:
                 async with conn.transaction():
-                    # Only proceed with basic update if there are fields to update
+                    # Update fund entity if basic fields changed
                     if update_data:
-                        # Build dynamic query based on provided fields
-                        set_clauses = [f"{key} = ${i+3}" for i, key in enumerate(update_data.keys())]
-                        set_clauses.append("updated_at = NOW()")
-                        set_clause = ", ".join(set_clauses)
+                        # Fetch current fund data
+                        current_fund = await conn.fetchrow(
+                            """
+                            SELECT * FROM fund.funds
+                            WHERE fund_id = $1 AND user_id = $2 AND expire_at > NOW()
+                            ORDER BY active_at DESC LIMIT 1
+                            """,
+                            fund_id, user_id
+                        )
                         
-                        query = f"""
-                        UPDATE fund.funds 
-                        SET {set_clause}
-                        WHERE fund_id = $1 AND user_id = $2
+                        if not current_fund:
+                            logger.error(f"Fund {fund_id} not found or does not belong to user {user_id}")
+                            return False
+                        
+                        # Expire current fund record
+                        expire_result = await conn.execute(
+                            """
+                            UPDATE fund.funds
+                            SET expire_at = $1
+                            WHERE fund_id = $2 AND user_id = $3 AND expire_at > NOW()
+                            """,
+                            now, fund_id, user_id
+                        )
+                        
+                        logger.info(f"Repository: expired fund record, result: {expire_result}")
+                        
+                        # Create new record with updated values
+                        new_record = dict(current_fund)
+                        
+                        # Apply updates
+                        for field, value in update_data.items():
+                            if field not in ['fund_id', 'user_id', 'active_at', 'expire_at']:
+                                new_record[field] = value
+                        
+                        # Set new timestamps
+                        new_record['active_at'] = now
+                        new_record['expire_at'] = self.future_date
+                        
+                        # Dynamically build insert query
+                        columns = list(new_record.keys())
+                        placeholders = [f'${i+1}' for i in range(len(columns))]
+                        values = [new_record[col] for col in columns]
+                        
+                        insert_query = f"""
+                        INSERT INTO fund.funds ({', '.join(columns)})
+                        VALUES ({', '.join(placeholders)})
                         """
                         
-                        logger.info(f"Repository: executing fund update query: {query}")
-                        logger.info(f"Repository: with parameters: {fund_id}, {user_id}, {list(update_data.values())}")
-                        
-                        result = await conn.execute(query, fund_id, user_id, *update_data.values())
-                        fund_updated = result == "UPDATE 1"
-                        logger.info(f"Repository: basic fund update result: {result}, success: {fund_updated}")
+                        insert_result = await conn.execute(insert_query, *values)
+                        logger.info(f"Repository: inserted new fund record, result: {insert_result}")
                     
                     # Update properties if provided
                     if properties:
                         logger.info(f"Repository: updating fund properties")
-                        await self._save_fund_properties(conn, fund_id, properties)
+                        
+                        # Fetch current properties
+                        current_props = await conn.fetch(
+                            """
+                            SELECT property_id, category, subcategory, value
+                            FROM fund.properties
+                            WHERE fund_id = $1 AND expire_at > NOW()
+                            """,
+                            fund_id
+                        )
+                        
+                        # Build map of current properties
+                        current_prop_map = {}
+                        for prop in current_props:
+                            key = (prop['category'], prop['subcategory'])
+                            if key not in current_prop_map:
+                                current_prop_map[key] = []
+                            current_prop_map[key].append({
+                                'property_id': prop['property_id'],
+                                'value': prop['value']
+                            })
+                        
+                        # Track properties to expire
+                        props_to_expire = []
+                        
+                        # Identify properties to expire and values that have changed
+                        for category, subcategories in properties.items():
+                            for subcategory, items in subcategories.items():
+                                key = (category, subcategory)
+                                
+                                # If this category/subcategory exists, expire all values
+                                # as we'll create new ones
+                                if key in current_prop_map:
+                                    for prop_info in current_prop_map[key]:
+                                        props_to_expire.append(prop_info['property_id'])
+                        
+                        # Expire outdated properties
+                        if props_to_expire:
+                            logger.info(f"Repository: expiring {len(props_to_expire)} properties")
+                            expire_result = await conn.execute(
+                                """
+                                UPDATE fund.properties
+                                SET expire_at = $1
+                                WHERE property_id = ANY($2)
+                                """,
+                                now, props_to_expire
+                            )
+                            logger.info(f"Repository: expire properties result: {expire_result}")
+                        
+                        # Create new property records
+                        for category, subcategories in properties.items():
+                            for subcategory, items in subcategories.items():
+                                for key, value in items.items():
+                                    # Convert non-string values to JSON
+                                    if not isinstance(value, str):
+                                        value = json.dumps(value)
+                                    
+                                    await conn.execute(
+                                        """
+                                        INSERT INTO fund.properties (
+                                            fund_id, category, subcategory, value, active_at, expire_at
+                                        ) VALUES (
+                                            $1, $2, $3, $4, $5, $6
+                                        )
+                                        """,
+                                        fund_id, category, subcategory, value, now, self.future_date
+                                    )
                     
                     # Update team members if provided
                     if team_members:
                         logger.info(f"Repository: processing {len(team_members)} team members")
                         
-                        for i, team_member in enumerate(team_members):
-                            logger.info(f"Repository: processing team member {i+1}/{len(team_members)}: {team_member}")
-                            
-                            # Extract team member ID
+                        for team_member in team_members:
+                            # Get team member ID
                             member_id = team_member.get('id')
                             if not member_id:
                                 logger.warning(f"Repository: team member has no ID, skipping")
-                                continue  # Skip if no ID provided
-                            
-                            logger.info(f"Repository: checking if team member {member_id} belongs to fund {fund_id}")
+                                continue
                             
                             # Verify the team member belongs to this fund
-                            member_check_query = """
-                            SELECT 1 FROM fund.team_members
-                            WHERE team_member_id = $1 AND fund_id = $2
-                            """
-                            member_exists = await conn.fetchval(member_check_query, member_id, fund_id)
+                            member_exists = await conn.fetchval(
+                                """
+                                SELECT 1 FROM fund.team_members
+                                WHERE team_member_id = $1 AND fund_id = $2 AND expire_at > NOW()
+                                """,
+                                member_id, fund_id
+                            )
                             
                             if not member_exists:
                                 logger.warning(f"Repository: team member {member_id} does not belong to fund {fund_id}, skipping")
-                                continue  # Skip if team member doesn't belong to this fund
+                                continue
                             
-                            logger.info(f"Repository: team member {member_id} belongs to fund {fund_id}, proceeding with update")
-                            
-                            # Update team member's properties
-                            # Process personal info
-                            if 'personal' in team_member:
-                                logger.info(f"Repository: updating personal info for team member {member_id}")
-                                await self._save_team_member_properties(conn, member_id, {'personal': team_member['personal']})
-                            
-                            # Process professional info
-                            if 'professional' in team_member:
-                                logger.info(f"Repository: updating professional info for team member {member_id}")
-                                await self._save_team_member_properties(conn, member_id, {'professional': team_member['professional']})
-                            
-                            # Process education info - handle it directly if present
-                            if 'education' in team_member:
-                                logger.info(f"Repository: updating education info for team member {member_id}: {team_member['education']}")
-                                education_data = {'education': {'info': team_member['education']}}
-                                await self._save_team_member_properties(conn, member_id, education_data)
-                        
-                logger.info(f"Repository: fund update completed with result: {fund_updated}")
-                return fund_updated
+                            # Process updates for this team member
+                            for category in ['personal', 'professional', 'education']:
+                                if category in team_member:
+                                    category_data = team_member[category]
+                                    logger.info(f"Repository: updating {category} info for team member {member_id}")
+                                    
+                                    # Fetch current properties for this category
+                                    current_props = await conn.fetch(
+                                        """
+                                        SELECT property_id, subcategory, value
+                                        FROM fund.team_member_properties
+                                        WHERE member_id = $1 AND category = $2 AND expire_at > NOW()
+                                        """,
+                                        member_id, category
+                                    )
+                                    
+                                    # Expire all current properties for this category
+                                    if current_props:
+                                        prop_ids = [p['property_id'] for p in current_props]
+                                        await conn.execute(
+                                            """
+                                            UPDATE fund.team_member_properties
+                                            SET expire_at = $1
+                                            WHERE property_id = ANY($2)
+                                            """,
+                                            now, prop_ids
+                                        )
+                                    
+                                    # Insert new properties
+                                    if isinstance(category_data, dict):
+                                        for key, value in category_data.items():
+                                            # Convert non-string values to JSON
+                                            if not isinstance(value, str):
+                                                value = json.dumps(value)
+                                            
+                                            await conn.execute(
+                                                """
+                                                INSERT INTO fund.team_member_properties (
+                                                    member_id, category, subcategory, value, active_at, expire_at
+                                                ) VALUES (
+                                                    $1, $2, $3, $4, $5, $6
+                                                )
+                                                """,
+                                                member_id, category, 'info', value, now, self.future_date
+                                            )
+                
+                logger.info(f"Repository: fund update completed with result: True")
+                return True
         except Exception as e:
             logger.error(f"Repository: error updating fund {fund_id}: {e}")
             return False
@@ -563,7 +694,9 @@ class FundRepository:
         pool = await self.db_pool.get_pool()
         
         query = """
-        SELECT 1 FROM fund.funds WHERE user_id = $1 LIMIT 1
+        SELECT 1 FROM fund.funds 
+        WHERE user_id = $1 AND expire_at > NOW()
+        LIMIT 1
         """
         
         try:

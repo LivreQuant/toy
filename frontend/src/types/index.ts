@@ -41,14 +41,15 @@ export interface Book {
   initialCapital: number;
   riskLevel: 'low' | 'medium' | 'high';
   marketFocus?: string;
-  status: string; // Changed from enum to string to handle 'active', etc.
+  status: string;
   tradingStrategy?: string;
   maxPositionSize?: number;
   maxTotalRisk?: number;
   createdAt: number;
   updatedAt: number;
-  region?: string; // Add this for region information
-  instrument?: string; // Add this for instrument information
+  region?: string;
+  instrument?: string;
+  parameters?: Array<[string, string, string]> | string; // Can be array or string (serialized JSON)
 }
 
 export interface CreateBookRequest {
