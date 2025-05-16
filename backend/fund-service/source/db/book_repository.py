@@ -1,26 +1,15 @@
-# source/db/fund_repository.py
+# source/db/book_repository.py
 import logging
 import time
-import decimal
 import uuid
-import json
 import datetime
-from typing import Dict, Any, Optional, List
+import json
+from typing import Dict, Any, List, Optional
 
 from source.db.connection_pool import DatabasePool
 from source.utils.metrics import track_db_operation
 
-logger = logging.getLogger('fund_repository')
-
-def serialize_json_safe(obj):
-    """Convert non-JSON serializable objects to serializable types"""
-    if isinstance(obj, decimal.Decimal):
-        return float(obj)
-    elif isinstance(obj, uuid.UUID):
-        return str(obj)
-    elif isinstance(obj, datetime.datetime):
-        return obj.timestamp()
-    raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
+logger = logging.getLogger('book_repository')
 
 def ensure_json_serializable(data):
     """Recursively convert all values in a data structure to JSON serializable types"""
@@ -28,681 +17,412 @@ def ensure_json_serializable(data):
         return {k: ensure_json_serializable(v) for k, v in data.items()}
     elif isinstance(data, list):
         return [ensure_json_serializable(item) for item in data]
-    elif isinstance(data, (decimal.Decimal, uuid.UUID, datetime.datetime)):
-        return serialize_json_safe(data)
+    elif isinstance(data, datetime.datetime):
+        return data.timestamp()
+    elif isinstance(data, uuid.UUID):
+        return str(data)
     return data
-    
-class FundRepository:
-    """Data access layer for funds using temporal data pattern"""
+
+class BookRepository:
+    """Data access layer for books using temporal data pattern"""
 
     def __init__(self):
-        """Initialize the fund repository"""
+        """Initialize the book repository"""
         self.db_pool = DatabasePool()
         # Far future date used for active records
         self.future_date = datetime.datetime(2999, 1, 1, tzinfo=datetime.timezone.utc)
 
-    async def create_fund(self, fund_data: Dict[str, Any]) -> Optional[str]:
+    async def create_book(self, book_data: Dict[str, Any]) -> Optional[str]:
         """
-        Create a new fund for a user
+        Create a new book with its properties
         
         Args:
-            fund_data: Dictionary with fund properties
+            book_data: Dictionary with book properties including parameters
             
         Returns:
-            Fund ID if successful, None otherwise
+            Book ID if successful, None otherwise
         """
         pool = await self.db_pool.get_pool()
         
+        logger.info(f"Creating book in database with ID: {book_data['book_id']}")
+        logger.debug(f"Book data keys: {list(book_data.keys())}")
+        
         query = """
-        INSERT INTO fund.funds (
-            fund_id, name, status, user_id, active_at, expire_at
+        INSERT INTO fund.books (
+            book_id, user_id, name, status, created_at, expire_at
         ) VALUES (
             $1, $2, $3, $4, NOW(), $5
-        ) RETURNING fund_id
+        ) RETURNING book_id
         """
         
         start_time = time.time()
         try:
             async with pool.acquire() as conn:
+                # Use a single transaction for the entire operation
                 async with conn.transaction():
-                    fund_id = await conn.fetchval(
+                    # Insert book
+                    book_id = await conn.fetchval(
                         query,
-                        fund_data['fund_id'],
-                        fund_data['name'],
-                        fund_data.get('status', 'active'),
-                        fund_data['user_id'],
+                        book_data['book_id'],
+                        book_data['user_id'],
+                        book_data['name'],
+                        book_data.get('status', 'active'),
                         self.future_date
                     )
                     
-                    # If there are fund properties to save
-                    if fund_data.get('properties'):
-                        await self._save_fund_properties(conn, fund_id, fund_data['properties'])
-                
-                duration = time.time() - start_time
-                track_db_operation("create_fund", True, duration)
-                
-                # Convert UUID to string before returning
-                if isinstance(fund_id, uuid.UUID):
-                    return str(fund_id)
-                
-                return fund_id
-        except Exception as e:
-            duration = time.time() - start_time
-            track_db_operation("create_fund", False, duration)
-            logger.error(f"Error creating fund: {e}")
-            return None
-
-    async def create_fund_with_details(self, fund_data: Dict[str, Any],
-                                       properties: Dict[str, Any], 
-                                       team_members: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """
-        Create a fund with its properties and team members
-        
-        Args:
-            fund_data: Fund basic data
-            properties: Nested properties dict
-            team_members: List of team member data
-            
-        Returns:
-            Dictionary with fund_id if successful
-        """
-        pool = await self.db_pool.get_pool()
-        now = datetime.datetime.now(datetime.timezone.utc)
-        
-        try:
-            logger.info(f"Creating fund: {fund_data['name']}")
-            logger.info(f"Properties structure: {type(properties)}, Counts: {len(properties) if isinstance(properties, dict) else 'N/A'}")
-            logger.info(f"Team members structure: {type(team_members)}, Counts: {len(team_members) if isinstance(team_members, list) else 'N/A'}")
-            
-            async with pool.acquire() as conn:
-                # Start a transaction
-                async with conn.transaction():
-                    # 1. Create the fund
-                    fund_query = """
-                    INSERT INTO fund.funds (
-                        fund_id, name, status, user_id, active_at, expire_at
-                    ) VALUES (
-                        $1, $2, $3, $4, $5, $6
-                    ) RETURNING fund_id
-                    """
-                    
-                    fund_id = await conn.fetchval(
-                        fund_query,
-                        fund_data['fund_id'],
-                        fund_data['name'],
-                        fund_data.get('status', 'active'),
-                        fund_data['user_id'],
-                        now,
-                        self.future_date
-                    )
-                    
-                    # Convert UUID to string
-                    if isinstance(fund_id, uuid.UUID):
-                        fund_id = str(fund_id)
-                    
-                    logger.info(f"Fund created with ID: {fund_id}")
-                    
-                    # 2. Save fund properties
-                    if properties:
-                        logger.info(f"Saving fund properties")
-                        await self._save_fund_properties(conn, fund_id, properties)
-                    
-                    # 3. Create team members
-                    for i, team_member_data in enumerate(team_members):
-                        logger.info(f"Processing team member #{i}: {team_member_data}")
+                    # Convert parameters list to properties if present
+                    parameters = book_data.get('parameters')
+                    if parameters and isinstance(parameters, list):
+                        logger.info(f"Processing {len(parameters)} parameters for book {book_id}")
                         
-                        # Create team member
-                        team_query = """
-                        INSERT INTO fund.team_members (
-                            fund_id, status, active_at, expire_at
+                        # Save each parameter individually
+                        property_query = """
+                        INSERT INTO fund.book_properties (
+                            book_id, category, subcategory, value, created_at, expire_at
                         ) VALUES (
-                            $1, $2, $3, $4
-                        ) RETURNING team_member_id
+                            $1, $2, $3, $4, NOW(), $5
+                        )
                         """
                         
-                        team_member_id = await conn.fetchval(
-                            team_query,
-                            fund_id,
-                            'active',
-                            now,
-                            self.future_date
-                        )
-                        
-                        # Convert UUID to string
-                        if isinstance(team_member_id, uuid.UUID):
-                            team_member_id = str(team_member_id)
-                        
-                        logger.info(f"Created team member with ID: {team_member_id}")
-                        
-                        # Save team member properties
-                        logger.info(f"Saving team member properties")
-                        await self._save_team_member_properties(conn, team_member_id, team_member_data)
-                    
-                    return {"fund_id": fund_id, "success": True}
-                    
-        except Exception as e:
-            logger.error(f"Error creating fund with details: {e}")
-            return {"success": False, "error": str(e)}
-
-
-    async def _save_fund_properties(self, conn, fund_id: str, properties: Dict[str, Dict[str, Any]]) -> bool:
-        """
-        Save fund properties using the temporal EAV model
-        
-        Args:
-            conn: Database connection
-            fund_id: Fund ID
-            properties: Properties structure {category: {subcategory: {key: value}}}
-            
-        Returns:
-            Success flag
-        """
-        now = datetime.datetime.now(datetime.timezone.utc)
-        query = """
-        INSERT INTO fund.properties (
-            fund_id, category, subcategory, value, active_at, expire_at
-        ) VALUES (
-            $1, $2, $3, $4, $5, $6
-        )
-        """
-        
-        try:
-            for category, subcategories in properties.items():
-                for subcategory, items in subcategories.items():
-                    for key, value in items.items():
-                        # Convert non-string values to JSON strings
-                        if not isinstance(value, str):
-                            value = json.dumps(value)
-                            
-                        await conn.execute(
-                            query,
-                            fund_id,
-                            category,
-                            subcategory,
-                            value,
-                            now,
-                            self.future_date
-                        )
-            return True
-        except Exception as e:
-            logger.error(f"Error saving fund properties for {fund_id}: {e}")
-            raise
-
-    async def _save_team_member_properties(self, conn, team_member_id: str, properties: Dict[str, Dict[str, Any]]) -> None:
-        """
-        Save team member properties
-        
-        Args:
-            conn: Database connection
-            team_member_id: Team member ID
-            properties: Properties structure {category: {key: value}}
-        """
-        now = datetime.datetime.now(datetime.timezone.utc)
-        query = """
-        INSERT INTO fund.team_member_properties (
-            member_id, category, subcategory, value, active_at, expire_at
-        ) VALUES (
-            $1, $2, $3, $4, $5, $6
-        )
-        """
-        
-        try:
-            logger.info(f"Save team member properties: processing properties for {team_member_id}: {properties}")
-            
-            for category, subcategories in properties.items():
-                logger.info(f"Save team member properties: processing category: {category}, Type: {type(subcategories)}")
+                        # Process all parameters
+                        for param in parameters:
+                            if len(param) >= 3:
+                                category = param[0]
+                                subcategory = param[1] if param[1] else ""
+                                value = param[2]
+                                
+                                # Execute insert
+                                await conn.execute(
+                                    property_query,
+                                    book_id,
+                                    category,
+                                    subcategory,
+                                    str(value),
+                                    self.future_date
+                                )
                 
-                if not isinstance(subcategories, dict):
-                    logger.error(f"Save team member properties: expected dict for subcategories, got {type(subcategories)}: {subcategories}")
-                    continue
+                duration = time.time() - start_time
+                track_db_operation("create_book", True, duration)
                 
-                for key, value in subcategories.items():
-                    # Here, key is the subcategory (firstName, lastName, etc.)
-                    # And value is the actual value (Sergio, Amaral, etc.)
-                    logger.info(f"Save team member properties: processing key: {key}, Value: {value}, Type: {type(value)}")
-                    
-                    if isinstance(value, dict):
-                        # If value is a dict, it's a nested structure like education: {institution: "MIT, PSU"}
-                        for sub_key, sub_value in value.items():
-                            logger.info(f"Save team member properties: processing nested value - key: {sub_key}, value: {sub_value}")
-                            
-                            # Convert non-string values to JSON strings
-                            if not isinstance(sub_value, str):
-                                sub_value = json.dumps(sub_value)
-                            
-                            logger.info(f"Save team member properties: executing query with values: {team_member_id}, {category}, {key}, {sub_key}, {sub_value}")
-                            
-                            await conn.execute(
-                                query,
-                                team_member_id,
-                                category,
-                                key,  # Use the original key as subcategory
-                                sub_value,
-                                now,
-                                self.future_date
-                            )
-                    else:
-                        # For the subcategory, use the key and set subcategory to "info"
-                        subcategory = "info"
-                        
-                        # Convert non-string values to JSON strings
-                        if not isinstance(value, str):
-                            value = json.dumps(value)
-                        
-                        logger.info(f"Save team member properties: executing query with values: {team_member_id}, {category}, {subcategory}, {key}, {value}")
-                        
-                        await conn.execute(
-                            query,
-                            team_member_id,
-                            category,
-                            subcategory,
-                            value,
-                            now,
-                            self.future_date
-                        )
+                # Convert UUID to string before returning
+                if isinstance(book_id, uuid.UUID):
+                    book_id_str = str(book_id)
+                    logger.info(f"Book created successfully with ID: {book_id_str}")
+                    return book_id_str
+                
+                logger.info(f"Book created successfully with ID: {book_id}")
+                return book_id
                 
         except Exception as e:
-            logger.error(f"Save team member properties: error saving team member properties for {team_member_id}: {e}")
-            raise
+            duration = time.time() - start_time
+            track_db_operation("create_book", False, duration)
+            logger.error(f"Error creating book in database: {e}", exc_info=True)
+            return None
     
-    async def get_fund_by_user(self, user_id: str) -> Optional[Dict[str, Any]]:
-        """
-        Get a fund by user ID (one-to-one relationship)
-        
-        Args:
-            user_id: User ID
-            
-        Returns:
-            Fund data with properties if found, None otherwise
-        """
+    async def get_user_books(self, user_id: str) -> List[Dict[str, Any]]:
+        """Get all books for a user with their properties"""
         pool = await self.db_pool.get_pool()
         
-        fund_query = """
-        SELECT DISTINCT ON (fund_id)
-            fund_id, 
+        logger.info(f"Fetching books from database for user {user_id}")
+        
+        book_query = """
+        SELECT DISTINCT ON (book_id)
+            book_id, 
             user_id, 
             name,
             status,
-            extract(epoch from active_at) as active_at
-        FROM fund.funds 
+            extract(epoch from created_at) as created_at
+        FROM fund.books 
         WHERE user_id = $1 AND expire_at > NOW()
-        ORDER BY fund_id, active_at DESC
+        ORDER BY book_id, created_at DESC
         """
         
-        properties_query = """
+        property_query = """
         SELECT 
             category,
             subcategory,
             value
-        FROM fund.properties
-        WHERE fund_id = $1 AND expire_at > NOW()
-        """
-        
-        team_members_query = """
-        SELECT DISTINCT ON (team_member_id)
-            team_member_id
-        FROM fund.team_members
-        WHERE fund_id = $1 AND expire_at > NOW()
-        ORDER BY team_member_id, active_at DESC
-        """
-        
-        team_member_properties_query = """
-        SELECT 
-            category,
-            subcategory,
-            value
-        FROM fund.team_member_properties
-        WHERE member_id = $1 AND expire_at > NOW()
+        FROM fund.book_properties
+        WHERE book_id = $1 AND expire_at > NOW()
+        ORDER BY category, subcategory
         """
         
         start_time = time.time()
         try:
             async with pool.acquire() as conn:
-                # Get fund basic data
-                fund_row = await conn.fetchrow(fund_query, user_id)
+                # Get books
+                book_rows = await conn.fetch(book_query, user_id)
+                books = []
                 
-                if not fund_row:
-                    duration = time.time() - start_time
-                    track_db_operation("get_fund_by_user", False, duration)
-                    return None
+                logger.info(f"Found {len(book_rows)} books for user {user_id}")
                 
-                # Convert to dictionary
-                fund_data = ensure_json_serializable(dict(fund_row))
-                
-                # Get fund properties
-                property_rows = await conn.fetch(properties_query, fund_data['fund_id'])
-                
-                # Organize properties into nested structure
-                properties = {}
-                for row in property_rows:
-                    category = row['category']
-                    subcategory = row['subcategory']
-                    value = row['value']
+                # For each book, get its properties
+                for book_row in book_rows:
+                    book_data = dict(book_row)
+                    book_id = book_data['book_id']
                     
-                    # Try to parse JSON values
-                    try:
-                        if value and (value.startswith('{') or value.startswith('[')):
-                            value = json.loads(value)
-                    except (json.JSONDecodeError, AttributeError):
-                        pass
+                    # Get properties
+                    property_rows = await conn.fetch(property_query, book_id)
                     
-                    # Create nested structure
-                    if category not in properties:
-                        properties[category] = {}
-                    if subcategory not in properties[category]:
-                        properties[category][subcategory] = {}
+                    # Reconstruct parameters format
+                    parameters = []
+                    for prop in property_rows:
+                        # Convert back to the original triplet format
+                        parameters.append([
+                            prop['category'],
+                            prop['subcategory'],
+                            prop['value']
+                        ])
                     
-                    # Use the property ID as the key to make it unique
-                    properties[category][subcategory][str(uuid.uuid4())] = value
-                
-                # Add properties to fund data
-                fund_data['properties'] = properties
-                
-                # Get team members
-                team_member_rows = await conn.fetch(team_members_query, fund_data['fund_id'])
-                team_members = []
-                
-                for team_row in team_member_rows:
-                    team_member_id = team_row['team_member_id']
+                    # Add parameters to book data
+                    book_data['parameters'] = parameters
                     
-                    # Get team member properties
-                    member_property_rows = await conn.fetch(
-                        team_member_properties_query, 
-                        team_member_id
-                    )
-                    
-                    # Organize team member properties
-                    member_properties = {}
-                    for row in member_property_rows:
-                        category = row['category']
-                        subcategory = row['subcategory']
-                        value = row['value']
-                        
-                        # Try to parse JSON values
-                        try:
-                            if value and (value.startswith('{') or value.startswith('[')):
-                                value = json.loads(value)
-                        except (json.JSONDecodeError, AttributeError):
-                            pass
-                        
-                        # Create nested structure
-                        if category not in member_properties:
-                            member_properties[category] = {}
-                        if subcategory not in member_properties[category]:
-                            member_properties[category][subcategory] = {}
-                        
-                        # Use a random UUID as key since we don't need to track it
-                        member_properties[category][subcategory][str(uuid.uuid4())] = value
-                    
-                    # Add team member with properties
-                    team_members.append({
-                        "team_member_id": str(team_member_id),
-                        "properties": member_properties
-                    })
-                
-                # Add team members to fund data
-                fund_data['team_members'] = team_members
+                    # Add book to results
+                    books.append(ensure_json_serializable(book_data))
                 
                 duration = time.time() - start_time
-                track_db_operation("get_fund_by_user", True, duration)
+                track_db_operation("get_user_books", True, duration)
                 
-                return fund_data
+                logger.info(f"Retrieved {len(books)} books for user {user_id}")
+                return books
+                
         except Exception as e:
             duration = time.time() - start_time
-            track_db_operation("get_fund_by_user", False, duration)
-            logger.error(f"Error retrieving fund for user {user_id}: {e}")
+            track_db_operation("get_user_books", False, duration)
+            logger.error(f"Error retrieving books: {e}", exc_info=True)
+            return []
+    
+    async def get_book(self, book_id: str) -> Optional[Dict[str, Any]]:
+        """Get a single book by ID with its properties"""
+        pool = await self.db_pool.get_pool()
+        
+        logger.info(f"Fetching book {book_id} from database")
+        
+        book_query = """
+        SELECT DISTINCT ON (book_id)
+            book_id, 
+            user_id, 
+            name,
+            status,
+            extract(epoch from created_at) as created_at
+        FROM fund.books 
+        WHERE book_id = $1 AND expire_at > NOW()
+        ORDER BY book_id, created_at DESC
+        """
+        
+        property_query = """
+        SELECT 
+            category,
+            subcategory,
+            value
+        FROM fund.book_properties
+        WHERE book_id = $1 AND expire_at > NOW()
+        ORDER BY category, subcategory
+        """
+        
+        try:
+            async with pool.acquire() as conn:
+                # Get book
+                book_row = await conn.fetchrow(book_query, book_id)
+                
+                if not book_row:
+                    logger.warning(f"Book {book_id} not found or expired")
+                    return None
+                
+                book_data = dict(book_row)
+                
+                # Get properties
+                property_rows = await conn.fetch(property_query, book_id)
+                
+                # Reconstruct parameters format
+                parameters = []
+                for prop in property_rows:
+                    # Convert back to the original triplet format
+                    parameters.append([
+                        prop['category'],
+                        prop['subcategory'],
+                        prop['value']
+                    ])
+                
+                # Add parameters to book data
+                book_data['parameters'] = parameters
+                
+                logger.info(f"Successfully retrieved book {book_id} with {len(parameters)} parameters")
+                
+                return ensure_json_serializable(book_data)
+                
+        except Exception as e:
+            logger.error(f"Error retrieving book {book_id}: {e}", exc_info=True)
             return None
     
-    async def update_fund(self, fund_id: str, user_id: str, update_data: Dict[str, Any]) -> bool:
+    async def update_book(self, book_id: str, update_data: Dict[str, Any]) -> bool:
         """
-        Update a fund using temporal data pattern
+        Update a book using temporal data pattern (expire and insert new)
         
         Args:
-            fund_id: Fund ID to update
-            user_id: User ID to validate ownership
+            book_id: Book ID to update
             update_data: Dictionary with fields to update
             
         Returns:
             True if successful, False otherwise
         """
-        logger.info(f"Repository: updating fund {fund_id} for user {user_id}")
-        logger.info(f"Repository: update data received: {update_data}")
+        if not update_data:
+            logger.info(f"No updates provided for book {book_id}, skipping")
+            return True  # Nothing to update
         
         pool = await self.db_pool.get_pool()
+        logger.info(f"Updating book {book_id} with fields: {list(update_data.keys())}")
+        
+        # Handle parameters separately
+        parameters = update_data.pop('parameters', None)
+        logger.info(f"Parameters extracted from update data: {parameters is not None}")
+        
         now = datetime.datetime.now(datetime.timezone.utc)
-        
-        # We'll handle properties separately
-        properties = update_data.pop('properties', None)
-        team_members = update_data.pop('team_members', None)
-        
-        logger.info(f"Repository: properties to update: {properties}")
-        logger.info(f"Repository: team members to update: {team_members}")
         
         try:
             async with pool.acquire() as conn:
                 async with conn.transaction():
-                    # Update fund entity if basic fields changed
+                    # Update the book entity if needed
                     if update_data:
-                        # Fetch current fund data
-                        current_fund = await conn.fetchrow(
+                        # Fetch the current active book record
+                        current_book = await conn.fetchrow(
                             """
-                            SELECT * FROM fund.funds
-                            WHERE fund_id = $1 AND user_id = $2 AND expire_at > NOW()
-                            ORDER BY active_at DESC LIMIT 1
+                            SELECT * FROM fund.books
+                            WHERE book_id = $1 AND expire_at > NOW()
+                            ORDER BY created_at DESC
+                            LIMIT 1
                             """,
-                            fund_id, user_id
+                            book_id
                         )
                         
-                        if not current_fund:
-                            logger.error(f"Fund {fund_id} not found or does not belong to user {user_id}")
+                        if not current_book:
+                            logger.error(f"No active book found with ID {book_id}")
                             return False
                         
-                        # Expire current fund record
+                        # Expire the current record
+                        logger.info(f"Expiring current book record for {book_id}")
                         expire_result = await conn.execute(
                             """
-                            UPDATE fund.funds
+                            UPDATE fund.books
                             SET expire_at = $1
-                            WHERE fund_id = $2 AND user_id = $3 AND expire_at > NOW()
+                            WHERE book_id = $2 AND expire_at > NOW()
                             """,
-                            now, fund_id, user_id
+                            now,
+                            book_id
                         )
+                        logger.info(f"Expiration result: {expire_result}")
                         
-                        logger.info(f"Repository: expired fund record, result: {expire_result}")
+                        # Create a new record with updated values
+                        new_record = dict(current_book)
                         
-                        # Create new record with updated values
-                        new_record = dict(current_fund)
-                        
-                        # Apply updates
+                        # Apply updates, protecting certain fields
+                        protected_fields = ['expire_at', 'created_at']
                         for field, value in update_data.items():
-                            if field not in ['fund_id', 'user_id', 'active_at', 'expire_at']:
+                            if field not in protected_fields:
                                 new_record[field] = value
                         
-                        # Set new timestamps
-                        new_record['active_at'] = now
+                        # Set timestamps
+                        new_record['created_at'] = now
                         new_record['expire_at'] = self.future_date
                         
-                        # Dynamically build insert query
+                        # Insert new record
+                        logger.info(f"Inserting new book record for {book_id}")
+                        
+                        # Dynamically build the SQL query
                         columns = list(new_record.keys())
                         placeholders = [f'${i+1}' for i in range(len(columns))]
                         values = [new_record[col] for col in columns]
                         
                         insert_query = f"""
-                        INSERT INTO fund.funds ({', '.join(columns)})
+                        INSERT INTO fund.books ({', '.join(columns)})
                         VALUES ({', '.join(placeholders)})
                         """
                         
                         insert_result = await conn.execute(insert_query, *values)
-                        logger.info(f"Repository: inserted new fund record, result: {insert_result}")
+                        logger.info(f"Insert result: {insert_result}")
                     
-                    # Update properties if provided
-                    if properties:
-                        logger.info(f"Repository: updating fund properties")
+                    # Update parameters if provided
+                    if parameters is not None:
+                        # Convert parameters list to dictionary for easier comparison
+                        param_map = {}
+                        for param in parameters:
+                            if len(param) >= 3:
+                                category = param[0]
+                                subcategory = param[1] if param[1] else ""
+                                value = str(param[2])
+                                key = (category, subcategory)
+                                param_map[key] = value
                         
-                        # Fetch current properties
-                        current_props = await conn.fetch(
+                        # Fetch current parameters
+                        current_params = await conn.fetch(
                             """
                             SELECT property_id, category, subcategory, value
-                            FROM fund.properties
-                            WHERE fund_id = $1 AND expire_at > NOW()
+                            FROM fund.book_properties
+                            WHERE book_id = $1 AND expire_at > NOW()
                             """,
-                            fund_id
+                            book_id
                         )
                         
-                        # Build map of current properties
-                        current_prop_map = {}
-                        for prop in current_props:
-                            key = (prop['category'], prop['subcategory'])
-                            if key not in current_prop_map:
-                                current_prop_map[key] = []
-                            current_prop_map[key].append({
-                                'property_id': prop['property_id'],
-                                'value': prop['value']
-                            })
+                        # Track which parameters need to be expired
+                        params_to_expire = []
                         
-                        # Track properties to expire
-                        props_to_expire = []
+                        # Check each current parameter
+                        for param in current_params:
+                            key = (param['category'], param['subcategory'])
+                            
+                            if key in param_map:
+                                # Parameter exists in update, check if value changed
+                                if param_map[key] != param['value']:
+                                    # Value changed, expire this record
+                                    params_to_expire.append(param['property_id'])
+                                # Remove from map to track what's left to add
+                                del param_map[key]
+                            else:
+                                # Parameter no longer exists, expire it
+                                params_to_expire.append(param['property_id'])
                         
-                        # Identify properties to expire and values that have changed
-                        for category, subcategories in properties.items():
-                            for subcategory, items in subcategories.items():
-                                key = (category, subcategory)
-                                
-                                # If this category/subcategory exists, expire all values
-                                # as we'll create new ones
-                                if key in current_prop_map:
-                                    for prop_info in current_prop_map[key]:
-                                        props_to_expire.append(prop_info['property_id'])
-                        
-                        # Expire outdated properties
-                        if props_to_expire:
-                            logger.info(f"Repository: expiring {len(props_to_expire)} properties")
+                        # Expire outdated parameters
+                        if params_to_expire:
+                            logger.info(f"Expiring {len(params_to_expire)} outdated parameters")
                             expire_result = await conn.execute(
                                 """
-                                UPDATE fund.properties
+                                UPDATE fund.book_properties
                                 SET expire_at = $1
                                 WHERE property_id = ANY($2)
                                 """,
-                                now, props_to_expire
+                                now,
+                                params_to_expire
                             )
-                            logger.info(f"Repository: expire properties result: {expire_result}")
+                            logger.info(f"Parameter expiration result: {expire_result}")
                         
-                        # Create new property records
-                        for category, subcategories in properties.items():
-                            for subcategory, items in subcategories.items():
-                                for key, value in items.items():
-                                    # Convert non-string values to JSON
-                                    if not isinstance(value, str):
-                                        value = json.dumps(value)
-                                    
-                                    await conn.execute(
-                                        """
-                                        INSERT INTO fund.properties (
-                                            fund_id, category, subcategory, value, active_at, expire_at
-                                        ) VALUES (
-                                            $1, $2, $3, $4, $5, $6
-                                        )
-                                        """,
-                                        fund_id, category, subcategory, value, now, self.future_date
+                        # Insert new parameters
+                        if param_map:
+                            logger.info(f"Inserting {len(param_map)} new parameters")
+                            insert_count = 0
+                            
+                            for (category, subcategory), value in param_map.items():
+                                await conn.execute(
+                                    """
+                                    INSERT INTO fund.book_properties (
+                                        book_id, category, subcategory, value, created_at, expire_at
+                                    ) VALUES (
+                                        $1, $2, $3, $4, $5, $6
                                     )
+                                    """,
+                                    book_id,
+                                    category,
+                                    subcategory,
+                                    value,
+                                    now,
+                                    self.future_date
+                                )
+                                insert_count += 1
+                            
+                            logger.info(f"Successfully inserted {insert_count} new parameters")
                     
-                    # Update team members if provided
-                    if team_members:
-                        logger.info(f"Repository: processing {len(team_members)} team members")
-                        
-                        for team_member in team_members:
-                            # Get team member ID
-                            member_id = team_member.get('id')
-                            if not member_id:
-                                logger.warning(f"Repository: team member has no ID, skipping")
-                                continue
-                            
-                            # Verify the team member belongs to this fund
-                            member_exists = await conn.fetchval(
-                                """
-                                SELECT 1 FROM fund.team_members
-                                WHERE team_member_id = $1 AND fund_id = $2 AND expire_at > NOW()
-                                """,
-                                member_id, fund_id
-                            )
-                            
-                            if not member_exists:
-                                logger.warning(f"Repository: team member {member_id} does not belong to fund {fund_id}, skipping")
-                                continue
-                            
-                            # Process updates for this team member
-                            for category in ['personal', 'professional', 'education']:
-                                if category in team_member:
-                                    category_data = team_member[category]
-                                    logger.info(f"Repository: updating {category} info for team member {member_id}")
-                                    
-                                    # Fetch current properties for this category
-                                    current_props = await conn.fetch(
-                                        """
-                                        SELECT property_id, subcategory, value
-                                        FROM fund.team_member_properties
-                                        WHERE member_id = $1 AND category = $2 AND expire_at > NOW()
-                                        """,
-                                        member_id, category
-                                    )
-                                    
-                                    # Expire all current properties for this category
-                                    if current_props:
-                                        prop_ids = [p['property_id'] for p in current_props]
-                                        await conn.execute(
-                                            """
-                                            UPDATE fund.team_member_properties
-                                            SET expire_at = $1
-                                            WHERE property_id = ANY($2)
-                                            """,
-                                            now, prop_ids
-                                        )
-                                    
-                                    # Insert new properties
-                                    if isinstance(category_data, dict):
-                                        for key, value in category_data.items():
-                                            # Convert non-string values to JSON
-                                            if not isinstance(value, str):
-                                                value = json.dumps(value)
-                                            
-                                            await conn.execute(
-                                                """
-                                                INSERT INTO fund.team_member_properties (
-                                                    member_id, category, subcategory, value, active_at, expire_at
-                                                ) VALUES (
-                                                    $1, $2, $3, $4, $5, $6
-                                                )
-                                                """,
-                                                member_id, category, 'info', value, now, self.future_date
-                                            )
-                
-                logger.info(f"Repository: fund update completed with result: True")
-                return True
+                    logger.info(f"Book {book_id} update completed successfully")
+                    return True
+                    
         except Exception as e:
-            logger.error(f"Repository: error updating fund {fund_id}: {e}")
-            return False
-    
-    async def check_fund_exists(self, user_id: str) -> bool:
-        """
-        Check if a fund exists for a user
-        
-        Args:
-            user_id: User ID
-            
-        Returns:
-            True if fund exists, False otherwise
-        """
-        pool = await self.db_pool.get_pool()
-        
-        query = """
-        SELECT 1 FROM fund.funds 
-        WHERE user_id = $1 AND expire_at > NOW()
-        LIMIT 1
-        """
-        
-        try:
-            async with pool.acquire() as conn:
-                result = await conn.fetchval(query, user_id)
-                return result is not None
-        except Exception as e:
-            logger.error(f"Error checking fund existence for user {user_id}: {e}")
+            logger.error(f"Error updating book {book_id}: {e}", exc_info=True)
             return False
