@@ -23,6 +23,7 @@ import PublicIcon from '@mui/icons-material/Public';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import StrategyIcon from '@mui/icons-material/Psychology';
+import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import PeopleIcon from '@mui/icons-material/People';
 import { FundProfile } from '../../types';
 
@@ -88,6 +89,19 @@ const FundProfileCard: React.FC<FundProfileCardProps> = ({
       </Card>
     );
   }
+
+  // Calculate days since fund creation
+  const getDaysSinceCreation = () => {
+    if (!fundProfile.createdAt) return null;
+    
+    const now = Date.now() / 1000; // Convert to seconds to match the createdAt format
+    const diffInSeconds = now - fundProfile.createdAt;
+    const diffInDays = Math.floor(diffInSeconds / (60 * 60 * 24));
+    
+    return diffInDays;
+  };
+
+  const daysSinceCreation = getDaysSinceCreation();
 
   return (
     <Card 
@@ -168,28 +182,108 @@ const FundProfileCard: React.FC<FundProfileCardProps> = ({
             flexDirection: 'column'
           }}>
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 3 }}>
-              {fundProfile.yearEstablished && (
+              {daysSinceCreation !== null && (
                 <Chip 
-                  icon={<CalendarTodayIcon fontSize="small" />}
-                  label={`Est. ${fundProfile.yearEstablished}`} 
+                  icon={
+                    <Box display="flex" alignItems="center" paddingLeft="2px">
+                      <AccessTimeIcon fontSize="small" />
+                    </Box>
+                  }
+                  label={
+                    <Box display="flex" alignItems="center" paddingTop="2px">
+                      {`${daysSinceCreation} day${daysSinceCreation !== 1 ? 's' : ''} active`}
+                    </Box>
+                  }
                   size="small"
                   variant="outlined"
+                  sx={{
+                    px: 1.,
+                    height: 28,
+                    display: 'flex',
+                    alignItems: 'center',
+                    '& .MuiChip-label': {
+                      padding: '0 8px',
+                      lineHeight: 1,
+                    }
+                  }}
+                />
+              )}
+              {fundProfile.yearEstablished && (
+                <Chip 
+                  icon={
+                    <Box display="flex" alignItems="center" paddingLeft="2px">
+                      <CalendarTodayIcon fontSize="small" />
+                    </Box>
+                  }
+                  label={
+                    <Box display="flex" alignItems="center" paddingTop="2px">
+                      {`Est. ${fundProfile.yearEstablished}`}
+                    </Box>
+                  }
+                  size="small"
+                  variant="outlined"
+                  sx={{
+                    px: 1.,
+                    height: 28,
+                    display: 'flex',
+                    alignItems: 'center',
+                    '& .MuiChip-label': {
+                      padding: '0 8px',
+                      lineHeight: 1,
+                    }
+                  }}
                 />
               )}
               {fundProfile.aumRange && (
                 <Chip 
-                  icon={<AccountBalanceIcon fontSize="small" />}
-                  label={fundProfile.aumRange} 
+                  icon={
+                    <Box display="flex" fontSize="small" alignItems="center" paddingLeft="2px">
+                      <AccountBalanceIcon fontSize="small"/>
+                    </Box>
+                  }
+                  label={
+                    <Box display="flex" alignItems="center" paddingTop="2px">
+                      {fundProfile.aumRange} 
+                    </Box>
+                  }
                   size="small"
                   variant="outlined"
+                  sx={{
+                    px: 1.,
+                    height: 28,
+                    display: 'flex',
+                    alignItems: 'center',
+                    '& .MuiChip-label': {
+                      padding: '0 8px',
+                      lineHeight: 1,
+                    }
+                  }}
                 />
               )}
               {fundProfile.teamMembers?.length > 0 && (
                 <Chip 
-                  icon={<PeopleIcon fontSize="small" />}
-                  label={`${fundProfile.teamMembers.length} Team Member${fundProfile.teamMembers.length !== 1 ? 's' : ''}`} 
+                  icon={
+                    <Box display="flex" alignItems="center" paddingLeft="2px">
+                      <PeopleIcon fontSize="small"/>
+                    </Box>
+                  }
+                  label={
+                    <Box display="flex" alignItems="center" paddingTop="2px">
+                      {`${fundProfile.teamMembers.length} Team Member${fundProfile.teamMembers.length !== 1 ? 's' : ''}`} 
+                    </Box>
+                  }
                   size="small"
                   variant="outlined"
+                  sx={{
+                    px: 1.,
+                    height: 28,
+                    display: 'flex',
+                    alignItems: 'center',
+                    '& .MuiChip-label': {
+                      padding: '0 8px',
+                      lineHeight: 1,
+                    }
+                  }}
                 />
               )}
             </Box>
@@ -202,14 +296,13 @@ const FundProfileCard: React.FC<FundProfileCardProps> = ({
                 pb: 1,
                 borderBottom: `1px solid ${theme.palette.divider}`
               }}>
-                <StrategyIcon fontSize="small" sx={{ mr: 1, color: 'primary.main' }} />
                 <Typography variant="h6">Investment Strategy</Typography>
               </Box>
               <Typography 
                 variant="body1" 
                 color="text.secondary" 
                 paragraph 
-                sx={{ px: 1, mt: 1 }}
+                sx={{ mt: 1 }}
               >
                 {fundProfile.investmentStrategy || 'No investment strategy defined yet.'}
               </Typography>
@@ -224,7 +317,7 @@ const FundProfileCard: React.FC<FundProfileCardProps> = ({
                   pb: 1,
                   borderBottom: `1px solid ${theme.palette.divider}`
                 }}>
-                  <Typography variant="h6">Investment Objectives</Typography>
+                  <Typography variant="h6">Objectives</Typography>
                 </Box>
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 2 }}>
                   {fundProfile.profilePurpose?.map((purpose: string) => (

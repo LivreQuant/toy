@@ -140,8 +140,10 @@ class FundController(BaseController):
             
         # Process team members
         if 'teamMembers' in data and isinstance(data['teamMembers'], list):
+            team_members = []
             for member in data['teamMembers']:
                 team_member = {
+                    'id': member.get('id', ''),  # Important! Include the team member ID for updates
                     'personal': {
                         'firstName': member.get('firstName', ''),
                         'lastName': member.get('lastName', ''),
@@ -154,11 +156,12 @@ class FundController(BaseController):
                         'investmentExpertise': member.get('investmentExpertise', ''),
                         'linkedin': member.get('linkedin', '')
                     },
-                    'education': {
-                        'institution': member.get('education', '')
-                    }
+                    'education': member.get('education', '')  # Pass education directly
                 }
-                fund_data['team_members'].append(team_member)
+                team_members.append(team_member)
+            
+            if team_members:
+                fund_data['team_members'] = team_members
         
         # Create fund
         result = await self.fund_manager.create_fund(fund_data, user_id)
@@ -209,8 +212,86 @@ class FundController(BaseController):
         if not parse_success:
             return self.create_error_response(data["error"], data["status"])
 
+        # Map frontend field names to expected field names similar to create_fund
+        update_data = {
+            'properties': {}
+        }
+
+        # Add name field if present
+        if 'fundName' in data:
+            update_data['name'] = data['fundName']
+        elif 'name' in data:
+            update_data['name'] = data['name']
+        
+        # Map general properties
+        general_properties = {
+            'profile': {},
+            'strategy': {}
+        }
+        
+        # Add profile properties
+        if 'legalStructure' in data:
+            general_properties['profile']['legalStructure'] = data['legalStructure']
+        if 'location' in data:
+            general_properties['profile']['location'] = data['location']
+        if 'yearEstablished' in data:
+            general_properties['profile']['yearEstablished'] = data['yearEstablished']
+        if 'aumRange' in data:
+            general_properties['profile']['aumRange'] = data['aumRange']
+        if 'profilePurpose' in data:
+            general_properties['profile']['purpose'] = data['profilePurpose']
+        if 'otherPurposeDetails' in data:
+            general_properties['profile']['otherDetails'] = data['otherPurposeDetails']
+        
+        # Add strategy properties
+        if 'investmentStrategy' in data:
+            general_properties['strategy']['thesis'] = data['investmentStrategy']
+        
+        # Add properties if they exist
+        if general_properties['profile'] or general_properties['strategy']:
+            update_data['properties']['general'] = general_properties
+            
+        # Process team members if present
+        if 'teamMembers' in data and isinstance(data['teamMembers'], list):
+            team_members = []
+            for member in data['teamMembers']:
+                logger.info(f"Processing team member in controller: {member}")
+                
+                # Make sure we have the ID
+                if 'id' not in member:
+                    logger.warning(f"Team member without ID, skipping: {member}")
+                    continue
+                    
+                team_member = {
+                    'id': member.get('id'),  # Important! Include the team member ID for updates
+                    'personal': {
+                        'firstName': member.get('firstName', ''),
+                        'lastName': member.get('lastName', ''),
+                        'birthDate': member.get('birthDate', '')
+                    },
+                    'professional': {
+                        'role': member.get('role', ''),
+                        'yearsExperience': member.get('yearsExperience', ''),
+                        'currentEmployment': member.get('currentEmployment', ''),
+                        'investmentExpertise': member.get('investmentExpertise', ''),
+                        'linkedin': member.get('linkedin', '')
+                    },
+                    'education': {
+                        'institution': member.get('education', '')
+                    }
+                }
+                team_members.append(team_member)
+                logger.info(f"Transformed team member: {team_member}")
+            
+            if team_members:
+                update_data['team_members'] = team_members
+                logger.info(f"Added {len(team_members)} team members to update data")
+        
+        # Log the transformed update data
+        logger.info(f"Transformed update data: {update_data}")
+
         # Update fund
-        result = await self.fund_manager.update_fund(data, user_id)
+        result = await self.fund_manager.update_fund(update_data, user_id)
 
         if not result["success"]:
             error = result.get("error", "Failed to update fund")

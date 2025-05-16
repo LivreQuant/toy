@@ -31,6 +31,32 @@ const HomePage: React.FC = () => {
   const [fundProfile, setFundProfile] = useState<FundProfile | null>(null); // Add this state
   const [isFundLoading, setIsFundLoading] = useState(true); // Add this state
 
+  // Fetch book profile
+  useEffect(() => {
+    const fetchBooks = async () => {
+      // Only proceed if connected and a fund profile exists
+      if (!isConnected || !fundProfile) return;
+      
+      try {
+        setIsLoading(true);
+        const response = await bookManager.fetchBooks();
+        
+        if (response.success && response.books) {
+          setBooks(response.books);
+        } else {
+          console.error('Failed to fetch books:', response.error);
+          setBooks([]);
+        }
+      } catch (error) {
+        console.error('Error fetching books:', error);
+        setBooks([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchBooks();
+  }, [isConnected, fundProfile, bookManager]);
 
   // Fetch fund profile
   useEffect(() => {
@@ -83,7 +109,7 @@ const HomePage: React.FC = () => {
       <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 1400, mx: 'auto' }}>
         <Grid container spacing={3}>
           {/* Main column - Fund Profile & Books */}
-          <Grid {...{component: "div", item: true, xs: 12, lg: 8} as any}>
+          <Grid {...{component: "div", item: true, xs: 12, lg: 12, sx: { width: '100%' }} as any}>
             <FundProfileCard 
               onEditProfile={() => navigate('/profile/edit')}
               fundProfile={fundProfile}

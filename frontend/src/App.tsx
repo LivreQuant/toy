@@ -52,6 +52,7 @@ import HomePage from './pages/HomePage';
 import SimulatorPage from './pages/SimulatorPage';
 import BookDetailsPage from './pages/BookDetailsPage';
 import BookSetupPage from './pages/BookSetupPage';
+import EditBookPage from './pages/EditBookPage';
 import SessionDeactivatedPage from './pages/SessionDeactivatedPage';
 import EnterpriseContactPage from './pages/EnterpriseContactPage';
 import FundProfileForm from './components/Profile/FundProfileForm';
@@ -165,6 +166,15 @@ const AppRoutes: React.FC = () => {
         </ProtectedRoute>
       } />
 
+      {/* Book edit route */}
+      <Route path="/books/:bookId/edit" element={
+        <ProtectedRoute>
+          <AuthenticatedLayout>
+            <EditBookPage />
+          </AuthenticatedLayout>
+        </ProtectedRoute>
+      } />
+      
       <Route path="/books/:bookId" element={
         <ProtectedRoute>
           <AuthenticatedLayout>

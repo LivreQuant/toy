@@ -41,12 +41,14 @@ export interface Book {
   initialCapital: number;
   riskLevel: 'low' | 'medium' | 'high';
   marketFocus?: string;
-  status: 'CONFIGURED' | 'ACTIVE' | 'ARCHIVED';
+  status: string; // Changed from enum to string to handle 'active', etc.
   tradingStrategy?: string;
   maxPositionSize?: number;
   maxTotalRisk?: number;
   createdAt: number;
   updatedAt: number;
+  region?: string; // Add this for region information
+  instrument?: string; // Add this for instrument information
 }
 
 export interface CreateBookRequest {

@@ -134,6 +134,7 @@ class FundManager:
             Result dictionary with success flag
         """
         logger.info(f"Updating fund for user {user_id}")
+        logger.info(f"Update data received in fund_manager: {fund_data}")
         
         try:
             # First, get the fund to verify existence and get fund_id
@@ -146,6 +147,7 @@ class FundManager:
                 }
             
             fund_id = fund['fund_id']
+            logger.info(f"Found fund with ID: {fund_id}")
             
             # Process updates
             valid_updates = {}
@@ -167,20 +169,31 @@ class FundManager:
             if 'properties' in fund_data:
                 valid_updates['properties'] = fund_data['properties']
             
+            # Handle team members
+            if 'team_members' in fund_data:
+                valid_updates['team_members'] = fund_data['team_members']
+                logger.info(f"Team members to update: {fund_data['team_members']}")
+            
+            # Log valid updates
+            logger.info(f"Valid updates to apply: {valid_updates}")
+            
             # Apply updates
             if valid_updates:
                 success = await self.fund_repository.update_fund(fund_id, user_id, valid_updates)
                 
                 if success:
+                    logger.info(f"Successfully updated fund {fund_id}")
                     return {
                         "success": True
                     }
                 else:
+                    logger.error(f"Failed to update fund {fund_id}")
                     return {
                         "success": False,
                         "error": "Failed to update fund"
                     }
             else:
+                logger.info("No valid updates provided")
                 return {
                     "success": True,
                     "message": "No valid updates provided"

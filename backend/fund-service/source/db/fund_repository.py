@@ -240,38 +240,60 @@ class FundRepository:
         """
         
         try:
+            logger.info(f"Save team member properties: processing properties for {team_member_id}: {properties}")
+            
             for category, subcategories in properties.items():
-                logger.info(f"Processing category: {category}, Type: {type(subcategories)}")
+                logger.info(f"Save team member properties: processing category: {category}, Type: {type(subcategories)}")
                 
                 if not isinstance(subcategories, dict):
-                    logger.error(f"Expected dict for subcategories, got {type(subcategories)}: {subcategories}")
+                    logger.error(f"Save team member properties: expected dict for subcategories, got {type(subcategories)}: {subcategories}")
                     continue
                 
                 for key, value in subcategories.items():
                     # Here, key is the subcategory (firstName, lastName, etc.)
                     # And value is the actual value (Sergio, Amaral, etc.)
-                    logger.info(f"Processing key: {key}, Value: {value}, Type: {type(value)}")
+                    logger.info(f"Save team member properties: processing key: {key}, Value: {value}, Type: {type(value)}")
                     
-                    # For the subcategory, use the key and set subcategory to "info"
-                    subcategory = "info"
-                    
-                    # Convert non-string values to JSON strings
-                    if not isinstance(value, str):
-                        value = json.dumps(value)
-                    
-                    logger.info(f"Executing query with values: {team_member_id}, {category}, {subcategory}, {key}, {value}")
-                    
-                    await conn.execute(
-                        query,
-                        team_member_id,
-                        category,
-                        subcategory,
-                        key,
-                        value
-                    )
-            
+                    if isinstance(value, dict):
+                        # If value is a dict, it's a nested structure like education: {institution: "MIT, PSU"}
+                        for sub_key, sub_value in value.items():
+                            logger.info(f"Save team member properties: processing nested value - key: {sub_key}, value: {sub_value}")
+                            
+                            # Convert non-string values to JSON strings
+                            if not isinstance(sub_value, str):
+                                sub_value = json.dumps(sub_value)
+                            
+                            logger.info(f"Save team member properties: executing query with values: {team_member_id}, {category}, {key}, {sub_key}, {sub_value}")
+                            
+                            await conn.execute(
+                                query,
+                                team_member_id,
+                                category,
+                                key,  # Use the original key as subcategory
+                                sub_key,  # Use the sub_key as the key
+                                sub_value
+                            )
+                    else:
+                        # For the subcategory, use the key and set subcategory to "info"
+                        subcategory = "info"
+                        
+                        # Convert non-string values to JSON strings
+                        if not isinstance(value, str):
+                            value = json.dumps(value)
+                        
+                        logger.info(f"Save team member properties: executing query with values: {team_member_id}, {category}, {subcategory}, {key}, {value}")
+                        
+                        await conn.execute(
+                            query,
+                            team_member_id,
+                            category,
+                            subcategory,
+                            key,
+                            value
+                        )
+                
         except Exception as e:
-            logger.error(f"Error saving team member properties for {team_member_id}: {e}")
+            logger.error(f"Save team member properties: error saving team member properties for {team_member_id}: {e}")
             raise
     
     async def get_fund_by_user(self, user_id: str) -> Optional[Dict[str, Any]]:
@@ -435,11 +457,17 @@ class FundRepository:
         Returns:
             True if successful, False otherwise
         """
+        logger.info(f"Repository: updating fund {fund_id} for user {user_id}")
+        logger.info(f"Repository: update data received: {update_data}")
+        
         pool = await self.db_pool.get_pool()
         
         # We'll handle properties separately
         properties = update_data.pop('properties', None)
         team_members = update_data.pop('team_members', None)
+        
+        logger.info(f"Repository: properties to update: {properties}")
+        logger.info(f"Repository: team members to update: {team_members}")
         
         fund_updated = True
         
@@ -459,23 +487,67 @@ class FundRepository:
                         WHERE fund_id = $1 AND user_id = $2
                         """
                         
+                        logger.info(f"Repository: executing fund update query: {query}")
+                        logger.info(f"Repository: with parameters: {fund_id}, {user_id}, {list(update_data.values())}")
+                        
                         result = await conn.execute(query, fund_id, user_id, *update_data.values())
                         fund_updated = result == "UPDATE 1"
+                        logger.info(f"Repository: basic fund update result: {result}, success: {fund_updated}")
                     
                     # Update properties if provided
                     if properties:
+                        logger.info(f"Repository: updating fund properties")
                         await self._save_fund_properties(conn, fund_id, properties)
                     
                     # Update team members if provided
                     if team_members:
-                        # This would be a more complex implementation
-                        # For now, a simple approach is to just update existing team members' properties
-                        # A full implementation would handle adding/removing team members as well
-                        pass
-                    
-            return fund_updated
+                        logger.info(f"Repository: processing {len(team_members)} team members")
+                        
+                        for i, team_member in enumerate(team_members):
+                            logger.info(f"Repository: processing team member {i+1}/{len(team_members)}: {team_member}")
+                            
+                            # Extract team member ID
+                            member_id = team_member.get('id')
+                            if not member_id:
+                                logger.warning(f"Repository: team member has no ID, skipping")
+                                continue  # Skip if no ID provided
+                            
+                            logger.info(f"Repository: checking if team member {member_id} belongs to fund {fund_id}")
+                            
+                            # Verify the team member belongs to this fund
+                            member_check_query = """
+                            SELECT 1 FROM fund.team_members
+                            WHERE team_member_id = $1 AND fund_id = $2
+                            """
+                            member_exists = await conn.fetchval(member_check_query, member_id, fund_id)
+                            
+                            if not member_exists:
+                                logger.warning(f"Repository: team member {member_id} does not belong to fund {fund_id}, skipping")
+                                continue  # Skip if team member doesn't belong to this fund
+                            
+                            logger.info(f"Repository: team member {member_id} belongs to fund {fund_id}, proceeding with update")
+                            
+                            # Update team member's properties
+                            # Process personal info
+                            if 'personal' in team_member:
+                                logger.info(f"Repository: updating personal info for team member {member_id}")
+                                await self._save_team_member_properties(conn, member_id, {'personal': team_member['personal']})
+                            
+                            # Process professional info
+                            if 'professional' in team_member:
+                                logger.info(f"Repository: updating professional info for team member {member_id}")
+                                await self._save_team_member_properties(conn, member_id, {'professional': team_member['professional']})
+                            
+                            # Process education info - handle it directly if present
+                            if 'education' in team_member:
+                                logger.info(f"Repository: updating education info for team member {member_id}: {team_member['education']}")
+                                education_data = {'education': {'info': team_member['education']}}
+                                await self._save_team_member_properties(conn, member_id, education_data)
+                        
+                logger.info(f"Repository: fund update completed with result: {fund_updated}")
+                return fund_updated
         except Exception as e:
-            logger.error(f"Error updating fund {fund_id}: {e}")
+            logger.error(f"Repository: error updating fund {fund_id}: {e}")
             return False
     
     async def check_fund_exists(self, user_id: str) -> bool:

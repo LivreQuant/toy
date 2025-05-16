@@ -5,6 +5,59 @@ import { FundApi } from '../../api/fund';
 import { FundProfile, CreateFundProfileRequest, UpdateFundProfileRequest } from '../../types';
 import { toastService } from '../notification/toast-service';
 
+
+// Add this interface to define the structure of the API response
+interface FundProfileApiResponse {
+  fund_id: string;
+  user_id: string;
+  name: string;
+  status: string;
+  created_at: number;
+  updated_at: number;
+  properties?: {
+    general?: {
+      profile?: {
+        legalStructure?: string;
+        location?: string;
+        yearEstablished?: string;
+        aumRange?: string;
+        purpose?: string[];
+        otherDetails?: string;
+      };
+      strategy?: {
+        thesis?: string;
+      };
+    };
+  };
+  team_members?: Array<{
+    team_member_id: string;
+    properties?: {
+      personal?: {
+        info?: {
+          firstName?: string;
+          lastName?: string;
+          birthDate?: string;
+        };
+      };
+      professional?: {
+        info?: {
+          role?: string;
+          yearsExperience?: string;
+          currentEmployment?: string;
+          investmentExpertise?: string;
+          linkedin?: string;
+        };
+      };
+      education?: {
+        info?: {
+          institution?: string;
+        };
+      };
+    };
+  }>;
+}
+
+
 export class FundManager {
   private logger = getLogger('FundManager');
   private fundApi: FundApi;
@@ -58,7 +111,6 @@ export class FundManager {
   /**
    * Retrieves the current user's fund profile
    */
-  // Updated useFundManager hook implementation (partial) to handle the API response format
   async getFundProfile(): Promise<{ 
     success: boolean; 
     fund?: FundProfile;
@@ -67,13 +119,13 @@ export class FundManager {
     if (!this.tokenManager.isAuthenticated()) {
       return { success: false, error: 'Not authenticated' };
     }
-
+  
     try {
       const response = await this.fundApi.getFundProfile();
       
       if (response.success && response.fund) {
-        // Transform the API response structure to match our FundProfile type
-        const apiData = response.fund;
+        // Cast the response.fund to the API structure
+        const apiData = response.fund as unknown as FundProfileApiResponse;
         
         // Extract profile data from the nested structure
         const profileData = apiData.properties?.general?.profile || {};

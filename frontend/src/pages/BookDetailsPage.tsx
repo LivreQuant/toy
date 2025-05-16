@@ -6,6 +6,8 @@ import { useToast } from '../hooks/useToast';
 import { useBookManager } from '../hooks/useBookManager';
 import { Book } from '../types';
 import CsvOrderUpload from '../components/Simulator/CsvOrderUpload';
+
+import EditIcon from '@mui/icons-material/Edit';
 import './BookDetailsPage.css';
 
 // Define the API response type
@@ -252,13 +254,23 @@ const BookDetailsPage: React.FC = () => {
         
         {/* Start Simulator Button */}
         <div className="action-section">
-          <button 
-            onClick={handleStartSimulator}
-            className="start-simulator-button"
-            disabled={isStartingSimulator || !isConnected}
-          >
-            {isStartingSimulator ? 'Starting Simulator...' : 'Start Simulator'}
-          </button>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 2 }}>
+            <Button
+              variant="outlined"
+              onClick={() => navigate(`/books/${bookId}/edit`)}
+              startIcon={<EditIcon />}
+            >
+              Edit Book
+            </Button>
+            
+            <Button 
+              onClick={handleStartSimulator}
+              className="start-simulator-button"
+              disabled={isStartingSimulator || !isConnected}
+            >
+              {isStartingSimulator ? 'Starting Simulator...' : 'Start Simulator'}
+            </Button>
+          </Box>
           <p className="simulator-instructions">
             Start the simulator and navigate to the simulator page to begin trading with this book.
           </p>

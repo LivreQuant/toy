@@ -1,8 +1,14 @@
 /* src/pages/BookSetupPage.css */
 .book-setup-page {
-    padding: 20px;
-    max-width: 800px;
-    margin: 0 auto;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 40px 20px;
+}
+
+@media (max-width: 900px) {
+  .book-setup-page {
+    padding: 20px 10px;
+  }
 }
   
   .book-setup-page h1 {
@@ -10,6 +16,7 @@
     text-align: center;
   }
   
+
   .book-form {
     background-color: white;
     border-radius: 8px;

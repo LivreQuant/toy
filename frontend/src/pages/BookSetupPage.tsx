@@ -1,26 +1,54 @@
 // src/pages/BookSetupPage.tsx
-import React, { useState, useEffect, useContext } from 'react';
-import { getLogger } from '../boot/logging';
-import { BookManagerContext } from '../contexts/BookContext';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Box, 
   Button, 
   Typography, 
-  Paper,
-  ToggleButton, 
+  TextField, 
+  Paper, 
+  Stepper, 
+  Step, 
+  StepLabel,
+  Divider,
+  FormControl,
+  FormHelperText,
+  ToggleButton,
   ToggleButtonGroup,
   Slider,
-  FormControl,
-  FormHelperText
+  Grid,
+  CircularProgress
 } from '@mui/material';
-import { useNavigate } from 'react-router-dom';
-import { styled } from '@mui/material/styles';
-import { TextField } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-
+import { styled } from '@mui/material/styles';
+import { useToast } from '../hooks/useToast';
+import { useBookManager } from '../hooks/useBookManager';
+import { useConnection } from '../hooks/useConnection';
+import { getLogger } from '../boot/logging';
+import './BookSetupPage.css';
 
 // Initialize logger
 const logger = getLogger('BookSetupPage');
+
+// Define the book setup data structure
+interface BookSetupData {
+  // Basic Information
+  name: string;
+  region: string;
+  market: string;
+  instrument: string;
+  
+  // Investment Strategy
+  investmentApproach: string[];
+  investmentTimeframe: string[];
+  
+  // Sector Focus
+  sectorFocus: string[];
+  
+  // Position Types and Capital
+  positionTypes: string[];
+  initialCapital: number;
+}
 
 // Define the option types
 interface CategoryOption {
@@ -29,40 +57,7 @@ interface CategoryOption {
   examples?: string;
 }
 
-interface CategoryConfig {
-  id: string;
-  title: string;
-  description: string;
-  options: CategoryOption[];
-  multiSelect: boolean;
-  disabled?: boolean;
-  defaultValue?: string | string[];
-}
-
-const StyledSlider = styled(Slider)(({ theme }) => ({
-  // Target the first mark label (50M)
-  '& .MuiSlider-markLabel[data-index="0"]': {
-    transform: 'translateX(0%)',
-    left: '0%',
-  },
-  // Target the second mark label (100M)
-  '& .MuiSlider-markLabel[data-index="1"]': {
-    transform: 'translateX(0%)',
-    left: '50%',
-  },
-  // Target the third mark label (500M)
-  '& .MuiSlider-markLabel[data-index="2"]': {
-    transform: 'translateX(-50%)',
-    left: '100%',
-  },
-  // Target the fourth mark label (1000M)
-  '& .MuiSlider-markLabel[data-index="3"]': {
-    transform: 'translateX(-100%)',
-    left: '100%',
-  },
-}));
-
-// Define a type for the market keys to ensure type safety
+// Define the market keys to ensure type safety
 type MarketKey = 'equities' | 'bonds' | 'currencies' | 'commodities' | 'cryptos';
 
 // Create the market AUM values with proper typing
@@ -73,25 +68,6 @@ const marketAumValues: Record<MarketKey, number> = {
   commodities: 300, // $300M for commodities
   cryptos: 80      // $80M for cryptos
 };
-
-// Define sectors
-const sectors = [
-  { id: 'generalist', label: 'Generalist', examples: 'All sectors' },
-  { id: 'tech', label: 'Technology' },
-  { id: 'healthcare', label: 'Healthcare' },
-  { id: 'financials', label: 'Financials' },
-  { id: 'consumer', label: 'Consumer' },
-  { id: 'industrials', label: 'Industrials' },
-  { id: 'energy', label: 'Energy' },
-  { id: 'materials', label: 'Materials' },
-  { id: 'utilities', label: 'Utilities' },
-  { id: 'realestate', label: 'Real Estate' }
-];
-
-// Define the actual sector IDs (excluding generalist)
-const actualSectorIds = sectors
-  .filter(sector => sector.id !== 'generalist')
-  .map(sector => sector.id);
 
 // AUM allocation modifiers by category
 const aumModifiers = {
@@ -119,545 +95,766 @@ const aumModifiers = {
   }
 };
 
+// Define sectors
+const sectors = [
+  { id: 'generalist', label: 'Generalist', examples: 'All sectors' },
+  { id: 'tech', label: 'Technology' },
+  { id: 'healthcare', label: 'Healthcare' },
+  { id: 'financials', label: 'Financials' },
+  { id: 'consumer', label: 'Consumer' },
+  { id: 'industrials', label: 'Industrials' },
+  { id: 'energy', label: 'Energy' },
+  { id: 'materials', label: 'Materials' },
+  { id: 'utilities', label: 'Utilities' },
+  { id: 'realestate', label: 'Real Estate' }
+];
+
+// Define the actual sector IDs (excluding generalist)
+const actualSectorIds = sectors
+  .filter(sector => sector.id !== 'generalist')
+  .map(sector => sector.id);
+
+const StyledSlider = styled(Slider)(({ theme }) => ({
+  // Target the first mark label (50M)
+  '& .MuiSlider-markLabel[data-index="0"]': {
+    transform: 'translateX(0%)',
+    left: '0%',
+  },
+  // Target the second mark label (100M)
+  '& .MuiSlider-markLabel[data-index="1"]': {
+    transform: 'translateX(0%)',
+    left: '50%',
+  },
+  // Target the third mark label (500M)
+  '& .MuiSlider-markLabel[data-index="2"]': {
+    transform: 'translateX(-50%)',
+    left: '100%',
+  },
+  // Target the fourth mark label (1000M)
+  '& .MuiSlider-markLabel[data-index="3"]': {
+    transform: 'translateX(-100%)',
+    left: '100%',
+  },
+}));
+
 const BookSetupPage: React.FC = () => {
   const navigate = useNavigate();
+  const { addToast } = useToast();
+  const bookManager = useBookManager();
+  const { isConnected } = useConnection();
   
-  // Add this function to handle navigation
-  const handleBackToHome = () => {
-    navigate('/home');
-  };
-
-  const [portfolioName, setPortfolioName] = useState<string>('My Portfolio');
-
-  // Get the book manager from context
-  const bookManagerContext = useContext(BookManagerContext);
-  if (!bookManagerContext) {
-    throw new Error('BookManager context is undefined');
-  }
-  const { createBook, fetchBooks, fetchBook } = bookManagerContext;
-
-  // Define the categories and their options
-  const categories: CategoryConfig[] = [
-    {
-      id: 'region',
-      title: 'Regions',
-      description: 'Geographic focus of the investment strategy',
-      options: [
-        { id: 'us', label: 'US Region' },
-        { id: 'eu', label: 'EU Region', examples: 'Coming soon' },
-        { id: 'asia', label: 'Asia Region', examples: 'Coming soon' },
-        { id: 'emerging', label: 'Emerging', examples: 'Coming soon' }
-      ],
-      multiSelect: false,
-      defaultValue: 'us',
-      disabled: true
-    },
-    {
-      id: 'markets',
-      title: 'Markets',
-      description: 'The markets accessed by the investment strategy',
-      options: [
-        { id: 'equities', label: 'Equities' },
-        { id: 'bonds', label: 'Bonds', examples: 'Coming soon' },
-        { id: 'currencies', label: 'Currencies', examples: 'Coming soon' },
-        { id: 'commodities', label: 'Commodities', examples: 'Coming soon' },
-        { id: 'cryptos', label: 'Cryptos', examples: 'Coming soon' }
-      ],
-      multiSelect: false,
-      defaultValue: 'equities',
-      disabled: true
-    },
-    {
-      id: 'instruments',
-      title: 'Instruments',
-      description: 'Financial instruments used in the portfolio',
-      options: [
-        { id: 'stocks', label: 'Stocks' },
-        { id: 'etfs', label: 'ETFs', examples: 'Coming soon' },
-        { id: 'funds', label: 'Funds', examples: 'Coming soon' },
-        { id: 'options', label: 'Options', examples: 'Coming soon' },
-        { id: 'futures', label: 'Futures', examples: 'Coming soon' },
-        { id: 'bonds', label: 'Bonds', examples: 'Coming soon' },
-        { id: 'cryptos', label: 'Cryptos', examples: 'Coming soon' }
-      ],
-      multiSelect: false,
-      defaultValue: 'stocks',
-      disabled: true
-    },
-    {
-      id: 'investmentApproach',
-      title: 'Investment Approach',
-      description: 'The fundamental methodology used to make investment decisions',
-      options: [
-        { id: 'quantitative', label: 'Quantitative', examples: '' },
-        { id: 'discretionary', label: 'Discretionary', examples: '' },
-      ],
-      multiSelect: true
-    },
-    {
-      id: 'investmentTimeframe',
-      title: 'Investment Timeframe',
-      description: 'The typical holding period for positions in the portfolio',
-      options: [
-        { id: 'short', label: 'Short-term', examples: 'hours to days' },
-        { id: 'medium', label: 'Medium-term', examples: 'days to weeks' },
-        { id: 'long', label: 'Long-term', examples: 'weeks to months' }
-      ],
-      multiSelect: true
-    },
-    {
-      id: 'sectorFocus',
-      title: 'Sector Focus',
-      description: 'Sectors the portfolio specializes in',
-      options: sectors,
-      multiSelect: true
-    },
-    {
-      id: 'positionTypes',
-      title: 'Position Types',
-      description: 'The directional exposure strategy employed in the portfolio',
-      options: [
-        { id: 'long', label: 'Long', examples: '' },
-        { id: 'short', label: 'Short', examples: '' }
-      ],
-      multiSelect: true
-    }
-  ];
-
-  // Function to convert selections to the required format for CreateBookRequest
-  const convertSelectionsToParameters = (): Array<[string, string, string]> => {
-    const parameters: Array<[string, string, string]> = [];
-    
-    // Add region
-    if (selections.region.length > 0) {
-      parameters.push(["Region", "", selections.region[0]]);
-    }
-    
-    // Add markets
-    if (selections.markets.length > 0) {
-      parameters.push(["Market", "", selections.markets[0]]);
-    }
-    
-    // Add instruments
-    if (selections.instruments.length > 0) {
-      parameters.push(["Instrument", "", selections.instruments[0]]);
-    }
-    
-    // Add investment approach (can have multiple)
-    selections.investmentApproach.forEach(approach => {
-      parameters.push(["Investment Approach", "", approach]);
-    });
-    
-    // Add investment timeframe (can have multiple)
-    selections.investmentTimeframe.forEach(timeframe => {
-      parameters.push(["Investment Timeframe", "", timeframe]);
-    });
-    
-    // Add sector focus (can have multiple)
-    selections.sectorFocus.forEach(sector => {
-      parameters.push(["Sector", "", sector]);
-    });
-    
-    // Add position types (long/short)
-    const hasLong = selections.positionTypes.includes('long');
-    const hasShort = selections.positionTypes.includes('short');
-    parameters.push(["Position", "Long", hasLong.toString()]);
-    parameters.push(["Position", "Short", hasShort.toString()]);
-    
-    // Add AUM allocation
-    parameters.push(["Allocation", "", aumAllocation.toString()]);
-    
-    return parameters;
-  };
-
-  // State for selected options in each category
-  const [selections, setSelections] = useState<Record<string, string[]>>(() => {
-    // Initialize with default values where applicable
-    const initialSelections: Record<string, string[]> = {};
-    categories.forEach(category => {
-      if (category.defaultValue) {
-        initialSelections[category.id] = Array.isArray(category.defaultValue) 
-          ? category.defaultValue 
-          : [category.defaultValue];
-      } else {
-        initialSelections[category.id] = [];
-      }
-    });
-    return initialSelections;
-  });
-
-  // Flag to prevent infinite loops
+  const [activeStep, setActiveStep] = useState(0);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // State for AUM allocation
+  // Custom state for handling AUM allocation
   const [aumAllocation, setAumAllocation] = useState<number>(100); // Default value in millions
   const [baseAumAllocation, setBaseAumAllocation] = useState<number>(100); // User-selected base value
-
+  
+  // Default values
+  const [formData, setFormData] = useState<BookSetupData>({
+    name: 'My Trading Book',
+    region: 'us',
+    market: 'equities',
+    instrument: 'stocks',
+    investmentApproach: [],
+    investmentTimeframe: [],
+    sectorFocus: [],
+    positionTypes: [],
+    initialCapital: 100000000 // 100M in dollars
+  });
+  
+  const steps = ['Basic Information', 'Investment Strategy', 'Investment Focus', 'Position & Capital'];
+  
   // Calculate recommended AUM based on selections
   useEffect(() => {
     let multiplier = 1.0;
     
     // Apply region modifier
-    if (selections.region.includes('us')) multiplier *= aumModifiers.region.us;
-    else if (selections.region.includes('eu')) multiplier *= aumModifiers.region.eu;
-    else if (selections.region.includes('asia')) multiplier *= aumModifiers.region.asia;
-    else if (selections.region.includes('emerging')) multiplier *= aumModifiers.region.emerging;
+    if (formData.region === 'us') multiplier *= aumModifiers.region.us;
+    else if (formData.region === 'eu') multiplier *= aumModifiers.region.eu;
+    else if (formData.region === 'asia') multiplier *= aumModifiers.region.asia;
+    else if (formData.region === 'emerging') multiplier *= aumModifiers.region.emerging;
     
     // Apply markets modifier
-    if (selections.markets.includes('equities')) multiplier *= aumModifiers.markets.equities;
-    else if (selections.markets.includes('bonds')) multiplier *= aumModifiers.markets.bonds;
-    else if (selections.markets.includes('currencies')) multiplier *= aumModifiers.markets.currencies;
-    else if (selections.markets.includes('commodities')) multiplier *= aumModifiers.markets.commodities;
-    else if (selections.markets.includes('crypto')) multiplier *= aumModifiers.markets.crypto;
+    if (formData.market === 'equities') multiplier *= aumModifiers.markets.equities;
+    else if (formData.market === 'bonds') multiplier *= aumModifiers.markets.bonds;
+    else if (formData.market === 'currencies') multiplier *= aumModifiers.markets.currencies;
+    else if (formData.market === 'commodities') multiplier *= aumModifiers.markets.commodities;
+    else if (formData.market === 'cryptos') multiplier *= aumModifiers.markets.crypto;
     
     // Apply investment approach modifier
-    if (selections.investmentApproach.includes('quantitative')) {
+    if (formData.investmentApproach.includes('quantitative')) {
       multiplier *= aumModifiers.investmentApproach.quantitative;
-    } else if (selections.investmentApproach.includes('discretionary')) {
+    } else if (formData.investmentApproach.includes('discretionary')) {
       multiplier *= aumModifiers.investmentApproach.discretionary;
     }
     
     // Apply timeframe modifier (use the longest timeframe selected)
-    if (selections.investmentTimeframe.includes('long')) {
+    if (formData.investmentTimeframe.includes('long')) {
       multiplier *= aumModifiers.investmentTimeframe.long;
-    } else if (selections.investmentTimeframe.includes('medium')) {
+    } else if (formData.investmentTimeframe.includes('medium')) {
       multiplier *= aumModifiers.investmentTimeframe.medium;
-    } else if (selections.investmentTimeframe.includes('short')) {
+    } else if (formData.investmentTimeframe.includes('short')) {
       multiplier *= aumModifiers.investmentTimeframe.short;
     }
       
     // If no market is selected, use a default value
-    if (selections.markets.length === 0) {
-      setAumAllocation(100); // Default $100M
+    if (!formData.market) {
+      setAumAllocation(baseAumAllocation); // Use the base value
       return;
     }
-    
-    // Get the selected market
-    const selectedMarket = selections.markets[0];
     
     // Set AUM based on the selected market with type checking
-    const marketValue = marketAumValues[selectedMarket as MarketKey] || 100;
-    setAumAllocation(marketValue);
+    const marketValue = marketAumValues[formData.market as MarketKey] || 100;
+    const calculatedValue = Math.round(marketValue * multiplier);
     
-  }, [selections, baseAumAllocation]);
-
-  // Effect to handle generalist sector logic
-  useEffect(() => {
-    if (isProcessing) return;
-    
-    // Get current selections
-    const sectorSelections = [...selections.sectorFocus];
-    const hasGeneralist = sectorSelections.includes('generalist');
-    
-    // Skip if no selections yet
-    if (sectorSelections.length === 0) return;
-    
-    setIsProcessing(true);
-    
-    // Case 1: Generalist is selected, ensure all sectors are selected
-    if (hasGeneralist) {
-      // Get all sectors that should be selected
-      const allSectors = ['generalist', ...actualSectorIds];
-      
-      // Check if all sectors are already selected
-      if (!actualSectorIds.every(sector => sectorSelections.includes(sector))) {
-        logger.debug('Generalist selected - selecting all sectors');
-        setSelections(prev => ({
-          ...prev,
-          sectorFocus: allSectors
-        }));
-      }
-    } 
-    // Case 2: Not all sectors are selected, ensure generalist is not selected
-    else if (sectorSelections.some(id => id !== 'generalist')) {
-      // Check if all actual sectors are selected
-      const allSectorsSelected = actualSectorIds.every(sector => 
-        sectorSelections.includes(sector)
-      );
-      
-      if (allSectorsSelected && !hasGeneralist) {
-        // If all sectors are selected but generalist isn't, add generalist
-        logger.debug('All sectors selected - adding generalist');
-        setSelections(prev => ({
-          ...prev,
-          sectorFocus: [...prev.sectorFocus, 'generalist']
-        }));
-      }
-    }
-    
-    setIsProcessing(false);
-  }, [selections.sectorFocus, isProcessing]);
-
-  // Custom handler for sector focus selection changes
-  const handleSectorSelectionChange = (newValue: string[]) => {
-    if (isProcessing) return;
-    
-    const currentSelections = selections.sectorFocus;
-    const hasGeneralist = currentSelections.includes('generalist');
-    const willHaveGeneralist = newValue.includes('generalist');
-    
-    // If generalist is being toggled
-    if (hasGeneralist !== willHaveGeneralist) {
-      if (willHaveGeneralist) {
-        // Add all sectors when generalist is selected
-        logger.debug('Generalist toggled on - adding all sectors');
-        setSelections(prev => ({
-          ...prev,
-          sectorFocus: ['generalist', ...actualSectorIds]
-        }));
-      } else {
-        // Remove generalist but keep other sectors
-        logger.debug('Generalist toggled off - keeping selected sectors');
-        setSelections(prev => ({
-          ...prev,
-          sectorFocus: prev.sectorFocus.filter(id => id !== 'generalist')
-        }));
-      }
-      return;
-    }
-    
-    // Check if any actual sector is being removed
-    const currentActualSectors = currentSelections.filter(id => id !== 'generalist');
-    const newActualSectors = newValue.filter(id => id !== 'generalist');
-    
-    if (currentActualSectors.length > newActualSectors.length && hasGeneralist) {
-      // A sector was deselected while generalist was selected, remove generalist too
-      logger.debug('Sector removed while generalist selected - removing generalist');
-      setSelections(prev => ({
-        ...prev,
-        sectorFocus: newValue.filter(id => id !== 'generalist')
-      }));
-      return;
-    }
-    
-    // Normal case - update selection as requested
-    logger.debug('Normal sector selection update', { newValue });
-    setSelections(prev => ({
+    // Update the AUM allocation and the form data
+    setAumAllocation(calculatedValue);
+    setFormData(prev => ({
       ...prev,
-      sectorFocus: newValue
+      initialCapital: calculatedValue * 1000000 // Convert to dollars (from millions)
     }));
+    
+  }, [formData.region, formData.market, formData.investmentApproach, formData.investmentTimeframe, baseAumAllocation]);
+  
+  // REMOVED the problematic useEffect for sector handling
+  
+  const handleBack = () => {
+    setActiveStep((prevStep) => prevStep - 1);
   };
-
-  // Handle selection changes with proper typing for other categories
-  const handleSelectionChange = (categoryId: string, newValue: string[]) => {
+  
+  const handleNext = () => {
+    // Validate current step
+    const isValid = validateCurrentStep();
+    if (isValid) {
+      setActiveStep((prevStep) => prevStep + 1);
+    }
+  };
+  
+  const validateCurrentStep = () => {
+    const newErrors: Record<string, string> = {};
+    
+    switch (activeStep) {
+      case 0: // Basic Information
+        if (!formData.name.trim()) {
+          newErrors.name = 'Book name is required';
+        }
+        break;
+        
+      case 1: // Investment Strategy
+        if (formData.investmentApproach.length === 0) {
+          newErrors.investmentApproach = 'Please select at least one investment approach';
+        }
+        if (formData.investmentTimeframe.length === 0) {
+          newErrors.investmentTimeframe = 'Please select at least one investment timeframe';
+        }
+        break;
+        
+      case 2: // Sector Focus
+        if (formData.sectorFocus.length === 0) {
+          newErrors.sectorFocus = 'Please select at least one sector';
+        }
+        break;
+        
+      case 3: // Position & Capital
+        if (formData.positionTypes.length === 0) {
+          newErrors.positionTypes = 'Please select at least one position type';
+        }
+        if (!formData.initialCapital || formData.initialCapital <= 0) {
+          newErrors.initialCapital = 'Please enter a valid initial capital amount';
+        }
+        break;
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+  
+  const handleGoBack = () => {
+    navigate('/home');
+  };
+  
+  // Handle text input changes
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    if (name) {
+      setFormData(prev => ({
+        ...prev,
+        [name]: value
+      }));
+      
+      // Clear error when field is updated
+      if (errors[name]) {
+        setErrors(prev => {
+          const newErrors = { ...prev };
+          delete newErrors[name];
+          return newErrors;
+        });
+      }
+    }
+  };
+  
+  // Handle toggle button selection changes
+  const handleToggleChange = (categoryId: string, newValue: string | string[]) => {
     if (categoryId === 'sectorFocus') {
-      handleSectorSelectionChange(newValue);
+      handleSectorSelectionChange(newValue as string[]);
     } else {
-      logger.debug(`Selection changed for ${categoryId}`, { previous: selections[categoryId], new: newValue });
-      setSelections(prev => ({
+      logger.debug(`Selection changed for ${categoryId}`, { previous: formData[categoryId as keyof BookSetupData], new: newValue });
+      setFormData(prev => ({
         ...prev,
         [categoryId]: newValue
       }));
-    }
-  };
-
-  // Handle form submission
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    // Convert selections to parameters format
-    const parameters = convertSelectionsToParameters();
-    
-    // Create book request
-    const createBookRequest = {
-      name: portfolioName,
-      parameters: parameters
-    };
-    
-    // Log form submission
-    logger.info('Portfolio preferences form submitted', { 
-      createBookRequest
-    });
-    
-    // Check if all categories have at least one selection (except disabled ones)
-    const requiredCategories = categories
-      .filter(category => !category.disabled)
-      .map(category => category.id);
-    
-    const isFormValid = requiredCategories.every(category => selections[category].length > 0);
-    
-    if (isFormValid) {
-      try {
-        // Show loading state
-        setIsProcessing(true);
-        
-        // Create the book using the createBook function from context
-        const result = await createBook(createBookRequest);
-        
-        if (result.success && result.bookId) {
-          logger.info('Book created successfully', { bookId: result.bookId });
-          
-          // Show success message
-          const toast = document.createElement('div');
-          toast.textContent = 'Portfolio created successfully!';
-          document.body.appendChild(toast);
-          setTimeout(() => document.body.removeChild(toast), 3000);
-          
-          // Navigate to home page
-          navigate('/home');
-        } else {
-          // Show error
-          logger.error('Failed to create book', { error: result.error });
-          alert('Failed to create portfolio: ' + (result.error || 'Unknown error'));
-        }
-      } catch (error) {
-        logger.error('Exception during book creation', { error });
-        alert('Error creating portfolio: ' + (error instanceof Error ? error.message : 'Unknown error'));
-      } finally {
-        setIsProcessing(false);
+      
+      // Clear error when field is updated
+      if (errors[categoryId]) {
+        setErrors(prev => {
+          const newErrors = { ...prev };
+          delete newErrors[categoryId];
+          return newErrors;
+        });
       }
-    } else {
-      logger.warn('Form validation failed - not all categories selected');
-      alert('Please make selections in all required categories');
     }
   };
 
-  return (
-    <Box sx={{ p: 4, maxWidth: 1200, mx: 'auto' }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-        <Button 
-          startIcon={<ArrowBackIcon />} 
-          onClick={handleBackToHome}
-          variant="outlined"
-          sx={{ mr: 2 }}
-        >
-          Back to Home
-        </Button>
-        <Typography variant="h4" component="h1">
-          Portfolio Preferences
+  // REFACTORED: Handle selection changes for the sector focus category
+  const handleSectorSelectionChange = (newValue: string[]) => {
+    if (isProcessing) return;
+    
+    setIsProcessing(true);
+    
+    try {
+      // Force specific behaviors based on what changed
+      const hasGeneralistBefore = formData.sectorFocus.includes('generalist');
+      const hasGeneralistAfter = newValue.includes('generalist');
+      
+      // Case 1: Generalist was toggled directly
+      if (hasGeneralistBefore !== hasGeneralistAfter) {
+        if (hasGeneralistAfter) {
+          // Generalist turned ON - select all sectors
+          setFormData(prev => ({
+            ...prev,
+            sectorFocus: ['generalist', ...actualSectorIds]
+          }));
+        } else {
+          // Generalist turned OFF - remove generalist but keep other sectors
+          setFormData(prev => ({
+            ...prev,
+            sectorFocus: prev.sectorFocus.filter(id => id !== 'generalist')
+          }));
+        }
+        return;
+      }
+      
+      // Case 2: An individual sector was toggled while generalist is selected
+      if (hasGeneralistBefore && 
+          hasGeneralistAfter && 
+          newValue.length < formData.sectorFocus.length) {
+        // A sector was deselected while generalist was on - remove generalist too
+        const sectorBeingRemoved = formData.sectorFocus.find(id => !newValue.includes(id) && id !== 'generalist');
+        if (sectorBeingRemoved) {
+          setFormData(prev => ({
+            ...prev,
+            sectorFocus: prev.sectorFocus.filter(id => id !== 'generalist' && id !== sectorBeingRemoved)
+          }));
+        }
+        return;
+      }
+      
+      // Case 3: Normal selection update (adding sectors)
+      const allSectorsSelected = actualSectorIds.every(sector => 
+        newValue.includes(sector)
+      );
+      
+      if (allSectorsSelected && !hasGeneralistAfter) {
+        // All sectors are selected - add generalist too
+        setFormData(prev => ({
+          ...prev,
+          sectorFocus: [...newValue, 'generalist']
+        }));
+      } else {
+        // Normal update
+        setFormData(prev => ({
+          ...prev,
+          sectorFocus: newValue
+        }));
+      }
+      
+      // Clear error when field is updated
+      if (errors.sectorFocus) {
+        setErrors(prev => {
+          const newErrors = { ...prev };
+          delete newErrors.sectorFocus;
+          return newErrors;
+        });
+      }
+    } finally {
+      // Use setTimeout to break the update cycle
+      setTimeout(() => setIsProcessing(false), 0);
+    }
+  };
+  
+  const handleSubmit = async () => {
+    // Final validation
+    if (!validateCurrentStep()) {
+      return;
+    }
+    
+    setIsSubmitting(true);
+    
+    try {
+      // Convert form data to API format
+      const parameters: Array<[string, string, string]> = [
+        ["Region", "", formData.region],
+        ["Market", "", formData.market],
+        ["Instrument", "", formData.instrument]
+      ];
+      
+      // Add investment approach
+      formData.investmentApproach.forEach(approach => {
+        parameters.push(["Investment Approach", "", approach]);
+      });
+      
+      // Add investment timeframe
+      formData.investmentTimeframe.forEach(timeframe => {
+        parameters.push(["Investment Timeframe", "", timeframe]);
+      });
+      
+      // Add sector focus
+      formData.sectorFocus.forEach(sector => {
+        parameters.push(["Sector", "", sector]);
+      });
+      
+      // Add position types
+      const hasLong = formData.positionTypes.includes('long');
+      const hasShort = formData.positionTypes.includes('short');
+      parameters.push(["Position", "Long", hasLong.toString()]);
+      parameters.push(["Position", "Short", hasShort.toString()]);
+      
+      // Add allocation (convert to millions for display)
+      parameters.push(["Allocation", "", (formData.initialCapital / 1000000).toString()]);
+      
+      const result = await bookManager.createBook({
+        name: formData.name,
+        parameters
+      });
+      
+      if (result.success) {
+        addToast('success', 'Trading book created successfully!');
+        navigate('/home');
+      } else {
+        addToast('error', result.error || 'Failed to create trading book');
+      }
+    } catch (error: any) {
+      addToast('error', `Error creating trading book: ${error.message}`);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+  
+  // Render step content
+  const renderStepContent = () => {
+    switch (activeStep) {
+      case 0:
+        return renderBasicInformation();
+      case 1:
+        return renderInvestmentStrategy();
+      case 2:
+        return renderSectorFocus();
+      case 3:
+        return renderPositionAndCapital();
+      default:
+        return null;
+    }
+  };
+  
+  const renderBasicInformation = () => (
+    <Grid container spacing={3}>
+      <Grid {...{component: "div", item: true, xs: 12, sx: { width: "100%" }} as any}>
+        <TextField
+          fullWidth
+          label="Book Name"
+          name="name"
+          value={formData.name}
+          onChange={handleInputChange}
+          error={!!errors.name}
+          helperText={errors.name}
+          required
+        />
+      </Grid>
+      
+      <Grid {...{component: "div", item: true, xs: 12, sx: { width: "100%" }} as any}>
+        <Typography variant="h6" gutterBottom>
+          Region
         </Typography>
-      </Box>
-      
-      <Typography variant="body1" paragraph>
-        Configure your preferences by selecting options in each category below.
-      </Typography>
-      
-      <form onSubmit={handleSubmit}>
-        {/* Portfolio Name Field */}
-        <Paper sx={{ p: 3, mb: 4 }}>
-          <TextField
-            fullWidth
-            label="Portfolio Name"
-            variant="outlined"
-            value={portfolioName}
-            onChange={(e) => setPortfolioName(e.target.value)}
-          />
-        </Paper>
-
-        {categories.map((category) => (
-          <Paper key={category.id} sx={{ p: 3, mb: 4 }}>
-            <Typography variant="h6" gutterBottom>
-              {category.title}
-            </Typography>
-            <Typography variant="body2" color="text.secondary" paragraph>
-              {category.description}
-            </Typography>
-            
-            {category.id === 'sectorFocus' ? (
-              <Box sx={{ 
-                display: 'grid', 
-                gridTemplateColumns: 'repeat(3, 1fr)',
-                gap: 1
-              }}>
-                {/* Generalist button - full width */}
-                <Box sx={{ gridColumn: '1 / span 3', mb: 1 }}>
-                  <ToggleButton
-                    value="generalist"
-                    selected={selections.sectorFocus.includes('generalist')}
-                    onChange={() => {
-                      const newValue = selections.sectorFocus.includes('generalist')
-                        ? selections.sectorFocus.filter(id => id !== 'generalist')
-                        : ['generalist', ...actualSectorIds];
-                      handleSectorSelectionChange(newValue);
-                    }}
-                    color="primary"
-                    fullWidth
-                    sx={{
-                      height: '56px'
-                    }}
-                  >
-                    <Box sx={{ textAlign: 'center' }}>
-                      <Typography variant="body2">Generalist</Typography>
-                      <Typography variant="caption" color="text.secondary" display="block">
-                        All sectors
-                      </Typography>
-                    </Box>
-                  </ToggleButton>
-                </Box>
-                
-                {/* Individual sector buttons - 3 columns */}
-                {sectors.filter(s => s.id !== 'generalist').map((option) => (
-                  <ToggleButton 
-                    key={option.id} 
-                    value={option.id}
-                    selected={selections.sectorFocus.includes(option.id)}
-                    onChange={() => {
-                      const currentSelections = [...selections.sectorFocus];
-                      const newSelections = currentSelections.includes(option.id)
-                        ? currentSelections.filter(id => id !== option.id)
-                        : [...currentSelections, option.id];
-                      handleSectorSelectionChange(newSelections);
-                    }}
-                    color="primary"
-                    sx={{ height: '48px' }}
-                  >
-                    <Typography variant="body2">{option.label}</Typography>
-                  </ToggleButton>
-                ))}
-              </Box>
-            ) : (
-              <ToggleButtonGroup
-                value={selections[category.id]}
-                onChange={(_, value) => {
-                  // Ensure single select categories always have a value
-                  if (!category.multiSelect && (!value || value.length === 0)) {
-                    return;
-                  }
-                  handleSelectionChange(category.id, value as string[]);
-                }}
-                aria-label={category.title}
-                color="primary"
-                size="medium"
-                fullWidth
-                sx={{ mb: 1 }}
-                {...(category.multiSelect ? { multiple: true } : {})}
-                disabled={category.disabled}
-              >
-                {category.options.map((option) => (
-                  <ToggleButton 
-                    key={option.id} 
-                    value={option.id}
-                    aria-label={option.label}
-                    disabled={category.disabled && option.id !== selections[category.id][0]}
-                  >
-                    <Box sx={{ textAlign: 'center' }}>
-                      <Typography variant="body2">{option.label}</Typography>
-                      {option.examples && (
-                        <Typography variant="caption" color="text.secondary" display="block">
-                          {option.examples}
-                        </Typography>
-                      )}
-                    </Box>
-                  </ToggleButton>
-                ))}
-              </ToggleButtonGroup>
-            )}
-          </Paper>
-        ))}
+        <Typography variant="body2" color="text.secondary" paragraph>
+          Geographic focus of the investment strategy
+        </Typography>
         
-        <Paper sx={{ p: 3, mb: 4 }}>
-          <Typography variant="h6" gutterBottom>
-            Allocation
-          </Typography>
-          <Typography variant="body2" color="text.secondary" paragraph>
-            Specify the managed allocation (in millions USD).
-          </Typography>
+        <ToggleButtonGroup
+          value={formData.region}
+          exclusive
+          onChange={(_, value) => value && handleToggleChange('region', value)}
+          aria-label="Region"
+          color="primary"
+          fullWidth
+        >
+          <ToggleButton value="us">
+            <Box sx={{ textAlign: 'center' }}>
+              <Typography variant="body2">US Region</Typography>
+            </Box>
+          </ToggleButton>
+          <ToggleButton value="eu" disabled>
+            <Box sx={{ textAlign: 'center' }}>
+              <Typography variant="body2">EU Region</Typography>
+              <Typography variant="caption" color="text.secondary" display="block">
+                Coming soon
+              </Typography>
+            </Box>
+          </ToggleButton>
+          <ToggleButton value="asia" disabled>
+            <Box sx={{ textAlign: 'center' }}>
+              <Typography variant="body2">Asia Region</Typography>
+              <Typography variant="caption" color="text.secondary" display="block">
+                Coming soon
+              </Typography>
+            </Box>
+          </ToggleButton>
+          <ToggleButton value="emerging" disabled>
+            <Box sx={{ textAlign: 'center' }}>
+              <Typography variant="body2">Emerging</Typography>
+              <Typography variant="caption" color="text.secondary" display="block">
+                Coming soon
+              </Typography>
+            </Box>
+          </ToggleButton>
+        </ToggleButtonGroup>
+      </Grid>
+      
+      <Grid {...{component: "div", item: true, xs: 12, sx: { width: "100%" }} as any}>
+        <Typography variant="h6" gutterBottom>
+          Markets
+        </Typography>
+        <Typography variant="body2" color="text.secondary" paragraph>
+          The markets accessed by the investment strategy
+        </Typography>
+        
+        <ToggleButtonGroup
+          value={formData.market}
+          exclusive
+          onChange={(_, value) => value && handleToggleChange('market', value)}
+          aria-label="Markets"
+          color="primary"
+          fullWidth
+        >
+          <ToggleButton value="equities">
+            <Box sx={{ textAlign: 'center' }}>
+              <Typography variant="body2">Equities</Typography>
+            </Box>
+          </ToggleButton>
+          <ToggleButton value="bonds" disabled>
+            <Box sx={{ textAlign: 'center' }}>
+              <Typography variant="body2">Bonds</Typography>
+              <Typography variant="caption" color="text.secondary" display="block">
+                Coming soon
+              </Typography>
+            </Box>
+          </ToggleButton>
+          <ToggleButton value="currencies" disabled>
+            <Box sx={{ textAlign: 'center' }}>
+              <Typography variant="body2">Currencies</Typography>
+              <Typography variant="caption" color="text.secondary" display="block">
+                Coming soon
+              </Typography>
+            </Box>
+          </ToggleButton>
+          <ToggleButton value="commodities" disabled>
+            <Box sx={{ textAlign: 'center' }}>
+              <Typography variant="body2">Commodities</Typography>
+              <Typography variant="caption" color="text.secondary" display="block">
+                Coming soon
+              </Typography>
+            </Box>
+          </ToggleButton>
+          <ToggleButton value="cryptos" disabled>
+            <Box sx={{ textAlign: 'center' }}>
+              <Typography variant="body2">Cryptos</Typography>
+              <Typography variant="caption" color="text.secondary" display="block">
+                Coming soon
+              </Typography>
+            </Box>
+          </ToggleButton>
+        </ToggleButtonGroup>
+      </Grid>
+      
+      <Grid {...{component: "div", item: true, xs: 12, sx: { width: "100%" }} as any}>
+        <Typography variant="h6" gutterBottom>
+          Instruments
+        </Typography>
+        <Typography variant="body2" color="text.secondary" paragraph>
+          Financial instruments used in the portfolio
+        </Typography>
+        
+        <ToggleButtonGroup
+          value={formData.instrument}
+          exclusive
+          onChange={(_, value) => value && handleToggleChange('instrument', value)}
+          aria-label="Instruments"
+          color="primary"
+          fullWidth
+        >
+          <ToggleButton value="stocks">
+            <Box sx={{ textAlign: 'center' }}>
+              <Typography variant="body2">Stocks</Typography>
+            </Box>
+          </ToggleButton>
+          <ToggleButton value="etfs" disabled>
+            <Box sx={{ textAlign: 'center' }}>
+              <Typography variant="body2">ETFs</Typography>
+              <Typography variant="caption" color="text.secondary" display="block">
+                Coming soon
+              </Typography>
+            </Box>
+          </ToggleButton>
+          <ToggleButton value="funds" disabled>
+            <Box sx={{ textAlign: 'center' }}>
+              <Typography variant="body2">Funds</Typography>
+              <Typography variant="caption" color="text.secondary" display="block">
+                Coming soon
+              </Typography>
+            </Box>
+          </ToggleButton>
+          <ToggleButton value="options" disabled>
+            <Box sx={{ textAlign: 'center' }}>
+              <Typography variant="body2">Options</Typography>
+              <Typography variant="caption" color="text.secondary" display="block">
+                Coming soon
+              </Typography>
+            </Box>
+          </ToggleButton>
+          <ToggleButton value="futures" disabled>
+            <Box sx={{ textAlign: 'center' }}>
+              <Typography variant="body2">Futures</Typography>
+              <Typography variant="caption" color="text.secondary" display="block">
+                Coming soon
+              </Typography>
+            </Box>
+          </ToggleButton>
+        </ToggleButtonGroup>
+      </Grid>
+    </Grid>
+  );
+  
+  const renderInvestmentStrategy = () => (
+    <Grid container spacing={3}>
+      <Grid {...{component: "div", item: true, xs: 12, sx: { width: "100%" }} as any}>
+        <Typography variant="h6" gutterBottom>
+          Investment Approach
+        </Typography>
+        <Typography variant="body2" color="text.secondary" paragraph>
+          The fundamental methodology used to make investment decisions
+        </Typography>
+        
+        <ToggleButtonGroup
+          value={formData.investmentApproach}
+          onChange={(_, value) => handleToggleChange('investmentApproach', value)}
+          aria-label="Investment Approach"
+          color="primary"
+          fullWidth
+        >
+          <ToggleButton value="quantitative">
+            <Box sx={{ textAlign: 'center' }}>
+              <Typography variant="body2">Quantitative</Typography>
+            </Box>
+          </ToggleButton>
+          <ToggleButton value="discretionary">
+            <Box sx={{ textAlign: 'center' }}>
+              <Typography variant="body2">Discretionary</Typography>
+            </Box>
+          </ToggleButton>
+        </ToggleButtonGroup>
+        {errors.investmentApproach && (
+          <Typography color="error" variant="caption">{errors.investmentApproach}</Typography>
+        )}
+      </Grid>
+      
+      <Grid {...{component: "div", item: true, xs: 12, sx: { width: "100%" }} as any}>
+        <Typography variant="h6" gutterBottom>
+          Investment Timeframe
+        </Typography>
+        <Typography variant="body2" color="text.secondary" paragraph>
+          The typical holding period for positions in the portfolio
+        </Typography>
+        
+        <ToggleButtonGroup
+          value={formData.investmentTimeframe}
+          onChange={(_, value) => handleToggleChange('investmentTimeframe', value)}
+          aria-label="Investment Timeframe"
+          color="primary"
+          fullWidth
+        >
+          <ToggleButton value="short">
+            <Box sx={{ textAlign: 'center' }}>
+              <Typography variant="body2">Short-term</Typography>
+              <Typography variant="caption" color="text.secondary" display="block">
+                hours to days
+              </Typography>
+            </Box>
+          </ToggleButton>
+          <ToggleButton value="medium">
+            <Box sx={{ textAlign: 'center' }}>
+              <Typography variant="body2">Medium-term</Typography>
+              <Typography variant="caption" color="text.secondary" display="block">
+                days to weeks
+              </Typography>
+            </Box>
+          </ToggleButton>
+          <ToggleButton value="long">
+            <Box sx={{ textAlign: 'center' }}>
+              <Typography variant="body2">Long-term</Typography>
+              <Typography variant="caption" color="text.secondary" display="block">
+                weeks to months
+              </Typography>
+            </Box>
+          </ToggleButton>
+        </ToggleButtonGroup>
+        {errors.investmentTimeframe && (
+          <Typography color="error" variant="caption">{errors.investmentTimeframe}</Typography>
+        )}
+      </Grid>
+    </Grid>
+  );
+  
+  const renderSectorFocus = () => (
+    <Grid container spacing={3}>
+      <Grid {...{component: "div", item: true, xs: 12, sx: { width: "100%" }} as any}>
+        <Typography variant="h6" gutterBottom>
+          Investment Focus
+        </Typography>
+        <Typography variant="body2" color="text.secondary" paragraph>
+          Sectors the portfolio specializes in
+        </Typography>
+        
+        <Box sx={{ 
+          display: 'grid', 
+          gridTemplateColumns: 'repeat(3, 1fr)',
+          gap: 1
+        }}>
+          {/* Generalist button - full width */}
+          <Box sx={{ gridColumn: '1 / span 3', mb: 1 }}>
+            <ToggleButton
+              value="generalist"
+              selected={formData.sectorFocus.includes('generalist')}
+              onClick={() => {
+                // Directly toggle generalist without using ToggleButtonGroup
+                const newSelections = [...formData.sectorFocus];
+                const hasGeneralist = newSelections.includes('generalist');
+                
+                if (hasGeneralist) {
+                  // Remove generalist
+                  const filteredSelections = newSelections.filter(id => id !== 'generalist');
+                  handleSectorSelectionChange(filteredSelections);
+                } else {
+                  // Add generalist and all sectors
+                  handleSectorSelectionChange(['generalist', ...actualSectorIds]);
+                }
+              }}
+              color="primary"
+              fullWidth
+              sx={{
+                height: '56px'
+              }}
+            >
+              <Box sx={{ textAlign: 'center' }}>
+                <Typography variant="body2">Generalist</Typography>
+                <Typography variant="caption" color="text.secondary" display="block">
+                  All sectors
+                </Typography>
+              </Box>
+            </ToggleButton>
+          </Box>
           
-          <FormHelperText>
-              Base allocation: ${baseAumAllocation}M | Recommended: ${aumAllocation}M
-          </FormHelperText>
+          {/* Individual sector buttons - 3 columns */}
+          {sectors.filter(s => s.id !== 'generalist').map((option) => (
+            <ToggleButton 
+              key={option.id} 
+              value={option.id}
+              selected={formData.sectorFocus.includes(option.id)}
+              onClick={() => {
+                // Directly toggle this specific sector
+                const newSelections = [...formData.sectorFocus];
+                const isSelected = newSelections.includes(option.id);
+                
+                if (isSelected) {
+                  // Remove this sector
+                  const filteredSelections = newSelections.filter(id => id !== option.id);
+                  handleSectorSelectionChange(filteredSelections);
+                } else {
+                  // Add this sector
+                  handleSectorSelectionChange([...newSelections, option.id]);
+                }
+              }}
+              color="primary"
+              sx={{ height: '48px' }}
+            >
+              <Typography variant="body2">{option.label}</Typography>
+            </ToggleButton>
+          ))}
+        </Box>
+        {errors.sectorFocus && (
+          <Typography color="error" variant="caption">{errors.sectorFocus}</Typography>
+        )}
+      </Grid>
+    </Grid>
+  );
+  
+  const renderPositionAndCapital = () => (
+    <Grid container spacing={3}>
+      <Grid {...{component: "div", item: true, xs: 12, sx: { width: "100%" }} as any}>
+        <Typography variant="h6" gutterBottom>
+          Position Types
+        </Typography>
+        <Typography variant="body2" color="text.secondary" paragraph>
+          The directional exposure strategy employed in the portfolio
+        </Typography>
+        
+        <ToggleButtonGroup
+          value={formData.positionTypes}
+          onChange={(_, value) => handleToggleChange('positionTypes', value)}
+          aria-label="Position Types"
+          color="primary"
+          fullWidth
+        >
+          <ToggleButton value="long">
+            <Box sx={{ textAlign: 'center' }}>
+              <Typography variant="body2">Long</Typography>
+            </Box>
+          </ToggleButton>
+          <ToggleButton value="short">
+            <Box sx={{ textAlign: 'center' }}>
+              <Typography variant="body2">Short</Typography>
+            </Box>
+          </ToggleButton>
+        </ToggleButtonGroup>
+        {errors.positionTypes && (
+          <Typography color="error" variant="caption">{errors.positionTypes}</Typography>
+        )}
+      </Grid>
+      
+      <Grid {...{component: "div", item: true, xs: 12, sx: { width: "100%" }} as any}>
+        <Typography variant="h6" gutterBottom>
+          Allocation
+        </Typography>
+        <Typography variant="body2" color="text.secondary" paragraph>
+          Specify the managed allocation (in millions USD).
+        </Typography>
+        
+        <FormHelperText>
+          Base allocation: ${baseAumAllocation}M | Recommended: ${aumAllocation}M
+        </FormHelperText>
 
-          <FormControl fullWidth sx={{ mb: 3 }}>
+        <FormControl fullWidth sx={{ mb: 3 }}>
           <StyledSlider
             value={baseAumAllocation}
             onChange={(_, value) => setBaseAumAllocation(value as number)}
@@ -674,24 +871,86 @@ const BookSetupPage: React.FC = () => {
               { value: 1000, label: '$1000M' }
             ]}
           />
-          </FormControl>
-          
-        </Paper>
-        
-        <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
-          <Button
-            type="submit"
-            variant="contained"
-            color="primary"
-            size="large"
-            disabled={isProcessing}
-          >
-            {isProcessing ? 'Creating Portfolio...' : 'Generate Simulation'}
-          </Button>
-        </Box>
-      </form>
-    </Box>
+        </FormControl>
+        {errors.initialCapital && (
+          <Typography color="error" variant="caption">{errors.initialCapital}</Typography>
+        )}
+      </Grid>
+    </Grid>
   );
+  
+  return (
+    <Box sx={{ p: 4, maxWidth: 1200, mx: 'auto' }}>
+      <Button 
+        startIcon={<ArrowBackIcon />} 
+        onClick={handleGoBack}
+        variant="outlined"
+        sx={{ mr: 2, mb: 4 }}
+      >
+        Back to Home
+      </Button>
+      
+      <Paper elevation={3} sx={{ p: 4 }}>
+        <Typography variant="h4" component="h1" gutterBottom align="center">
+          Portfolio Preferences
+        </Typography>
+        
+        <Typography variant="subtitle1" color="text.secondary" paragraph align="center">
+          Configure your preferences step by step
+          </Typography>
+       
+       <Stepper activeStep={activeStep} sx={{ mb: 4, pt: 2, pb: 4 }}>
+         {steps.map((label) => (
+           <Step key={label}>
+             <StepLabel>{label}</StepLabel>
+           </Step>
+         ))}
+       </Stepper>
+       
+       <Divider sx={{ mb: 4 }} />
+       
+       <form onSubmit={(e) => { e.preventDefault(); handleNext(); }}>
+         {renderStepContent()}
+         
+         <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 4, pt: 2 }}>
+           <Button
+             disabled={activeStep === 0}
+             onClick={handleBack}
+             variant="outlined"
+           >
+             Back
+           </Button>
+           
+           {activeStep < steps.length - 1 ? (
+             <Button 
+               variant="contained" 
+               color="primary" 
+               onClick={handleNext}
+             >
+               Next
+             </Button>
+           ) : (
+             <Button 
+               variant="contained" 
+               color="primary" 
+               onClick={handleSubmit}
+               disabled={isSubmitting || !isConnected}
+             >
+               {isSubmitting ? (
+                 <>
+                   <CircularProgress size={24} sx={{ mr: 1 }} />
+                   Creating Portfolio...
+                 </>
+               ) : (
+                 'Generate Simulation'
+               )}
+             </Button>
+           )}
+         </Box>
+       </form>
+     </Paper>
+   </Box>
+ );
 };
 
 export default BookSetupPage;

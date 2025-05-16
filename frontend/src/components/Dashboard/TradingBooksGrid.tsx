@@ -20,6 +20,8 @@ import LaunchIcon from '@mui/icons-material/Launch';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import AssessmentIcon from '@mui/icons-material/Assessment';
 import FolderOpenIcon from '@mui/icons-material/FolderOpen';
+import EditIcon from '@mui/icons-material/Edit';
+import { useNavigate } from 'react-router-dom';
 
 interface TradingBooksGridProps {
   books: any[];
@@ -37,6 +39,51 @@ const TradingBooksGrid: React.FC<TradingBooksGridProps> = ({
   onOpenBook
 }) => {
   const theme = useTheme();
+  const navigate = useNavigate();
+
+  const formatDate = (timestamp: number): string => {
+    const date = new Date(timestamp * 1000); // Convert seconds to milliseconds if needed
+    return date.toLocaleDateString();
+  };
+
+  // Helper function to calculate and format time elapsed
+  const getTimeElapsed = (timestamp: number): string => {
+    const now = Date.now();
+    const millisecondsDiff = now - timestamp * 1000; // Convert seconds to milliseconds if needed
+    const daysDiff = Math.floor(millisecondsDiff / (1000 * 60 * 60 * 24));
+    
+    if (daysDiff < 1) {
+      return 'Today';
+    } else if (daysDiff === 1) {
+      return 'Yesterday';
+    } else if (daysDiff < 30) {
+      return `${daysDiff} days ago`;
+    } else if (daysDiff < 365) {
+      const months = Math.floor(daysDiff / 30);
+      return `${months} ${months === 1 ? 'month' : 'months'} ago`;
+    } else {
+      const years = Math.floor(daysDiff / 365);
+      return `${years} ${years === 1 ? 'year' : 'years'} ago`;
+    }
+  };
+
+  // Helper function to extract parameter value
+  const getParameterValue = (book: any, category: string, subcategory: string = ""): string | null => {
+    console.log(book)
+    if (!book.parameters) return null;
+    
+    // Parse parameters if it's a string
+    const params = typeof book.parameters === 'string' 
+      ? JSON.parse(book.parameters) 
+      : book.parameters;
+    
+    // Find the parameter that matches the category and subcategory
+    const param = params.find((p: any) => 
+      Array.isArray(p) && p[0] === category && p[1] === subcategory
+    );
+    
+    return param ? param[2] : null;
+  };
 
   // Status color mapping
   const getStatusColor = (status: string) => {
@@ -129,6 +176,7 @@ const TradingBooksGrid: React.FC<TradingBooksGridProps> = ({
                   <CardHeader
                     title={book.name || 'Unnamed Book'}
                     titleTypographyProps={{ variant: 'subtitle1', fontWeight: 'medium' }}
+                    subheader={`Created ${getTimeElapsed(book.createdAt)}`}
                     action={
                       <Chip 
                         label={book.status || 'Unknown'} 
@@ -142,47 +190,24 @@ const TradingBooksGrid: React.FC<TradingBooksGridProps> = ({
                   <Divider />
                   
                   <CardContent sx={{ py: 2 }}>
-                    <Box sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
-                      <Box 
-                        sx={{ 
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          justifyContent: 'center',
-                          backgroundColor: theme.palette.primary.main,
-                          color: '#fff',
-                          borderRadius: '50%',
-                          width: 32,
-                          height: 32,
-                          mr: 1.5
-                        }}
-                      >
-                        <AssessmentIcon fontSize="small" />
-                      </Box>
-                      <Box>
-                        <Typography variant="caption" color="text.secondary">
-                          Capital
-                        </Typography>
-                        <Typography variant="subtitle1">
-                          ${(book.initialCapital || 0).toLocaleString()}
-                        </Typography>
-                      </Box>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                      <Typography variant="body2" color="text.secondary">
+                        <strong>Region:</strong> {book.region || 'N/A'}
+                      </Typography>
+                      
+                      <Typography variant="body2" color="text.secondary">
+                        <strong>Market:</strong> {book.marketFocus || 'N/A'}
+                      </Typography>
+                      
+                      <Typography variant="body2" color="text.secondary">
+                        <strong>Instrument:</strong> {book.instrument || 'N/A'}
+                      </Typography>
+                      
+                      <Typography variant="body2" color="text.secondary">
+                        <strong>Approach:</strong> {book.tradingStrategy || 'N/A'}
+                      </Typography>
+                      
                     </Box>
-                    
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
-                      <strong>Risk Level:</strong> {book.riskLevel || 'Unknown'}
-                    </Typography>
-                    
-                    {book.marketFocus && (
-                      <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
-                        <strong>Focus:</strong> {book.marketFocus}
-                      </Typography>
-                    )}
-                    
-                    {book.tradingStrategy && (
-                      <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
-                        <strong>Strategy:</strong> {book.tradingStrategy}
-                      </Typography>
-                    )}
                   </CardContent>
                   
                   <Divider />
@@ -195,15 +220,27 @@ const TradingBooksGrid: React.FC<TradingBooksGridProps> = ({
                     >
                       Performance
                     </Button>
-                    <Button 
-                      variant="outlined"
-                      size="small"
-                      color="primary"
-                      startIcon={<LaunchIcon />}
-                      onClick={() => onOpenBook(book.id)}
-                    >
-                      Open Book
-                    </Button>
+                    <Box>
+                      <Button 
+                        variant="outlined"
+                        size="small"
+                        color="primary"
+                        startIcon={<EditIcon />}
+                        onClick={() => navigate(`/books/${book.id}/edit`)}
+                        sx={{ mr: 1 }}
+                      >
+                        Edit
+                      </Button>
+                      <Button 
+                        variant="outlined"
+                        size="small"
+                        color="primary"
+                        startIcon={<LaunchIcon />}
+                        onClick={() => onOpenBook(book.id)}
+                      >
+                        Open
+                      </Button>
+                    </Box>
                   </CardActions>
                 </Card>
               </Grid>

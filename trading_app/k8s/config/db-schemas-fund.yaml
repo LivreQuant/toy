@@ -51,6 +51,28 @@ data:
         PRIMARY KEY (member_id, category, subcategory, key)
     );
 
+    -- Create books table
+    CREATE TABLE fund.books (
+        book_id UUID PRIMARY KEY,
+        user_id UUID NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        status VARCHAR(50) DEFAULT 'active',
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    );
+
+    -- Create book properties table with a more flexible structure
+    CREATE TABLE fund.book_properties (
+        property_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        book_id UUID NOT NULL REFERENCES fund.books(book_id) ON DELETE CASCADE,
+        category VARCHAR(100) NOT NULL,
+        subcategory VARCHAR(100) DEFAULT '',
+        key VARCHAR(100) NOT NULL,
+        value TEXT,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    );
+
     -- Fund portfolios (smart contracts) table - One-to-many relationship with fund
     CREATE TABLE fund.portfolios (
         portfolio_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -73,6 +95,10 @@ data:
     CREATE INDEX idx_fund_properties_lookup ON fund.properties(fund_id, category, subcategory);
     CREATE INDEX idx_fund_team_members_fund ON fund.team_members(fund_id);
     CREATE INDEX idx_fund_team_member_properties_lookup ON fund.team_member_properties(member_id, category, subcategory);
+
+    CREATE INDEX idx_book_properties_book_id ON fund.book_properties(book_id);
+    CREATE INDEX idx_book_properties_category ON fund.book_properties(category);
+
     CREATE INDEX idx_fund_portfolios_fund ON fund.portfolios(fund_id);
     CREATE INDEX idx_fund_portfolios_book_id ON fund.portfolios(book_id);
 

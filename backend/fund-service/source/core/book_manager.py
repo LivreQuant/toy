@@ -14,10 +14,7 @@ logger = logging.getLogger('book_manager')
 class BookManager:
     """Manager for book operations"""
 
-    def __init__(
-            self,
-            book_repository: BookRepository,
-    ):
+    def __init__(self, book_repository: BookRepository):
         """Initialize the book manager with dependencies"""
         self.book_repository = book_repository
 
@@ -33,9 +30,11 @@ class BookManager:
             Result dictionary with success flag and book_id
         """
         logger.info(f"Creating book for user {user_id}")
+        logger.info(f"Book data: {book_data}")
         
         # Basic validation for required fields
         if 'name' not in book_data:
+            logger.warning(f"Missing required field 'name' in book data")
             return {
                 "success": False,
                 "error": "Missing required field: name"
@@ -43,20 +42,33 @@ class BookManager:
         
         # Create book model
         try:
+            logger.info(f"Creating Book object with name: {book_data['name']}")
+            
             book = Book(
                 user_id=user_id,
                 name=book_data['name'],
-                parameters=book_data.get('parameters'),
-                book_id=str(uuid.uuid4()),
-                created_at=time.time(),
-                updated_at=time.time()
+                book_id=book_data.get('book_id', str(uuid.uuid4())),
+                status=book_data.get('status', 'active'),
+                created_at=book_data.get('created_at', time.time()),
+                updated_at=book_data.get('updated_at', time.time())
             )
             
-            # Save to database
-            success = await self.book_repository.create_book(book)
+            logger.info(f"Created Book object with ID: {book.book_id}")
             
-            if success:
+            # Convert to dictionary for repository layer
+            book_dict = book.to_dict()
+            
+            # Add parameters if they exist
+            if 'parameters' in book_data:
+                book_dict['parameters'] = book_data['parameters']
+            
+            # Save to database
+            logger.info(f"Calling repository to save book {book.book_id}")
+            result = await self.book_repository.create_book(book_dict)
+            
+            if result:
                 # Track metrics
+                logger.info(f"Book {book.book_id} successfully created, tracking metrics")
                 track_book_created(user_id)
                 
                 return {
@@ -64,12 +76,13 @@ class BookManager:
                     "book_id": book.book_id
                 }
             else:
+                logger.error(f"Repository failed to save book {book.book_id}")
                 return {
                     "success": False,
                     "error": "Failed to save book"
                 }
         except Exception as e:
-            logger.error(f"Error creating book: {e}")
+            logger.error(f"Error creating book: {e}", exc_info=True)
             return {
                 "success": False,
                 "error": f"Error creating book: {str(e)}"
@@ -90,15 +103,15 @@ class BookManager:
         try:
             books = await self.book_repository.get_user_books(user_id)
             
-            # Convert Book objects to dictionaries
-            book_dicts = [book.to_dict() for book in books]
+            # Books are already dictionaries
+            logger.info(f"Retrieved {len(books)} books for user {user_id}")
             
             return {
                 "success": True,
-                "books": book_dicts
+                "books": books
             }
         except Exception as e:
-            logger.error(f"Error getting books for user {user_id}: {e}")
+            logger.error(f"Error getting books for user {user_id}: {e}", exc_info=True)
             return {
                 "success": False,
                 "error": f"Error getting books: {str(e)}"
@@ -127,7 +140,7 @@ class BookManager:
                 }
             
             # Verify ownership
-            if book.user_id != user_id:
+            if book['user_id'] != user_id:
                 return {
                     "success": False,
                     "error": "Book does not belong to this user"
@@ -135,10 +148,10 @@ class BookManager:
             
             return {
                 "success": True,
-                "book": book.to_dict()
+                "book": book
             }
         except Exception as e:
-            logger.error(f"Error getting book {book_id}: {e}")
+            logger.error(f"Error getting book {book_id}: {e}", exc_info=True)
             return {
                 "success": False,
                 "error": f"Error getting book: {str(e)}"
@@ -169,79 +182,14 @@ class BookManager:
                 }
             
             # Verify ownership
-            if book.user_id != user_id:
+            if book['user_id'] != user_id:
                 return {
                     "success": False,
                     "error": "Book does not belong to this user"
                 }
-            
-            # Process updates
-            valid_updates = {}
-            
-            # Only process valid fields
-            if 'name' in updates:
-                valid_updates['name'] = updates['name']
-            
-            if 'parameters' in updates:
-                valid_updates['parameters'] = updates['parameters']
             
             # Apply updates
-            if valid_updates:
-                success = await self.book_repository.update_book(book_id, valid_updates)
-                
-                if success:
-                    return {
-                        "success": True
-                    }
-                else:
-                    return {
-                        "success": False,
-                        "error": "Failed to update book"
-                    }
-            else:
-                return {
-                    "success": True,
-                    "message": "No valid updates provided"
-                }
-        except Exception as e:
-            logger.error(f"Error updating book {book_id}: {e}")
-            return {
-                "success": False,
-                "error": f"Error updating book: {str(e)}"
-            }
-    
-    async def delete_book(self, book_id: str, user_id: str) -> Dict[str, Any]:
-        """
-        Delete a book
-        
-        Args:
-            book_id: Book ID
-            user_id: User ID to validate ownership
-            
-        Returns:
-            Result dictionary with success flag
-        """
-        logger.info(f"Deleting book {book_id} for user {user_id}")
-        
-        try:
-            # First, get the book to verify ownership
-            book = await self.book_repository.get_book(book_id)
-            
-            if not book:
-                return {
-                    "success": False,
-                    "error": "Book not found"
-                }
-            
-            # Verify ownership
-            if book.user_id != user_id:
-                return {
-                    "success": False,
-                    "error": "Book does not belong to this user"
-                }
-            
-            # Delete the book
-            success = await self.book_repository.delete_book(book_id)
+            success = await self.book_repository.update_book(book_id, updates)
             
             if success:
                 return {
@@ -250,11 +198,11 @@ class BookManager:
             else:
                 return {
                     "success": False,
-                    "error": "Failed to delete book"
+                    "error": "Failed to update book"
                 }
         except Exception as e:
-            logger.error(f"Error deleting book {book_id}: {e}")
+            logger.error(f"Error updating book {book_id}: {e}", exc_info=True)
             return {
                 "success": False,
-                "error": f"Error deleting book: {str(e)}"
+                "error": f"Error updating book: {str(e)}"
             }

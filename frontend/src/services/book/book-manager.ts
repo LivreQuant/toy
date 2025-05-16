@@ -7,26 +7,17 @@ import { bookState } from '../../state/book-state';
 import { toastService } from '../notification/toast-service';
 
 interface BookApiResponse {
-  id: string;
+  book_id: string;
+  id?: string; 
   user_id: string;
+  userId?: string;
   name: string;
-  initialCapital?: number;
-  initial_capital?: number;
-  riskLevel?: string;
-  risk_level?: string;
-  marketFocus?: string;
-  market_focus?: string;
-  tradingStrategy?: string;
-  trading_strategy?: string;
-  maxPositionSize?: number;
-  max_position_size?: number;
-  maxTotalRisk?: number;
-  max_total_risk?: number;
   status: string;
+  created_at: number;
   createdAt?: number;
-  created_at?: number;
+  updated_at: number;
   updatedAt?: number;
-  updated_at?: number;
+  parameters: any;
 }
 
 
@@ -85,7 +76,6 @@ export class BookManager {
     }
   }
     
-  // In src/services/book/book-manager.ts
   async fetchBooks(): Promise<{ 
     success: boolean; 
     books?: Book[];
@@ -94,47 +84,77 @@ export class BookManager {
     if (!this.tokenManager.isAuthenticated()) {
       return { success: false, error: 'Not authenticated' };
     }
-
+  
     try {
       const response = await this.bookApi.getBooks();
       console.log('Raw API response:', response);
       
       if (response.success && response.books) {
-        // Cast the response to any to bypass TypeScript's type checking
-        const apiBooks = response.books as any[];
-        
-        // Create properly shaped Book objects from the API data
-        const formattedBooks = apiBooks.map(apiBook => {
-          // Create a book object with the correct shape
+        // Process the books array from the API response
+        // Use 'any' as the type for apiBook temporarily
+        const formattedBooks = response.books.map((apiBook: any) => {
+          // Create a properly shaped Book object from the API data
           const book: Book = {
-            id: apiBook.id,
-            userId: apiBook.user_id,
+            id: apiBook.book_id || apiBook.id, // Handle both formats
+            userId: apiBook.user_id || apiBook.userId,
             name: apiBook.name,
-            initialCapital: Number(apiBook.initial_capital || 0),
-            riskLevel: (apiBook.risk_level || 'medium') as 'low' | 'medium' | 'high',
-            status: apiBook.status as 'CONFIGURED' | 'ACTIVE' | 'ARCHIVED',
-            createdAt: Number(apiBook.created_at || Date.now()),
-            updatedAt: Number(apiBook.updated_at || Date.now())
+            initialCapital: 0, // Will be updated from parameters
+            riskLevel: 'medium', // Default value
+            status: apiBook.status,
+            createdAt: apiBook.created_at || apiBook.createdAt,
+            updatedAt: apiBook.updated_at || apiBook.updatedAt
           };
           
-          // Add optional fields if they exist in the API response
-          if (apiBook.market_focus) {
-            book.marketFocus = apiBook.market_focus;
+          // Extract initialCapital from parameters if available
+          if (apiBook.parameters) {
+            const params = Array.isArray(apiBook.parameters) ? apiBook.parameters : JSON.parse(apiBook.parameters);
+            
+            // Find allocation parameter
+            const allocationParam = params.find((p: any) => 
+              Array.isArray(p) && p[0] === 'Allocation'
+            );
+            
+            if (allocationParam && allocationParam[2]) {
+              book.initialCapital = parseFloat(allocationParam[2]);
+            }
+            
+            // Find market focus parameter
+            const marketParam = params.find((p: any) => 
+              Array.isArray(p) && p[0] === 'Market'
+            );
+            
+            if (marketParam && marketParam[2]) {
+              book.marketFocus = marketParam[2];
+            }
+            
+            // Find investment approach parameter (trading strategy)
+            const approachParams = params.filter((p: any) => 
+              Array.isArray(p) && p[0] === 'Investment Approach'
+            );
+            
+            if (approachParams.length > 0) {
+              book.tradingStrategy = approachParams.map((p: any) => p[2]).join(', ');
+            }
+            
+            // Find region parameter
+            const regionParam = params.find((p: any) => 
+              Array.isArray(p) && p[0] === 'Region'
+            );
+            
+            if (regionParam && regionParam[2]) {
+              book.region = regionParam[2];
+            }
+            
+            // Find instrument parameter
+            const instrumentParam = params.find((p: any) => 
+              Array.isArray(p) && p[0] === 'Instrument'
+            );
+            
+            if (instrumentParam && instrumentParam[2]) {
+              book.instrument = instrumentParam[2];
+            }
           }
           
-          if (apiBook.trading_strategy) {
-            book.tradingStrategy = apiBook.trading_strategy;
-          }
-          
-          if (apiBook.max_position_size) {
-            book.maxPositionSize = Number(apiBook.max_position_size);
-          }
-          
-          if (apiBook.max_total_risk) {
-            book.maxTotalRisk = Number(apiBook.max_total_risk);
-          }
-          
-          console.log('Formatted book:', book);
           return book;
         });
         
@@ -150,6 +170,45 @@ export class BookManager {
       }
     } catch (error: any) {
       this.logger.error('Failed to fetch books', error);
+      return { 
+        success: false, 
+        error: error.message || 'Unknown error'
+      };
+    }
+  }
+
+  async updateBook(bookId: string, updateData: {
+    name: string;
+    parameters: Array<[string, string, string]>;
+  }): Promise<{ 
+    success: boolean; 
+    error?: string 
+  }> {
+    if (!this.tokenManager.isAuthenticated()) {
+      toastService.error('You must be logged in to update a book');
+      return { success: false, error: 'Not authenticated' };
+    }
+
+    try {
+      const response = await this.bookApi.updateBook(bookId, updateData);
+      
+      if (response.success) {
+        toastService.success(`Book "${updateData.name}" updated successfully`);
+        
+        // Refresh books after update
+        await this.fetchBooks();
+        
+        return { success: true };
+      } else {
+        toastService.error(response.error || 'Failed to update book');
+        return { 
+          success: false, 
+          error: response.error || 'Unknown error'
+        };
+      }
+    } catch (error: any) {
+      this.logger.error('Book update failed', error);
+      toastService.error(`Failed to update book: ${error.message}`);
       return { 
         success: false, 
         error: error.message || 'Unknown error'

@@ -106,26 +106,35 @@ class BookController(BaseController):
             await self.state_manager.release()
 
 
+    # In book_controller.py - updated _create_book method with enhanced logging
     async def _create_book(self, request: web.Request) -> web.Response:
         """Handle book creation endpoint"""
         # Authenticate request
+        logger.info(f"Processing book creation request from {request.remote}")
         auth_success, auth_result = await self.authenticate(request)
         if not auth_success:
+            logger.warning(f"Authentication failed: {auth_result['error']}")
             return self.create_error_response(auth_result["error"], auth_result["status"])
 
         user_id = auth_result["user_id"]
+        logger.info(f"Authenticated user {user_id} for book creation")
 
         # Parse request body
         parse_success, data = await self.parse_json_body(request)
         if not parse_success:
+            logger.warning(f"Failed to parse request body: {data['error']}")
             return self.create_error_response(data["error"], data["status"])
+
+        logger.debug(f"Parsed request data: {data}")
 
         # Validate required fields
         valid_fields, field_error = self.validate_required_fields(data, ['name', 'parameters'])
         if not valid_fields:
+            logger.warning(f"Missing required fields: {field_error['error']}")
             return self.create_error_response(field_error["error"], field_error["status"])
 
         book_id = uuid.uuid4()
+        logger.info(f"Generated new book ID: {book_id}")
 
         # Convert incoming data to book model format
         book_data = {
@@ -136,13 +145,19 @@ class BookController(BaseController):
             'created_at': time.time(),
             'updated_at': time.time()
         }
+        
+        logger.debug(f"Prepared book data structure: {book_data}")
 
         # Create book in database
+        logger.info(f"Calling book_manager.create_book for user {user_id}")
         result = await self.book_manager.create_book(book_data, user_id)
+        logger.debug(f"Book manager returned result: {result}")
 
-        if not result:
+        if not result["success"]:
+            logger.error(f"Book creation failed: {result.get('error', 'Unknown error')}")
             return self.create_error_response("Failed to create book in database", 500)
 
+        logger.info(f"Book created successfully with ID: {result['book_id']}")
         return self.create_success_response({"bookId": result["book_id"]})
 
     async def _get_books(self, request: web.Request) -> web.Response:
