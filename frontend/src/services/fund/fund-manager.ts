@@ -12,8 +12,8 @@ interface FundProfileApiResponse {
   user_id: string;
   name: string;
   status: string;
-  created_at: number;
-  updated_at: number;
+  active_at: number;
+  expire_at: number;
   properties?: {
     general?: {
       profile?: {
@@ -163,8 +163,8 @@ export class FundManager {
           profilePurpose: profileData.purpose || [],
           otherPurposeDetails: profileData.otherDetails,
           teamMembers: teamMembers,
-          createdAt: apiData.created_at,
-          updatedAt: apiData.updated_at
+          activeAt: apiData.active_at,
+          expireAt: apiData.expire_at
         };
         
         return { 

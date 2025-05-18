@@ -170,7 +170,21 @@ class BookController(BaseController):
         if not result["success"]:
             return self.create_error_response(result["error"], 500)
 
-        return self.create_success_response({"books": result["books"]})
+        # Transform the books to use meaningful properties
+        books = result["books"]
+        transformed_books = []
+        
+        for book in books:
+            # Remove the triplet-style parameters if bookParameters exists
+            transformed_book = dict(book)
+            if 'bookParameters' in book:
+                # Use the new transformed parameters instead
+                if 'parameters' in transformed_book:
+                    del transformed_book['parameters']
+            
+            transformed_books.append(transformed_book)
+
+        return self.create_success_response({"books": transformed_books})
 
 
     async def _get_book(self, request: web.Request) -> web.Response:
@@ -193,7 +207,17 @@ class BookController(BaseController):
         if not result["success"]:
             return self.create_error_response("Book not found or does not belong to user", 404)
 
-        return self.create_success_response({"book": result["book"]})
+        # Transform the book to use meaningful properties
+        book = result["book"]
+        transformed_book = dict(book)
+        
+        # Remove the triplet-style parameters if bookParameters exists
+        if 'bookParameters' in book:
+            # Use the new transformed parameters instead
+            if 'parameters' in transformed_book:
+                del transformed_book['parameters']
+
+        return self.create_success_response({"book": transformed_book})
 
 
     async def _update_book(self, request: web.Request) -> web.Response:
@@ -226,6 +250,31 @@ class BookController(BaseController):
             update_data['name'] = data['name']
         if 'parameters' in data:
             update_data['parameters'] = data['parameters']
+        if 'bookParameters' in data:
+            # Convert bookParameters to parameters
+            # This is a reverse transformation to convert the new client format back to DB format
+            parameters = []
+            for key, value in data['bookParameters'].items():
+                # Determine category and subcategory based on key
+                # This is a simplified logic - you might need more complex logic based on your app
+                if '.' in key:
+                    category, subcategory = key.split('.')
+                else:
+                    # Default categorization - modify as needed
+                    if key in ['riskLevel', 'maxDrawdown', 'volatility']:
+                        category = 'risk'
+                        subcategory = key
+                    elif key in ['targetReturns', 'benchmark', 'horizon']:
+                        category = 'strategy'
+                        subcategory = key
+                    else:
+                        category = 'general'
+                        subcategory = key
+                
+                # Add to parameters list
+                parameters.append([category, subcategory, value])
+            
+            update_data['parameters'] = parameters
 
         # No need to include timestamps as they will be managed by the repository
         logger.info(f"Updating book {book_id} with fields: {list(update_data.keys())}")

@@ -45,8 +45,8 @@ export interface Book {
   tradingStrategy?: string;
   maxPositionSize?: number;
   maxTotalRisk?: number;
-  createdAt: number;
-  updatedAt: number;
+  activeAt: number;
+  expireAt: number;
   region?: string;
   instrument?: string;
   parameters?: Array<[string, string, string]> | string; // Can be array or string (serialized JSON)
@@ -82,8 +82,8 @@ export interface FundProfile {
   profilePurpose?: string[];
   otherPurposeDetails?: string;
   teamMembers: TeamMember[];
-  createdAt?: number;
-  updatedAt?: number;
+  activeAt?: number;
+  expireAt?: number;
 }
 
 export interface CreateFundProfileRequest {

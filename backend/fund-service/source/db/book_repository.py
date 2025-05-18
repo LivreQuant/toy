@@ -49,7 +49,7 @@ class BookRepository:
         
         query = """
         INSERT INTO fund.books (
-            book_id, user_id, name, status, created_at, expire_at
+            book_id, user_id, name, status, active_at, expire_at
         ) VALUES (
             $1, $2, $3, $4, NOW(), $5
         ) RETURNING book_id
@@ -78,9 +78,9 @@ class BookRepository:
                         # Save each parameter individually
                         property_query = """
                         INSERT INTO fund.book_properties (
-                            book_id, category, subcategory, value, created_at, expire_at
+                            book_id, category, subcategory, key, value, created_at, expire_at
                         ) VALUES (
-                            $1, $2, $3, $4, NOW(), $5
+                            $1, $2, $3, $4, $5, NOW(), $6
                         )
                         """
                         
@@ -91,12 +91,16 @@ class BookRepository:
                                 subcategory = param[1] if param[1] else ""
                                 value = param[2]
                                 
+                                # Generate random UUID for key
+                                random_key = str(uuid.uuid4())
+                                
                                 # Execute insert
                                 await conn.execute(
                                     property_query,
                                     book_id,
                                     category,
                                     subcategory,
+                                    random_key,  # Use random UUID as key
                                     str(value),
                                     self.future_date
                                 )
@@ -131,16 +135,17 @@ class BookRepository:
             user_id, 
             name,
             status,
-            extract(epoch from created_at) as created_at
+            extract(epoch from active_at) as created_at
         FROM fund.books 
         WHERE user_id = $1 AND expire_at > NOW()
-        ORDER BY book_id, created_at DESC
+        ORDER BY book_id, active_at DESC
         """
         
         property_query = """
         SELECT 
             category,
             subcategory,
+            key,
             value
         FROM fund.book_properties
         WHERE book_id = $1 AND expire_at > NOW()
@@ -164,7 +169,31 @@ class BookRepository:
                     # Get properties
                     property_rows = await conn.fetch(property_query, book_id)
                     
-                    # Reconstruct parameters format
+                    # Transform properties to more meaningful format
+                    book_parameters = {}
+                    for prop in property_rows:
+                        category = prop['category']
+                        subcategory = prop['subcategory']
+                        value = prop['value']
+                        
+                        # Try to parse JSON values
+                        try:
+                            if value and (value.startswith('{') or value.startswith('[')):
+                                value = json.loads(value)
+                        except (json.JSONDecodeError, AttributeError):
+                            pass
+                        
+                        # Determine a meaningful property name
+                        property_name = None
+                        if subcategory:
+                            property_name = subcategory
+                        else:
+                            property_name = category
+                        
+                        # Add to book parameters
+                        book_parameters[property_name] = value
+                    
+                    # Also keep backward compatibility with parameters array
                     parameters = []
                     for prop in property_rows:
                         # Convert back to the original triplet format
@@ -174,8 +203,9 @@ class BookRepository:
                             prop['value']
                         ])
                     
-                    # Add parameters to book data
+                    # Add both formats to book data
                     book_data['parameters'] = parameters
+                    book_data['bookParameters'] = book_parameters
                     
                     # Add book to results
                     books.append(ensure_json_serializable(book_data))
@@ -204,16 +234,17 @@ class BookRepository:
             user_id, 
             name,
             status,
-            extract(epoch from created_at) as created_at
+            extract(epoch from active_at) as created_at
         FROM fund.books 
         WHERE book_id = $1 AND expire_at > NOW()
-        ORDER BY book_id, created_at DESC
+        ORDER BY book_id, active_at DESC
         """
         
         property_query = """
         SELECT 
             category,
             subcategory,
+            key,
             value
         FROM fund.book_properties
         WHERE book_id = $1 AND expire_at > NOW()
@@ -234,7 +265,31 @@ class BookRepository:
                 # Get properties
                 property_rows = await conn.fetch(property_query, book_id)
                 
-                # Reconstruct parameters format
+                # Transform properties to more meaningful format
+                book_parameters = {}
+                for prop in property_rows:
+                    category = prop['category']
+                    subcategory = prop['subcategory']
+                    value = prop['value']
+                    
+                    # Try to parse JSON values
+                    try:
+                        if value and (value.startswith('{') or value.startswith('[')):
+                            value = json.loads(value)
+                    except (json.JSONDecodeError, AttributeError):
+                        pass
+                    
+                    # Determine a meaningful property name
+                    property_name = None
+                    if subcategory:
+                        property_name = subcategory
+                    else:
+                        property_name = category
+                    
+                    # Add to book parameters
+                    book_parameters[property_name] = value
+                
+                # Also keep backward compatibility with parameters array
                 parameters = []
                 for prop in property_rows:
                     # Convert back to the original triplet format
@@ -244,8 +299,9 @@ class BookRepository:
                         prop['value']
                     ])
                 
-                # Add parameters to book data
+                # Add both formats to book data
                 book_data['parameters'] = parameters
+                book_data['bookParameters'] = book_parameters
                 
                 logger.info(f"Successfully retrieved book {book_id} with {len(parameters)} parameters")
                 
@@ -289,7 +345,7 @@ class BookRepository:
                             """
                             SELECT * FROM fund.books
                             WHERE book_id = $1 AND expire_at > NOW()
-                            ORDER BY created_at DESC
+                            ORDER BY active_at DESC
                             LIMIT 1
                             """,
                             book_id
@@ -316,13 +372,13 @@ class BookRepository:
                         new_record = dict(current_book)
                         
                         # Apply updates, protecting certain fields
-                        protected_fields = ['expire_at', 'created_at']
+                        protected_fields = ['expire_at', 'active_at']
                         for field, value in update_data.items():
                             if field not in protected_fields:
                                 new_record[field] = value
                         
                         # Set timestamps
-                        new_record['created_at'] = now
+                        new_record['active_at'] = now
                         new_record['expire_at'] = self.future_date
                         
                         # Insert new record
@@ -401,17 +457,21 @@ class BookRepository:
                             insert_count = 0
                             
                             for (category, subcategory), value in param_map.items():
+                                # Generate random UUID for key
+                                random_key = str(uuid.uuid4())
+                                
                                 await conn.execute(
                                     """
                                     INSERT INTO fund.book_properties (
-                                        book_id, category, subcategory, value, created_at, expire_at
+                                        book_id, category, subcategory, key, value, created_at, expire_at
                                     ) VALUES (
-                                        $1, $2, $3, $4, $5, $6
+                                        $1, $2, $3, $4, $5, $6, $7
                                     )
                                     """,
                                     book_id,
                                     category,
                                     subcategory,
+                                    random_key,  # Use random UUID as key
                                     value,
                                     now,
                                     self.future_date

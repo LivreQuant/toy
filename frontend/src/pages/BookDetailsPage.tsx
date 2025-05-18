@@ -18,8 +18,8 @@ interface BookApiResponse {
   user_id: string;
   name: string;
   parameters: string;
-  createdAt: number;
-  updatedAt: number;
+  activeAt: number;
+  expireAt: number;
 }
 
 // Helper function to parse book parameters
@@ -113,8 +113,8 @@ const BookDetailsPage: React.FC = () => {
             initialCapital: 0, // Will be set from parameters
             riskLevel: 'medium', // Default value
             status: 'CONFIGURED', // Default status
-            createdAt: rawBook.createdAt || Date.now(),
-            updatedAt: rawBook.updatedAt || Date.now()
+            activeAt: rawBook.activeAt || Date.now(),
+            expireAt: rawBook.expireAt || Date.now()
           };
           
           // Parse parameters if they exist

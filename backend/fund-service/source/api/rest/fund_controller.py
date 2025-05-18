@@ -174,6 +174,7 @@ class FundController(BaseController):
         return self.create_success_response({"fundId": result["fund_id"]})
 
 
+    # In fund_controller.py, modify the _get_fund method:
     async def _get_fund(self, request: web.Request) -> web.Response:
         """Handle fund retrieval endpoint"""
         # Authenticate request
@@ -194,7 +195,91 @@ class FundController(BaseController):
                 # Other error - return error response
                 return self.create_error_response(result.get("error", "Failed to retrieve fund"), 500)
 
-        return self.create_success_response({"fund": result["fund"]})
+        # Transform the properties structure to be more client-friendly
+        fund = result["fund"]
+        if fund and 'properties' in fund:
+            # Map properties to a more useful structure
+            transformed_properties = {}
+            
+            # Handle general properties
+            if 'general' in fund['properties']:
+                general = fund['properties']['general']
+                
+                if 'profile' in general:
+                    profile = general['profile']
+                    for _, value in profile.items():
+                        # Try to identify the property type
+                        if value in ["Personal Account", "LLC", "Limited Partnership", "Corporation"]:
+                            transformed_properties['legalStructure'] = value
+                        elif value.startswith(("Under $", "$", "Over $")):
+                            transformed_properties['aumRange'] = value
+                        elif str(value).isdigit() or (len(str(value)) == 4 and str(value).isdigit()):
+                            transformed_properties['yearEstablished'] = value
+                        elif isinstance(value, list) or value in ["raise_capital", "manage_investments", "other"]:
+                            transformed_properties['profilePurpose'] = value
+                        elif value.startswith("To be ") or len(str(value).split()) > 3:
+                            transformed_properties['otherPurposeDetails'] = value
+                        else:
+                            transformed_properties['location'] = value
+                            
+                if 'strategy' in general:
+                    strategy = general['strategy']
+                    for _, value in strategy.items():
+                        transformed_properties['investmentStrategy'] = value
+            
+            # Merge the transformed properties with the fund data
+            fund.update(transformed_properties)
+            
+            # Transform team members
+            if 'team_members' in fund:
+                for member in fund['team_members']:
+                    member_data = {}
+                    member_data['id'] = member['team_member_id']
+                    
+                    if 'properties' in member:
+                        props = member['properties']
+                        
+                        # Extract personal info
+                        if 'personal' in props and 'info' in props['personal']:
+                            for _, value in props['personal']['info'].items():
+                                if '-' in value and len(value) == 10:  # Looks like a date
+                                    member_data['birthDate'] = value
+                                elif len(value.split()) <= 2:  # Looks like a name
+                                    if 'firstName' not in member_data:
+                                        member_data['firstName'] = value
+                                    else:
+                                        member_data['lastName'] = value
+                        
+                        # Extract professional info
+                        if 'professional' in props and 'info' in props['professional']:
+                            for _, value in props['professional']['info'].items():
+                                if value in ['Portfolio Manager', 'Analyst', 'Trader']:
+                                    member_data['role'] = value
+                                elif value.isdigit() or value in ['1', '2', '3', '4', '5']:
+                                    member_data['yearsExperience'] = value
+                                elif value.startswith('http'):
+                                    member_data['linkedin'] = value
+                                elif len(value.split()) >= 2 and not value.startswith('http'):
+                                    member_data['investmentExpertise'] = value
+                                else:
+                                    member_data['currentEmployment'] = value
+                        
+                        # Extract education info
+                        if 'education' in props:
+                            for _, value in props.get('education', {}).get('info', {}).items():
+                                member_data['education'] = value
+                    
+                    # Replace the original member data with our transformed version
+                    for key in list(member.keys()):
+                        if key != 'team_member_id':
+                            del member[key]
+                    member.update(member_data)
+            
+            # Remove the original properties
+            if 'properties' in fund:
+                del fund['properties']
+        
+        return self.create_success_response({"fund": fund})
 
 
     async def _update_fund(self, request: web.Request) -> web.Response:

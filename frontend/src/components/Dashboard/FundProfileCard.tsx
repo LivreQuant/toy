@@ -92,10 +92,10 @@ const FundProfileCard: React.FC<FundProfileCardProps> = ({
 
   // Calculate days since fund creation
   const getDaysSinceCreation = () => {
-    if (!fundProfile.createdAt) return null;
+    if (!fundProfile.activeAt) return null;
     
     const now = Date.now() / 1000; // Convert to seconds to match the createdAt format
-    const diffInSeconds = now - fundProfile.createdAt;
+    const diffInSeconds = now - fundProfile.activeAt;
     const diffInDays = Math.floor(diffInSeconds / (60 * 60 * 24));
     
     return diffInDays;

@@ -87,7 +87,7 @@ export class BookStateService {
         [bookId]: {
           ...existingBook,
           ...updates,
-          updatedAt: Date.now()
+          activeAt: Date.now()
         }
       },
       lastUpdated: Date.now()

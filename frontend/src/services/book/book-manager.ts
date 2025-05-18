@@ -13,10 +13,10 @@ interface BookApiResponse {
   userId?: string;
   name: string;
   status: string;
-  created_at: number;
-  createdAt?: number;
-  updated_at: number;
-  updatedAt?: number;
+  active_at: number;
+  activeAt?: number;
+  expire_at: number;
+  expireAt?: number;
   parameters: any;
 }
 
@@ -101,8 +101,8 @@ export class BookManager {
             initialCapital: 0, // Will be updated from parameters
             riskLevel: 'medium', // Default value
             status: apiBook.status,
-            createdAt: apiBook.created_at || apiBook.createdAt,
-            updatedAt: apiBook.updated_at || apiBook.updatedAt
+            activeAt: apiBook.active_at || apiBook.activeAt,
+            expireAt: apiBook.expire_at || apiBook.expireAt
           };
           
           // Extract initialCapital from parameters if available
@@ -243,8 +243,8 @@ export class BookManager {
           initialCapital: 0, // Default value, will update from parameters
           riskLevel: 'medium', // Default value
           status: apiBook.status,
-          createdAt: apiBook.created_at || apiBook.createdAt || Date.now(),
-          updatedAt: apiBook.updated_at || apiBook.updatedAt || Date.now(),
+          activeAt: apiBook.active_at || apiBook.activeAt || Date.now(),
+          expireAt: apiBook.expire_at || apiBook.expireAt || Date.now(),
           parameters: apiBook.parameters // Include parameters from API response
         };
         

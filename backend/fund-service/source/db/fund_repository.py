@@ -200,16 +200,19 @@ class FundRepository:
         now = datetime.datetime.now(datetime.timezone.utc)
         query = """
         INSERT INTO fund.properties (
-            fund_id, category, subcategory, value, active_at, expire_at
+            fund_id, category, subcategory, key, value, active_at, expire_at
         ) VALUES (
-            $1, $2, $3, $4, $5, $6
+            $1, $2, $3, $4, $5, $6, $7
         )
         """
         
         try:
             for category, subcategories in properties.items():
                 for subcategory, items in subcategories.items():
-                    for key, value in items.items():
+                    for _, value in items.items():
+                        # Generate a random UUID for the key field
+                        random_key = str(uuid.uuid4())
+                        
                         # Convert non-string values to JSON strings
                         if not isinstance(value, str):
                             value = json.dumps(value)
@@ -219,6 +222,7 @@ class FundRepository:
                             fund_id,
                             category,
                             subcategory,
+                            random_key,  # Use the generated UUID as the key
                             value,
                             now,
                             self.future_date
@@ -240,9 +244,9 @@ class FundRepository:
         now = datetime.datetime.now(datetime.timezone.utc)
         query = """
         INSERT INTO fund.team_member_properties (
-            member_id, category, subcategory, value, active_at, expire_at
+            member_id, category, subcategory, key, value, active_at, expire_at
         ) VALUES (
-            $1, $2, $3, $4, $5, $6
+            $1, $2, $3, $4, $5, $6, $7
         )
         """
         
@@ -266,17 +270,21 @@ class FundRepository:
                         for sub_key, sub_value in value.items():
                             logger.info(f"Save team member properties: processing nested value - key: {sub_key}, value: {sub_value}")
                             
+                            # Generate random UUID for key
+                            random_key = str(uuid.uuid4())
+                            
                             # Convert non-string values to JSON strings
                             if not isinstance(sub_value, str):
                                 sub_value = json.dumps(sub_value)
                             
-                            logger.info(f"Save team member properties: executing query with values: {team_member_id}, {category}, {key}, {sub_key}, {sub_value}")
+                            logger.info(f"Save team member properties: executing query with values: {team_member_id}, {category}, {key}, {random_key}, {sub_value}")
                             
                             await conn.execute(
                                 query,
                                 team_member_id,
                                 category,
                                 key,  # Use the original key as subcategory
+                                random_key,  # Use random UUID as key
                                 sub_value,
                                 now,
                                 self.future_date
@@ -285,17 +293,21 @@ class FundRepository:
                         # For the subcategory, use the key and set subcategory to "info"
                         subcategory = "info"
                         
+                        # Generate random UUID for key
+                        random_key = str(uuid.uuid4())
+                        
                         # Convert non-string values to JSON strings
                         if not isinstance(value, str):
                             value = json.dumps(value)
                         
-                        logger.info(f"Save team member properties: executing query with values: {team_member_id}, {category}, {subcategory}, {key}, {value}")
+                        logger.info(f"Save team member properties: executing query with values: {team_member_id}, {category}, {subcategory}, {random_key}, {value}")
                         
                         await conn.execute(
                             query,
                             team_member_id,
                             category,
                             subcategory,
+                            random_key,  # Use random UUID as key
                             value,
                             now,
                             self.future_date
@@ -329,10 +341,12 @@ class FundRepository:
         ORDER BY fund_id, active_at DESC
         """
         
+        # Update this query to also retrieve the key column
         properties_query = """
         SELECT 
             category,
             subcategory,
+            key,  # Added key to the query
             value
         FROM fund.properties
         WHERE fund_id = $1 AND expire_at > NOW()
@@ -346,10 +360,12 @@ class FundRepository:
         ORDER BY team_member_id, active_at DESC
         """
         
+        # Update this query to also retrieve the key column
         team_member_properties_query = """
         SELECT 
             category,
             subcategory,
+            key,  # Added key to the query
             value
         FROM fund.team_member_properties
         WHERE member_id = $1 AND expire_at > NOW()
@@ -372,7 +388,49 @@ class FundRepository:
                 # Get fund properties
                 property_rows = await conn.fetch(properties_query, fund_data['fund_id'])
                 
-                # Organize properties into nested structure
+                # Define property mappings (subcategory names to keys)
+                property_mappings = {
+                    'profile': {
+                        'legalStructure': 'legalStructure',
+                        'location': 'location',
+                        'yearEstablished': 'yearEstablished',
+                        'aumRange': 'aumRange',
+                        'purpose': 'profilePurpose',
+                        'otherDetails': 'otherPurposeDetails'
+                    },
+                    'strategy': {
+                        'thesis': 'investmentStrategy'
+                    }
+                }
+                
+                # Build a special mapping table to know what key to use for each property
+                # This will help us identify specific properties
+                property_mapping_table = {}
+                for row in property_rows:
+                    category = row['category']
+                    subcategory = row['subcategory']
+                    value = row['value']
+                    
+                    # Try to determine a meaningful key based on the value's content
+                    # This is a simple heuristic approach - adjust as needed
+                    if category == 'general':
+                        if subcategory == 'profile':
+                            if value in ["Personal Account", "LLC", "Limited Partnership", "Corporation"]:
+                                property_mapping_table[(category, subcategory, value)] = 'legalStructure'
+                            elif value.startswith(("Under $", "$", "Over $")):
+                                property_mapping_table[(category, subcategory, value)] = 'aumRange'
+                            elif value.isdigit() or (len(value) == 4 and value.isdigit()):
+                                property_mapping_table[(category, subcategory, value)] = 'yearEstablished'
+                            elif value in ["raise_capital", "manage_investments", "other"] or isinstance(value, list):
+                                property_mapping_table[(category, subcategory, value)] = 'profilePurpose'
+                            elif value.startswith("To be ") or len(value.split()) > 3:
+                                property_mapping_table[(category, subcategory, value)] = 'otherPurposeDetails'
+                            else:
+                                property_mapping_table[(category, subcategory, value)] = 'location'
+                        elif subcategory == 'strategy':
+                            property_mapping_table[(category, subcategory, value)] = 'investmentStrategy'
+                
+                # Use the mapping table to build a more meaningful response
                 properties = {}
                 for row in property_rows:
                     category = row['category']
@@ -392,8 +450,15 @@ class FundRepository:
                     if subcategory not in properties[category]:
                         properties[category][subcategory] = {}
                     
-                    # Use the property ID as the key to make it unique
-                    properties[category][subcategory][str(uuid.uuid4())] = value
+                    # Look up a meaningful key from our mapping table
+                    key_tuple = (category, subcategory, value)
+                    meaningful_key = property_mapping_table.get(key_tuple)
+                    if not meaningful_key:
+                        # If no mapping, use a short uuid
+                        meaningful_key = str(uuid.uuid4())[0:8]
+                    
+                    # Use the meaningful key
+                    properties[category][subcategory][meaningful_key] = value
                 
                 # Add properties to fund data
                 fund_data['properties'] = properties
@@ -401,6 +466,19 @@ class FundRepository:
                 # Get team members
                 team_member_rows = await conn.fetch(team_members_query, fund_data['fund_id'])
                 team_members = []
+                
+                # Define team member property mappings
+                tm_property_mappings = {
+                    'personal': {'firstName': 'firstName', 'lastName': 'lastName', 'birthDate': 'birthDate'},
+                    'professional': {
+                        'role': 'role', 
+                        'yearsExperience': 'yearsExperience',
+                        'currentEmployment': 'currentEmployment',
+                        'investmentExpertise': 'investmentExpertise',
+                        'linkedin': 'linkedin'
+                    },
+                    'education': {'institution': 'education'}
+                }
                 
                 for team_row in team_member_rows:
                     team_member_id = team_row['team_member_id']
@@ -431,11 +509,42 @@ class FundRepository:
                         if subcategory not in member_properties[category]:
                             member_properties[category][subcategory] = {}
                         
-                        # Use a random UUID as key since we don't need to track it
-                        member_properties[category][subcategory][str(uuid.uuid4())] = value
+                        # Try to determine a meaningful property name
+                        meaningful_key = None
+                        
+                        # For standard categories
+                        if category in tm_property_mappings and subcategory in tm_property_mappings[category]:
+                            meaningful_key = tm_property_mappings[category][subcategory]
+                        elif category in tm_property_mappings and subcategory == 'info':
+                            # Try to match based on content
+                            if 'birth' in value or '-' in value and len(value) == 10:
+                                meaningful_key = 'birthDate'
+                            elif value in ['Portfolio Manager', 'Analyst', 'Trader']:
+                                meaningful_key = 'role'
+                            elif value.isdigit() or value in ['1', '2', '3', '4', '5']:
+                                meaningful_key = 'yearsExperience'
+                            elif value.startswith('http'):
+                                meaningful_key = 'linkedin'
+                            elif len(value.split()) <= 2 and value[0].isupper():
+                                # If value is 1-2 words and starts with capital, assume it's a name
+                                if category == 'personal':
+                                    meaningful_key = 'firstName' if 'lastName' in member_properties.get(category, {}).get(subcategory, {}) else 'lastName'
+                                elif category == 'education':
+                                    meaningful_key = 'institution'
+                                else:
+                                    meaningful_key = 'currentEmployment'
+                            elif category == 'professional':
+                                meaningful_key = 'investmentExpertise'
+                        
+                        # If no mapping found, use a short UUID
+                        if not meaningful_key:
+                            meaningful_key = str(uuid.uuid4())[0:8]
+                        
+                        member_properties[category][subcategory][meaningful_key] = value
                     
                     # Add team member with properties
                     team_members.append({
+                        "id": team_member_id,  # Change team_member_id to id to match frontend expectations
                         "team_member_id": str(team_member_id),
                         "properties": member_properties
                     })
@@ -452,6 +561,8 @@ class FundRepository:
             track_db_operation("get_fund_by_user", False, duration)
             logger.error(f"Error retrieving fund for user {user_id}: {e}")
             return None
+        
+        
     
     async def update_fund(self, fund_id: str, user_id: str, update_data: Dict[str, Any]) -> bool:
         """
@@ -589,7 +700,10 @@ class FundRepository:
                         # Create new property records
                         for category, subcategories in properties.items():
                             for subcategory, items in subcategories.items():
-                                for key, value in items.items():
+                                for _, value in items.items():
+                                    # Generate random UUID for key
+                                    random_key = str(uuid.uuid4())
+                                    
                                     # Convert non-string values to JSON
                                     if not isinstance(value, str):
                                         value = json.dumps(value)
@@ -597,12 +711,12 @@ class FundRepository:
                                     await conn.execute(
                                         """
                                         INSERT INTO fund.properties (
-                                            fund_id, category, subcategory, value, active_at, expire_at
+                                            fund_id, category, subcategory, key, value, active_at, expire_at
                                         ) VALUES (
-                                            $1, $2, $3, $4, $5, $6
+                                            $1, $2, $3, $4, $5, $6, $7
                                         )
                                         """,
-                                        fund_id, category, subcategory, value, now, self.future_date
+                                        fund_id, category, subcategory, random_key, value, now, self.future_date
                                     )
                     
                     # Update team members if provided
@@ -660,6 +774,9 @@ class FundRepository:
                                     # Insert new properties
                                     if isinstance(category_data, dict):
                                         for key, value in category_data.items():
+                                            # Generate random UUID for key
+                                            random_key = str(uuid.uuid4())
+                                            
                                             # Convert non-string values to JSON
                                             if not isinstance(value, str):
                                                 value = json.dumps(value)
@@ -667,12 +784,12 @@ class FundRepository:
                                             await conn.execute(
                                                 """
                                                 INSERT INTO fund.team_member_properties (
-                                                    member_id, category, subcategory, value, active_at, expire_at
+                                                    member_id, category, subcategory, key, value, active_at, expire_at
                                                 ) VALUES (
-                                                    $1, $2, $3, $4, $5, $6
+                                                    $1, $2, $3, $4, $5, $6, $7
                                                 )
                                                 """,
-                                                member_id, category, 'info', value, now, self.future_date
+                                                member_id, category, 'info', random_key, value, now, self.future_date
                                             )
                 
                 logger.info(f"Repository: fund update completed with result: True")
