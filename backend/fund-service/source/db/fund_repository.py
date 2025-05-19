@@ -74,20 +74,18 @@ class FundRepository:
                     # 1. Create the fund
                     fund_query = """
                     INSERT INTO fund.funds (
-                        fund_id, name, status, user_id, active_at, expire_at
+                        user_id, fund_id, name, active_at
                     ) VALUES (
-                        $1, $2, $3, $4, $5, $6
+                        $1, $2, $3, $4
                     ) RETURNING fund_id
                     """
                     
                     fund_id = await conn.fetchval(
                         fund_query,
+                        fund_data['user_id'],
                         fund_data['fund_id'],
                         fund_data['name'],
-                        fund_data.get('status', 'active'),
-                        fund_data['user_id'],
-                        now,
-                        self.future_date
+                        now
                     )
                     
                     # Convert UUID to string
@@ -118,7 +116,7 @@ class FundRepository:
                             db_mapping = get_fund_db_mapping(prop_name)
                             
                             if db_mapping:
-                                category, subcategory, _ = db_mapping
+                                category, subcategory = db_mapping
                                 logger.info(f"Using mapping for {prop_name}: category={category}, subcategory={subcategory}")
                             else:
                                 # Default category/subcategory for unmapped properties
@@ -132,7 +130,7 @@ class FundRepository:
                             try:
                                 await conn.execute(
                                     """
-                                    INSERT INTO fund.properties (
+                                    INSERT INTO fund.fund_properties (
                                         fund_id, category, subcategory, value, active_at, expire_at
                                     ) VALUES (
                                         $1, $2, $3, $4, $5, $6
@@ -158,16 +156,15 @@ class FundRepository:
                         # Create team member
                         team_query = """
                         INSERT INTO fund.team_members (
-                            fund_id, status, active_at, expire_at
+                            fund_id, active_at, expire_at
                         ) VALUES (
-                            $1, $2, $3, $4
+                            $1, $2, $3
                         ) RETURNING team_member_id
                         """
                         
                         team_member_id = await conn.fetchval(
                             team_query,
                             fund_id,
-                            'active',
                             now,
                             self.future_date
                         )
@@ -202,7 +199,7 @@ class FundRepository:
         """
         now = datetime.datetime.now(datetime.timezone.utc)
         query = """
-        INSERT INTO fund.properties (
+        INSERT INTO fund.fund_properties (
             fund_id, category, subcategory, value, active_at, expire_at
         ) VALUES (
             $1, $2, $3, $4, $5, $6
@@ -233,7 +230,7 @@ class FundRepository:
                 
                 if db_mapping:
                     # Use the mapping format
-                    category, subcategory, _ = db_mapping
+                    category, subcategory = db_mapping
                                         
                     # Convert non-string values to JSON strings
                     if not isinstance(value, str):
@@ -342,7 +339,7 @@ class FundRepository:
                         logger.info(f"Mapping for {input_category}.{input_field}: {db_mapping}")
                         
                         if db_mapping:
-                            category, subcategory, _ = db_mapping
+                            category, subcategory = db_mapping
                                                         
                             # Convert non-string values to JSON strings
                             if not isinstance(value, str):
@@ -445,7 +442,6 @@ class FundRepository:
             fund_id, 
             user_id, 
             name,
-            status,
             extract(epoch from active_at) as active_at
         FROM fund.funds 
         WHERE user_id = $1 AND expire_at > NOW()
@@ -457,7 +453,7 @@ class FundRepository:
             category,
             subcategory,
             value
-        FROM fund.properties
+        FROM fund.fund_properties
         WHERE fund_id = $1 AND expire_at > NOW()
         """
         
@@ -591,7 +587,7 @@ class FundRepository:
                         logger.info(f"Original info for ({category}, {subcategory}): {original}")
                         
                         if original[0] is not None:
-                            input_category, input_field, _ = original
+                            input_category, input_field = original
                             logger.info(f"Mapped to original fields: {input_category}.{input_field}")
                             
                             # Initialize the category dict if needed
@@ -645,9 +641,10 @@ class FundRepository:
             logger.error(f"Error getting fund by user: {e}", exc_info=True)
             return None        
 
+
     async def update_fund(self, fund_id: str, user_id: str, update_data: Dict[str, Any]) -> bool:
         """
-        Update a fund using temporal data pattern
+        Update a fund's properties and team members using temporal data pattern
         
         Args:
             fund_id: Fund ID to update
@@ -663,9 +660,9 @@ class FundRepository:
         pool = await self.db_pool.get_pool()
         now = datetime.datetime.now(datetime.timezone.utc)
         
-        # We'll handle properties separately
-        properties = update_data.pop('properties', None)
-        team_members = update_data.pop('team_members', None)
+        # Extract properties and team members
+        properties = update_data.get('properties', None)
+        team_members = update_data.get('team_members', None)
         
         logger.info(f"Properties to update: {properties}")
         logger.info(f"Team members to update: {team_members}")
@@ -673,112 +670,270 @@ class FundRepository:
         try:
             async with pool.acquire() as conn:
                 async with conn.transaction():
-                    # Update fund entity if basic fields changed
-                    if update_data:
-                        # Fetch current fund data
-                        current_fund = await conn.fetchrow(
-                            """
-                            SELECT * FROM fund.funds
-                            WHERE fund_id = $1 AND user_id = $2 AND expire_at > NOW()
-                            ORDER BY active_at DESC LIMIT 1
-                            """,
-                            fund_id, user_id
-                        )
-                        
-                        if not current_fund:
-                            logger.error(f"Fund {fund_id} not found or does not belong to user {user_id}")
-                            return False
-                        
-                        # Expire current fund record
-                        expire_result = await conn.execute(
-                            """
-                            UPDATE fund.funds
-                            SET expire_at = $1
-                            WHERE fund_id = $2 AND user_id = $3 AND expire_at > NOW()
-                            """,
-                            now, fund_id, user_id
-                        )
-                        
-                        logger.info(f"Expired fund record, result: {expire_result}")
-                        
-                        # Create new record with updated values
-                        new_record = dict(current_fund)
-                        
-                        # Apply updates
-                        for field, value in update_data.items():
-                            if field not in ['fund_id', 'user_id', 'active_at', 'expire_at']:
-                                new_record[field] = value
-                        
-                        # Set new timestamps
-                        new_record['active_at'] = now
-                        new_record['expire_at'] = self.future_date
-                        
-                        # Dynamically build insert query
-                        columns = list(new_record.keys())
-                        placeholders = [f'${i+1}' for i in range(len(columns))]
-                        values = [new_record[col] for col in columns]
-                        
-                        insert_query = f"""
-                        INSERT INTO fund.funds ({', '.join(columns)})
-                        VALUES ({', '.join(placeholders)})
-                        """
-                        
-                        logger.info(f"Inserting new fund record with fields: {columns}")
-                        insert_result = await conn.execute(insert_query, *values)
-                        logger.info(f"Inserted new fund record, result: {insert_result}")
-                    
-                    # Update properties if provided
+                    # Handle properties if provided
                     if properties:
-                        logger.info(f"Updating fund properties: {properties}")
-                        
-                        # Expire all current properties
-                        expire_result = await conn.execute(
+                        # Get existing properties
+                        existing_properties = await conn.fetch(
                             """
-                            UPDATE fund.properties
-                            SET expire_at = $1
-                            WHERE fund_id = $2 AND expire_at > NOW()
+                            SELECT category, subcategory, value FROM fund.properties
+                            WHERE fund_id = $1 AND expire_at > NOW()
                             """,
-                            now, fund_id
+                            fund_id
                         )
                         
-                        logger.info(f"Expired existing properties, result: {expire_result}")
+                        # Create map of existing properties for comparison
+                        existing_prop_map = {}
+                        for prop in existing_properties:
+                            key = (prop['category'], prop['subcategory'])
+                            existing_prop_map[key] = prop['value']
                         
-                        # Save new properties
-                        property_count = await self._save_fund_properties(conn, fund_id, properties)
-                        logger.info(f"Saved {property_count} new properties")
+                        # Process each property
+                        for prop_name, prop_value in properties.items():
+                            # Find mapping for this property
+                            db_mapping = get_fund_db_mapping(prop_name)
+                            
+                            if db_mapping:
+                                category, subcategory = db_mapping
+                            else:
+                                # Default mapping
+                                category = 'fund'
+                                subcategory = prop_name
+                            
+                            # Convert non-string values to JSON strings
+                            if not isinstance(prop_value, str):
+                                prop_value = json.dumps(prop_value)
+                            
+                            # Check if property exists and has changed
+                            key = (category, subcategory)
+                            if key in existing_prop_map and existing_prop_map[key] != prop_value:
+                                # Property exists but has changed - expire it
+                                logger.info(f"Expiring changed property: {category}.{subcategory}")
+                                await conn.execute(
+                                    """
+                                    UPDATE fund.properties
+                                    SET expire_at = $1
+                                    WHERE fund_id = $2 AND category = $3 AND subcategory = $4 AND expire_at > NOW()
+                                    """,
+                                    now, fund_id, category, subcategory
+                                )
+                                
+                                # Add new value
+                                logger.info(f"Adding updated property: {category}.{subcategory} = {prop_value}")
+                                await conn.execute(
+                                    """
+                                    INSERT INTO fund.properties (
+                                        fund_id, category, subcategory, value, active_at, expire_at
+                                    ) VALUES (
+                                        $1, $2, $3, $4, $5, $6
+                                    )
+                                    """,
+                                    fund_id, category, subcategory, prop_value, now, self.future_date
+                                )
+                            elif key not in existing_prop_map:
+                                # New property - just add it
+                                logger.info(f"Adding new property: {category}.{subcategory} = {prop_value}")
+                                await conn.execute(
+                                    """
+                                    INSERT INTO fund.properties (
+                                        fund_id, category, subcategory, value, active_at, expire_at
+                                    ) VALUES (
+                                        $1, $2, $3, $4, $5, $6
+                                    )
+                                    """,
+                                    fund_id, category, subcategory, prop_value, now, self.future_date
+                                )
                     
-                    # Update team members if provided
-                    if team_members:
-                        logger.info(f"Processing {len(team_members)} team members")
+                    # Handle team members if provided
+                    if team_members is not None:
+                        # Get existing team members
+                        existing_members = await conn.fetch(
+                            """
+                            SELECT team_member_id FROM fund.team_members
+                            WHERE fund_id = $1 AND expire_at > NOW()
+                            """,
+                            fund_id
+                        )
                         
-                        # Process each team member with its index
-                        for i, team_member in enumerate(team_members):
-                            logger.info(f"Processing team member #{i}: {team_member}")
+                        # Create set of existing member IDs
+                        existing_member_ids = {str(row['team_member_id']) for row in existing_members}
+                        
+                        # Create set of member IDs in update data
+                        update_member_ids = {member.get('id') for member in team_members if member.get('id')}
+                        
+                        # Find members to remove (in existing but not in update)
+                        members_to_remove = existing_member_ids - update_member_ids
+                        
+                        # Expire removed members and their properties
+                        for member_id in members_to_remove:
+                            logger.info(f"Expiring removed team member: {member_id}")
                             
-                            # Get team member ID
-                            member_id = team_member.get('id')
-                            if not member_id:
-                                logger.warning(f"Team member has no ID, skipping")
-                                continue
-                            
-                            # Verify the team member belongs to this fund
-                            member_exists = await conn.fetchval(
+                            # Expire member properties
+                            await conn.execute(
                                 """
-                                SELECT 1 FROM fund.team_members
-                                WHERE team_member_id = $1 AND fund_id = $2 AND expire_at > NOW()
+                                UPDATE fund.team_member_properties
+                                SET expire_at = $1
+                                WHERE member_id = $2 AND expire_at > NOW()
                                 """,
-                                member_id, fund_id
+                                now, member_id
                             )
                             
-                            if not member_exists:
-                                logger.warning(f"Team member {member_id} does not belong to fund {fund_id}, skipping")
-                                continue
+                            # Expire team member
+                            await conn.execute(
+                                """
+                                UPDATE fund.team_members
+                                SET expire_at = $1
+                                WHERE team_member_id = $2 AND expire_at > NOW()
+                                """,
+                                now, member_id
+                            )
+                        
+                        # Process each member in update data
+                        for i, member_data in enumerate(team_members):
+                            member_id = member_data.get('id')
                             
-                            # Update this team member with its index
-                            await self._update_team_member(conn, member_id, team_member, i)
-                
-                logger.info(f"Fund update completed with result: True")
-                return True
+                            if not member_id:
+                                # New member without ID - create it
+                                logger.info(f"Creating new team member")
+                                new_member_id = str(uuid.uuid4())
+                                
+                                await conn.execute(
+                                    """
+                                    INSERT INTO fund.team_members (
+                                        team_member_id, fund_id, active_at, expire_at
+                                    ) VALUES (
+                                        $1, $2, $3, $4
+                                    )
+                                    """,
+                                    new_member_id, fund_id, now, self.future_date
+                                )
+                                
+                                # Save all properties for this new member
+                                await self._save_team_member_properties(conn, new_member_id, member_data, i)
+                            elif member_id in existing_member_ids:
+                                # Existing member - update properties selectively
+                                logger.info(f"Updating existing team member: {member_id}")
+                                
+                                # Get existing properties for this member
+                                existing_props = await conn.fetch(
+                                    """
+                                    SELECT category, subcategory, value FROM fund.team_member_properties
+                                    WHERE member_id = $1 AND expire_at > NOW()
+                                    """,
+                                    member_id
+                                )
+                                
+                                # Create map of existing properties
+                                existing_prop_map = {}
+                                for prop in existing_props:
+                                    key = (prop['category'], prop['subcategory'])
+                                    existing_prop_map[key] = prop['value']
+                                
+                                # Process each category in member data
+                                for category, category_data in member_data.items():
+                                    if category == 'id':
+                                        continue  # Skip ID field
+                                    
+                                    if isinstance(category_data, dict):
+                                        # Process each field in this category
+                                        for field, value in category_data.items():
+                                            # Find mapping for this field
+                                            db_mapping = get_team_member_db_mapping(category, field)
+                                            
+                                            if db_mapping:
+                                                db_category, db_subcategory = db_mapping
+                                            else:
+                                                # Default mapping
+                                                db_category = category
+                                                db_subcategory = field
+                                            
+                                            # Convert non-string values
+                                            if not isinstance(value, str):
+                                                value = json.dumps(value)
+                                                
+                                            # Check if property exists and has changed
+                                            key = (db_category, db_subcategory)
+                                            if key in existing_prop_map and existing_prop_map[key] != value:
+                                                # Property changed - expire old and add new
+                                                logger.info(f"Updating property for member {member_id}: {db_category}.{db_subcategory}")
+                                                
+                                                # Expire old value
+                                                await conn.execute(
+                                                    """
+                                                    UPDATE fund.team_member_properties
+                                                    SET expire_at = $1
+                                                    WHERE member_id = $2 AND category = $3 AND subcategory = $4 AND expire_at > NOW()
+                                                    """,
+                                                    now, member_id, db_category, db_subcategory
+                                                )
+                                                
+                                                # Add new value
+                                                await conn.execute(
+                                                    """
+                                                    INSERT INTO fund.team_member_properties (
+                                                        member_id, category, subcategory, value, active_at, expire_at
+                                                    ) VALUES (
+                                                        $1, $2, $3, $4, $5, $6
+                                                    )
+                                                    """,
+                                                    member_id, db_category, db_subcategory, value, now, self.future_date
+                                                )
+                                            elif key not in existing_prop_map:
+                                                # New property - just add it
+                                                logger.info(f"Adding new property for member {member_id}: {db_category}.{db_subcategory}")
+                                                await conn.execute(
+                                                    """
+                                                    INSERT INTO fund.team_member_properties (
+                                                        member_id, category, subcategory, value, active_at, expire_at
+                                                    ) VALUES (
+                                                        $1, $2, $3, $4, $5, $6
+                                                    )
+                                                    """,
+                                                    member_id, db_category, db_subcategory, value, now, self.future_date
+                                                )
+                                    else:
+                                        # Handle primitive values (like education: "MIT")
+                                        db_category = category
+                                        db_subcategory = "value"
+                                        value = str(category_data)
+                                        
+                                        # Check if property exists and has changed
+                                        key = (db_category, db_subcategory)
+                                        if key in existing_prop_map and existing_prop_map[key] != value:
+                                            # Expire old value
+                                            await conn.execute(
+                                                """
+                                                UPDATE fund.team_member_properties
+                                                SET expire_at = $1
+                                                WHERE member_id = $2 AND category = $3 AND subcategory = $4 AND expire_at > NOW()
+                                                """,
+                                                now, member_id, db_category, db_subcategory
+                                            )
+                                            
+                                            # Add new value
+                                            await conn.execute(
+                                                """
+                                                INSERT INTO fund.team_member_properties (
+                                                    member_id, category, subcategory, value, active_at, expire_at
+                                                ) VALUES (
+                                                    $1, $2, $3, $4, $5, $6
+                                                )
+                                                """,
+                                                member_id, db_category, db_subcategory, value, now, self.future_date
+                                            )
+                                        elif key not in existing_prop_map:
+                                            # New property - just add it
+                                            await conn.execute(
+                                                """
+                                                INSERT INTO fund.team_member_properties (
+                                                    member_id, category, subcategory, value, active_at, expire_at
+                                                ) VALUES (
+                                                    $1, $2, $3, $4, $5, $6
+                                                )
+                                                """,
+                                                member_id, db_category, db_subcategory, value, now, self.future_date
+                                            )
+                    
+                    return True
         except Exception as e:
             logger.error(f"Error updating fund {fund_id}: {e}", exc_info=True)
             return False

@@ -53,7 +53,6 @@ class FundManager:
             fund = Fund(
                 user_id=user_id,
                 name=fund_data['name'],
-                status=fund_data.get('status', 'active'),
                 fund_id=str(uuid.uuid4())
             )
             
@@ -79,9 +78,9 @@ class FundManager:
             # Process team members
             team_members = []
             if 'team_members' in fund_data and isinstance(fund_data['team_members'], list):
-                for member in fund_data['team_members']:
+                for idx, member in enumerate(fund_data['team_members']):
                     team_member = {
-                        'id': member.get('id', ''),
+                        'id': idx,
                         'personal': {
                             'firstName': member.get('firstName', ''),
                             'lastName': member.get('lastName', ''),
@@ -92,6 +91,8 @@ class FundManager:
                             'yearsExperience': member.get('yearsExperience', ''),
                             'currentEmployment': member.get('currentEmployment', ''),
                             'investmentExpertise': member.get('investmentExpertise', ''),
+                        },
+                        'social': {
                             'linkedin': member.get('linkedin', '')
                         }
                     }
@@ -100,8 +101,6 @@ class FundManager:
                     if 'education' in member:
                         if isinstance(member['education'], dict):
                             team_member['education'] = member['education']
-                        else:
-                            team_member['education'] = {'institution': member['education']}
                     
                     team_members.append(team_member)
             
@@ -200,15 +199,6 @@ class FundManager:
             if 'name' in fund_data:
                 update_object['name'] = fund_data['name']
             
-            if 'status' in fund_data:
-                if fund_data['status'] in ['active', 'archived', 'pending']:
-                    update_object['status'] = fund_data['status']
-                else:
-                    return {
-                        "success": False,
-                        "error": "Invalid status value. Must be one of: active, archived, pending"
-                    }
-            
             # Handle properties
             properties = {}
             
@@ -229,15 +219,10 @@ class FundManager:
             if 'team_members' in fund_data and isinstance(fund_data['team_members'], list):
                 team_members = []
                 
-                for member in fund_data['team_members']:
-                    # Skip team members without ID - can't update what we can't identify
-                    if 'id' not in member:
-                        logger.warning(f"Skipping team member without ID: {member}")
-                        continue
-                    
+                for idx, member in enumerate(fund_data['team_members']):
                     team_member = {
-                        'id': member['id'],
                         'personal': {
+                            'order': idx,
                             'firstName': member.get('firstName', ''),
                             'lastName': member.get('lastName', ''),
                             'birthDate': member.get('birthDate', '')
@@ -247,6 +232,8 @@ class FundManager:
                             'yearsExperience': member.get('yearsExperience', ''),
                             'currentEmployment': member.get('currentEmployment', ''),
                             'investmentExpertise': member.get('investmentExpertise', ''),
+                        },
+                        'social': {
                             'linkedin': member.get('linkedin', '')
                         }
                     }
@@ -255,8 +242,6 @@ class FundManager:
                     if 'education' in member:
                         if isinstance(member['education'], dict):
                             team_member['education'] = member['education']
-                        else:
-                            team_member['education'] = {'institution': member['education']}
                     
                     team_members.append(team_member)
                 

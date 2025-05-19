@@ -102,7 +102,7 @@ class FundController(BaseController):
         
         # Map frontend field names to expected field names
         fund_data = {
-            'name': data.get('fundName', data.get('name', '')),
+            'name': data.get('fundName', 'UNKNOWN'),
             'user_id': user_id,
         }
         
@@ -216,9 +216,9 @@ class FundController(BaseController):
             
             # Transform team members
             if 'team_members' in fund:
-                for member in fund['team_members']:
+                for idx, member in enumerate(fund['team_members']):
                     member_data = {}
-                    member_data['id'] = member['team_member_id']
+                    member_data['order'] = idx
                     
                     if 'properties' in member:
                         props = member['properties']
@@ -241,12 +241,16 @@ class FundController(BaseController):
                                     member_data['role'] = value
                                 elif isinstance(value, str) and (value.isdigit() or value in ['1', '2', '3', '4', '5']):
                                     member_data['yearsExperience'] = value
-                                elif isinstance(value, str) and value.startswith('http'):
-                                    member_data['linkedin'] = value
                                 elif isinstance(value, str) and len(value.split()) >= 2 and not value.startswith('http'):
                                     member_data['investmentExpertise'] = value
                                 else:
                                     member_data['currentEmployment'] = value
+                        
+                        # Extract professional info
+                        if 'social' in props and 'info' in props['professional']:
+                            for key, value in props['professional']['info'].items():
+                                if isinstance(value, str) and value.startswith('http'):
+                                    member_data['linkedin'] = value
                         
                         # Extract education info
                         if 'education' in props:
@@ -288,9 +292,11 @@ class FundController(BaseController):
         # Add name field if present
         if 'fundName' in data:
             update_data['name'] = data['fundName']
-        elif 'name' in data:
-            update_data['name'] = data['name']
-        
+        else: 
+            error = result.get("error", "Failed to update fund")
+            status = 404 if "not found" in error else 500
+            return self.create_error_response(error, status)
+
         # Map general properties
         general_properties = {
             'profile': {},
@@ -310,29 +316,21 @@ class FundController(BaseController):
             general_properties['profile']['purpose'] = data['profilePurpose']
         if 'otherPurposeDetails' in data:
             general_properties['profile']['otherDetails'] = data['otherPurposeDetails']
-        
-        # Add strategy properties
         if 'investmentStrategy' in data:
             general_properties['strategy']['thesis'] = data['investmentStrategy']
-        
-        # Add properties if they exist
+
         if general_properties['profile'] or general_properties['strategy']:
             update_data['properties']['general'] = general_properties
             
         # Process team members if present
         if 'teamMembers' in data and isinstance(data['teamMembers'], list):
             team_members = []
-            for member in data['teamMembers']:
+            for idx, member in enumerate(data['teamMembers']):
                 logger.info(f"Processing team member in controller: {member}")
-                
-                # Make sure we have the ID
-                if 'id' not in member:
-                    logger.warning(f"Team member without ID, skipping: {member}")
-                    continue
-                    
+                                    
                 team_member = {
-                    'id': member.get('id'),  # Important! Include the team member ID for updates
                     'personal': {
+                        'order': idx, 
                         'firstName': member.get('firstName', ''),
                         'lastName': member.get('lastName', ''),
                         'birthDate': member.get('birthDate', '')
@@ -342,10 +340,12 @@ class FundController(BaseController):
                         'yearsExperience': member.get('yearsExperience', ''),
                         'currentEmployment': member.get('currentEmployment', ''),
                         'investmentExpertise': member.get('investmentExpertise', ''),
+                    },
+                    'social': {
                         'linkedin': member.get('linkedin', '')
                     },
                     'education': {
-                        'institution': member.get('education', '')
+                        'education': member.get('education', '')
                     }
                 }
                 team_members.append(team_member)

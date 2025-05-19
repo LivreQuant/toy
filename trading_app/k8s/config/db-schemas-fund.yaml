@@ -10,12 +10,10 @@ data:
 
     -- User (Fund) table - Each user_id represents a fund entity
     CREATE TABLE fund.funds (
+        user_id UUID NOT NULL REFERENCES auth.users(user_id) ON DELETE CASCADE UNIQUE  -- One-to-one with auth.users
         fund_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
         name VARCHAR(255) NOT NULL,
-        status VARCHAR(50) NOT NULL DEFAULT 'active',  -- active, archived, pending
         active_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-        expire_at TIMESTAMP WITH TIME ZONE DEFAULT '2999-01-01',
-        user_id UUID NOT NULL REFERENCES auth.users(user_id) ON DELETE CASCADE UNIQUE  -- One-to-one with auth.users
     );
 
     -- Fund properties using EAV (Entity-Attribute-Value) model for flexibility
@@ -33,7 +31,6 @@ data:
     CREATE TABLE fund.team_members (
         team_member_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
         fund_id UUID NOT NULL REFERENCES fund.funds(fund_id) ON DELETE CASCADE,
-        status VARCHAR(50) NOT NULL DEFAULT 'active',  -- active, inactive
         active_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
         expire_at TIMESTAMP WITH TIME ZONE DEFAULT '2999-01-01'
     );
@@ -54,7 +51,6 @@ data:
         book_id UUID PRIMARY KEY,
         user_id UUID NOT NULL,
         name VARCHAR(255) NOT NULL,
-        status VARCHAR(50) DEFAULT 'active',
         active_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
         expire_at TIMESTAMP WITH TIME ZONE DEFAULT '2999-01-01'
     );
@@ -67,7 +63,7 @@ data:
         subcategory VARCHAR(100) DEFAULT '',
         value TEXT,
         active_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-        expire_at TIMESTAMP WITH TIME ZONE DEFAULT '2999-01-01'
+        expire_at TIMESTAMP WITH TIME ZONE DEFAULT '2999-01-01',
         PRIMARY KEY (property_id, category, subcategory, active_at)
     );
 
