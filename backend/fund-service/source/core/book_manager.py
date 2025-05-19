@@ -2,7 +2,7 @@
 import logging
 import time
 import uuid
-from typing import Dict, Any
+from typing import Dict, Any, List
 
 from source.models.book import Book
 from source.db.book_repository import BookRepository
@@ -56,9 +56,11 @@ class BookManager:
             # Convert to dictionary for repository layer
             book_dict = book.to_dict()
             
-            # Add parameters if they exist
+            # Add parameters in the appropriate format
             if 'parameters' in book_data:
                 book_dict['parameters'] = book_data['parameters']
+            elif 'bookParameters' in book_data:
+                book_dict['bookParameters'] = book_data['bookParameters']
             
             # Save to database
             logger.info(f"Calling repository to save book {book.book_id}")
@@ -203,4 +205,4 @@ class BookManager:
                 "success": False,
                 "error": f"Error updating book: {str(e)}"
             }
-    
+        

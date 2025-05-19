@@ -98,70 +98,55 @@ class FundController(BaseController):
         if not parse_success:
             return self.create_error_response(data["error"], data["status"])
         
+        # Log the entire request data for debugging
+        logger.info(f"Received fund creation request data: {data}")
+        
         # Map frontend field names to expected field names
         fund_data = {
             'name': data.get('fundName', data.get('name', '')),
             'user_id': user_id,
-            'properties': {},
-            'team_members': []
         }
         
         # Validate required fields
         if not fund_data['name']:
             return self.create_error_response("Missing required field: name", 400)
         
-        # Map general properties
-        general_properties = {
-            'profile': {},
-            'strategy': {}
-        }
-        
-        # Add profile properties
+        # Explicitly extract and add each property field
         if 'legalStructure' in data:
-            general_properties['profile']['legalStructure'] = data['legalStructure']
+            fund_data['legalStructure'] = data['legalStructure']
+            logger.info(f"Extracted legalStructure: {data['legalStructure']}")
+        
         if 'location' in data:
-            general_properties['profile']['location'] = data['location']
-        if 'yearEstablished' in data:
-            general_properties['profile']['yearEstablished'] = data['yearEstablished']
-        if 'aumRange' in data:
-            general_properties['profile']['aumRange'] = data['aumRange']
-        if 'profilePurpose' in data:
-            general_properties['profile']['purpose'] = data['profilePurpose']
-        if 'otherPurposeDetails' in data:
-            general_properties['profile']['otherDetails'] = data['otherPurposeDetails']
-        
-        # Add strategy properties
-        if 'investmentStrategy' in data:
-            general_properties['strategy']['thesis'] = data['investmentStrategy']
-        
-        # Add properties if they exist
-        if general_properties['profile'] or general_properties['strategy']:
-            fund_data['properties']['general'] = general_properties
+            fund_data['location'] = data['location']
+            logger.info(f"Extracted location: {data['location']}")
             
+        if 'yearEstablished' in data:
+            fund_data['yearEstablished'] = data['yearEstablished']
+            logger.info(f"Extracted yearEstablished: {data['yearEstablished']}")
+            
+        if 'aumRange' in data:
+            fund_data['aumRange'] = data['aumRange']
+            logger.info(f"Extracted aumRange: {data['aumRange']}")
+            
+        if 'profilePurpose' in data:
+            fund_data['profilePurpose'] = data['profilePurpose']
+            logger.info(f"Extracted profilePurpose: {data['profilePurpose']}")
+            
+        if 'otherPurposeDetails' in data:
+            fund_data['otherPurposeDetails'] = data['otherPurposeDetails']
+            logger.info(f"Extracted otherPurposeDetails: {data['otherPurposeDetails']}")
+            
+        if 'investmentStrategy' in data:
+            fund_data['investmentStrategy'] = data['investmentStrategy']
+            logger.info(f"Extracted investmentStrategy: {data['investmentStrategy']}")
+        
         # Process team members
         if 'teamMembers' in data and isinstance(data['teamMembers'], list):
-            team_members = []
-            for member in data['teamMembers']:
-                team_member = {
-                    'id': member.get('id', ''),  # Important! Include the team member ID for updates
-                    'personal': {
-                        'firstName': member.get('firstName', ''),
-                        'lastName': member.get('lastName', ''),
-                        'birthDate': member.get('birthDate', '')
-                    },
-                    'professional': {
-                        'role': member.get('role', ''),
-                        'yearsExperience': member.get('yearsExperience', ''),
-                        'currentEmployment': member.get('currentEmployment', ''),
-                        'investmentExpertise': member.get('investmentExpertise', ''),
-                        'linkedin': member.get('linkedin', '')
-                    },
-                    'education': member.get('education', '')  # Pass education directly
-                }
-                team_members.append(team_member)
-            
-            if team_members:
-                fund_data['team_members'] = team_members
+            fund_data['team_members'] = data['teamMembers']
+            logger.info(f"Extracted {len(data['teamMembers'])} team members")
+        
+        # Log what we're sending to the fund manager
+        logger.info(f"Sending fund_data to manager: {fund_data}")
         
         # Create fund using the temporal data pattern
         result = await self.fund_manager.create_fund(fund_data, user_id)

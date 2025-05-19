@@ -119,7 +119,7 @@ export class FundManager {
     if (!this.tokenManager.isAuthenticated()) {
       return { success: false, error: 'Not authenticated' };
     }
-
+  
     try {
       const response = await this.fundApi.getFundProfile();
       
@@ -135,50 +135,44 @@ export class FundManager {
           
           // Check both flat and nested structures
           legalStructure: apiData.legalStructure || 
-            apiData.properties?.general?.profile?.legalStructure,
+            apiData.fund_type_legal_structure,
             
           location: apiData.location || 
-            apiData.properties?.general?.profile?.location,
+            apiData.location_address,
             
           yearEstablished: apiData.yearEstablished || 
-            apiData.properties?.general?.profile?.yearEstablished,
+            apiData.metadata_year_established,
             
           aumRange: apiData.aumRange || 
-            apiData.properties?.general?.profile?.aumRange,
+            apiData.financial_aum_range,
             
           investmentStrategy: apiData.investmentStrategy || 
-            apiData.properties?.general?.strategy?.thesis,
+            apiData.strategy_approach,
             
           profilePurpose: apiData.profilePurpose || 
-            apiData.properties?.general?.profile?.purpose || [],
+            apiData.purpose_objective || [],
             
           otherPurposeDetails: apiData.otherPurposeDetails || 
-            apiData.properties?.general?.profile?.otherDetails,
+            apiData.purpose_description,
             
-          // Process team members from different possible formats with explicit type annotation
+          // Process team members with careful extraction of nested fields
           teamMembers: apiData.team_members?.map((member: any) => {
-            // First check if member data is already in the expected format
-            if (member.firstName) {
-              return member as TeamMember;
-            }
-            
-            // Otherwise extract from nested structure
-            const personal = member.properties?.personal?.info || {};
-            const professional = member.properties?.professional?.info || {};
-            const education = member.properties?.education?.info || {};
-            
+            // Handle different team member structures
             return {
               id: member.team_member_id || member.id,
-              firstName: member.firstName || personal.firstName || '',
-              lastName: member.lastName || personal.lastName || '',
-              role: member.role || professional.role || '',
-              yearsExperience: member.yearsExperience || professional.yearsExperience || '',
-              education: member.education || education.institution || '',
-              currentEmployment: member.currentEmployment || professional.currentEmployment || '',
-              investmentExpertise: member.investmentExpertise || professional.investmentExpertise || '',
-              birthDate: member.birthDate || personal.birthDate || '',
-              linkedin: member.linkedin || professional.linkedin || '',
-            } as TeamMember;
+              firstName: member.personal?.firstName || '',
+              lastName: member.personal?.lastName || '',
+              role: member.professional?.role || '',
+              yearsExperience: member.professional?.yearsExperience || '',
+              // Specifically handle education as a string value
+              education: typeof member.education === 'object' && member.education?.institution 
+                ? member.education.institution 
+                : (typeof member.education === 'string' ? member.education : ''),
+              currentEmployment: member.professional?.currentEmployment || '',
+              investmentExpertise: member.professional?.investmentExpertise || '',
+              birthDate: member.personal?.birthDate || '',
+              linkedin: member.professional?.linkedin || '',
+            };
           }) || [],
           
           activeAt: apiData.active_at || apiData.activeAt,
