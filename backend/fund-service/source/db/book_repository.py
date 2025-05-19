@@ -8,7 +8,6 @@ from typing import Dict, Any, List, Optional
 
 from source.db.connection_pool import DatabasePool
 from source.utils.metrics import track_db_operation
-from source.utils.property_mappings import get_book_db_mapping, get_original_book_field
 
 logger = logging.getLogger('book_repository')
 
@@ -32,10 +31,13 @@ class BookRepository:
         self.db_pool = DatabasePool()
         # Far future date used for active records
         self.future_date = datetime.datetime(2999, 1, 1, tzinfo=datetime.timezone.utc)
+        
+        # Define which categories should be treated as lists
+        self.list_categories = ['Sector', 'Investment Timeframe', 'Investment Approach', 'Instrument']
 
     async def create_book(self, book_data: Dict[str, Any]) -> Optional[str]:
         """
-        Create a new book with its properties
+        Create a new book with its properties using temporal data pattern
         
         Args:
             book_data: Dictionary with book properties including parameters
@@ -47,12 +49,22 @@ class BookRepository:
         
         logger.info(f"Creating book in database with ID: {book_data['book_id']}")
         
-        query = """
+        now = datetime.datetime.now(datetime.timezone.utc)
+        
+        book_query = """
         INSERT INTO fund.books (
-            book_id, user_id, name, status, active_at, expire_at
+            book_id, user_id, name, active_at, expire_at
         ) VALUES (
-            $1, $2, $3, $4, NOW(), $5
+            $1, $2, $3, $4, $5
         ) RETURNING book_id
+        """
+        
+        property_query = """
+        INSERT INTO fund.book_properties (
+            book_id, category, subcategory, value, active_at, expire_at
+        ) VALUES (
+            $1, $2, $3, $4, $5, $6
+        )
         """
         
         start_time = time.time()
@@ -61,29 +73,90 @@ class BookRepository:
                 # Use a single transaction for the entire operation
                 async with conn.transaction():
                     # Insert book
+                    logger.info(f"Inserting book record for {book_data['book_id']}")
                     book_id = await conn.fetchval(
-                        query,
+                        book_query,
                         book_data['book_id'],
                         book_data['user_id'],
                         book_data['name'],
-                        book_data.get('status', 'active'),
+                        now,
                         self.future_date
                     )
                     
+                    # Convert UUID to string
+                    if isinstance(book_id, uuid.UUID):
+                        book_id = str(book_id)
+                    
                     # Process book parameters if present
-                    if 'parameters' in book_data:
-                        await self._save_book_parameters(conn, book_id, book_data['parameters'])
-                    elif 'bookParameters' in book_data:
-                        await self._save_book_parameters_dict(conn, book_id, book_data['bookParameters'])
+                    if 'parameters' in book_data and book_data['parameters']:
+                        # For triplet format parameters
+                        if isinstance(book_data['parameters'], list):
+                            logger.info(f"Processing {len(book_data['parameters'])} parameters for book {book_id}")
+                            
+                            # Group parameters by category and subcategory
+                            parameter_groups = {}
+                            
+                            for param in book_data['parameters']:
+                                if len(param) >= 3:
+                                    category = param[0]
+                                    subcategory = param[1] if param[1] else ""
+                                    value = param[2]
+                                    
+                                    key = (category, subcategory)
+                                    
+                                    # If this is a field that should be an array
+                                    if category in self.list_categories:
+                                        if key not in parameter_groups:
+                                            parameter_groups[key] = []
+                                        
+                                        parameter_groups[key].append(value)
+                                    else:
+                                        # Regular single-value field
+                                        parameter_groups[key] = value
+                            
+                            # Save each parameter or parameter group
+                            for (category, subcategory), value in parameter_groups.items():
+                                # Format the value - convert arrays to JSON
+                                if isinstance(value, list):
+                                    value_str = json.dumps(value)
+                                else:
+                                    # Convert other non-string values to JSON strings
+                                    value_str = json.dumps(value) if not isinstance(value, str) else value
+                                
+                                # Map UI category to DB category and subcategory
+                                if category == 'Region':
+                                    db_category, db_subcategory = 'property', 'region'
+                                elif category == 'Market':
+                                    db_category, db_subcategory = 'property', 'market'
+                                elif category == 'Instrument':
+                                    db_category, db_subcategory = 'property', 'instrument'
+                                elif category == 'Investment Approach':
+                                    db_category, db_subcategory = 'property', 'approach'
+                                elif category == 'Investment Timeframe':
+                                    db_category, db_subcategory = 'property', 'timeframe'
+                                elif category == 'Sector':
+                                    db_category, db_subcategory = 'property', 'sector'
+                                elif category == 'Position':
+                                    db_category, db_subcategory = 'position', subcategory.lower()
+                                elif category == 'Allocation':
+                                    db_category, db_subcategory = 'metadata', 'allocation'
+                                else:
+                                    # Default fallback
+                                    db_category, db_subcategory = category.lower(), subcategory.lower()
+                                
+                                # Insert property
+                                await conn.execute(
+                                    property_query,
+                                    book_id,
+                                    db_category,
+                                    db_subcategory,
+                                    value_str,
+                                    now,
+                                    self.future_date
+                                )
                     
                     duration = time.time() - start_time
                     track_db_operation("create_book", True, duration)
-                    
-                    # Convert UUID to string before returning
-                    if isinstance(book_id, uuid.UUID):
-                        book_id_str = str(book_id)
-                        logger.info(f"Book created successfully with ID: {book_id_str}")
-                        return book_id_str
                     
                     logger.info(f"Book created successfully with ID: {book_id}")
                     return book_id
@@ -94,130 +167,25 @@ class BookRepository:
             logger.error(f"Error creating book: {e}", exc_info=True)
             return None
 
-    async def _save_book_parameters(self, conn, book_id: str, parameters: List) -> None:
-        """
-        Save book parameters from legacy list format
-        
-        Args:
-            conn: Database connection
-            book_id: Book ID
-            parameters: List of parameter triplets [category, subcategory, value]
-        """
-        logger.info(f"Processing {len(parameters)} parameters for book {book_id}")
-        
-        now = datetime.datetime.now(datetime.timezone.utc)
-        property_query = """
-        INSERT INTO fund.book_properties (
-            book_id, category, subcategory, value, active_at, expire_at
-        ) VALUES (
-            $1, $2, $3, $4, $5, $6
-        )
-        """
-        
-        try:
-            for param in parameters:
-                if len(param) >= 3:
-                    category = param[0]
-                    subcategory = param[1] if param[1] else ""
-                    value = param[2]
-                                        
-                    # Save to database with consistent key
-                    await conn.execute(
-                        property_query,
-                        book_id,
-                        category,
-                        subcategory,
-                        value,
-                        now,
-                        self.future_date
-                    )
-        except Exception as e:
-            logger.error(f"Error saving book parameters: {e}")
-            raise
-
-    async def _save_book_parameters_dict(self, conn, book_id: str, parameters: Dict[str, Any]) -> None:
-        """
-        Save book parameters from dictionary format using mapping
-        
-        Args:
-            conn: Database connection
-            book_id: Book ID
-            parameters: Dictionary of parameters {field: value}
-        """
-        now = datetime.datetime.now(datetime.timezone.utc)
-        
-        property_query = """
-        INSERT INTO fund.book_properties (
-            book_id, category, subcategory, value, active_at, expire_at
-        ) VALUES (
-            $1, $2, $3, $4, $5, $6
-        )
-        """
-        
-        try:
-            for field, value in parameters.items():
-                # Skip if value is None or empty
-                if value is None or (isinstance(value, str) and not value.strip()):
-                    continue
-                
-                # Look up the mapping
-                db_mapping = get_book_db_mapping(field)
-                
-                if db_mapping:
-                    category, subcategory = db_mapping
-                                        
-                    # Convert non-string values to JSON strings
-                    if not isinstance(value, str):
-                        value = json.dumps(value)
-                    
-                    # Save to database with mapped values
-                    await conn.execute(
-                        property_query,
-                        book_id,
-                        category,
-                        subcategory,
-                        value,
-                        now,
-                        self.future_date
-                    )
-                else:
-                    # Handle unmapped fields - parse to potential category/subcategory
-                    if '.' in field:
-                        category, subcategory = field.split('.', 1)
-                    else:
-                        category = field
-                        subcategory = ""
-                                        
-                    # Convert non-string values to JSON strings
-                    if not isinstance(value, str):
-                        value = json.dumps(value)
-                    
-                    # Save with direct mapping
-                    await conn.execute(
-                        property_query,
-                        book_id,
-                        category,
-                        subcategory,
-                        value,
-                        now,
-                        self.future_date
-                    )
-        except Exception as e:
-            logger.error(f"Error saving book parameters: {e}")
-            raise
-    
     async def get_user_books(self, user_id: str) -> List[Dict[str, Any]]:
-        """Get all books for a user with their properties"""
+        """
+        Get all books for a user with their properties
+        
+        Args:
+            user_id: User ID
+            
+        Returns:
+            List of book dictionaries with parameters
+        """
         pool = await self.db_pool.get_pool()
         
-        logger.info(f"Fetching books from database for user {user_id}")
+        logger.info(f"Fetching books for user {user_id}")
         
         book_query = """
         SELECT DISTINCT ON (book_id)
             book_id, 
             user_id, 
             name,
-            status,
             extract(epoch from active_at) as active_at
         FROM fund.books 
         WHERE user_id = $1 AND expire_at > NOW()
@@ -237,62 +205,80 @@ class BookRepository:
         start_time = time.time()
         try:
             async with pool.acquire() as conn:
-                # Get books
+                # Get all books for this user
+                logger.info(f"Executing query to get books for user {user_id}")
                 book_rows = await conn.fetch(book_query, user_id)
+                
+                # Process each book
                 books = []
-                
-                logger.info(f"Found {len(book_rows)} books for user {user_id}")
-                
-                # For each book, get its properties
                 for book_row in book_rows:
-                    book_data = dict(book_row)
-                    book_id = book_data['book_id']
+                    book_id = book_row['book_id']
+                    if isinstance(book_id, uuid.UUID):
+                        book_id = str(book_id)
                     
-                    # Get properties
+                    logger.info(f"Processing book {book_id}")
+                    
+                    # Get book properties
                     property_rows = await conn.fetch(property_query, book_id)
+                    logger.info(f"Found {len(property_rows)} properties for book {book_id}")
                     
-                    # Process properties
-                    book_parameters = {}
-                    parameters = []  # Legacy format for backward compatibility
+                    # Process properties into list of triplets for frontend
+                    parameters = []
                     
                     for prop in property_rows:
                         category = prop['category']
                         subcategory = prop['subcategory']
                         value = prop['value']
                         
-                        # Try to parse JSON values
-                        try:
-                            if value and (value.startswith('{') or value.startswith('[')):
-                                value = json.loads(value)
-                        except (json.JSONDecodeError, AttributeError):
-                            pass
-                        
-                        # Try to map to original field
-                        original_field = get_original_book_field(category, subcategory)
-                        
-                        if original_field:
-                            # Use mapped field name
-                            book_parameters[original_field] = value
+                        # Map DB category/subcategory to UI category/subcategory
+                        if category == 'property' and subcategory == 'region':
+                            ui_category, ui_subcategory = 'Region', ''
+                        elif category == 'property' and subcategory == 'market':
+                            ui_category, ui_subcategory = 'Market', ''
+                        elif category == 'property' and subcategory == 'instrument':
+                            ui_category, ui_subcategory = 'Instrument', ''
+                        elif category == 'property' and subcategory == 'approach':
+                            ui_category, ui_subcategory = 'Investment Approach', ''
+                        elif category == 'property' and subcategory == 'timeframe':
+                            ui_category, ui_subcategory = 'Investment Timeframe', ''
+                        elif category == 'property' and subcategory == 'sector':
+                            ui_category, ui_subcategory = 'Sector', ''
+                        elif category == 'position' and subcategory == 'long':
+                            ui_category, ui_subcategory = 'Position', 'Long'
+                        elif category == 'position' and subcategory == 'short':
+                            ui_category, ui_subcategory = 'Position', 'Short'
+                        elif category == 'metadata' and subcategory == 'allocation':
+                            ui_category, ui_subcategory = 'Allocation', ''
                         else:
-                            # Use category/subcategory as field name
-                            if subcategory:
-                                field_name = f"{category}.{subcategory}"
-                            else:
-                                field_name = category
-                            book_parameters[field_name] = value
+                            # Default fallback - use as-is
+                            ui_category, ui_subcategory = category, subcategory
                         
-                        # Add to legacy parameters list
-                        parameters.append([
-                            category,
-                            subcategory,
-                            value
-                        ])
+                        # Parse JSON arrays for list fields
+                        if ui_category in self.list_categories:
+                            try:
+                                if value and (value.startswith('[') or value.startswith('{')):
+                                    parsed_values = json.loads(value)
+                                    if isinstance(parsed_values, list):
+                                        # Add each value as a separate parameter
+                                        for single_value in parsed_values:
+                                            parameters.append([ui_category, ui_subcategory, single_value])
+                                        continue
+                            except (json.JSONDecodeError, AttributeError):
+                                pass  # If parsing fails, treat as a single value
+                        
+                        # Add as a single parameter
+                        parameters.append([ui_category, ui_subcategory, value])
                     
-                    # Add both formats to book data
-                    book_data['parameters'] = parameters
-                    book_data['bookParameters'] = book_parameters
+                    # Create book dictionary
+                    book_data = {
+                        'book_id': book_id,
+                        'user_id': book_row['user_id'],
+                        'name': book_row['name'],
+                        'active_at': book_row['active_at'],
+                        'parameters': parameters
+                    }
                     
-                    # Add book to results
+                    # Add to results
                     books.append(ensure_json_serializable(book_data))
                 
                 duration = time.time() - start_time
@@ -308,7 +294,15 @@ class BookRepository:
             return []
     
     async def get_book(self, book_id: str) -> Optional[Dict[str, Any]]:
-        """Get a single book by ID with its properties"""
+        """
+        Get a single book by ID with its properties
+        
+        Args:
+            book_id: Book ID
+            
+        Returns:
+            Book dictionary with parameters if found, None otherwise
+        """
         pool = await self.db_pool.get_pool()
         
         logger.info(f"Fetching book {book_id} from database")
@@ -318,7 +312,6 @@ class BookRepository:
             book_id, 
             user_id, 
             name,
-            status,
             extract(epoch from active_at) as active_at
         FROM fund.books 
         WHERE book_id = $1 AND expire_at > NOW()
@@ -338,60 +331,78 @@ class BookRepository:
         try:
             async with pool.acquire() as conn:
                 # Get book
+                logger.info(f"Executing query to get book {book_id}")
                 book_row = await conn.fetchrow(book_query, book_id)
                 
                 if not book_row:
                     logger.warning(f"Book {book_id} not found or expired")
                     return None
                 
-                book_data = dict(book_row)
+                # Process book data
+                if isinstance(book_id, uuid.UUID):
+                    book_id = str(book_id)
                 
-                # Get properties
+                # Get book properties
                 property_rows = await conn.fetch(property_query, book_id)
+                logger.info(f"Found {len(property_rows)} properties for book {book_id}")
                 
-                # Process properties
-                book_parameters = {}
-                parameters = []  # Legacy format for backward compatibility
+                # Process properties into list of triplets for frontend
+                parameters = []
                 
                 for prop in property_rows:
                     category = prop['category']
                     subcategory = prop['subcategory']
                     value = prop['value']
                     
-                    # Try to parse JSON values
-                    try:
-                        if value and (value.startswith('{') or value.startswith('[')):
-                            value = json.loads(value)
-                    except (json.JSONDecodeError, AttributeError):
-                        pass
-                    
-                    # Try to map to original field
-                    original_field = get_original_book_field(category, subcategory)
-                    
-                    if original_field:
-                        # Use mapped field name
-                        book_parameters[original_field] = value
+                    # Map DB category/subcategory to UI category/subcategory
+                    if category == 'property' and subcategory == 'region':
+                        ui_category, ui_subcategory = 'Region', ''
+                    elif category == 'property' and subcategory == 'market':
+                        ui_category, ui_subcategory = 'Market', ''
+                    elif category == 'property' and subcategory == 'instrument':
+                        ui_category, ui_subcategory = 'Instrument', ''
+                    elif category == 'property' and subcategory == 'approach':
+                        ui_category, ui_subcategory = 'Investment Approach', ''
+                    elif category == 'property' and subcategory == 'timeframe':
+                        ui_category, ui_subcategory = 'Investment Timeframe', ''
+                    elif category == 'property' and subcategory == 'sector':
+                        ui_category, ui_subcategory = 'Sector', ''
+                    elif category == 'position' and subcategory == 'long':
+                        ui_category, ui_subcategory = 'Position', 'Long'
+                    elif category == 'position' and subcategory == 'short':
+                        ui_category, ui_subcategory = 'Position', 'Short'
+                    elif category == 'metadata' and subcategory == 'allocation':
+                        ui_category, ui_subcategory = 'Allocation', ''
                     else:
-                        # Use category/subcategory as field name
-                        if subcategory:
-                            field_name = f"{category}.{subcategory}"
-                        else:
-                            field_name = category
-                        book_parameters[field_name] = value
+                        # Default fallback - use as-is
+                        ui_category, ui_subcategory = category, subcategory
                     
-                    # Add to legacy parameters list
-                    parameters.append([
-                        category,
-                        subcategory,
-                        value
-                    ])
+                    # Parse JSON arrays for list fields
+                    if ui_category in self.list_categories:
+                        try:
+                            if value and (value.startswith('[') or value.startswith('{')):
+                                parsed_values = json.loads(value)
+                                if isinstance(parsed_values, list):
+                                    # Add each value as a separate parameter
+                                    for single_value in parsed_values:
+                                        parameters.append([ui_category, ui_subcategory, single_value])
+                                    continue
+                        except (json.JSONDecodeError, AttributeError):
+                            pass  # If parsing fails, treat as a single value
+                    
+                    # Add as a single parameter
+                    parameters.append([ui_category, ui_subcategory, value])
                 
-                # Add both formats to book data
-                book_data['parameters'] = parameters
-                book_data['bookParameters'] = book_parameters
+                # Create book dictionary
+                book_data = {
+                    'book_id': book_id,
+                    'user_id': book_row['user_id'],
+                    'name': book_row['name'],
+                    'active_at': book_row['active_at'],
+                    'parameters': parameters
+                }
                 
-                logger.info(f"Successfully retrieved book {book_id} with {len(parameters)} parameters")
-                
+                logger.info(f"Successfully retrieved book {book_id}")
                 return ensure_json_serializable(book_data)
                 
         except Exception as e:
@@ -414,73 +425,72 @@ class BookRepository:
             return True  # Nothing to update
         
         pool = await self.db_pool.get_pool()
-        
-        # Extract parameters/bookParameters for separate handling
-        parameters = update_data.pop('parameters', None)
-        book_parameters = update_data.pop('bookParameters', None)
-        
         now = datetime.datetime.now(datetime.timezone.utc)
+        
+        # Extract parameters for separate handling
+        parameters = update_data.pop('parameters', None)
+        
+        logger.info(f"Updating book {book_id} with fields: {list(update_data.keys())} and parameters: {parameters is not None}")
         
         try:
             async with pool.acquire() as conn:
                 async with conn.transaction():
-                    # Update the book entity if needed
-                    if update_data:
-                        # Fetch the current active book record
-                        current_book = await conn.fetchrow(
-                            """
-                            SELECT * FROM fund.books
-                            WHERE book_id = $1 AND expire_at > NOW()
-                            ORDER BY active_at DESC
-                            LIMIT 1
-                            """,
-                            book_id
-                        )
-                        
-                        if not current_book:
-                            logger.error(f"No active book found with ID {book_id}")
-                            return False
-                        
-                        # Expire the current record
-                        logger.info(f"Expiring current book record for {book_id}")
-                        await conn.execute(
-                            """
-                            UPDATE fund.books
-                            SET expire_at = $1
-                            WHERE book_id = $2 AND expire_at > NOW()
-                            """,
-                            now,
-                            book_id
-                        )
-                        
-                        # Create a new record with updated values
-                        new_record = dict(current_book)
-                        
-                        # Apply updates, protecting certain fields
-                        protected_fields = ['expire_at', 'active_at']
-                        for field, value in update_data.items():
-                            if field not in protected_fields:
-                                new_record[field] = value
-                        
-                        # Set timestamps
-                        new_record['active_at'] = now
-                        new_record['expire_at'] = self.future_date
-                        
-                        # Dynamically build the SQL query
-                        columns = list(new_record.keys())
-                        placeholders = [f'${i+1}' for i in range(len(columns))]
-                        values = [new_record[col] for col in columns]
-                        
-                        insert_query = f"""
-                        INSERT INTO fund.books ({', '.join(columns)})
-                        VALUES ({', '.join(placeholders)})
+                    # Fetch the current active book record
+                    current_book = await conn.fetchrow(
                         """
-                        
-                        await conn.execute(insert_query, *values)
+                        SELECT * FROM fund.books
+                        WHERE book_id = $1 AND expire_at > NOW()
+                        ORDER BY active_at DESC
+                        LIMIT 1
+                        """,
+                        book_id
+                    )
+                    
+                    if not current_book:
+                        logger.error(f"No active book found with ID {book_id}")
+                        return False
+                    
+                    # Expire the current book record
+                    logger.info(f"Expiring current book record for {book_id}")
+                    await conn.execute(
+                        """
+                        UPDATE fund.books
+                        SET expire_at = $1
+                        WHERE book_id = $2 AND expire_at > NOW()
+                        """,
+                        now,
+                        book_id
+                    )
+                    
+                    # Create a new record with updated values
+                    new_record = dict(current_book)
+                    
+                    # Apply updates
+                    for field, value in update_data.items():
+                        if field not in ['expire_at', 'active_at']:  # Protect special fields
+                            new_record[field] = value
+                    
+                    # Set timestamps
+                    new_record['active_at'] = now
+                    new_record['expire_at'] = self.future_date
+                    
+                    # Insert the new book record
+                    logger.info(f"Creating new book record for {book_id}")
+                    columns = list(new_record.keys())
+                    placeholders = [f'${i+1}' for i in range(len(columns))]
+                    values = [new_record[col] for col in columns]
+                    
+                    insert_query = f"""
+                    INSERT INTO fund.books ({', '.join(columns)})
+                    VALUES ({', '.join(placeholders)})
+                    """
+                    
+                    await conn.execute(insert_query, *values)
                     
                     # Update parameters if provided
-                    if parameters is not None or book_parameters is not None:
-                        # Expire all current parameters
+                    if parameters is not None:
+                        # Expire current parameters
+                        logger.info(f"Expiring current parameters for book {book_id}")
                         await conn.execute(
                             """
                             UPDATE fund.book_properties
@@ -491,11 +501,80 @@ class BookRepository:
                             book_id
                         )
                         
-                        # Save new parameters
-                        if parameters is not None:
-                            await self._save_book_parameters(conn, book_id, parameters)
-                        elif book_parameters is not None:
-                            await self._save_book_parameters_dict(conn, book_id, book_parameters)
+                        # Insert new parameters
+                        property_query = """
+                        INSERT INTO fund.book_properties (
+                            book_id, category, subcategory, value, active_at, expire_at
+                        ) VALUES (
+                            $1, $2, $3, $4, $5, $6
+                        )
+                        """
+                        
+                        # Handle parameter format (triplet list)
+                        if isinstance(parameters, list):
+                            logger.info(f"Processing {len(parameters)} parameters for book {book_id}")
+                            
+                            # Group parameters by category and subcategory
+                            parameter_groups = {}
+                            
+                            for param in parameters:
+                                if len(param) >= 3:
+                                    category = param[0]
+                                    subcategory = param[1] if param[1] else ""
+                                    value = param[2]
+                                    
+                                    key = (category, subcategory)
+                                    
+                                    # If this is a field that should be an array
+                                    if category in self.list_categories:
+                                        if key not in parameter_groups:
+                                            parameter_groups[key] = []
+                                        
+                                        parameter_groups[key].append(value)
+                                    else:
+                                        # Regular single-value field
+                                        parameter_groups[key] = value
+                            
+                            # Save each parameter or parameter group
+                            for (category, subcategory), value in parameter_groups.items():
+                                # Format the value - convert arrays to JSON
+                                if isinstance(value, list):
+                                    value_str = json.dumps(value)
+                                else:
+                                    # Convert other non-string values to JSON strings
+                                    value_str = json.dumps(value) if not isinstance(value, str) else value
+                                
+                                # Map UI category to DB category and subcategory
+                                if category == 'Region':
+                                    db_category, db_subcategory = 'property', 'region'
+                                elif category == 'Market':
+                                    db_category, db_subcategory = 'property', 'market'
+                                elif category == 'Instrument':
+                                    db_category, db_subcategory = 'property', 'instrument'
+                                elif category == 'Investment Approach':
+                                    db_category, db_subcategory = 'property', 'approach'
+                                elif category == 'Investment Timeframe':
+                                    db_category, db_subcategory = 'property', 'timeframe'
+                                elif category == 'Sector':
+                                    db_category, db_subcategory = 'property', 'sector'
+                                elif category == 'Position':
+                                    db_category, db_subcategory = 'position', subcategory.lower()
+                                elif category == 'Allocation':
+                                    db_category, db_subcategory = 'metadata', 'allocation'
+                                else:
+                                    # Default fallback
+                                    db_category, db_subcategory = category.lower(), subcategory.lower()
+                                
+                                # Insert property
+                                await conn.execute(
+                                    property_query,
+                                    book_id,
+                                    db_category,
+                                    db_subcategory,
+                                    value_str,
+                                    now,
+                                    self.future_date
+                                )
                     
                     logger.info(f"Book {book_id} update completed successfully")
                     return True
