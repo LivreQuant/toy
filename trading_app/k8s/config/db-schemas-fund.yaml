@@ -10,10 +10,10 @@ data:
 
     -- User (Fund) table - Each user_id represents a fund entity
     CREATE TABLE fund.funds (
-        user_id UUID NOT NULL REFERENCES auth.users(user_id) ON DELETE CASCADE UNIQUE  -- One-to-one with auth.users
+        user_id UUID NOT NULL REFERENCES auth.users(user_id) ON DELETE CASCADE UNIQUE,
         fund_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
         name VARCHAR(255) NOT NULL,
-        active_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+        active_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
     );
 
     -- Fund properties using EAV (Entity-Attribute-Value) model for flexibility

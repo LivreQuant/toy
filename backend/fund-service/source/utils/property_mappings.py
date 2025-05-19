@@ -5,7 +5,7 @@ from typing import Dict, Tuple, Any, Optional
 # Format: {'input_category': {'input_field': ('category', 'subcategory')}}
 TEAM_MEMBER_MAPPING = {
     'personal': {
-        'order': {'personal', 'id'},
+        'order': ('personal', 'id'),
         'firstName': ('personal', 'first_name'),
         'lastName': ('personal', 'last_name'),
         'birthDate': ('personal', 'birth_date')

@@ -9,7 +9,6 @@ from source.utils.metrics import track_fund_created
 
 logger = logging.getLogger('fund_manager')
 
-
 class FundManager:
     """Manager for fund operations"""
 
@@ -60,48 +59,31 @@ class FundManager:
             properties = {}
             
             # Map general properties to the properties object
-            if 'legalStructure' in fund_data:
-                properties['legalStructure'] = fund_data['legalStructure']
-            if 'location' in fund_data:
-                properties['location'] = fund_data['location']
-            if 'yearEstablished' in fund_data:
-                properties['yearEstablished'] = fund_data['yearEstablished']
-            if 'aumRange' in fund_data:
-                properties['aumRange'] = fund_data['aumRange']
-            if 'profilePurpose' in fund_data:
-                properties['profilePurpose'] = fund_data['profilePurpose']
-            if 'otherPurposeDetails' in fund_data:
-                properties['otherPurposeDetails'] = fund_data['otherPurposeDetails']
-            if 'investmentStrategy' in fund_data:
-                properties['investmentStrategy'] = fund_data['investmentStrategy']
+            property_fields = [
+                'legalStructure', 'location', 'yearEstablished', 'aumRange',
+                'profilePurpose', 'otherPurposeDetails', 'investmentStrategy'
+            ]
             
+            for field in property_fields:
+                if field in fund_data:
+                    properties[field] = fund_data[field]
+
             # Process team members
             team_members = []
             if 'team_members' in fund_data and isinstance(fund_data['team_members'], list):
                 for idx, member in enumerate(fund_data['team_members']):
                     team_member = {
-                        'id': idx,
-                        'personal': {
-                            'firstName': member.get('firstName', ''),
-                            'lastName': member.get('lastName', ''),
-                            'birthDate': member.get('birthDate', '')
-                        },
-                        'professional': {
-                            'role': member.get('role', ''),
-                            'yearsExperience': member.get('yearsExperience', ''),
-                            'currentEmployment': member.get('currentEmployment', ''),
-                            'investmentExpertise': member.get('investmentExpertise', ''),
-                        },
-                        'social': {
-                            'linkedin': member.get('linkedin', '')
-                        }
+                        'order': idx,
+                        'firstName': member.get('firstName', ''),
+                        'lastName': member.get('lastName', ''),
+                        'birthDate': member.get('birthDate', ''),
+                        'role': member.get('role', ''),
+                        'yearsExperience': member.get('yearsExperience', ''),
+                        'currentEmployment': member.get('currentEmployment', ''),
+                        'investmentExpertise': member.get('investmentExpertise', ''),
+                        'linkedin': member.get('linkedin', ''),
+                        'education': member.get('education', '')
                     }
-                    
-                    # Handle education as either a string or object
-                    if 'education' in member:
-                        if isinstance(member['education'], dict):
-                            team_member['education'] = member['education']
-                    
                     team_members.append(team_member)
             
             # Save fund to database with properties and team members
@@ -177,7 +159,6 @@ class FundManager:
             Result dictionary with success flag
         """
         logger.info(f"Updating fund for user {user_id}")
-        logger.info(f"Update data received in fund_manager: {fund_data}")
         
         try:
             # First, get the fund to verify existence and get fund_id
@@ -192,7 +173,7 @@ class FundManager:
             fund_id = current_fund['fund_id']
             logger.info(f"Found fund with ID: {fund_id}")
             
-            # Process updates
+            # Prepare update data
             update_object = {}
             
             # Handle basic fund fields
@@ -221,28 +202,17 @@ class FundManager:
                 
                 for idx, member in enumerate(fund_data['team_members']):
                     team_member = {
-                        'personal': {
-                            'order': idx,
-                            'firstName': member.get('firstName', ''),
-                            'lastName': member.get('lastName', ''),
-                            'birthDate': member.get('birthDate', '')
-                        },
-                        'professional': {
-                            'role': member.get('role', ''),
-                            'yearsExperience': member.get('yearsExperience', ''),
-                            'currentEmployment': member.get('currentEmployment', ''),
-                            'investmentExpertise': member.get('investmentExpertise', ''),
-                        },
-                        'social': {
-                            'linkedin': member.get('linkedin', '')
-                        }
+                        'order': idx,
+                        'firstName': member.get('firstName', ''),
+                        'lastName': member.get('lastName', ''),
+                        'birthDate': member.get('birthDate', ''),
+                        'role': member.get('role', ''),
+                        'yearsExperience': member.get('yearsExperience', ''),
+                        'currentEmployment': member.get('currentEmployment', ''),
+                        'investmentExpertise': member.get('investmentExpertise', ''),
+                        'linkedin': member.get('linkedin', ''),
+                        'education': member.get('education', '')
                     }
-                    
-                    # Handle education as either a string or object
-                    if 'education' in member:
-                        if isinstance(member['education'], dict):
-                            team_member['education'] = member['education']
-                    
                     team_members.append(team_member)
                 
                 if team_members:
