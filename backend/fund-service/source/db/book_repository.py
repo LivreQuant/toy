@@ -89,9 +89,11 @@ class BookRepository:
                     
                     # Process book parameters if present
                     if 'parameters' in book_data and book_data['parameters']:
+                        logger.info(f"Processing parameters for book {book_id}")
+                        
                         # For triplet format parameters
                         if isinstance(book_data['parameters'], list):
-                            logger.info(f"Processing {len(book_data['parameters'])} parameters for book {book_id}")
+                            logger.info(f"Processing {len(book_data['parameters'])} parameters in list format")
                             
                             # Group parameters by category and subcategory
                             parameter_groups = {}
@@ -115,6 +117,7 @@ class BookRepository:
                                         parameter_groups[key] = value
                             
                             # Save each parameter or parameter group
+                            logger.info(f"Saving {len(parameter_groups)} parameter groups")
                             for (category, subcategory), value in parameter_groups.items():
                                 # Format the value - convert arrays to JSON
                                 if isinstance(value, list):
@@ -124,25 +127,9 @@ class BookRepository:
                                     value_str = json.dumps(value) if not isinstance(value, str) else value
                                 
                                 # Map UI category to DB category and subcategory
-                                if category == 'Region':
-                                    db_category, db_subcategory = 'property', 'region'
-                                elif category == 'Market':
-                                    db_category, db_subcategory = 'property', 'market'
-                                elif category == 'Instrument':
-                                    db_category, db_subcategory = 'property', 'instrument'
-                                elif category == 'Investment Approach':
-                                    db_category, db_subcategory = 'property', 'approach'
-                                elif category == 'Investment Timeframe':
-                                    db_category, db_subcategory = 'property', 'timeframe'
-                                elif category == 'Sector':
-                                    db_category, db_subcategory = 'property', 'sector'
-                                elif category == 'Position':
-                                    db_category, db_subcategory = 'position', subcategory.lower()
-                                elif category == 'Allocation':
-                                    db_category, db_subcategory = 'metadata', 'allocation'
-                                else:
-                                    # Default fallback
-                                    db_category, db_subcategory = category.lower(), subcategory.lower()
+                                db_category, db_subcategory = self._map_ui_to_db_category(category, subcategory)
+                                
+                                logger.debug(f"Inserting property: category={db_category}, subcategory={db_subcategory}, value={value_str[:50]}...")
                                 
                                 # Insert property
                                 await conn.execute(
@@ -166,7 +153,55 @@ class BookRepository:
             track_db_operation("create_book", False, duration)
             logger.error(f"Error creating book: {e}", exc_info=True)
             return None
-
+    
+    def _map_ui_to_db_category(self, category: str, subcategory: str) -> tuple:
+        """Map UI category/subcategory to database category/subcategory"""
+        if category == 'Region':
+            return 'property', 'region'
+        elif category == 'Market':
+            return 'property', 'market'
+        elif category == 'Instrument':
+            return 'property', 'instrument'
+        elif category == 'Investment Approach':
+            return 'property', 'approach'
+        elif category == 'Investment Timeframe':
+            return 'property', 'timeframe'
+        elif category == 'Sector':
+            return 'property', 'sector'
+        elif category == 'Position' and subcategory == 'Long':
+            return 'position', 'long'
+        elif category == 'Position' and subcategory == 'Short':
+            return 'position', 'short'
+        elif category == 'Allocation':
+            return 'metadata', 'allocation'
+        else:
+            # Default fallback - use category/subcategory as-is but lowercase
+            return category.lower(), subcategory.lower()
+    
+    def _map_db_to_ui_category(self, category: str, subcategory: str) -> tuple:
+        """Map database category/subcategory to UI category/subcategory"""
+        if category == 'property' and subcategory == 'region':
+            return 'Region', ''
+        elif category == 'property' and subcategory == 'market':
+            return 'Market', ''
+        elif category == 'property' and subcategory == 'instrument':
+            return 'Instrument', ''
+        elif category == 'property' and subcategory == 'approach':
+            return 'Investment Approach', ''
+        elif category == 'property' and subcategory == 'timeframe':
+            return 'Investment Timeframe', ''
+        elif category == 'property' and subcategory == 'sector':
+            return 'Sector', ''
+        elif category == 'position' and subcategory == 'long':
+            return 'Position', 'Long'
+        elif category == 'position' and subcategory == 'short':
+            return 'Position', 'Short'
+        elif category == 'metadata' and subcategory == 'allocation':
+            return 'Allocation', ''
+        else:
+            # Default case - first letter uppercase
+            return category.capitalize(), subcategory
+    
     async def get_user_books(self, user_id: str) -> List[Dict[str, Any]]:
         """
         Get all books for a user with their properties
@@ -231,27 +266,7 @@ class BookRepository:
                         value = prop['value']
                         
                         # Map DB category/subcategory to UI category/subcategory
-                        if category == 'property' and subcategory == 'region':
-                            ui_category, ui_subcategory = 'Region', ''
-                        elif category == 'property' and subcategory == 'market':
-                            ui_category, ui_subcategory = 'Market', ''
-                        elif category == 'property' and subcategory == 'instrument':
-                            ui_category, ui_subcategory = 'Instrument', ''
-                        elif category == 'property' and subcategory == 'approach':
-                            ui_category, ui_subcategory = 'Investment Approach', ''
-                        elif category == 'property' and subcategory == 'timeframe':
-                            ui_category, ui_subcategory = 'Investment Timeframe', ''
-                        elif category == 'property' and subcategory == 'sector':
-                            ui_category, ui_subcategory = 'Sector', ''
-                        elif category == 'position' and subcategory == 'long':
-                            ui_category, ui_subcategory = 'Position', 'Long'
-                        elif category == 'position' and subcategory == 'short':
-                            ui_category, ui_subcategory = 'Position', 'Short'
-                        elif category == 'metadata' and subcategory == 'allocation':
-                            ui_category, ui_subcategory = 'Allocation', ''
-                        else:
-                            # Default fallback - use as-is
-                            ui_category, ui_subcategory = category, subcategory
+                        ui_category, ui_subcategory = self._map_db_to_ui_category(category, subcategory)
                         
                         # Parse JSON arrays for list fields
                         if ui_category in self.list_categories:
@@ -265,6 +280,13 @@ class BookRepository:
                                         continue
                             except (json.JSONDecodeError, AttributeError):
                                 pass  # If parsing fails, treat as a single value
+                        
+                        # Try to parse JSON value
+                        try:
+                            if isinstance(value, str) and (value.startswith('{') or value.startswith('[')):
+                                value = json.loads(value)
+                        except (json.JSONDecodeError, AttributeError):
+                            pass  # If parsing fails, keep as string
                         
                         # Add as a single parameter
                         parameters.append([ui_category, ui_subcategory, value])
@@ -339,8 +361,10 @@ class BookRepository:
                     return None
                 
                 # Process book data
-                if isinstance(book_id, uuid.UUID):
-                    book_id = str(book_id)
+                if isinstance(book_row['book_id'], uuid.UUID):
+                    book_id = str(book_row['book_id'])
+                else:
+                    book_id = book_row['book_id']
                 
                 # Get book properties
                 property_rows = await conn.fetch(property_query, book_id)
@@ -355,27 +379,7 @@ class BookRepository:
                     value = prop['value']
                     
                     # Map DB category/subcategory to UI category/subcategory
-                    if category == 'property' and subcategory == 'region':
-                        ui_category, ui_subcategory = 'Region', ''
-                    elif category == 'property' and subcategory == 'market':
-                        ui_category, ui_subcategory = 'Market', ''
-                    elif category == 'property' and subcategory == 'instrument':
-                        ui_category, ui_subcategory = 'Instrument', ''
-                    elif category == 'property' and subcategory == 'approach':
-                        ui_category, ui_subcategory = 'Investment Approach', ''
-                    elif category == 'property' and subcategory == 'timeframe':
-                        ui_category, ui_subcategory = 'Investment Timeframe', ''
-                    elif category == 'property' and subcategory == 'sector':
-                        ui_category, ui_subcategory = 'Sector', ''
-                    elif category == 'position' and subcategory == 'long':
-                        ui_category, ui_subcategory = 'Position', 'Long'
-                    elif category == 'position' and subcategory == 'short':
-                        ui_category, ui_subcategory = 'Position', 'Short'
-                    elif category == 'metadata' and subcategory == 'allocation':
-                        ui_category, ui_subcategory = 'Allocation', ''
-                    else:
-                        # Default fallback - use as-is
-                        ui_category, ui_subcategory = category, subcategory
+                    ui_category, ui_subcategory = self._map_db_to_ui_category(category, subcategory)
                     
                     # Parse JSON arrays for list fields
                     if ui_category in self.list_categories:
@@ -389,6 +393,13 @@ class BookRepository:
                                     continue
                         except (json.JSONDecodeError, AttributeError):
                             pass  # If parsing fails, treat as a single value
+                    
+                    # Try to parse JSON value
+                    try:
+                        if isinstance(value, str) and (value.startswith('{') or value.startswith('[')):
+                            value = json.loads(value)
+                    except (json.JSONDecodeError, AttributeError):
+                        pass  # If parsing fails, keep as string
                     
                     # Add as a single parameter
                     parameters.append([ui_category, ui_subcategory, value])
@@ -450,42 +461,26 @@ class BookRepository:
                         logger.error(f"No active book found with ID {book_id}")
                         return False
                     
-                    # Expire the current book record
-                    logger.info(f"Expiring current book record for {book_id}")
-                    await conn.execute(
-                        """
-                        UPDATE fund.books
-                        SET expire_at = $1
-                        WHERE book_id = $2 AND expire_at > NOW()
-                        """,
-                        now,
-                        book_id
-                    )
-                    
-                    # Create a new record with updated values
-                    new_record = dict(current_book)
-                    
-                    # Apply updates
-                    for field, value in update_data.items():
-                        if field not in ['expire_at', 'active_at']:  # Protect special fields
-                            new_record[field] = value
-                    
-                    # Set timestamps
-                    new_record['active_at'] = now
-                    new_record['expire_at'] = self.future_date
-                    
-                    # Insert the new book record
-                    logger.info(f"Creating new book record for {book_id}")
-                    columns = list(new_record.keys())
-                    placeholders = [f'${i+1}' for i in range(len(columns))]
-                    values = [new_record[col] for col in columns]
-                    
-                    insert_query = f"""
-                    INSERT INTO fund.books ({', '.join(columns)})
-                    VALUES ({', '.join(placeholders)})
-                    """
-                    
-                    await conn.execute(insert_query, *values)
+                    # Update the book record directly if we have attributes to update
+                    if update_data:
+                        logger.info(f"Updating book record for {book_id} with attributes: {update_data}")
+                        
+                        # Build the SET clause for the update
+                        set_clauses = []
+                        values = [book_id]  # Start with book_id for the WHERE clause
+                        
+                        for i, (field, value) in enumerate(update_data.items(), start=2):
+                            set_clauses.append(f"{field} = ${i}")
+                            values.append(value)
+                        
+                        if set_clauses:
+                            update_query = f"""
+                            UPDATE fund.books
+                            SET {', '.join(set_clauses)}
+                            WHERE book_id = $1 AND expire_at > NOW()
+                            """
+                            
+                            await conn.execute(update_query, *values)
                     
                     # Update parameters if provided
                     if parameters is not None:
@@ -545,25 +540,9 @@ class BookRepository:
                                     value_str = json.dumps(value) if not isinstance(value, str) else value
                                 
                                 # Map UI category to DB category and subcategory
-                                if category == 'Region':
-                                    db_category, db_subcategory = 'property', 'region'
-                                elif category == 'Market':
-                                    db_category, db_subcategory = 'property', 'market'
-                                elif category == 'Instrument':
-                                    db_category, db_subcategory = 'property', 'instrument'
-                                elif category == 'Investment Approach':
-                                    db_category, db_subcategory = 'property', 'approach'
-                                elif category == 'Investment Timeframe':
-                                    db_category, db_subcategory = 'property', 'timeframe'
-                                elif category == 'Sector':
-                                    db_category, db_subcategory = 'property', 'sector'
-                                elif category == 'Position':
-                                    db_category, db_subcategory = 'position', subcategory.lower()
-                                elif category == 'Allocation':
-                                    db_category, db_subcategory = 'metadata', 'allocation'
-                                else:
-                                    # Default fallback
-                                    db_category, db_subcategory = category.lower(), subcategory.lower()
+                                db_category, db_subcategory = self._map_ui_to_db_category(category, subcategory)
+                                
+                                logger.debug(f"Inserting updated property: {db_category}, {db_subcategory}, {value_str[:50]}...")
                                 
                                 # Insert property
                                 await conn.execute(

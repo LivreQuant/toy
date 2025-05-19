@@ -116,7 +116,7 @@ class BookController(BaseController):
         logger.debug(f"Parsed request data: {data}")
 
         # Validate required fields
-        valid_fields, field_error = self.validate_required_fields(data, ['name', 'parameters'])
+        valid_fields, field_error = self.validate_required_fields(data, ['name'])
         if not valid_fields:
             logger.warning(f"Missing required fields: {field_error['error']}")
             return self.create_error_response(field_error["error"], field_error["status"])
@@ -129,8 +129,15 @@ class BookController(BaseController):
             'book_id': book_id,
             'user_id': user_id,
             'name': data['name'],
-            'parameters': data['parameters']  # Make sure to include the parameters!
         }
+        
+        # Add parameters if present
+        if 'parameters' in data:
+            book_data['parameters'] = data['parameters']
+            logger.debug(f"Including parameters for book: {data['parameters']}")
+        else:
+            book_data['parameters'] = []
+            logger.debug("No parameters provided, using empty array")
         
         logger.debug(f"Prepared book data structure: {book_data}")
 
@@ -140,7 +147,7 @@ class BookController(BaseController):
 
         if not result["success"]:
             logger.error(f"Book creation failed: {result.get('error', 'Unknown error')}")
-            return self.create_error_response("Failed to create book in database", 500)
+            return self.create_error_response(result.get('error', "Failed to create book in database"), 500)
 
         logger.info(f"Book created successfully with ID: {result['book_id']}")
         return self.create_success_response({"bookId": result["book_id"]})
@@ -159,7 +166,7 @@ class BookController(BaseController):
         result = await self.book_manager.get_books(user_id)
 
         if not result["success"]:
-            return self.create_error_response(result["error"], 500)
+            return self.create_error_response(result.get("error", "Failed to retrieve books"), 500)
 
         # Return books directly - transformation happens in the book manager
         return self.create_success_response({"books": result["books"]})
@@ -184,7 +191,7 @@ class BookController(BaseController):
         result = await self.book_manager.get_book(book_id, user_id)
 
         if not result["success"]:
-            return self.create_error_response("Book not found or does not belong to user", 404)
+            return self.create_error_response(result.get("error", "Book not found or does not belong to user"), 404)
 
         # Return book directly - transformation happens in the book manager
         return self.create_success_response({"book": result["book"]})
@@ -221,11 +228,12 @@ class BookController(BaseController):
         # Extract parameters if present
         if 'parameters' in data:
             update_data['parameters'] = data['parameters']
+            logger.debug(f"Including parameters in update: {data['parameters']}")
 
         # Update book
         result = await self.book_manager.update_book(book_id, update_data, user_id)
 
         if not result["success"]:
-            return self.create_error_response(result["error"], 500)
+            return self.create_error_response(result.get("error", "Failed to update book"), 500)
 
         return self.create_success_response({"message": "Book updated successfully"})

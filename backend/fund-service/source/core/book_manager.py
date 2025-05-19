@@ -53,10 +53,25 @@ class BookManager:
             # Convert to dictionary for repository layer
             book_dict = book.to_dict()
             
-            # Simply pass the parameters directly - they are already in the correct format
+            # Ensure parameters are properly handled
             if 'parameters' in book_data:
-                book_dict['parameters'] = book_data['parameters']
-                logger.info(f"Including {len(book_data['parameters'])} parameters for book")
+                # Validate parameters format
+                if isinstance(book_data['parameters'], list):
+                    book_dict['parameters'] = book_data['parameters']
+                    param_count = len(book_data['parameters'])
+                    logger.info(f"Including {param_count} parameters for book")
+                else:
+                    # Convert dict parameters to list format if needed
+                    params_list = []
+                    for key, value in book_data['parameters'].items():
+                        category, subcategory = self._split_parameter_key(key)
+                        params_list.append([category, subcategory, value])
+                    book_dict['parameters'] = params_list
+                    logger.info(f"Converted dict parameters to list format, count: {len(params_list)}")
+            else:
+                # Ensure we always have an empty parameters list
+                book_dict['parameters'] = []
+                logger.info("No parameters provided, using empty list")
             
             # Save to database
             logger.info(f"Calling repository to save book {book.book_id}")
@@ -84,6 +99,35 @@ class BookManager:
                 "error": f"Error creating book: {str(e)}"
             }
     
+    def _split_parameter_key(self, key: str) -> tuple:
+        """Split parameter key into category and subcategory"""
+        if '.' in key:
+            parts = key.split('.', 1)
+            return parts[0], parts[1]
+        
+        # Handle special cases
+        if key == 'region':
+            return 'Region', ''
+        elif key == 'market':
+            return 'Market', ''
+        elif key == 'instrument':
+            return 'Instrument', ''
+        elif key == 'investmentApproach':
+            return 'Investment Approach', ''
+        elif key == 'investmentTimeframe':
+            return 'Investment Timeframe', ''
+        elif key == 'sector':
+            return 'Sector', ''
+        elif key == 'positionLong':
+            return 'Position', 'Long'
+        elif key == 'positionShort':
+            return 'Position', 'Short'
+        elif key == 'allocation':
+            return 'Allocation', ''
+        
+        # Default case
+        return key, ''
+    
     async def get_books(self, user_id: str) -> Dict[str, Any]:
         """
         Get all books for a user
@@ -101,59 +145,10 @@ class BookManager:
             
             logger.info(f"Retrieved {len(books)} books for user {user_id}")
             
-            # Transform the books to ensure consistent format for the client
-            transformed_books = []
-            for book in books:
-                # Create the base book object
-                transformed_book = {
-                    "book_id": book["book_id"],
-                    "user_id": book["user_id"],
-                    "name": book["name"],
-                    "active_at": book["active_at"]
-                }
-                
-                # Add parameters in the expected triplet format
-                if 'parameters' in book:
-                    transformed_book["parameters"] = []
-                    
-                    # Convert key-value parameters to triplet format
-                    for field, value in book["parameters"].items():
-                        # Map frontend field to category/subcategory
-                        # Use the same mapping logic as in repository
-                        if field == 'region':
-                            category, subcategory = 'Region', ''
-                        elif field == 'market':
-                            category, subcategory = 'Market', ''
-                        elif field == 'instrument':
-                            category, subcategory = 'Instrument', ''
-                        elif field == 'investmentApproach':
-                            category, subcategory = 'Investment Approach', ''
-                        elif field == 'investmentTimeframe':
-                            category, subcategory = 'Investment Timeframe', ''
-                        elif field == 'sector':
-                            category, subcategory = 'Sector', ''
-                        elif field == 'positionLong':
-                            category, subcategory = 'Position', 'Long'
-                        elif field == 'positionShort':
-                            category, subcategory = 'Position', 'Short'
-                        elif field == 'allocation':
-                            category, subcategory = 'Allocation', ''
-                        elif '.' in field:
-                            # Handle direct category.subcategory format
-                            parts = field.split('.', 1)
-                            category, subcategory = parts[0], parts[1]
-                        else:
-                            # Default case
-                            category, subcategory = field, ''
-                        
-                        # Add to parameters list
-                        transformed_book["parameters"].append([category, subcategory, value])
-                
-                transformed_books.append(transformed_book)
-            
+            # Books should already be properly transformed in the repository
             return {
                 "success": True,
-                "books": transformed_books
+                "books": books
             }
         except Exception as e:
             logger.error(f"Error getting books for user {user_id}: {e}")
@@ -191,54 +186,10 @@ class BookManager:
                     "error": "Book does not belong to this user"
                 }
             
-            # Transform the book to ensure consistent format for the client
-            transformed_book = {
-                "book_id": book["book_id"],
-                "user_id": book["user_id"],
-                "name": book["name"],
-                "active_at": book["active_at"]
-            }
-            
-            # Add parameters in the expected triplet format
-            if 'parameters' in book:
-                transformed_book["parameters"] = []
-                
-                # Convert key-value parameters to triplet format
-                for field, value in book["parameters"].items():
-                    # Map frontend field to category/subcategory
-                    # Use the same mapping logic as in repository
-                    if field == 'region':
-                        category, subcategory = 'Region', ''
-                    elif field == 'market':
-                        category, subcategory = 'Market', ''
-                    elif field == 'instrument':
-                        category, subcategory = 'Instrument', ''
-                    elif field == 'investmentApproach':
-                        category, subcategory = 'Investment Approach', ''
-                    elif field == 'investmentTimeframe':
-                        category, subcategory = 'Investment Timeframe', ''
-                    elif field == 'sector':
-                        category, subcategory = 'Sector', ''
-                    elif field == 'positionLong':
-                        category, subcategory = 'Position', 'Long'
-                    elif field == 'positionShort':
-                        category, subcategory = 'Position', 'Short'
-                    elif field == 'allocation':
-                        category, subcategory = 'Allocation', ''
-                    elif '.' in field:
-                        # Handle direct category.subcategory format
-                        parts = field.split('.', 1)
-                        category, subcategory = parts[0], parts[1]
-                    else:
-                        # Default case
-                        category, subcategory = field, ''
-                    
-                    # Add to parameters list
-                    transformed_book["parameters"].append([category, subcategory, value])
-            
+            # Book should already be properly transformed in the repository
             return {
                 "success": True,
-                "book": transformed_book
+                "book": book
             }
         except Exception as e:
             logger.error(f"Error getting book {book_id}: {e}")
@@ -287,47 +238,18 @@ class BookManager:
            
            # Handle parameters update
            if 'parameters' in update_data:
-               parameters = {}
-               
-               # Check if parameters is in triplet format or direct dictionary format
+               # Ensure parameters are in correct format for repository
                if isinstance(update_data['parameters'], list):
-                   # Convert triplet format to dictionary
-                   for param in update_data['parameters']:
-                       if len(param) >= 3:
-                           category = param[0]
-                           subcategory = param[1] if param[1] else ""
-                           value = param[2]
-                           
-                           # Map to frontend field
-                           if category == 'Region' and not subcategory:
-                               frontend_field = 'region'
-                           elif category == 'Market' and not subcategory:
-                               frontend_field = 'market'
-                           elif category == 'Instrument' and not subcategory:
-                               frontend_field = 'instrument'
-                           elif category == 'Investment Approach' and not subcategory:
-                               frontend_field = 'investmentApproach'
-                           elif category == 'Investment Timeframe' and not subcategory:
-                               frontend_field = 'investmentTimeframe'
-                           elif category == 'Sector' and not subcategory:
-                               frontend_field = 'sector'
-                           elif category == 'Position' and subcategory == 'Long':
-                               frontend_field = 'positionLong'
-                           elif category == 'Position' and subcategory == 'Short':
-                               frontend_field = 'positionShort'
-                           elif category == 'Allocation' and not subcategory:
-                               frontend_field = 'allocation'
-                           else:
-                               # Default fallback - use category/subcategory as the key
-                               frontend_field = f"{category}.{subcategory}" if subcategory else category
-                               
-                           parameters[frontend_field] = value
-               elif isinstance(update_data['parameters'], dict):
-                   # Already in key-value format
-                   parameters = update_data['parameters']
-               
-               if parameters:
-                   repository_update['parameters'] = parameters
+                   repository_update['parameters'] = update_data['parameters']
+                   logger.info(f"Updating book with {len(update_data['parameters'])} parameters")
+               else:
+                   # Convert dict parameters to list format if needed
+                   params_list = []
+                   for key, value in update_data['parameters'].items():
+                       category, subcategory = self._split_parameter_key(key)
+                       params_list.append([category, subcategory, value])
+                   repository_update['parameters'] = params_list
+                   logger.info(f"Converted dict parameters to list format, count: {len(params_list)}")
            
            # Apply updates using temporal pattern
            success = await self.book_repository.update_book(book_id, repository_update)
