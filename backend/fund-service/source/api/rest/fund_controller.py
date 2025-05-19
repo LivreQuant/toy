@@ -207,24 +207,24 @@ class FundController(BaseController):
                 
                 if 'profile' in general:
                     profile = general['profile']
-                    for _, value in profile.items():
-                        # Try to identify the property type
+                    for key, value in profile.items():
+                        # Try to identify the property type - WITH STRICT TYPE CHECKING
                         if value in ["Personal Account", "LLC", "Limited Partnership", "Corporation"]:
                             transformed_properties['legalStructure'] = value
-                        elif value.startswith(("Under $", "$", "Over $")):
+                        elif isinstance(value, str) and value.startswith(("Under $", "$", "Over $")):  # FIXED: Type check before startswith
                             transformed_properties['aumRange'] = value
                         elif str(value).isdigit() or (len(str(value)) == 4 and str(value).isdigit()):
                             transformed_properties['yearEstablished'] = value
                         elif isinstance(value, list) or value in ["raise_capital", "manage_investments", "other"]:
                             transformed_properties['profilePurpose'] = value
-                        elif value.startswith("To be ") or len(str(value).split()) > 3:
+                        elif isinstance(value, str) and (value.startswith("To be ") or len(str(value).split()) > 3):  # FIXED: Type check before startswith
                             transformed_properties['otherPurposeDetails'] = value
                         else:
                             transformed_properties['location'] = value
                             
                 if 'strategy' in general:
                     strategy = general['strategy']
-                    for _, value in strategy.items():
+                    for key, value in strategy.items():
                         transformed_properties['investmentStrategy'] = value
             
             # Merge the transformed properties with the fund data
@@ -241,10 +241,10 @@ class FundController(BaseController):
                         
                         # Extract personal info
                         if 'personal' in props and 'info' in props['personal']:
-                            for _, value in props['personal']['info'].items():
-                                if '-' in value and len(value) == 10:  # Looks like a date
+                            for key, value in props['personal']['info'].items():
+                                if isinstance(value, str) and '-' in value and len(value) == 10:  # Looks like a date
                                     member_data['birthDate'] = value
-                                elif len(value.split()) <= 2:  # Looks like a name
+                                elif isinstance(value, str) and len(value.split()) <= 2:  # Looks like a name
                                     if 'firstName' not in member_data:
                                         member_data['firstName'] = value
                                     else:
@@ -252,21 +252,21 @@ class FundController(BaseController):
                         
                         # Extract professional info
                         if 'professional' in props and 'info' in props['professional']:
-                            for _, value in props['professional']['info'].items():
+                            for key, value in props['professional']['info'].items():
                                 if value in ['Portfolio Manager', 'Analyst', 'Trader']:
                                     member_data['role'] = value
-                                elif value.isdigit() or value in ['1', '2', '3', '4', '5']:
+                                elif isinstance(value, str) and (value.isdigit() or value in ['1', '2', '3', '4', '5']):
                                     member_data['yearsExperience'] = value
-                                elif value.startswith('http'):
+                                elif isinstance(value, str) and value.startswith('http'):
                                     member_data['linkedin'] = value
-                                elif len(value.split()) >= 2 and not value.startswith('http'):
+                                elif isinstance(value, str) and len(value.split()) >= 2 and not value.startswith('http'):
                                     member_data['investmentExpertise'] = value
                                 else:
                                     member_data['currentEmployment'] = value
                         
                         # Extract education info
                         if 'education' in props:
-                            for _, value in props.get('education', {}).get('info', {}).items():
+                            for key, value in props.get('education', {}).get('info', {}).items():
                                 member_data['education'] = value
                     
                     # Replace the original member data with our transformed version

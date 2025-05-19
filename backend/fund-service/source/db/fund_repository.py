@@ -316,7 +316,7 @@ class FundRepository:
         except Exception as e:
             logger.error(f"Save team member properties: error saving team member properties for {team_member_id}: {e}")
             raise
-    
+        
     async def get_fund_by_user(self, user_id: str) -> Optional[Dict[str, Any]]:
         """
         Get a fund by user ID (one-to-one relationship)
@@ -328,6 +328,8 @@ class FundRepository:
             Fund data with properties if found, None otherwise
         """
         pool = await self.db_pool.get_pool()
+        
+        logger.info(f"[DEBUG] Getting fund by user: {user_id}")
         
         fund_query = """
         SELECT DISTINCT ON (fund_id)
@@ -341,12 +343,11 @@ class FundRepository:
         ORDER BY fund_id, active_at DESC
         """
         
-        # Update this query to also retrieve the key column
         properties_query = """
         SELECT 
             category,
             subcategory,
-            key,  # Added key to the query
+            key,
             value
         FROM fund.properties
         WHERE fund_id = $1 AND expire_at > NOW()
@@ -360,12 +361,11 @@ class FundRepository:
         ORDER BY team_member_id, active_at DESC
         """
         
-        # Update this query to also retrieve the key column
         team_member_properties_query = """
         SELECT 
             category,
             subcategory,
-            key,  # Added key to the query
+            key,
             value
         FROM fund.team_member_properties
         WHERE member_id = $1 AND expire_at > NOW()
@@ -373,22 +373,46 @@ class FundRepository:
         
         start_time = time.time()
         try:
+            logger.info("[DEBUG] Starting database operations")
             async with pool.acquire() as conn:
                 # Get fund basic data
+                logger.info("[DEBUG] Executing fund query")
                 fund_row = await conn.fetchrow(fund_query, user_id)
                 
                 if not fund_row:
                     duration = time.time() - start_time
                     track_db_operation("get_fund_by_user", False, duration)
+                    logger.info(f"[DEBUG] No fund found for user {user_id}")
                     return None
                 
                 # Convert to dictionary
                 fund_data = ensure_json_serializable(dict(fund_row))
+                logger.info(f"[DEBUG] Found fund: {fund_data['fund_id']} for user {user_id}")
                 
                 # Get fund properties
+                logger.info("[DEBUG] Executing properties query")
                 property_rows = await conn.fetch(properties_query, fund_data['fund_id'])
+                logger.info(f"[DEBUG] Retrieved {len(property_rows)} property rows for fund {fund_data['fund_id']}")
                 
-                # Define property mappings (subcategory names to keys)
+                # EXTREME DEBUGGING: Log every single property in full detail
+                for i, row in enumerate(property_rows):
+                    category = row['category']
+                    subcategory = row['subcategory']
+                    key = row['key']
+                    value = row['value']
+                    logger.info(f"[DEBUG] PROPERTY {i}: category='{category}', subcategory='{subcategory}', key='{key}', value='{value}', type={type(value).__name__}")
+                    
+                    # Try to parse as JSON for debugging
+                    if isinstance(value, str):
+                        try:
+                            if value.startswith('{') or value.startswith('['):
+                                parsed = json.loads(value)
+                                logger.info(f"[DEBUG]   PARSED JSON: type={type(parsed).__name__}, value={parsed}")
+                        except Exception as e:
+                            logger.info(f"[DEBUG]   NOT JSON: {e}")
+                
+                # Define property mappings
+                logger.info("[DEBUG] Defining property mappings")
                 property_mappings = {
                     'profile': {
                         'legalStructure': 'legalStructure',
@@ -403,105 +427,214 @@ class FundRepository:
                     }
                 }
                 
-                # Build a special mapping table to know what key to use for each property
-                # This will help us identify specific properties
-                property_mapping_table = {}
-                for row in property_rows:
-                    category = row['category']
-                    subcategory = row['subcategory']
-                    value = row['value']
-                    
-                    # Try to determine a meaningful key based on the value's content
-                    # This is a simple heuristic approach - adjust as needed
-                    if category == 'general':
-                        if subcategory == 'profile':
-                            if value in ["Personal Account", "LLC", "Limited Partnership", "Corporation"]:
-                                property_mapping_table[(category, subcategory, value)] = 'legalStructure'
-                            elif value.startswith(("Under $", "$", "Over $")):
-                                property_mapping_table[(category, subcategory, value)] = 'aumRange'
-                            elif value.isdigit() or (len(value) == 4 and value.isdigit()):
-                                property_mapping_table[(category, subcategory, value)] = 'yearEstablished'
-                            elif value in ["raise_capital", "manage_investments", "other"] or isinstance(value, list):
-                                property_mapping_table[(category, subcategory, value)] = 'profilePurpose'
-                            elif value.startswith("To be ") or len(value.split()) > 3:
-                                property_mapping_table[(category, subcategory, value)] = 'otherPurposeDetails'
-                            else:
-                                property_mapping_table[(category, subcategory, value)] = 'location'
-                        elif subcategory == 'strategy':
-                            property_mapping_table[(category, subcategory, value)] = 'investmentStrategy'
+                # Build property mapping table - with extreme caution and logging
+                logger.info(f"[DEBUG] Building property mapping table for fund {fund_data['fund_id']}")
                 
-                # Use the mapping table to build a more meaningful response
-                properties = {}
-                for row in property_rows:
+                # Initialize an empty mapping table
+                property_mapping_table = {}
+                
+                # Process each property row one by one with detailed logging
+                for i, row in enumerate(property_rows):
                     category = row['category']
                     subcategory = row['subcategory']
-                    value = row['value']
+                    raw_value = row['value']
                     
-                    # Try to parse JSON values
+                    # Keep the original value as a string for dictionary keys
+                    value_str = str(raw_value)
+                    
+                    logger.info(f"[DEBUG] MAPPING ROW {i}: category='{category}', subcategory='{subcategory}', raw_value='{raw_value}', type={type(raw_value).__name__}")
+                    
+                    # Try to parse JSON - with thorough error handling
+                    value = raw_value  # Default to raw value
                     try:
-                        if value and (value.startswith('{') or value.startswith('[')):
-                            value = json.loads(value)
-                    except (json.JSONDecodeError, AttributeError):
-                        pass
+                        if isinstance(raw_value, str) and (raw_value.startswith('{') or raw_value.startswith('[')):
+                            logger.info(f"[DEBUG]   Attempting to parse as JSON: '{raw_value}'")
+                            parsed_value = json.loads(raw_value)
+                            logger.info(f"[DEBUG]   Successfully parsed as JSON: {type(parsed_value).__name__} = {parsed_value}")
+                            value = parsed_value
+                    except Exception as e:
+                        logger.info(f"[DEBUG]   Failed to parse as JSON: {str(e)}")
+                    
+                    # Super safe mapping logic with individual try/except for each check
+                    try:
+                        # Default mapping key
+                        mapped_key = None
+                        
+                        logger.info(f"[DEBUG]   MAPPING LOGIC for category='{category}', subcategory='{subcategory}'")
+                        
+                        if category == 'general':
+                            if subcategory == 'profile':
+                                # Use explicit pre-check for string operations
+                                logger.info(f"[DEBUG]     Checking profile mapping for value type: {type(value).__name__}")
+                                
+                                # Check 1: Legal structure values (only for string values)
+                                try:
+                                    if isinstance(value, str) and value in ["Personal Account", "LLC", "Limited Partnership", "Corporation"]:
+                                        mapped_key = 'legalStructure'
+                                        logger.info(f"[DEBUG]     MATCHED: Legal structure '{value}'")
+                                    else:
+                                        logger.info(f"[DEBUG]     NOT MATCHED: Not a legal structure value")
+                                except Exception as e:
+                                    logger.info(f"[DEBUG]     ERROR in legal structure check: {str(e)}")
+                                
+                                # Check 2: AUM range check (only for string values with startswith)
+                                if not mapped_key:
+                                    try:
+                                        if isinstance(value, str) and (value.startswith("Under $") or value.startswith("$") or value.startswith("Over $")):
+                                            mapped_key = 'aumRange'
+                                            logger.info(f"[DEBUG]     MATCHED: AUM range '{value}'")
+                                        else:
+                                            logger.info(f"[DEBUG]     NOT MATCHED: Not an AUM range value")
+                                    except Exception as e:
+                                        logger.info(f"[DEBUG]     ERROR in AUM range check: {str(e)}")
+                                
+                                # Check 3: Year established (only for string values with isdigit)
+                                if not mapped_key:
+                                    try:
+                                        if isinstance(value, str) and (value.isdigit() or (len(value) == 4 and value.isdigit())):
+                                            mapped_key = 'yearEstablished'
+                                            logger.info(f"[DEBUG]     MATCHED: Year established '{value}'")
+                                        else:
+                                            logger.info(f"[DEBUG]     NOT MATCHED: Not a year established value")
+                                    except Exception as e:
+                                        logger.info(f"[DEBUG]     ERROR in year established check: {str(e)}")
+                                
+                                # Check 4: Profile purpose (for specific values and lists)
+                                if not mapped_key:
+                                    try:
+                                        if value in ["raise_capital", "manage_investments", "other"] or isinstance(value, list):
+                                            mapped_key = 'profilePurpose'
+                                            logger.info(f"[DEBUG]     MATCHED: Profile purpose value or list")
+                                        else:
+                                            logger.info(f"[DEBUG]     NOT MATCHED: Not a profile purpose value")
+                                    except Exception as e:
+                                        logger.info(f"[DEBUG]     ERROR in profile purpose check: {str(e)}")
+                                
+                                # Check 5: Other purpose details (strings with specific patterns)
+                                if not mapped_key:
+                                    try:
+                                        if isinstance(value, str) and (value.startswith("To be ") or len(value.split()) > 3):
+                                            mapped_key = 'otherPurposeDetails'
+                                            logger.info(f"[DEBUG]     MATCHED: Other purpose details '{value}'")
+                                        else:
+                                            logger.info(f"[DEBUG]     NOT MATCHED: Not other purpose details")
+                                    except Exception as e:
+                                        logger.info(f"[DEBUG]     ERROR in other purpose details check: {str(e)}")
+                                
+                                # Default fallback for profile: location
+                                if not mapped_key:
+                                    mapped_key = 'location'
+                                    logger.info(f"[DEBUG]     DEFAULT MAPPING: Using location as fallback")
+                                
+                            elif subcategory == 'strategy':
+                                # Strategy mapping is simpler
+                                mapped_key = 'investmentStrategy'
+                                logger.info(f"[DEBUG]     MAPPED strategy to investmentStrategy")
+                        
+                        # Store the mapping using the string representation as the key
+                        if mapped_key:
+                            property_mapping_table[(category, subcategory, value_str)] = mapped_key
+                            logger.info(f"[DEBUG]   FINAL MAPPING: ({category}, {subcategory}, {value_str}) -> {mapped_key}")
+                        else:
+                            # Fallback
+                            random_key = str(uuid.uuid4())[0:8]
+                            property_mapping_table[(category, subcategory, value_str)] = random_key
+                            logger.info(f"[DEBUG]   NO MAPPING FOUND: Using random key {random_key}")
+                    
+                    except Exception as e:
+                        logger.info(f"[DEBUG]   CRITICAL ERROR in mapping logic: {str(e)}")
+                        import traceback
+                        logger.info(f"[DEBUG]   TRACEBACK: {traceback.format_exc()}")
+                        # Use a safe fallback
+                        property_mapping_table[(category, subcategory, value_str)] = f"error_{str(uuid.uuid4())[0:8]}"
+                
+                logger.info(f"[DEBUG] Property mapping table created with {len(property_mapping_table)} entries")
+                
+                # Use the mapping table to build the response
+                logger.info("[DEBUG] Building properties structure for response")
+                properties = {}
+                
+                for i, row in enumerate(property_rows):
+                    category = row['category']
+                    subcategory = row['subcategory']
+                    raw_value = row['value']
+                    
+                    logger.info(f"[DEBUG] RESPONSE ROW {i}: category='{category}', subcategory='{subcategory}', raw_value='{raw_value}'")
+                    
+                    # Try to parse JSON for the response
+                    value = raw_value  # Default to raw value
+                    try:
+                        if isinstance(raw_value, str) and (raw_value.startswith('{') or raw_value.startswith('[')):
+                            parsed_value = json.loads(raw_value)
+                            logger.info(f"[DEBUG]   Parsed for response: {type(parsed_value).__name__} = {parsed_value}")
+                            value = parsed_value
+                    except Exception as e:
+                        logger.info(f"[DEBUG]   Failed to parse for response: {str(e)}")
                     
                     # Create nested structure
                     if category not in properties:
                         properties[category] = {}
+                        logger.info(f"[DEBUG]   Created category: {category}")
+                    
                     if subcategory not in properties[category]:
                         properties[category][subcategory] = {}
+                        logger.info(f"[DEBUG]   Created subcategory: {subcategory} in {category}")
                     
-                    # Look up a meaningful key from our mapping table
-                    key_tuple = (category, subcategory, value)
-                    meaningful_key = property_mapping_table.get(key_tuple)
-                    if not meaningful_key:
-                        # If no mapping, use a short uuid
+                    # Look up the mapping using string representation
+                    value_str = str(raw_value)  # Always use string for lookup
+                    key_tuple = (category, subcategory, value_str)
+                    
+                    logger.info(f"[DEBUG]   Looking up mapping for key: {key_tuple}")
+                    
+                    if key_tuple in property_mapping_table:
+                        meaningful_key = property_mapping_table[key_tuple]
+                        logger.info(f"[DEBUG]   Found mapping: {meaningful_key}")
+                    else:
+                        # Fallback to a random key if mapping not found
                         meaningful_key = str(uuid.uuid4())[0:8]
+                        logger.info(f"[DEBUG]   No mapping found, using random key: {meaningful_key}")
                     
-                    # Use the meaningful key
+                    # Store the value with its key
                     properties[category][subcategory][meaningful_key] = value
+                    logger.info(f"[DEBUG]   Stored value at {category}.{subcategory}.{meaningful_key}")
                 
                 # Add properties to fund data
                 fund_data['properties'] = properties
                 
                 # Get team members
+                logger.info("[DEBUG] Getting team members")
                 team_member_rows = await conn.fetch(team_members_query, fund_data['fund_id'])
                 team_members = []
                 
-                # Define team member property mappings
-                tm_property_mappings = {
-                    'personal': {'firstName': 'firstName', 'lastName': 'lastName', 'birthDate': 'birthDate'},
-                    'professional': {
-                        'role': 'role', 
-                        'yearsExperience': 'yearsExperience',
-                        'currentEmployment': 'currentEmployment',
-                        'investmentExpertise': 'investmentExpertise',
-                        'linkedin': 'linkedin'
-                    },
-                    'education': {'institution': 'education'}
-                }
-                
-                for team_row in team_member_rows:
+                # Process each team member
+                for tm_idx, team_row in enumerate(team_member_rows):
                     team_member_id = team_row['team_member_id']
+                    logger.info(f"[DEBUG] Processing team member {tm_idx}: {team_member_id}")
                     
                     # Get team member properties
                     member_property_rows = await conn.fetch(
                         team_member_properties_query, 
                         team_member_id
                     )
+                    logger.info(f"[DEBUG]   Found {len(member_property_rows)} properties for team member")
                     
-                    # Organize team member properties
+                    # Process team member properties
                     member_properties = {}
-                    for row in member_property_rows:
+                    for prop_idx, row in enumerate(member_property_rows):
                         category = row['category']
                         subcategory = row['subcategory']
-                        value = row['value']
+                        raw_value = row['value']
                         
-                        # Try to parse JSON values
+                        logger.info(f"[DEBUG]   TM PROPERTY {prop_idx}: category='{category}', subcategory='{subcategory}', value='{raw_value}'")
+                        
+                        # Try to parse JSON
+                        value = raw_value
                         try:
-                            if value and (value.startswith('{') or value.startswith('[')):
-                                value = json.loads(value)
-                        except (json.JSONDecodeError, AttributeError):
-                            pass
+                            if isinstance(raw_value, str) and (raw_value.startswith('{') or raw_value.startswith('[')):
+                                value = json.loads(raw_value)
+                                logger.info(f"[DEBUG]     Parsed TM property as JSON: {type(value).__name__}")
+                        except Exception as e:
+                            logger.info(f"[DEBUG]     Failed to parse TM property as JSON: {str(e)}")
                         
                         # Create nested structure
                         if category not in member_properties:
@@ -509,60 +642,70 @@ class FundRepository:
                         if subcategory not in member_properties[category]:
                             member_properties[category][subcategory] = {}
                         
-                        # Try to determine a meaningful property name
-                        meaningful_key = None
-                        
-                        # For standard categories
-                        if category in tm_property_mappings and subcategory in tm_property_mappings[category]:
-                            meaningful_key = tm_property_mappings[category][subcategory]
-                        elif category in tm_property_mappings and subcategory == 'info':
-                            # Try to match based on content
-                            if 'birth' in value or '-' in value and len(value) == 10:
-                                meaningful_key = 'birthDate'
-                            elif value in ['Portfolio Manager', 'Analyst', 'Trader']:
-                                meaningful_key = 'role'
-                            elif value.isdigit() or value in ['1', '2', '3', '4', '5']:
-                                meaningful_key = 'yearsExperience'
-                            elif value.startswith('http'):
-                                meaningful_key = 'linkedin'
-                            elif len(value.split()) <= 2 and value[0].isupper():
-                                # If value is 1-2 words and starts with capital, assume it's a name
-                                if category == 'personal':
-                                    meaningful_key = 'firstName' if 'lastName' in member_properties.get(category, {}).get(subcategory, {}) else 'lastName'
-                                elif category == 'education':
-                                    meaningful_key = 'institution'
-                                else:
-                                    meaningful_key = 'currentEmployment'
-                            elif category == 'professional':
-                                meaningful_key = 'investmentExpertise'
-                        
-                        # If no mapping found, use a short UUID
-                        if not meaningful_key:
-                            meaningful_key = str(uuid.uuid4())[0:8]
-                        
-                        member_properties[category][subcategory][meaningful_key] = value
+                        # Determine meaningful key with extreme caution
+                        try:
+                            meaningful_key = None
+                            
+                            # Safe key determination
+                            if category == 'personal' and subcategory == 'info':
+                                # Be extremely careful with type checking for string operations
+                                if isinstance(value, str):
+                                    if '-' in value and len(value) == 10:
+                                        meaningful_key = 'birthDate'
+                                    elif len(value.split()) <= 2:
+                                        meaningful_key = 'firstName' if 'lastName' not in member_properties.get(category, {}).get(subcategory, {}) else 'lastName'
+                            elif category == 'professional' and subcategory == 'info':
+                                if isinstance(value, str):
+                                    if value in ['Portfolio Manager', 'Analyst', 'Trader']:
+                                        meaningful_key = 'role'
+                                    elif value.isdigit() or value in ['1', '2', '3', '4', '5']:
+                                        meaningful_key = 'yearsExperience'
+                                    elif value.startswith('http'):
+                                        meaningful_key = 'linkedin'
+                                    else:
+                                        meaningful_key = 'investmentExpertise'
+                            elif category == 'education':
+                                meaningful_key = 'institution'
+                            
+                            # Fallback to random key if not determined
+                            if not meaningful_key:
+                                meaningful_key = str(uuid.uuid4())[0:8]
+                                
+                            # Store the value
+                            member_properties[category][subcategory][meaningful_key] = value
+                            logger.info(f"[DEBUG]     Stored TM property with key: {meaningful_key}")
+                            
+                        except Exception as e:
+                            logger.info(f"[DEBUG]     ERROR processing TM property: {str(e)}")
+                            # Fallback - use a random key
+                            random_key = str(uuid.uuid4())[0:8]
+                            member_properties[category][subcategory][random_key] = value
                     
-                    # Add team member with properties
+                    # Add team member to results
                     team_members.append({
-                        "id": team_member_id,  # Change team_member_id to id to match frontend expectations
+                        "id": team_member_id,
                         "team_member_id": str(team_member_id),
                         "properties": member_properties
                     })
+                    logger.info(f"[DEBUG]   Added team member to results")
                 
                 # Add team members to fund data
                 fund_data['team_members'] = team_members
+                logger.info(f"[DEBUG] Added {len(team_members)} team members to fund data")
                 
                 duration = time.time() - start_time
                 track_db_operation("get_fund_by_user", True, duration)
                 
+                logger.info("[DEBUG] Returning complete fund data")
                 return fund_data
+                
         except Exception as e:
             duration = time.time() - start_time
             track_db_operation("get_fund_by_user", False, duration)
-            logger.error(f"Error retrieving fund for user {user_id}: {e}")
+            logger.error(f"[DEBUG] CRITICAL ERROR: {str(e)}")
+            import traceback
+            logger.error(f"[DEBUG] TRACEBACK: {traceback.format_exc()}")
             return None
-        
-        
     
     async def update_fund(self, fund_id: str, user_id: str, update_data: Dict[str, Any]) -> bool:
         """

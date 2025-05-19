@@ -2,7 +2,7 @@
 import { getLogger } from '../../boot/logging';
 import { TokenManager } from '../auth/token-manager';
 import { FundApi } from '../../api/fund';
-import { FundProfile, CreateFundProfileRequest, UpdateFundProfileRequest } from '../../types';
+import { FundProfile, TeamMember, CreateFundProfileRequest, UpdateFundProfileRequest } from '../../types';
 import { toastService } from '../notification/toast-service';
 
 
@@ -119,52 +119,70 @@ export class FundManager {
     if (!this.tokenManager.isAuthenticated()) {
       return { success: false, error: 'Not authenticated' };
     }
-  
+
     try {
       const response = await this.fundApi.getFundProfile();
       
       if (response.success && response.fund) {
-        // Cast the response.fund to the API structure
-        const apiData = response.fund as unknown as FundProfileApiResponse;
-        
-        // Extract profile data from the nested structure
-        const profileData = apiData.properties?.general?.profile || {};
-        
-        // Map team members from the API format to our format
-        const teamMembers = apiData.team_members?.map(member => {
-          const personal = member.properties?.personal?.info || {};
-          const professional = member.properties?.professional?.info || {};
-          const education = member.properties?.education?.info || {};
-          
-          return {
-            id: member.team_member_id,
-            firstName: personal.firstName || '',
-            lastName: personal.lastName || '',
-            role: professional.role || '',
-            yearsExperience: professional.yearsExperience || '',
-            education: education.institution || '',
-            currentEmployment: professional.currentEmployment || '',
-            investmentExpertise: professional.investmentExpertise || '',
-            birthDate: personal.birthDate || '',
-            linkedin: professional.linkedin || '',
-          };
-        }) || [];
+        // Cast the response.fund to any to handle different structures
+        const apiData = response.fund as any;
         
         // Create a properly formatted FundProfile
         const formattedFund: FundProfile = {
-          id: apiData.fund_id,
-          userId: apiData.user_id,
+          id: apiData.fund_id || apiData.id,
+          userId: apiData.user_id || apiData.userId,
           fundName: apiData.name,
-          legalStructure: profileData.legalStructure,
-          location: profileData.location,
-          yearEstablished: profileData.yearEstablished,
-          aumRange: profileData.aumRange,
-          investmentStrategy: apiData.properties?.general?.strategy?.thesis || '',
-          profilePurpose: profileData.purpose || [],
-          otherPurposeDetails: profileData.otherDetails,
-          teamMembers: teamMembers,
-          activeAt: apiData.active_at,
-          expireAt: apiData.expire_at
+          
+          // Check both flat and nested structures
+          legalStructure: apiData.legalStructure || 
+            apiData.properties?.general?.profile?.legalStructure,
+            
+          location: apiData.location || 
+            apiData.properties?.general?.profile?.location,
+            
+          yearEstablished: apiData.yearEstablished || 
+            apiData.properties?.general?.profile?.yearEstablished,
+            
+          aumRange: apiData.aumRange || 
+            apiData.properties?.general?.profile?.aumRange,
+            
+          investmentStrategy: apiData.investmentStrategy || 
+            apiData.properties?.general?.strategy?.thesis,
+            
+          profilePurpose: apiData.profilePurpose || 
+            apiData.properties?.general?.profile?.purpose || [],
+            
+          otherPurposeDetails: apiData.otherPurposeDetails || 
+            apiData.properties?.general?.profile?.otherDetails,
+            
+          // Process team members from different possible formats with explicit type annotation
+          teamMembers: apiData.team_members?.map((member: any) => {
+            // First check if member data is already in the expected format
+            if (member.firstName) {
+              return member as TeamMember;
+            }
+            
+            // Otherwise extract from nested structure
+            const personal = member.properties?.personal?.info || {};
+            const professional = member.properties?.professional?.info || {};
+            const education = member.properties?.education?.info || {};
+            
+            return {
+              id: member.team_member_id || member.id,
+              firstName: member.firstName || personal.firstName || '',
+              lastName: member.lastName || personal.lastName || '',
+              role: member.role || professional.role || '',
+              yearsExperience: member.yearsExperience || professional.yearsExperience || '',
+              education: member.education || education.institution || '',
+              currentEmployment: member.currentEmployment || professional.currentEmployment || '',
+              investmentExpertise: member.investmentExpertise || professional.investmentExpertise || '',
+              birthDate: member.birthDate || personal.birthDate || '',
+              linkedin: member.linkedin || professional.linkedin || '',
+            } as TeamMember;
+          }) || [],
+          
+          activeAt: apiData.active_at || apiData.activeAt,
+          expireAt: apiData.expire_at || apiData.expireAt
         };
         
         return { 

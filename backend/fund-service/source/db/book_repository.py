@@ -45,7 +45,7 @@ class BookRepository:
         pool = await self.db_pool.get_pool()
         
         logger.info(f"Creating book in database with ID: {book_data['book_id']}")
-        logger.debug(f"Book data keys: {list(book_data.keys())}")
+        logger.info(f"Book data keys: {list(book_data.keys())}")
         
         query = """
         INSERT INTO fund.books (
@@ -76,47 +76,86 @@ class BookRepository:
                         logger.info(f"Processing {len(parameters)} parameters for book {book_id}")
                         
                         # Save each parameter individually
-                        property_query = """
-                        INSERT INTO fund.book_properties (
-                            book_id, category, subcategory, key, value, created_at, expire_at
-                        ) VALUES (
-                            $1, $2, $3, $4, $5, NOW(), $6
-                        )
-                        """
-                        
-                        # Process all parameters
-                        for param in parameters:
-                            if len(param) >= 3:
-                                category = param[0]
-                                subcategory = param[1] if param[1] else ""
-                                value = param[2]
-                                
-                                # Generate random UUID for key
-                                random_key = str(uuid.uuid4())
-                                
-                                # Execute insert
-                                await conn.execute(
-                                    property_query,
-                                    book_id,
-                                    category,
-                                    subcategory,
-                                    random_key,  # Use random UUID as key
-                                    str(value),
-                                    self.future_date
+                        # Check the correct column names in the database first
+                        try:
+                            # Query to check if active_at exists in the table
+                            check_cols_query = """
+                            SELECT column_name 
+                            FROM information_schema.columns 
+                            WHERE table_name = 'book_properties' AND table_schema = 'fund'
+                            """
+                            cols = await conn.fetch(check_cols_query)
+                            column_names = [col['column_name'] for col in cols]
+                            logger.info(f"Available columns in book_properties: {column_names}")
+                            
+                            # Determine if we should use 'created_at' or 'active_at'
+                            use_active_at = 'active_at' in column_names
+                            use_created_at = 'created_at' in column_names
+                            
+                            # Now use the correct column names
+                            if use_active_at:
+                                property_query = """
+                                INSERT INTO fund.book_properties (
+                                    book_id, category, subcategory, key, value, active_at, expire_at
+                                ) VALUES (
+                                    $1, $2, $3, $4, $5, NOW(), $6
                                 )
-                
-                duration = time.time() - start_time
-                track_db_operation("create_book", True, duration)
-                
-                # Convert UUID to string before returning
-                if isinstance(book_id, uuid.UUID):
-                    book_id_str = str(book_id)
-                    logger.info(f"Book created successfully with ID: {book_id_str}")
-                    return book_id_str
-                
-                logger.info(f"Book created successfully with ID: {book_id}")
-                return book_id
-                
+                                """
+                            elif use_created_at:
+                                property_query = """
+                                INSERT INTO fund.book_properties (
+                                    book_id, category, subcategory, key, value, created_at, expire_at
+                                ) VALUES (
+                                    $1, $2, $3, $4, $5, NOW(), $6
+                                )
+                                """
+                            else:
+                                # Neither column exists, try without timestamp columns
+                                property_query = """
+                                INSERT INTO fund.book_properties (
+                                    book_id, category, subcategory, key, value, expire_at
+                                ) VALUES (
+                                    $1, $2, $3, $4, $5, $6
+                                )
+                                """
+                                logger.warning("Neither 'active_at' nor 'created_at' column found in book_properties table")
+                            
+                            # Process all parameters
+                            for param in parameters:
+                                if len(param) >= 3:
+                                    category = param[0]
+                                    subcategory = param[1] if param[1] else ""
+                                    value = param[2]
+                                    
+                                    # Generate random UUID for key
+                                    random_key = str(uuid.uuid4())
+                                    
+                                    # Execute insert
+                                    await conn.execute(
+                                        property_query,
+                                        book_id,
+                                        category,
+                                        subcategory,
+                                        random_key,  # Use random UUID as key
+                                        str(value),
+                                        self.future_date
+                                    )
+                        except Exception as e:
+                            logger.error(f"Error saving book properties: {e}")
+                            raise
+                    
+                    duration = time.time() - start_time
+                    track_db_operation("create_book", True, duration)
+                    
+                    # Convert UUID to string before returning
+                    if isinstance(book_id, uuid.UUID):
+                        book_id_str = str(book_id)
+                        logger.info(f"Book created successfully with ID: {book_id_str}")
+                        return book_id_str
+                    
+                    logger.info(f"Book created successfully with ID: {book_id}")
+                    return book_id
+                    
         except Exception as e:
             duration = time.time() - start_time
             track_db_operation("create_book", False, duration)
@@ -135,7 +174,7 @@ class BookRepository:
             user_id, 
             name,
             status,
-            extract(epoch from active_at) as created_at
+            extract(epoch from active_at) as active_at
         FROM fund.books 
         WHERE user_id = $1 AND expire_at > NOW()
         ORDER BY book_id, active_at DESC
@@ -234,7 +273,7 @@ class BookRepository:
             user_id, 
             name,
             status,
-            extract(epoch from active_at) as created_at
+            extract(epoch from active_at) as active_at
         FROM fund.books 
         WHERE book_id = $1 AND expire_at > NOW()
         ORDER BY book_id, active_at DESC
@@ -463,7 +502,7 @@ class BookRepository:
                                 await conn.execute(
                                     """
                                     INSERT INTO fund.book_properties (
-                                        book_id, category, subcategory, key, value, created_at, expire_at
+                                        book_id, category, subcategory, key, value, active_at, expire_at
                                     ) VALUES (
                                         $1, $2, $3, $4, $5, $6, $7
                                     )
