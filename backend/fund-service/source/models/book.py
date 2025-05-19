@@ -10,17 +10,13 @@ import json
 class Book:
     """Book model representing a trading configuration"""
     user_id: str
-    name: str
     book_id: str = field(default_factory=lambda: str(uuid.uuid4()))
-    status: str = "active"
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert book to dictionary for serialization"""
         return {
             "book_id": self.book_id,
             "user_id": self.user_id,
-            "name": self.name,
-            "status": self.status
         }
     
     @classmethod
@@ -30,8 +26,6 @@ class Book:
         book_data = {
             "book_id": data.get("book_id"),
             "user_id": data.get("user_id"),
-            "name": data.get("name"),
-            "status": data.get("status", "active")
         }
         return cls(**book_data)
 
@@ -46,7 +40,7 @@ class BookProperty:
     subcategory: str = ""
     property_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     active_at: float = field(default_factory=time.time)
-    expite_at: float = field(default_factory=time.time)
+    expire_at: float = field(default_factory=time.time)
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert property to dictionary for serialization"""
@@ -58,5 +52,5 @@ class BookProperty:
             "key": self.key,
             "value": self.value,
             "active_at": self.active_at,
-            "expite_at": self.expite_at
+            "expire_at": self.expire_at
         }

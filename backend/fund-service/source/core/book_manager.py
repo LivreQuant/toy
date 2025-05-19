@@ -30,21 +30,10 @@ class BookManager:
         logger.info(f"Creating book for user {user_id}")
         logger.debug(f"Book data: {book_data}")
         
-        # Basic validation for required fields
-        if 'name' not in book_data:
-            logger.warning(f"Missing required field 'name' in book data")
-            return {
-                "success": False,
-                "error": "Missing required field: name"
-            }
-        
         # Create book model
-        try:
-            logger.info(f"Creating Book object with name: {book_data['name']}")
-            
+        try:            
             book = Book(
                 user_id=user_id,
-                name=book_data['name'],
                 book_id=book_data.get('book_id', str(uuid.uuid4()))
             )
             
@@ -106,7 +95,9 @@ class BookManager:
             return parts[0], parts[1]
         
         # Handle special cases
-        if key == 'region':
+        if key == 'name':
+            return 'Name', ''
+        elif key == 'region':
             return 'Region', ''
         elif key == 'market':
             return 'Market', ''
@@ -231,11 +222,7 @@ class BookManager:
            
            # Prepare update data
            repository_update = {}
-           
-           # Handle book name update
-           if 'name' in update_data:
-               repository_update['name'] = update_data['name']
-           
+                      
            # Handle parameters update
            if 'parameters' in update_data:
                # Ensure parameters are in correct format for repository

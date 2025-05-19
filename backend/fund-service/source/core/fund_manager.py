@@ -40,18 +40,11 @@ class FundManager:
                 "error": "User already has a fund profile"
             }
         
-        # Basic validation for required fields
-        if 'name' not in fund_data:
-            return {
-                "success": False,
-                "error": "Missing required field: name"
-            }
         
         # Create fund model
         try:
             fund = Fund(
                 user_id=user_id,
-                name=fund_data['name'],
                 fund_id=str(uuid.uuid4())
             )
             
@@ -60,7 +53,7 @@ class FundManager:
             
             # Map general properties to the properties object
             property_fields = [
-                'legalStructure', 'location', 'yearEstablished', 'aumRange',
+                'fundName', 'legalStructure', 'location', 'yearEstablished', 'aumRange',
                 'profilePurpose', 'otherPurposeDetails', 'investmentStrategy'
             ]
             
@@ -175,17 +168,13 @@ class FundManager:
             
             # Prepare update data
             update_object = {}
-            
-            # Handle basic fund fields
-            if 'name' in fund_data:
-                update_object['name'] = fund_data['name']
-            
+                        
             # Handle properties
             properties = {}
             
             # Check if any property fields are being updated
             property_fields = [
-                'legalStructure', 'location', 'yearEstablished', 'aumRange',
+                'fundName', 'legalStructure', 'location', 'yearEstablished', 'aumRange',
                 'profilePurpose', 'otherPurposeDetails', 'investmentStrategy'
             ]
             

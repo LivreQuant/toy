@@ -94,17 +94,12 @@ class FundController(BaseController):
         
         # Prepare fund data
         fund_data = {
-            'name': data.get('fundName', ''),
             'user_id': user_id,
         }
-        
-        # Validate required fields
-        if not fund_data['name']:
-            return self.create_error_response("Missing required field: name", 400)
-        
+                
         # Extract properties
         property_fields = [
-            'legalStructure', 'location', 'yearEstablished', 'aumRange',
+            'fundName','legalStructure', 'location', 'yearEstablished', 'aumRange',
             'profilePurpose', 'otherPurposeDetails', 'investmentStrategy'
         ]
         
@@ -165,14 +160,10 @@ class FundController(BaseController):
 
         # Extract fund name
         update_data = {}
-        if 'fundName' in data:
-            update_data['name'] = data['fundName']
-        else:
-            return self.create_error_response("Missing required field: fundName", 400)
 
         # Extract properties
         property_fields = [
-            'legalStructure', 'location', 'yearEstablished', 'aumRange',
+            'fundName', 'legalStructure', 'location', 'yearEstablished', 'aumRange',
             'profilePurpose', 'otherPurposeDetails', 'investmentStrategy'
         ]
         

@@ -53,9 +53,9 @@ class BookRepository:
         
         book_query = """
         INSERT INTO fund.books (
-            book_id, user_id, name, active_at, expire_at
+            book_id, user_id, active_at, expire_at        
         ) VALUES (
-            $1, $2, $3, $4, $5
+            $1, $2, $3, $4
         ) RETURNING book_id
         """
         
@@ -78,7 +78,6 @@ class BookRepository:
                         book_query,
                         book_data['book_id'],
                         book_data['user_id'],
-                        book_data['name'],
                         now,
                         self.future_date
                     )
@@ -156,8 +155,10 @@ class BookRepository:
     
     def _map_ui_to_db_category(self, category: str, subcategory: str) -> tuple:
         """Map UI category/subcategory to database category/subcategory"""
+        if category == 'Name':
+            return 'property', 'name'
         if category == 'Region':
-            return 'property', 'region'
+                return 'property', 'region'
         elif category == 'Market':
             return 'property', 'market'
         elif category == 'Instrument':
@@ -180,6 +181,8 @@ class BookRepository:
     
     def _map_db_to_ui_category(self, category: str, subcategory: str) -> tuple:
         """Map database category/subcategory to UI category/subcategory"""
+        if category == 'property' and subcategory == 'name':
+            return 'Name', ''
         if category == 'property' and subcategory == 'region':
             return 'Region', ''
         elif category == 'property' and subcategory == 'market':
@@ -220,7 +223,6 @@ class BookRepository:
         SELECT DISTINCT ON (book_id)
             book_id, 
             user_id, 
-            name,
             extract(epoch from active_at) as active_at
         FROM fund.books 
         WHERE user_id = $1 AND expire_at > NOW()
@@ -295,7 +297,6 @@ class BookRepository:
                     book_data = {
                         'book_id': book_id,
                         'user_id': book_row['user_id'],
-                        'name': book_row['name'],
                         'active_at': book_row['active_at'],
                         'parameters': parameters
                     }
@@ -333,7 +334,6 @@ class BookRepository:
         SELECT DISTINCT ON (book_id)
             book_id, 
             user_id, 
-            name,
             extract(epoch from active_at) as active_at
         FROM fund.books 
         WHERE book_id = $1 AND expire_at > NOW()
@@ -408,7 +408,6 @@ class BookRepository:
                 book_data = {
                     'book_id': book_id,
                     'user_id': book_row['user_id'],
-                    'name': book_row['name'],
                     'active_at': book_row['active_at'],
                     'parameters': parameters
                 }

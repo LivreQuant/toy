@@ -115,12 +115,6 @@ class BookController(BaseController):
 
         logger.debug(f"Parsed request data: {data}")
 
-        # Validate required fields
-        valid_fields, field_error = self.validate_required_fields(data, ['name'])
-        if not valid_fields:
-            logger.warning(f"Missing required fields: {field_error['error']}")
-            return self.create_error_response(field_error["error"], field_error["status"])
-
         book_id = str(uuid.uuid4())
         logger.info(f"Generated new book ID: {book_id}")
 
@@ -128,7 +122,6 @@ class BookController(BaseController):
         book_data = {
             'book_id': book_id,
             'user_id': user_id,
-            'name': data['name'],
         }
         
         # Add parameters if present
@@ -220,11 +213,7 @@ class BookController(BaseController):
 
         # Prepare update data
         update_data = {}
-        
-        # Extract name if present
-        if 'name' in data:
-            update_data['name'] = data['name']
-            
+                    
         # Extract parameters if present
         if 'parameters' in data:
             update_data['parameters'] = data['parameters']

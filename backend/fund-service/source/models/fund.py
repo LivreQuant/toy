@@ -10,8 +10,6 @@ import json
 class Fund:
     """Fund model representing an investment fund entity"""
     user_id: str
-    name: str
-    status: str = "active"  # active, archived, pending
     fund_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     
     def to_dict(self) -> Dict[str, Any]:
@@ -19,8 +17,6 @@ class Fund:
         return {
             "fund_id": self.fund_id,
             "user_id": self.user_id,
-            "name": self.name,
-            "status": self.status
         }
     
     def to_json(self) -> str:
@@ -34,8 +30,6 @@ class Fund:
         fund_data = {
             "fund_id": data.get("fund_id"),
             "user_id": data.get("user_id"),
-            "name": data.get("name"),
-            "status": data.get("status", "active")
         }
         return cls(**fund_data)
     
@@ -53,7 +47,7 @@ class FundProperty:
     key: str         # For array items like 'objective[0]', 'objective[1]'
     value: str
     active_at: float = field(default_factory=time.time)
-    updated_at: float = field(default_factory=time.time)
+    expire_at: float = field(default_factory=time.time)
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert property to dictionary for serialization"""
@@ -64,5 +58,5 @@ class FundProperty:
             "key": self.key,
             "value": self.value,
             "active_at": self.active_at,
-            "updated_at": self.updated_at
+            "expire_at": self.expire_at
         }

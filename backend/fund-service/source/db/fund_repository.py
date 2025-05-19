@@ -59,7 +59,6 @@ class FundRepository:
         now = datetime.datetime.now(datetime.timezone.utc)
         
         try:
-            logger.info(f"Creating fund: {fund_data['name']}")
             logger.info(f"Properties structure: {type(properties)}, Counts: {len(properties) if isinstance(properties, dict) else 'N/A'}")
             logger.info(f"Detailed properties: {properties}")
             logger.info(f"Team members structure: {type(team_members)}, Counts: {len(team_members) if isinstance(team_members, list) else 'N/A'}")
@@ -70,9 +69,9 @@ class FundRepository:
                     # 1. Create the fund
                     fund_query = """
                     INSERT INTO fund.funds (
-                        user_id, fund_id, name, active_at
+                        user_id, fund_id, active_at
                     ) VALUES (
-                        $1, $2, $3, $4
+                        $1, $2, $3
                     ) RETURNING fund_id
                     """
                     
@@ -80,7 +79,6 @@ class FundRepository:
                         fund_query,
                         fund_data['user_id'],
                         fund_data['fund_id'],
-                        fund_data['name'],
                         now
                     )
                     
@@ -89,7 +87,7 @@ class FundRepository:
                         fund_id = str(fund_id)
                     
                     logger.info(f"Fund created with ID: {fund_id}")
-                    
+                                                            
                     # 2. Save fund properties
                     if properties:
                         await self._save_fund_properties(conn, fund_id, properties, now)
@@ -137,6 +135,7 @@ class FundRepository:
         """
         # Property mapping - maps frontend field to DB category/subcategory
         property_mapping = {
+            'name': ('property', 'name'),
             'legalStructure': ('property', 'legalStructure'),
             'location': ('property', 'state_country'),
             'yearEstablished': ('property', 'yearEstablished'),
@@ -257,7 +256,6 @@ class FundRepository:
         SELECT DISTINCT ON (fund_id)
             fund_id, 
             user_id, 
-            name,
             extract(epoch from active_at) as active_at
         FROM fund.funds 
         WHERE user_id = $1
@@ -309,6 +307,7 @@ class FundRepository:
                 
                 # Property mapping from DB to frontend fields
                 reverse_property_mapping = {
+                    ('property', 'name'): 'name',
                     ('property', 'legalStructure'): 'legalStructure',
                     ('property', 'state_country'): 'location',
                     ('property', 'yearEstablished'): 'yearEstablished',
@@ -441,7 +440,6 @@ class FundRepository:
         # Extract properties and team members
         properties = update_data.get('properties', {})
         team_members = update_data.get('team_members', [])
-        name = update_data.get('name')
         
         try:
             async with pool.acquire() as conn:
@@ -458,18 +456,6 @@ class FundRepository:
                     if not fund_check:
                         logger.error(f"Fund {fund_id} not found or does not belong to user {user_id}")
                         return False
-                    
-                    # Update fund name if provided
-                    if name:
-                        # Insert new record
-                        await conn.execute(
-                            """
-                            UPDATE fund.funds
-                            SET name = $1
-                            WHERE fund_id = $2
-                            """,
-                            name, fund_id
-                        )
                     
                     # Update properties if provided
                     if properties:
