@@ -43,7 +43,6 @@ class FundController(BaseController):
             await self.state_manager.release()
 
 
-
     async def get_fund(self, request: web.Request) -> web.Response:
         """
         Handle fund retrieval endpoint

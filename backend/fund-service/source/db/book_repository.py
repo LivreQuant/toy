@@ -46,7 +46,6 @@ class BookRepository:
         pool = await self.db_pool.get_pool()
         
         logger.info(f"Creating book in database with ID: {book_data['book_id']}")
-        logger.info(f"Book data keys: {list(book_data.keys())}")
         
         query = """
         INSERT INTO fund.books (
@@ -106,24 +105,35 @@ class BookRepository:
         """
         logger.info(f"Processing {len(parameters)} parameters for book {book_id}")
         
-        # Convert list parameters to dictionary format
-        book_params = {}
-        for param in parameters:
-            if len(param) >= 3:
-                category = param[0]
-                subcategory = param[1] if param[1] else ""
-                value = param[2]
-                
-                # Determine a parameter name
-                if subcategory:
-                    param_name = f"{category}.{subcategory}"
-                else:
-                    param_name = category
-                
-                book_params[param_name] = value
+        now = datetime.datetime.now(datetime.timezone.utc)
+        property_query = """
+        INSERT INTO fund.book_properties (
+            book_id, category, subcategory, value, active_at, expire_at
+        ) VALUES (
+            $1, $2, $3, $4, $5, $6
+        )
+        """
         
-        # Use the dictionary method to save
-        await self._save_book_parameters_dict(conn, book_id, book_params)
+        try:
+            for param in parameters:
+                if len(param) >= 3:
+                    category = param[0]
+                    subcategory = param[1] if param[1] else ""
+                    value = param[2]
+                                        
+                    # Save to database with consistent key
+                    await conn.execute(
+                        property_query,
+                        book_id,
+                        category,
+                        subcategory,
+                        value,
+                        now,
+                        self.future_date
+                    )
+        except Exception as e:
+            logger.error(f"Error saving book parameters: {e}")
+            raise
 
     async def _save_book_parameters_dict(self, conn, book_id: str, parameters: Dict[str, Any]) -> None:
         """
@@ -138,9 +148,9 @@ class BookRepository:
         
         property_query = """
         INSERT INTO fund.book_properties (
-            book_id, category, subcategory, key, value, active_at, expire_at
+            book_id, category, subcategory, value, active_at, expire_at
         ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7
+            $1, $2, $3, $4, $5, $6
         )
         """
         
@@ -154,12 +164,8 @@ class BookRepository:
                 db_mapping = get_book_db_mapping(field)
                 
                 if db_mapping:
-                    category, subcategory, key = db_mapping
-                    
-                    # Generate a random UUID for the key if not provided
-                    if not key:
-                        key = str(uuid.uuid4())
-                    
+                    category, subcategory = db_mapping
+                                        
                     # Convert non-string values to JSON strings
                     if not isinstance(value, str):
                         value = json.dumps(value)
@@ -170,7 +176,6 @@ class BookRepository:
                         book_id,
                         category,
                         subcategory,
-                        key,
                         value,
                         now,
                         self.future_date
@@ -182,10 +187,7 @@ class BookRepository:
                     else:
                         category = field
                         subcategory = ""
-                    
-                    # Generate random UUID for key
-                    key = str(uuid.uuid4())
-                    
+                                        
                     # Convert non-string values to JSON strings
                     if not isinstance(value, str):
                         value = json.dumps(value)
@@ -196,7 +198,6 @@ class BookRepository:
                         book_id,
                         category,
                         subcategory,
-                        key,
                         value,
                         now,
                         self.future_date
@@ -227,7 +228,6 @@ class BookRepository:
         SELECT 
             category,
             subcategory,
-            key,
             value
         FROM fund.book_properties
         WHERE book_id = $1 AND expire_at > NOW()
@@ -258,7 +258,6 @@ class BookRepository:
                     for prop in property_rows:
                         category = prop['category']
                         subcategory = prop['subcategory']
-                        key = prop['key']
                         value = prop['value']
                         
                         # Try to parse JSON values
@@ -269,7 +268,7 @@ class BookRepository:
                             pass
                         
                         # Try to map to original field
-                        original_field = get_original_book_field(category, subcategory, key)
+                        original_field = get_original_book_field(category, subcategory)
                         
                         if original_field:
                             # Use mapped field name
@@ -330,7 +329,6 @@ class BookRepository:
         SELECT 
             category,
             subcategory,
-            key,
             value
         FROM fund.book_properties
         WHERE book_id = $1 AND expire_at > NOW()
@@ -358,7 +356,6 @@ class BookRepository:
                 for prop in property_rows:
                     category = prop['category']
                     subcategory = prop['subcategory']
-                    key = prop['key']
                     value = prop['value']
                     
                     # Try to parse JSON values
@@ -369,7 +366,7 @@ class BookRepository:
                         pass
                     
                     # Try to map to original field
-                    original_field = get_original_book_field(category, subcategory, key)
+                    original_field = get_original_book_field(category, subcategory)
                     
                     if original_field:
                         # Use mapped field name
@@ -417,7 +414,6 @@ class BookRepository:
             return True  # Nothing to update
         
         pool = await self.db_pool.get_pool()
-        logger.info(f"Updating book {book_id} with fields: {list(update_data.keys())}")
         
         # Extract parameters/bookParameters for separate handling
         parameters = update_data.pop('parameters', None)

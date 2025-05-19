@@ -19,15 +19,14 @@ data:
     );
 
     -- Fund properties using EAV (Entity-Attribute-Value) model for flexibility
-    CREATE TABLE fund.properties (
+    CREATE TABLE fund.fund_properties (
         fund_id UUID NOT NULL REFERENCES fund.funds(fund_id) ON DELETE CASCADE,
         category VARCHAR(100) NOT NULL,  -- e.g., 'general', 'strategy', 'team', 'compliance'
         subcategory VARCHAR(100) NOT NULL, -- e.g., 'legalStructure', 'investmentThesis', 'teamMemberRole'
-        key VARCHAR(100) NOT NULL,  -- For array items like 'objective[0]', 'objective[1]'
         value TEXT,  -- Using TEXT for maximum flexibility
         active_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
         expire_at TIMESTAMP WITH TIME ZONE DEFAULT '2999-01-01',
-        PRIMARY KEY (fund_id, category, subcategory, key)
+        PRIMARY KEY (fund_id, category, subcategory, active_at)
     );
 
     -- Fund team members table - Each fund can have multiple team members
@@ -44,11 +43,10 @@ data:
         member_id UUID NOT NULL REFERENCES fund.team_members(team_member_id) ON DELETE CASCADE,
         category VARCHAR(100) NOT NULL,  -- e.g., 'personal', 'professional', 'education'
         subcategory VARCHAR(100) NOT NULL, -- e.g., 'name', 'contact', 'experience'
-        key VARCHAR(100) NOT NULL,  -- e.g., 'first_name', 'last_name', 'email', 'phone', 'linkedin'
         value TEXT,
         active_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
         expire_at TIMESTAMP WITH TIME ZONE DEFAULT '2999-01-01',
-        PRIMARY KEY (member_id, category, subcategory, key)
+        PRIMARY KEY (member_id, category, subcategory, active_at)
     );
 
     -- Create books table
@@ -63,14 +61,14 @@ data:
 
     -- Create book properties table with a more flexible structure
     CREATE TABLE fund.book_properties (
-        property_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        property_id UUID DEFAULT gen_random_uuid(),
         book_id UUID NOT NULL REFERENCES fund.books(book_id) ON DELETE CASCADE,
         category VARCHAR(100) NOT NULL,
         subcategory VARCHAR(100) DEFAULT '',
-        key VARCHAR(100) NOT NULL,
         value TEXT,
         active_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
         expire_at TIMESTAMP WITH TIME ZONE DEFAULT '2999-01-01'
+        PRIMARY KEY (property_id, category, subcategory, active_at)
     );
 
     -- Fund portfolios (smart contracts) table - One-to-many relationship with fund
@@ -91,12 +89,12 @@ data:
 
     -- Create indexes for performance
     CREATE INDEX idx_fund_funds_user_id ON fund.funds(user_id);
-    CREATE INDEX idx_fund_properties_lookup ON fund.properties(fund_id, category, subcategory);
     CREATE INDEX idx_fund_team_members_fund ON fund.team_members(fund_id);
-    CREATE INDEX idx_fund_team_member_properties_lookup ON fund.team_member_properties(member_id, category, subcategory);
+    CREATE INDEX idx_fund_books_user_id ON fund.books(user_id);
 
-    CREATE INDEX idx_book_properties_book_id ON fund.book_properties(book_id);
-    CREATE INDEX idx_book_properties_category ON fund.book_properties(category);
+    CREATE INDEX idx_fund_properties_lookup ON fund.fund_properties(fund_id, category, subcategory);
+    CREATE INDEX idx_fund_team_member_properties_lookup ON fund.team_member_properties(member_id, category, subcategory);
+    CREATE INDEX idx_book_properties_category ON fund.book_properties(book_id, category, subcategory);
 
     CREATE INDEX idx_fund_portfolios_fund ON fund.portfolios(fund_id);
     CREATE INDEX idx_fund_portfolios_book_id ON fund.portfolios(book_id);

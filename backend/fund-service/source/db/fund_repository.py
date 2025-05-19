@@ -45,64 +45,6 @@ class FundRepository:
         # Far future date used for active records
         self.future_date = datetime.datetime(2999, 1, 1, tzinfo=datetime.timezone.utc)
 
-    async def create_fund(self, fund_data: Dict[str, Any]) -> Optional[str]:
-        """
-        Create a new fund for a user
-        
-        Args:
-            fund_data: Dictionary with fund properties
-            
-        Returns:
-            Fund ID if successful, None otherwise
-        """
-        pool = await self.db_pool.get_pool()
-        
-        logger.info(f"Starting create_fund with data: {fund_data}")
-        
-        query = """
-        INSERT INTO fund.funds (
-            fund_id, name, status, user_id, active_at, expire_at
-        ) VALUES (
-            $1, $2, $3, $4, NOW(), $5
-        ) RETURNING fund_id
-        """
-        
-        start_time = time.time()
-        try:
-            async with pool.acquire() as conn:
-                async with conn.transaction():
-                    fund_id = await conn.fetchval(
-                        query,
-                        fund_data['fund_id'],
-                        fund_data['name'],
-                        fund_data.get('status', 'active'),
-                        fund_data['user_id'],
-                        self.future_date
-                    )
-                    
-                    logger.info(f"Fund created in database with ID: {fund_id}")
-                    
-                    # If there are fund properties to save
-                    if fund_data.get('properties'):
-                        logger.info(f"Properties detected in fund_data: {fund_data['properties']}")
-                        await self._save_fund_properties(conn, fund_id, fund_data['properties'])
-                    else:
-                        logger.warning("No properties found in fund_data")
-                
-                duration = time.time() - start_time
-                track_db_operation("create_fund", True, duration)
-                
-                # Convert UUID to string before returning
-                if isinstance(fund_id, uuid.UUID):
-                    return str(fund_id)
-                
-                return fund_id
-        except Exception as e:
-            duration = time.time() - start_time
-            track_db_operation("create_fund", False, duration)
-            logger.error(f"Error creating fund: {e}", exc_info=True)
-            return None
-
     async def create_fund_with_details(self, fund_data: Dict[str, Any],
                                        properties: Dict[str, Any], 
                                        team_members: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -185,21 +127,20 @@ class FundRepository:
                                 logger.info(f"No mapping found, using defaults: category={category}, subcategory={subcategory}")
                             
                             # Execute insertion
-                            logger.info(f"Inserting property: fund_id={fund_id}, category={category}, subcategory={subcategory}, key={prop_name}, value={prop_value}")
+                            logger.info(f"Inserting property: fund_id={fund_id}, category={category}, subcategory={subcategory}, value={prop_value}")
                             
                             try:
                                 await conn.execute(
                                     """
                                     INSERT INTO fund.properties (
-                                        fund_id, category, subcategory, key, value, active_at, expire_at
+                                        fund_id, category, subcategory, value, active_at, expire_at
                                     ) VALUES (
-                                        $1, $2, $3, $4, $5, $6, $7
+                                        $1, $2, $3, $4, $5, $6
                                     )
                                     """,
                                     fund_id,
                                     category,
                                     subcategory,
-                                    prop_name,
                                     prop_value,
                                     now,
                                     self.future_date
@@ -262,9 +203,9 @@ class FundRepository:
         now = datetime.datetime.now(datetime.timezone.utc)
         query = """
         INSERT INTO fund.properties (
-            fund_id, category, subcategory, key, value, active_at, expire_at
+            fund_id, category, subcategory, value, active_at, expire_at
         ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7
+            $1, $2, $3, $4, $5, $6
         )
         """
         
@@ -293,16 +234,13 @@ class FundRepository:
                 if db_mapping:
                     # Use the mapping format
                     category, subcategory, _ = db_mapping
-                    
-                    # Use the input_field as the key for better identification
-                    key = input_field
-                    
+                                        
                     # Convert non-string values to JSON strings
                     if not isinstance(value, str):
                         value = json.dumps(value)
                         logger.info(f"Converted non-string value to JSON: {value}")
                     
-                    logger.info(f"Executing query with: fund_id={fund_id}, category={category}, subcategory={subcategory}, key={key}, value={value}")
+                    logger.info(f"Executing query with: fund_id={fund_id}, category={category}, subcategory={subcategory}, value={value}")
                     
                     try:
                         await conn.execute(
@@ -310,7 +248,6 @@ class FundRepository:
                             fund_id,
                             category,
                             subcategory,
-                            key,
                             value,
                             now,
                             self.future_date
@@ -323,14 +260,13 @@ class FundRepository:
                     # Handle unmapped properties - use as-is
                     category = 'fund'
                     subcategory = input_field
-                    key = input_field  # Use the input_field directly as the key
                     
                     # Convert non-string values to JSON strings
                     if not isinstance(value, str):
                         value = json.dumps(value)
                         logger.info(f"Converted non-string value to JSON: {value}")
                     
-                    logger.info(f"Executing query for unmapped property with: fund_id={fund_id}, category={category}, subcategory={subcategory}, key={key}, value={value}")
+                    logger.info(f"Executing query for unmapped property with: fund_id={fund_id}, category={category}, subcategory={subcategory}, value={value}")
                     
                     try:
                         await conn.execute(
@@ -338,7 +274,6 @@ class FundRepository:
                             fund_id,
                             category,
                             subcategory,
-                            key,
                             value,
                             now,
                             self.future_date
@@ -370,9 +305,9 @@ class FundRepository:
         now = datetime.datetime.now(datetime.timezone.utc)
         query = """
         INSERT INTO fund.team_member_properties (
-            member_id, category, subcategory, key, value, active_at, expire_at
+            member_id, category, subcategory, value, active_at, expire_at
         ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7
+            $1, $2, $3, $4, $5, $6
         )
         """
         
@@ -408,17 +343,14 @@ class FundRepository:
                         
                         if db_mapping:
                             category, subcategory, _ = db_mapping
-                            
-                            # Use descriptive key instead of random UUID
-                            key = f"{input_category}.{input_field}"
-                            
+                                                        
                             # Convert non-string values to JSON strings
                             if not isinstance(value, str):
                                 value = json.dumps(value)
                                 logger.info(f"Converted non-string value to JSON: {value}")
                             
                             # Save to database with mapped values
-                            logger.info(f"Executing query with: member_id={team_member_id}, category={category}, subcategory={subcategory}, key={key}, value={value}")
+                            logger.info(f"Executing query with: member_id={team_member_id}, category={category}, subcategory={subcategory}, value={value}")
                             
                             try:
                                 await conn.execute(
@@ -426,7 +358,6 @@ class FundRepository:
                                     team_member_id,
                                     category,
                                     subcategory,
-                                    key,
                                     value,
                                     now,
                                     self.future_date
@@ -439,14 +370,13 @@ class FundRepository:
                             # Handle unmapped properties - use direct category without index
                             category = input_category
                             subcategory = input_field
-                            key = f"{input_category}.{input_field}"  # Descriptive key
                             
                             # Convert non-string values to JSON strings
                             if not isinstance(value, str):
                                 value = json.dumps(value)
                                 logger.info(f"Converted non-string value to JSON: {value}")
                             
-                            logger.info(f"Executing query for unmapped property with: member_id={team_member_id}, category={category}, subcategory={subcategory}, key={key}, value={value}")
+                            logger.info(f"Executing query for unmapped property with: member_id={team_member_id}, category={category}, subcategory={subcategory}, value={value}")
                             
                             try:
                                 await conn.execute(
@@ -454,7 +384,6 @@ class FundRepository:
                                     team_member_id,
                                     category,
                                     subcategory,
-                                    key,
                                     value,
                                     now,
                                     self.future_date
@@ -471,11 +400,10 @@ class FundRepository:
                     # Use a simple, direct mapping without index
                     category = input_category
                     subcategory = "value"  # Generic subcategory for primitive values
-                    key = input_category  # Descriptive key
                     
                     value = str(category_props)
                     
-                    logger.info(f"Executing query for primitive with: member_id={team_member_id}, category={category}, subcategory={subcategory}, key={key}, value={value}")
+                    logger.info(f"Executing query for primitive with: member_id={team_member_id}, category={category}, subcategory={subcategory}, value={value}")
                     
                     try:
                         await conn.execute(
@@ -483,7 +411,6 @@ class FundRepository:
                             team_member_id,
                             category, 
                             subcategory,
-                            key,
                             value,
                             now,
                             self.future_date
@@ -529,7 +456,6 @@ class FundRepository:
         SELECT 
             category,
             subcategory,
-            key,
             value
         FROM fund.properties
         WHERE fund_id = $1 AND expire_at > NOW()
@@ -547,7 +473,6 @@ class FundRepository:
         SELECT 
             category,
             subcategory,
-            key,
             value
         FROM fund.team_member_properties
         WHERE member_id = $1 AND expire_at > NOW()
@@ -579,10 +504,9 @@ class FundRepository:
                 for row in property_rows:
                     category = row['category']
                     subcategory = row['subcategory']
-                    key = row['key']
                     value = row['value']
                     
-                    logger.info(f"Processing property: category={category}, subcategory={subcategory}, key={key}, value={value}")
+                    logger.info(f"Processing property: category={category}, subcategory={subcategory}, value={value}")
                     
                     # Try to parse JSON values
                     try:
@@ -594,8 +518,8 @@ class FundRepository:
                         pass
                     
                     # Try to map back to original field
-                    original_field = get_original_fund_field(category, subcategory, key)
-                    logger.info(f"Original field for ({category}, {subcategory}, {key}): {original_field}")
+                    original_field = get_original_fund_field(category, subcategory)
+                    logger.info(f"Original field for ({category}, {subcategory}): {original_field}")
                     
                     if original_field:
                         transformed_properties[original_field] = value
@@ -649,10 +573,9 @@ class FundRepository:
                     for row in member_property_rows:
                         category = row['category']
                         subcategory = row['subcategory']
-                        key = row['key']
                         value = row['value']
                         
-                        logger.info(f"Processing member property: category={category}, subcategory={subcategory}, key={key}, value={value}")
+                        logger.info(f"Processing member property: category={category}, subcategory={subcategory}, value={value}")
                         
                         # Try to parse JSON values
                         try:
@@ -662,27 +585,10 @@ class FundRepository:
                         except (json.JSONDecodeError, AttributeError):
                             logger.info("Value is not valid JSON, keeping as string")
                             pass
-                        
-                        # Try extracting from key if it's in format "category.field"
-                        if key and '.' in key:
-                            # This is our descriptive key format from the save method 
-                            key_parts = key.split('.')
-                            if len(key_parts) == 2:
-                                input_category, input_field = key_parts[0], key_parts[1]
-                                logger.info(f"Extracted from key: {input_category}.{input_field}")
-                                
-                                # Initialize the category dict if needed
-                                if input_category not in member_data:
-                                    member_data[input_category] = {}
-                                
-                                # Set the value
-                                member_data[input_category][input_field] = value
-                                logger.info(f"Set value using key parts: {input_category}.{input_field}")
-                                continue
-                        
+                                                
                         # Try to map back to original fields
-                        original = get_original_team_member_field(category, subcategory, key)
-                        logger.info(f"Original info for ({category}, {subcategory}, {key}): {original}")
+                        original = get_original_team_member_field(category, subcategory)
+                        logger.info(f"Original info for ({category}, {subcategory}): {original}")
                         
                         if original[0] is not None:
                             input_category, input_field, _ = original

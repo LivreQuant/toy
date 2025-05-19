@@ -155,6 +155,7 @@ class BookController(BaseController):
         logger.info(f"Book created successfully with ID: {result['book_id']}")
         return self.create_success_response({"bookId": result["book_id"]})
 
+    
     async def _get_books(self, request: web.Request) -> web.Response:
         """Handle books retrieval endpoint"""
         # Authenticate request
@@ -175,12 +176,60 @@ class BookController(BaseController):
         transformed_books = []
         
         for book in books:
-            # Remove the triplet-style parameters if bookParameters exists
-            transformed_book = dict(book)
+            transformed_book = {
+                "book_id": book["book_id"],
+                "user_id": book["user_id"],
+                "name": book["name"],
+                "status": book["status"],
+                "active_at": book["active_at"]
+            }
+            
+            # Convert EAV properties to flat JSON structure matching the client schema
+            # Use bookParameters as the source which contains the properly mapped fields
             if 'bookParameters' in book:
-                # Use the new transformed parameters instead
-                if 'parameters' in transformed_book:
-                    del transformed_book['parameters']
+                # Create parameters array in the expected format
+                parameters = []
+                
+                # Extract properly mapped fields
+                for key, value in book['bookParameters'].items():
+                    # Determine category and subcategory based on the property
+                    if key == "Region":
+                        category, subcategory = "Region", ""
+                        parameters.append([category, subcategory, value])
+                    elif key == "Market":
+                        category, subcategory = "Market", ""
+                        parameters.append([category, subcategory, value])
+                    elif key == "Instrument":
+                        category, subcategory = "Instrument", ""
+                        parameters.append([category, subcategory, value])
+                    elif key == "Investment Approach":
+                        category, subcategory = "Investment Approach", ""
+                        parameters.append([category, subcategory, value])
+                    elif key == "Investment Timeframe":
+                        category, subcategory = "Investment Timeframe", ""
+                        parameters.append([category, subcategory, value])
+                    elif key == "Sector":
+                        category, subcategory = "Sector", ""
+                        parameters.append([category, subcategory, value])
+                    elif key == "Position.Long":
+                        category, subcategory = "Position", "Long"
+                        parameters.append([category, subcategory, value])
+                    elif key == "Position.Short":
+                        category, subcategory = "Position", "Short"
+                        parameters.append([category, subcategory, value])
+                    elif key == "Allocation":
+                        category, subcategory = "Allocation", ""
+                        parameters.append([category, subcategory, value])
+                    else:
+                        # Generic fallback for unknown properties
+                        parts = key.split(".")
+                        if len(parts) > 1:
+                            category, subcategory = parts[0], parts[1]
+                        else:
+                            category, subcategory = parts[0], ""
+                        parameters.append([category, subcategory, value])
+                
+                transformed_book["parameters"] = parameters
             
             transformed_books.append(transformed_book)
 
