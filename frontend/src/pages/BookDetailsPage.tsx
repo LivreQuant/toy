@@ -111,7 +111,6 @@ const BookDetailsPage: React.FC = () => {
             userId: rawBook.user_id,
             name: rawBook.name,
             initialCapital: 0, // Will be set from parameters
-            riskLevel: 'medium', // Default value
             status: 'CONFIGURED', // Default status
             activeAt: rawBook.activeAt || Date.now(),
             expireAt: rawBook.expireAt || Date.now()
@@ -224,30 +223,14 @@ const BookDetailsPage: React.FC = () => {
                 {book.status}
               </span>
             </div>
-            
-            {book.tradingStrategy && (
-              <div className="detail-item">
-                <span className="label">Trading Strategy</span>
-                <span className="value">{book.tradingStrategy}</span>
-              </div>
-            )}
-            
-            {bookParams.sectors && bookParams.sectors.length > 0 && (
-              <div className="detail-item">
-                <span className="label">Sectors</span>
-                <span className="value">
-                  {bookParams.sectors.includes('generalist') ? 'All Sectors' : bookParams.sectors.join(', ')}
-                </span>
-              </div>
-            )}
-            
-            {bookParams.position && (
+
+            {book.positionTypes && (
               <div className="detail-item">
                 <span className="label">Position Type</span>
                 <span className="value">
-                  {bookParams.position.long ? 'Long' : ''}
-                  {bookParams.position.long && bookParams.position.short ? ' & ' : ''}
-                  {bookParams.position.short ? 'Short' : ''}
+                  {book.positionTypes.long ? 'Long' : ''}
+                  {book.positionTypes.long && book.positionTypes.short ? ' & ' : ''}
+                  {book.positionTypes.short ? 'Short' : ''}
                 </span>
               </div>
             )}

@@ -191,20 +191,21 @@ const TradingBooksGrid: React.FC<TradingBooksGridProps> = ({
                   
                   <CardContent sx={{ py: 2 }}>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                             
                       <Typography variant="body2" color="text.secondary">
-                        <strong>Region:</strong> {book.region || 'N/A'}
+                        <strong>Regions:</strong> {book.regions?.join(', ') || 'N/A'}
                       </Typography>
-                      
+
                       <Typography variant="body2" color="text.secondary">
-                        <strong>Market:</strong> {book.marketFocus || 'N/A'}
+                        <strong>Markets:</strong> {book.markets?.join(', ') || 'N/A'}
                       </Typography>
-                      
+
                       <Typography variant="body2" color="text.secondary">
-                        <strong>Instrument:</strong> {book.instrument || 'N/A'}
+                        <strong>Instruments:</strong> {book.instruments?.join(', ') || 'N/A'}
                       </Typography>
-                      
+
                       <Typography variant="body2" color="text.secondary">
-                        <strong>Approach:</strong> {book.tradingStrategy || 'N/A'}
+                        <strong>Approach:</strong> {book.investmentApproaches?.join(', ') || 'N/A'}
                       </Typography>
                       
                     </Box>

@@ -135,13 +135,13 @@ class FundRepository:
         """
         # Property mapping - maps frontend field to DB category/subcategory
         property_mapping = {
-            'name': ('property', 'name'),
-            'legalStructure': ('property', 'legalStructure'),
+            'fundName': ('property', 'name'),
+            'legalStructure': ('property', 'legal_structure'),
             'location': ('property', 'state_country'),
-            'yearEstablished': ('property', 'yearEstablished'),
-            'aumRange': ('metadata', 'aumRange'),
+            'yearEstablished': ('property', 'year_established'),
+            'aumRange': ('metadata', 'aum'),
             'profilePurpose': ('metadata', 'purpose'),
-            'otherPurposeDetails': ('metadata', 'otherDetails'),
+            'otherPurposeDetails': ('metadata', 'purpose_other'),
             'investmentStrategy': ('metadata', 'thesis')
         }
         
@@ -307,13 +307,13 @@ class FundRepository:
                 
                 # Property mapping from DB to frontend fields
                 reverse_property_mapping = {
-                    ('property', 'name'): 'name',
-                    ('property', 'legalStructure'): 'legalStructure',
+                    ('property', 'name'): 'fundName',
+                    ('property', 'legal_structure'): 'legalStructure',
                     ('property', 'state_country'): 'location',
-                    ('property', 'yearEstablished'): 'yearEstablished',
-                    ('metadata', 'aumRange'): 'aumRange',
+                    ('property', 'year_established'): 'yearEstablished',
+                    ('metadata', 'aum'): 'aumRange',
                     ('metadata', 'purpose'): 'profilePurpose',
-                    ('metadata', 'otherDetails'): 'otherPurposeDetails',
+                    ('metadata', 'purpose_other'): 'otherPurposeDetails',
                     ('metadata', 'thesis'): 'investmentStrategy'
                 }
                 

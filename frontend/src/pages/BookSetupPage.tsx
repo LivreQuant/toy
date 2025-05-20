@@ -34,16 +34,17 @@ const logger = getLogger('BookSetupPage');
 interface BookSetupData {
   // Basic Information
   name: string;
-  region: string;
-  market: string;
-  instrument: string;
+
+  regions: string[];
+  markets: string[];
+  instruments: string[];
   
   // Investment Strategy
-  investmentApproach: string[];
-  investmentTimeframe: string[];
+  investmentApproaches: string[];
+  investmentTimeframes: string[];
   
   // Sector Focus
-  sectorFocus: string[];
+  sectors: string[];
   
   // Position Types and Capital
   positionTypes: string[];
@@ -155,12 +156,12 @@ const BookSetupPage: React.FC = () => {
   // Default values
   const [formData, setFormData] = useState<BookSetupData>({
     name: 'My Trading Book',
-    region: 'us',
-    market: 'equities',
-    instrument: 'stocks',
-    investmentApproach: [],
-    investmentTimeframe: [],
-    sectorFocus: [],
+    regions: ['us'],
+    markets: ['equities'],
+    instruments: ['stocks'],
+    investmentApproaches: [],
+    investmentTimeframes: [],
+    sectors: [],
     positionTypes: [],
     initialCapital: 100000000 // 100M in dollars
   });
@@ -185,29 +186,29 @@ const BookSetupPage: React.FC = () => {
     else if (formData.market === 'cryptos') multiplier *= aumModifiers.markets.crypto;
     
     // Apply investment approach modifier
-    if (formData.investmentApproach.includes('quantitative')) {
+    if (formData.investmentApproaches.includes('quantitative')) {
       multiplier *= aumModifiers.investmentApproach.quantitative;
-    } else if (formData.investmentApproach.includes('discretionary')) {
+    } else if (formData.investmentApproaches.includes('discretionary')) {
       multiplier *= aumModifiers.investmentApproach.discretionary;
     }
     
     // Apply timeframe modifier (use the longest timeframe selected)
-    if (formData.investmentTimeframe.includes('long')) {
+    if (formData.investmentTimeframes.includes('long')) {
       multiplier *= aumModifiers.investmentTimeframe.long;
-    } else if (formData.investmentTimeframe.includes('medium')) {
+    } else if (formData.investmentTimeframes.includes('medium')) {
       multiplier *= aumModifiers.investmentTimeframe.medium;
-    } else if (formData.investmentTimeframe.includes('short')) {
+    } else if (formData.investmentTimeframes.includes('short')) {
       multiplier *= aumModifiers.investmentTimeframe.short;
     }
       
     // If no market is selected, use a default value
-    if (!formData.market) {
+    if (!formData.markets) {
       setAumAllocation(baseAumAllocation); // Use the base value
       return;
     }
     
     // Set AUM based on the selected market with type checking
-    const marketValue = marketAumValues[formData.market as MarketKey] || 100;
+    const marketValue = marketAumValues[formData.markets as MarketKey] || 100;
     const calculatedValue = Math.round(marketValue * multiplier);
     
     // Update the AUM allocation and the form data
@@ -217,7 +218,7 @@ const BookSetupPage: React.FC = () => {
       initialCapital: calculatedValue * 1000000 // Convert to dollars (from millions)
     }));
     
-  }, [formData.region, formData.market, formData.investmentApproach, formData.investmentTimeframe, baseAumAllocation]);
+  }, [formData.regions, formData.markets, formData.investmentApproaches, formData.investmentTimeframes, baseAumAllocation]);
   
   // REMOVED the problematic useEffect for sector handling
   
@@ -241,19 +242,28 @@ const BookSetupPage: React.FC = () => {
         if (!formData.name.trim()) {
           newErrors.name = 'Book name is required';
         }
+        if (formData.regions.length === 0) {
+          newErrors.regions = 'At least one region must be selected';
+        }
+        if (formData.markets.length === 0) {
+          newErrors.markets = 'At least one market must be selected';
+        }
+        if (formData.instruments.length === 0) {
+          newErrors.instruments = 'At least one instrument must be selected';
+        }
         break;
         
       case 1: // Investment Strategy
-        if (formData.investmentApproach.length === 0) {
+        if (formData.investmentApproaches.length === 0) {
           newErrors.investmentApproach = 'Please select at least one investment approach';
         }
-        if (formData.investmentTimeframe.length === 0) {
+        if (formData.investmentTimeframes.length === 0) {
           newErrors.investmentTimeframe = 'Please select at least one investment timeframe';
         }
         break;
         
       case 2: // Sector Focus
-        if (formData.sectorFocus.length === 0) {
+        if (formData.sectors.length === 0) {
           newErrors.sectorFocus = 'Please select at least one sector';
         }
         break;
@@ -326,7 +336,7 @@ const BookSetupPage: React.FC = () => {
     
     try {
       // Force specific behaviors based on what changed
-      const hasGeneralistBefore = formData.sectorFocus.includes('generalist');
+      const hasGeneralistBefore = formData.sectors.includes('generalist');
       const hasGeneralistAfter = newValue.includes('generalist');
       
       // Case 1: Generalist was toggled directly
@@ -341,7 +351,7 @@ const BookSetupPage: React.FC = () => {
           // Generalist turned OFF - remove generalist but keep other sectors
           setFormData(prev => ({
             ...prev,
-            sectorFocus: prev.sectorFocus.filter(id => id !== 'generalist')
+            sectorFocus: prev.sectors.filter(id => id !== 'generalist')
           }));
         }
         return;
@@ -350,13 +360,13 @@ const BookSetupPage: React.FC = () => {
       // Case 2: An individual sector was toggled while generalist is selected
       if (hasGeneralistBefore && 
           hasGeneralistAfter && 
-          newValue.length < formData.sectorFocus.length) {
+          newValue.length < formData.sectors.length) {
         // A sector was deselected while generalist was on - remove generalist too
-        const sectorBeingRemoved = formData.sectorFocus.find(id => !newValue.includes(id) && id !== 'generalist');
+        const sectorBeingRemoved = formData.sectors.find(id => !newValue.includes(id) && id !== 'generalist');
         if (sectorBeingRemoved) {
           setFormData(prev => ({
             ...prev,
-            sectorFocus: prev.sectorFocus.filter(id => id !== 'generalist' && id !== sectorBeingRemoved)
+            sectorFocus: prev.sectors.filter(id => id !== 'generalist' && id !== sectorBeingRemoved)
           }));
         }
         return;
@@ -395,63 +405,46 @@ const BookSetupPage: React.FC = () => {
     }
   };
   
-  const handleSubmit = async () => {
-    // Final validation
-    if (!validateCurrentStep()) {
-      return;
-    }
+  
+const handleSubmit = async () => {
+  // Final validation
+  if (!validateCurrentStep()) {
+    return;
+  }
+  
+  setIsSubmitting(true);
+  
+  try {
+    // Convert form data to new API format
+    const bookData: BookRequest = {
+      name: formData.name,
+      region: formData.regions,
+      market: formData.markets,
+      instrument: formData.instruments,
+      investmentApproaches: formData.investmentApproaches,
+      investmentTimeframes: formData.investmentTimeframes,
+      sectors: formData.sectors.filter(sector => sector !== 'generalist'),
+      positionTypes: {
+        long: formData.positionTypes.includes('long'),
+        short: formData.positionTypes.includes('short')
+      },
+      initialCapital: formData.initialCapital
+    };
     
-    setIsSubmitting(true);
+    const result = await bookManager.createBook(bookData);
     
-    try {
-      // Convert form data to API format
-      const parameters: Array<[string, string, string]> = [
-        ["Region", "", formData.region],
-        ["Market", "", formData.market],
-        ["Instrument", "", formData.instrument]
-      ];
-      
-      // Add investment approach
-      formData.investmentApproach.forEach(approach => {
-        parameters.push(["Investment Approach", "", approach]);
-      });
-      
-      // Add investment timeframe
-      formData.investmentTimeframe.forEach(timeframe => {
-        parameters.push(["Investment Timeframe", "", timeframe]);
-      });
-      
-      // Add sector focus
-      formData.sectorFocus.forEach(sector => {
-        parameters.push(["Sector", "", sector]);
-      });
-      
-      // Add position types
-      const hasLong = formData.positionTypes.includes('long');
-      const hasShort = formData.positionTypes.includes('short');
-      parameters.push(["Position", "Long", hasLong.toString()]);
-      parameters.push(["Position", "Short", hasShort.toString()]);
-      
-      // Add allocation (convert to millions for display)
-      parameters.push(["Allocation", "", (formData.initialCapital / 1000000).toString()]);
-      
-      const result = await bookManager.createBook({
-        name: formData.name,
-        parameters
-      });
-      
-      if (result.success) {
-        addToast('success', 'Trading book created successfully!');
-        navigate('/home');
-      } else {
-        addToast('error', result.error || 'Failed to create trading book');
-      }
-    } catch (error: any) {
-      addToast('error', `Error creating trading book: ${error.message}`);
-    } finally {
-      setIsSubmitting(false);
+    if (result.success) {
+      addToast('success', 'Trading book created successfully!');
+      navigate('/home');
+    } else {
+      addToast('error', result.error || 'Failed to create trading book');
     }
-  };
+  } catch (error: any) {
+    addToast('error', `Error creating trading book: ${error.message}`);
+  } finally {
+    setIsSubmitting(false);
+  }
+};
   
   // Render step content
   const renderStepContent = () => {
@@ -493,10 +486,9 @@ const BookSetupPage: React.FC = () => {
         </Typography>
         
         <ToggleButtonGroup
-          value={formData.region}
-          exclusive
-          onChange={(_, value) => value && handleToggleChange('region', value)}
-          aria-label="Region"
+          value={formData.regions}
+          onChange={(_, value) => handleToggleChange('regions', value)}
+          aria-label="Regions"
           color="primary"
           fullWidth
         >
@@ -505,7 +497,7 @@ const BookSetupPage: React.FC = () => {
               <Typography variant="body2">US Region</Typography>
             </Box>
           </ToggleButton>
-          <ToggleButton value="eu" disabled>
+          <ToggleButton value="eu">
             <Box sx={{ textAlign: 'center' }}>
               <Typography variant="body2">EU Region</Typography>
               <Typography variant="caption" color="text.secondary" display="block">
@@ -513,7 +505,7 @@ const BookSetupPage: React.FC = () => {
               </Typography>
             </Box>
           </ToggleButton>
-          <ToggleButton value="asia" disabled>
+          <ToggleButton value="asia">
             <Box sx={{ textAlign: 'center' }}>
               <Typography variant="body2">Asia Region</Typography>
               <Typography variant="caption" color="text.secondary" display="block">
@@ -521,7 +513,7 @@ const BookSetupPage: React.FC = () => {
               </Typography>
             </Box>
           </ToggleButton>
-          <ToggleButton value="emerging" disabled>
+          <ToggleButton value="emerging">
             <Box sx={{ textAlign: 'center' }}>
               <Typography variant="body2">Emerging</Typography>
               <Typography variant="caption" color="text.secondary" display="block">
@@ -540,10 +532,10 @@ const BookSetupPage: React.FC = () => {
           The markets accessed by the investment strategy
         </Typography>
         
+        
         <ToggleButtonGroup
-          value={formData.market}
-          exclusive
-          onChange={(_, value) => value && handleToggleChange('market', value)}
+          value={formData.markets}
+          onChange={(_, value) => handleToggleChange('markets', value)}
           aria-label="Markets"
           color="primary"
           fullWidth
@@ -553,7 +545,7 @@ const BookSetupPage: React.FC = () => {
               <Typography variant="body2">Equities</Typography>
             </Box>
           </ToggleButton>
-          <ToggleButton value="bonds" disabled>
+          <ToggleButton value="bonds">
             <Box sx={{ textAlign: 'center' }}>
               <Typography variant="body2">Bonds</Typography>
               <Typography variant="caption" color="text.secondary" display="block">
@@ -597,9 +589,8 @@ const BookSetupPage: React.FC = () => {
         </Typography>
         
         <ToggleButtonGroup
-          value={formData.instrument}
-          exclusive
-          onChange={(_, value) => value && handleToggleChange('instrument', value)}
+          value={formData.instruments}
+          onChange={(_, value) => handleToggleChange('instruments', value)}
           aria-label="Instruments"
           color="primary"
           fullWidth
@@ -609,7 +600,7 @@ const BookSetupPage: React.FC = () => {
               <Typography variant="body2">Stocks</Typography>
             </Box>
           </ToggleButton>
-          <ToggleButton value="etfs" disabled>
+          <ToggleButton value="etfs">
             <Box sx={{ textAlign: 'center' }}>
               <Typography variant="body2">ETFs</Typography>
               <Typography variant="caption" color="text.secondary" display="block">
@@ -657,7 +648,7 @@ const BookSetupPage: React.FC = () => {
         </Typography>
         
         <ToggleButtonGroup
-          value={formData.investmentApproach}
+          value={formData.investmentApproaches}
           onChange={(_, value) => handleToggleChange('investmentApproach', value)}
           aria-label="Investment Approach"
           color="primary"
@@ -688,7 +679,7 @@ const BookSetupPage: React.FC = () => {
         </Typography>
         
         <ToggleButtonGroup
-          value={formData.investmentTimeframe}
+          value={formData.investmentTimeframes}
           onChange={(_, value) => handleToggleChange('investmentTimeframe', value)}
           aria-label="Investment Timeframe"
           color="primary"
@@ -745,10 +736,10 @@ const BookSetupPage: React.FC = () => {
           <Box sx={{ gridColumn: '1 / span 3', mb: 1 }}>
             <ToggleButton
               value="generalist"
-              selected={formData.sectorFocus.includes('generalist')}
+              selected={formData.sectors.includes('generalist')}
               onClick={() => {
                 // Directly toggle generalist without using ToggleButtonGroup
-                const newSelections = [...formData.sectorFocus];
+                const newSelections = [...formData.sectors];
                 const hasGeneralist = newSelections.includes('generalist');
                 
                 if (hasGeneralist) {
@@ -780,10 +771,10 @@ const BookSetupPage: React.FC = () => {
             <ToggleButton 
               key={option.id} 
               value={option.id}
-              selected={formData.sectorFocus.includes(option.id)}
+              selected={formData.sectors.includes(option.id)}
               onClick={() => {
                 // Directly toggle this specific sector
-                const newSelections = [...formData.sectorFocus];
+                const newSelections = [...formData.sectors];
                 const isSelected = newSelections.includes(option.id);
                 
                 if (isSelected) {

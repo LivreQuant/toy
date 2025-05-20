@@ -42,6 +42,16 @@ class BookManager:
             # Convert to dictionary for repository layer
             book_dict = book.to_dict()
             
+            # ADD THIS CODE to handle the name field:
+            # Check if name is provided separately and add to parameters
+            if 'name' in book_data:
+                name_param = ["Name", "", book_data['name']]
+                # Create parameters list if it doesn't exist
+                if 'parameters' not in book_dict:
+                    book_dict['parameters'] = []
+                # Add name parameter at beginning
+                book_dict['parameters'].insert(0, name_param)
+                
             # Ensure parameters are properly handled
             if 'parameters' in book_data:
                 # Validate parameters format

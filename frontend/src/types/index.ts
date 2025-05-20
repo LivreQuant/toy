@@ -38,23 +38,36 @@ export interface Book {
   id: string;
   userId: string;
   name: string;
-  initialCapital: number;
-  riskLevel: 'low' | 'medium' | 'high';
-  marketFocus?: string;
   status: string;
-  tradingStrategy?: string;
-  maxPositionSize?: number;
-  maxTotalRisk?: number;
   activeAt: number;
   expireAt: number;
-  region?: string;
-  instrument?: string;
-  parameters?: Array<[string, string, string]> | string; // Can be array or string (serialized JSON)
+  
+  regions: string[];
+  markets: string[];
+  instruments: string[];
+  investmentApproaches: string[];
+  investmentTimeframes: string[];
+  sectors: string[];
+  positionTypes: {
+    long: boolean;
+    short: boolean;
+  };
+  initialCapital: number;
 }
 
-export interface CreateBookRequest {
+export interface BookRequest {
   name: string;
-  parameters: Array<[string, string, string]>; // [category, subcategory, value]
+  regions: string[];
+  markets: string[];
+  instruments: string[];
+  investmentApproaches: string[];
+  investmentTimeframes: string[];
+  sectors: string[];
+  positionTypes: {
+    long: boolean;
+    short: boolean;
+  };
+  initialCapital: number;
 }
 
 export interface TeamMember {

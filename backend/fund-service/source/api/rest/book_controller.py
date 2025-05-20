@@ -123,16 +123,22 @@ class BookController(BaseController):
             'book_id': book_id,
             'user_id': user_id,
         }
-        
-        # Add parameters if present
-        if 'parameters' in data:
-            book_data['parameters'] = data['parameters']
-            logger.debug(f"Including parameters for book: {data['parameters']}")
+                
+        # Create parameters list with name
+        if 'name' in data:
+            name_param = ["Name", "", data['name']]
+            parameters = [name_param]  # Start with name parameter
+            logger.info(f"Adding name parameter: {data['name']}")
         else:
-            book_data['parameters'] = []
-            logger.debug("No parameters provided, using empty array")
-        
-        logger.debug(f"Prepared book data structure: {book_data}")
+            parameters = []  # Empty list if no name
+
+        # Add other parameters if they exist
+        if 'parameters' in data:
+            parameters.extend(data['parameters'])  # Extend our parameters list
+            logger.debug(f"Including parameters for book: {data['parameters']}")
+
+        # SET THE PARAMETERS IN BOOK_DATA
+        book_data['parameters'] = parameters  # This was missing!
 
         # Create book
         result = await self.book_manager.create_book(book_data, user_id)
@@ -213,11 +219,23 @@ class BookController(BaseController):
 
         # Prepare update data
         update_data = {}
+        
+        # NEW CODE: If name is provided, add it as a parameter
+        parameters = []
+        if 'name' in data:
+            name_param = ["Name", "", data['name']]
+            parameters.append(name_param)
+            logger.info(f"Adding name parameter for update: {data['name']}")
                     
         # Extract parameters if present
         if 'parameters' in data:
-            update_data['parameters'] = data['parameters']
+            # Add existing parameters
+            parameters.extend(data['parameters'])
             logger.debug(f"Including parameters in update: {data['parameters']}")
+        
+        # Only set parameters if we have any
+        if parameters:
+            update_data['parameters'] = parameters
 
         # Update book
         result = await self.book_manager.update_book(book_id, update_data, user_id)

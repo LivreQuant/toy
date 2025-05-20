@@ -59,9 +59,9 @@ const EditBookPage: React.FC = () => {
   
   // Form state (similar to BookSetupPage.tsx)
   const [bookName, setBookName] = useState('');
-  const [region, setRegion] = useState('us');
-  const [selectedMarket, setSelectedMarket] = useState('equities');
-  const [selectedInstrument, setSelectedInstrument] = useState('stocks');
+  const [regions, setRegions] = useState<string[]>(['us']);
+  const [markets, setMarkets] = useState<string[]>(['equities']);
+  const [instruments, setInstruments] = useState<string[]>(['stocks']);
   const [investmentApproaches, setInvestmentApproaches] = useState<string[]>([]);
   const [timeframes, setTimeframes] = useState<string[]>([]);
   const [selectedSectors, setSelectedSectors] = useState<string[]>([]);
@@ -69,183 +69,61 @@ const EditBookPage: React.FC = () => {
   const [initialCapital, setInitialCapital] = useState<number>(100);
   
   const steps = ['Basic Information', 'Investment Strategy', 'Investment Focus', 'Position & Capital'];
-  
-  // Fetch book details
-  // src/pages/EditBookPage.tsx
-    // In the useEffect hook where we fetch and process the book data:
-
-
-    useEffect(() => {
-        const fetchBookDetails = async () => {
-          if (!bookId || !isConnected) return;
-          
-          setIsLoading(true);
-          
-          try {
-            console.log(`Fetching book details for bookId: ${bookId}`);
-            const response = await bookManager.fetchBook(bookId);
-            
-                  
-            if (response.success && response.book) {
-                const fetchedBook = response.book;
-                console.log("Raw book data from API:", fetchedBook);
-                
-                // Check where parameters might be
-                console.log("Parameters property:", fetchedBook.parameters);
-                console.log("Complete book object keys:", Object.keys(fetchedBook));
-                
-                
-              // Extract parameters
-              let parameters: Array<[string, string, string]> = [];
-              if (fetchedBook.parameters) {
-                if (typeof fetchedBook.parameters === 'string') {
-                  try {
-                    parameters = JSON.parse(fetchedBook.parameters);
-                  } catch (err) {
-                    console.error("Failed to parse parameters string");
-                  }
-                } else if (Array.isArray(fetchedBook.parameters)) {
-                  parameters = fetchedBook.parameters;
-                }
-              } else {
-                // Look for parameters that might have been added directly to the book object
-                const directProps = [
-                  {cat: 'Region', sub: '', val: fetchedBook.region || ''},
-                  {cat: 'Market', sub: '', val: fetchedBook.marketFocus || ''},
-                  {cat: 'Instrument', sub: '', val: fetchedBook.instrument || ''},
-                  {cat: 'Investment Approach', sub: '', val: fetchedBook.tradingStrategy || ''},
-                  {cat: 'Allocation', sub: '', val: String(fetchedBook.initialCapital || 100)}
-                ];
-                
-                // Convert any direct properties to parameters array format
-                parameters = directProps
-                  .filter(prop => prop.val)
-                  .map(prop => [prop.cat, prop.sub, prop.val] as [string, string, string]);
-                
-                console.log("Reconstructed parameters from direct properties:", parameters);
-              }
-              
-              // Set form state from book data
-              setBookName(fetchedBook.name);
-              
-              // Log all parameters for debugging
-              console.log("All parameters:", parameters);
-              
-              // Helper function to extract parameter value
-              const getParameterValue = (category: string, subcategory: string = ""): string | null => {
-                const param = parameters.find((p: any) => 
-                  Array.isArray(p) && p[0] === category && (subcategory === "" || p[1] === subcategory)
-                );
-                
-                console.log(`Looking for parameter ${category}${subcategory ? `-${subcategory}` : ''}, found:`, param);
-                return param ? param[2] : null;
-              };
-              
-              // Helper function to find all parameters with a specific category
-              const getParameterValues = (category: string): string[] => {
-                const values = parameters
-                  .filter((p: any) => Array.isArray(p) && p[0] === category)
-                  .map((p: any) => p[2]);
-                
-                console.log(`Found ${values.length} values for category ${category}:`, values);
-                return values;
-              };
-              
-              // Region
-              const regionValue = getParameterValue('Region');
-              if (regionValue) {
-                console.log(`Setting region to: ${regionValue}`);
-                setRegion(regionValue);
-              }
-              
-              // Market
-              const marketValue = getParameterValue('Market');
-              if (marketValue) {
-                console.log(`Setting market to: ${marketValue}`);
-                setSelectedMarket(marketValue);
-              }
-              
-              // Instrument
-              const instrumentValue = getParameterValue('Instrument');
-              if (instrumentValue) {
-                console.log(`Setting instrument to: ${instrumentValue}`);
-                setSelectedInstrument(instrumentValue);
-              }
-              
-              // Investment approaches
-              const approachValues = getParameterValues('Investment Approach');
-              console.log(`Setting investment approaches to:`, approachValues);
-              setInvestmentApproaches(approachValues);
-              
-              // Timeframes
-              const timeframeValues = getParameterValues('Investment Timeframe');
-              console.log(`Setting timeframes to:`, timeframeValues);
-              setTimeframes(timeframeValues);
-              
-              // Sectors
-              const sectorValues = getParameterValues('Sector');
-              if (sectorValues.length > 0) {
-                const allSectorsSelected = actualSectorIds.every(id => 
-                  sectorValues.includes(id)
-                );
-                
-                let updatedSectors = [...sectorValues];
-                if (allSectorsSelected && !updatedSectors.includes('generalist')) {
-                  updatedSectors.push('generalist');
-                }
-                
-                console.log(`Setting sectors to:`, updatedSectors);
-                setSelectedSectors(updatedSectors);
-              }
-              
-              // Position Types
-              const longPosition = getParameterValue('Position', 'Long') === 'true';
-              const shortPosition = getParameterValue('Position', 'Short') === 'true';
-              
-              const positions = [];
-              if (longPosition) positions.push('long');
-              if (shortPosition) positions.push('short');
-              console.log(`Setting position types to:`, positions);
-              setPositionTypes(positions);
-              
-              // Initial Capital
-              const capitalValue = getParameterValue('Allocation');
-              if (capitalValue) {
-                const capital = parseFloat(capitalValue);
-                if (!isNaN(capital)) {
-                  console.log(`Setting initial capital to: ${capital}`);
-                  setInitialCapital(capital);
-                }
-              }
-              
-              // Log final state values to verify
-              setTimeout(() => {
-                console.log("Final state values after processing:");
-                console.log("Region:", region);
-                console.log("Market:", selectedMarket);
-                console.log("Instrument:", selectedInstrument);
-                console.log("Investment Approaches:", investmentApproaches);
-                console.log("Timeframes:", timeframes);
-                console.log("Sectors:", selectedSectors);
-                console.log("Position Types:", positionTypes);
-                console.log("Initial Capital:", initialCapital);
-              }, 100);
-              
-            } else {
-              addToast('error', response.error || 'Failed to fetch book details');
-              navigate('/home');
-            }
-          } catch (error: any) {
-            console.error('Error fetching book details:', error);
-            addToast('error', `Failed to load book details: ${error.message}`);
-            navigate('/home');
-          } finally {
-            setIsLoading(false);
-          }
-        };
         
-        fetchBookDetails();
-      }, [bookId, isConnected, bookManager, addToast, navigate]);
+  useEffect(() => {
+    const fetchBookDetails = async () => {
+      if (!bookId || !isConnected) return;
+      
+      setIsLoading(true);
+      
+      try {
+        const response = await bookManager.fetchBook(bookId);
+        
+        if (response.success && response.book) {
+          const fetchedBook = response.book;
+          
+          // Set state from book data
+          setBookName(fetchedBook.name);
+          setRegions(fetchedBook.regions || ['us']);
+          setMarkets(fetchedBook.markets || ['equities']);
+          setInstruments(fetchedBook.instruments || ['stocks']);
+          setInvestmentApproaches(fetchedBook.investmentApproaches || []);
+          setTimeframes(fetchedBook.investmentTimeframes || []);
+          
+          // Handle sectors - add 'generalist' if all sectors are selected
+          const bookSectors = fetchedBook.sectors || [];
+          const allSectorsSelected = actualSectorIds.every(id => bookSectors.includes(id));
+          
+          if (allSectorsSelected) {
+            setSelectedSectors([...bookSectors, 'generalist']);
+          } else {
+            setSelectedSectors(bookSectors);
+          }
+          
+          // Handle position types
+          const positions: string[] = [];
+          if (fetchedBook.positionTypes?.long) positions.push('long');
+          if (fetchedBook.positionTypes?.short) positions.push('short');
+          setPositionTypes(positions);
+          
+          // Set initial capital
+          setInitialCapital(fetchedBook.initialCapital || 100);
+        } else {
+          addToast('error', response.error || 'Failed to fetch book details');
+          navigate('/home');
+        }
+      } catch (error: any) {
+        console.error('Error fetching book details:', error);
+        addToast('error', `Failed to load book details: ${error.message}`);
+        navigate('/home');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchBookDetails();
+  }, [bookId, isConnected, bookManager, addToast, navigate]);
+
   
   const handleNext = () => {
     // Validate current step
@@ -358,8 +236,22 @@ const EditBookPage: React.FC = () => {
     setIsProcessing(true);
     
     try {
-      const formData = prepareFormData();
-      const response = await bookManager.updateBook(bookId, formData);
+      const updateData: Partial<BookRequest> = {
+        name: bookName,
+        regions: regions,
+        markets: markets,
+        instruments: instruments,
+        investmentApproaches: investmentApproaches,
+        investmentTimeframes: timeframes,
+        sectors: selectedSectors.filter(sector => sector !== 'generalist'),
+        positionTypes: {
+          long: positionTypes.includes('long'),
+          short: positionTypes.includes('short')
+        },
+        initialCapital: initialCapital
+      };
+      
+      const response = await bookManager.updateBook(bookId, updateData);
       
       if (response.success) {
         addToast('success', 'Book updated successfully!');
@@ -471,9 +363,9 @@ const EditBookPage: React.FC = () => {
         </Typography>
         
         <ToggleButtonGroup
-          value={region}
+          value={regions}
           exclusive
-          onChange={(_, value) => value && setRegion(value)}
+          onChange={(_, value) => value && setRegions(value)}
           aria-label="Region"
           color="primary"
           fullWidth

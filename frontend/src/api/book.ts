@@ -1,11 +1,7 @@
-// src/api/book.ts
-import { HttpClient } from './http-client';
-import { Book } from '../types'; // Import from types
+// frontend/src/api/book.ts
 
-export interface CreateBookRequest {
-  name: string;
-  parameters: Array<[string, string, string]>; // [category, subcategory, value]
-}
+import { HttpClient } from './http-client';
+import { Book, BookRequest } from '../types';
 
 export class BookApi {
   private client: HttpClient;
@@ -14,12 +10,11 @@ export class BookApi {
     this.client = client;
   }
 
-  async createBook(bookData: CreateBookRequest): Promise<{ 
+  async createBook(bookData: BookRequest): Promise<{ 
     success: boolean; 
     bookId?: string; 
     error?: string 
   }> {
-    // Use POST to '/books' endpoint
     return this.client.post('/books', bookData);
   }
 
@@ -33,13 +28,13 @@ export class BookApi {
 
   async getBook(bookId: string): Promise<{ 
     success: boolean; 
-    book?: any; 
+    book?: Book; 
     error?: string 
   }> {
     return this.client.get(`/books/${bookId}`);
   }
 
-  async updateBook(bookId: string, updates: Partial<CreateBookRequest>): Promise<{ 
+  async updateBook(bookId: string, updates: Partial<BookRequest>): Promise<{ 
     success: boolean; 
     error?: string 
   }> {

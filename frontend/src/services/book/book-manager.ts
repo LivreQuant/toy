@@ -1,30 +1,10 @@
-// src/services/book/book-manager.ts
+// frontend/src/services/book/book-manager.ts
+
 import { getLogger } from '../../boot/logging';
 import { TokenManager } from '../auth/token-manager';
 import { BookApi } from '../../api/book';
-import { Book, CreateBookRequest } from '../../types';
-import { bookState } from '../../state/book-state';
+import { Book, BookRequest } from '../../types';
 import { toastService } from '../notification/toast-service';
-
-interface BookApiResponse {
-  book_id: string;
-  id?: string; 
-  user_id: string;
-  userId?: string;
-  name: string;
-  status: string;
-  active_at: number;
-  activeAt?: number;
-  expire_at: number;
-  expireAt?: number;
-  parameters: any;
-}
-
-
-// Define a type guard to check if a status string is valid for our Book type
-function isValidBookStatus(status: string): status is 'CONFIGURED' | 'ACTIVE' | 'ARCHIVED' {
-  return ['CONFIGURED', 'ACTIVE', 'ARCHIVED'].includes(status);
-}
 
 export class BookManager {
   private logger = getLogger('BookManager');
@@ -36,7 +16,7 @@ export class BookManager {
     this.tokenManager = tokenManager;
   }
 
-  async createBook(bookData: CreateBookRequest): Promise<{ 
+  async createBook(bookData: BookRequest): Promise<{ 
     success: boolean; 
     bookId?: string;
     error?: string; 
@@ -87,81 +67,10 @@ export class BookManager {
   
     try {
       const response = await this.bookApi.getBooks();
-      console.log('Raw API response:', response);
       
       if (response.success && response.books) {
-        // Process the books array from the API response
-        // Use 'any' as the type for apiBook temporarily
-        const formattedBooks = response.books.map((apiBook: any) => {
-          // Create a properly shaped Book object from the API data
-          const book: Book = {
-            id: apiBook.book_id || apiBook.id, // Handle both formats
-            userId: apiBook.user_id || apiBook.userId,
-            name: apiBook.name,
-            initialCapital: 0, // Will be updated from parameters
-            riskLevel: 'medium', // Default value
-            status: apiBook.status,
-            activeAt: apiBook.active_at || apiBook.activeAt,
-            expireAt: apiBook.expire_at || apiBook.expireAt
-          };
-          
-          // Extract initialCapital from parameters if available
-          if (apiBook.parameters) {
-            const params = Array.isArray(apiBook.parameters) ? apiBook.parameters : JSON.parse(apiBook.parameters);
-            
-            // Find allocation parameter
-            const allocationParam = params.find((p: any) => 
-              Array.isArray(p) && p[0] === 'Allocation'
-            );
-            
-            if (allocationParam && allocationParam[2]) {
-              book.initialCapital = parseFloat(allocationParam[2]);
-            }
-            
-            // Find market focus parameter
-            const marketParam = params.find((p: any) => 
-              Array.isArray(p) && p[0] === 'Market'
-            );
-            
-            if (marketParam && marketParam[2]) {
-              book.marketFocus = marketParam[2];
-            }
-            
-            // Find investment approach parameter (trading strategy)
-            const approachParams = params.filter((p: any) => 
-              Array.isArray(p) && p[0] === 'Investment Approach'
-            );
-            
-            if (approachParams.length > 0) {
-              book.tradingStrategy = approachParams.map((p: any) => p[2]).join(', ');
-            }
-            
-            // Find region parameter
-            const regionParam = params.find((p: any) => 
-              Array.isArray(p) && p[0] === 'Region'
-            );
-            
-            if (regionParam && regionParam[2]) {
-              book.region = regionParam[2];
-            }
-            
-            // Find instrument parameter
-            const instrumentParam = params.find((p: any) => 
-              Array.isArray(p) && p[0] === 'Instrument'
-            );
-            
-            if (instrumentParam && instrumentParam[2]) {
-              book.instrument = instrumentParam[2];
-            }
-          }
-          
-          return book;
-        });
-        
-        return { 
-          success: true, 
-          books: formattedBooks 
-        };
+        // Process books - we'll just return them directly since they should now match our Book interface
+        return { success: true, books: response.books };
       } else {
         return { 
           success: false, 
@@ -177,10 +86,7 @@ export class BookManager {
     }
   }
 
-  async updateBook(bookId: string, updateData: {
-    name: string;
-    parameters: Array<[string, string, string]>;
-  }): Promise<{ 
+  async updateBook(bookId: string, updateData: Partial<BookRequest>): Promise<{ 
     success: boolean; 
     error?: string 
   }> {
@@ -193,7 +99,7 @@ export class BookManager {
       const response = await this.bookApi.updateBook(bookId, updateData);
       
       if (response.success) {
-        toastService.success(`Book "${updateData.name}" updated successfully`);
+        toastService.success(`Book updated successfully`);
         
         // Refresh books after update
         await this.fetchBooks();
@@ -216,7 +122,6 @@ export class BookManager {
     }
   }
 
-  // In src/services/book/book-manager.ts
   async fetchBook(bookId: string): Promise<{ 
     success: boolean; 
     book?: Book;
@@ -227,82 +132,11 @@ export class BookManager {
     }
   
     try {
-      // Implement getBook in BookApi if it doesn't exist
       const response = await this.bookApi.getBook(bookId);
-      console.log('Raw book data from API:', response.book);
       
       if (response.success && response.book) {
-        // Cast the response to any to handle the snake_case properties
-        const apiBook = response.book as any;
-        
-        // Create a properly formatted Book object from the API response
-        const formattedBook: Book = {
-          id: apiBook.book_id || apiBook.id, // Handle both formats
-          userId: apiBook.user_id || apiBook.userId,
-          name: apiBook.name,
-          initialCapital: 0, // Default value, will update from parameters
-          riskLevel: 'medium', // Default value
-          status: apiBook.status,
-          activeAt: apiBook.active_at || apiBook.activeAt || Date.now(),
-          expireAt: apiBook.expire_at || apiBook.expireAt || Date.now(),
-          parameters: apiBook.parameters // Include parameters from API response
-        };
-        
-        // Extract initialCapital from parameters if available
-        if (apiBook.parameters) {
-          const params = Array.isArray(apiBook.parameters) ? apiBook.parameters : JSON.parse(apiBook.parameters);
-          
-          // Find allocation parameter
-          const allocationParam = params.find((p: any) => 
-            Array.isArray(p) && p[0] === 'Allocation'
-          );
-          
-          if (allocationParam && allocationParam[2]) {
-            formattedBook.initialCapital = parseFloat(allocationParam[2]);
-          }
-          
-          // Find market focus parameter
-          const marketParam = params.find((p: any) => 
-            Array.isArray(p) && p[0] === 'Market'
-          );
-          
-          if (marketParam && marketParam[2]) {
-            formattedBook.marketFocus = marketParam[2];
-          }
-          
-          // Find investment approach parameter (trading strategy)
-          const approachParams = params.filter((p: any) => 
-            Array.isArray(p) && p[0] === 'Investment Approach'
-          );
-          
-          if (approachParams.length > 0) {
-            formattedBook.tradingStrategy = approachParams.map((p: any) => p[2]).join(', ');
-          }
-          
-          // Find region parameter
-          const regionParam = params.find((p: any) => 
-            Array.isArray(p) && p[0] === 'Region'
-          );
-          
-          if (regionParam && regionParam[2]) {
-            formattedBook.region = regionParam[2];
-          }
-          
-          // Find instrument parameter
-          const instrumentParam = params.find((p: any) => 
-            Array.isArray(p) && p[0] === 'Instrument'
-          );
-          
-          if (instrumentParam && instrumentParam[2]) {
-            formattedBook.instrument = instrumentParam[2];
-          }
-        }
-        
-        console.log('Formatted book:', formattedBook);
-        return { 
-          success: true, 
-          book: formattedBook 
-        };
+        // Return the book directly - it should match our Book interface
+        return { success: true, book: response.book };
       } else {
         return { 
           success: false, 
