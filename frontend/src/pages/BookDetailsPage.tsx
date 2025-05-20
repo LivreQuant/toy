@@ -30,8 +30,13 @@ const parseBookParameters = (parametersStr: string): Record<string, any> => {
     
     // Process parameters into a usable structure
     const result: Record<string, any> = {
+      regions: [],
+      markets: [],
+      instruments: [],
+      investmentApproaches: [],
+      investmentTimeframes: [],
       sectors: [],
-      position: { long: false, short: false }
+      positionTypes: { long: false, short: false }
     };
     
     parametersArray.forEach((param: [string, string, string]) => {
@@ -39,28 +44,26 @@ const parseBookParameters = (parametersStr: string): Record<string, any> => {
       
       switch(category) {
         case 'Region':
-          result.region = value;
+          result.regions.push(value);
           break;
         case 'Market':
-          result.marketFocus = value;
+          result.markets.push(value);
           break;
         case 'Instrument':
-          result.instrument = value;
+          result.instruments.push(value);
           break;
         case 'Investment Approach':
-          if (!result.investmentApproach) result.investmentApproach = [];
-          result.investmentApproach.push(value);
+          result.investmentApproaches.push(value);
           break;
         case 'Investment Timeframe':
-          if (!result.investmentTimeframe) result.investmentTimeframe = [];
-          result.investmentTimeframe.push(value);
+          result.investmentTimeframes.push(value);
           break;
         case 'Sector':
           result.sectors.push(value);
           break;
         case 'Position':
-          if (subcategory === 'Long') result.position.long = value === 'true';
-          if (subcategory === 'Short') result.position.short = value === 'true';
+          if (subcategory === 'Long') result.positionTypes.long = value === 'true';
+          if (subcategory === 'Short') result.positionTypes.short = value === 'true';
           break;
         case 'Allocation':
           result.initialCapital = parseFloat(value);
@@ -106,14 +109,25 @@ const BookDetailsPage: React.FC = () => {
           // Process the raw book data - treat it as BookApiResponse
           const rawBook = response.book as unknown as BookApiResponse;
           
-          const formattedBook: Book = {
+          // Create a book object that matches the updated Book interface
+          let formattedBook: Book = {
             id: rawBook.id,
             userId: rawBook.user_id,
             name: rawBook.name,
-            initialCapital: 0, // Will be set from parameters
-            status: 'CONFIGURED', // Default status
+            initialCapital: 0,
+            status: 'CONFIGURED',
             activeAt: rawBook.activeAt || Date.now(),
-            expireAt: rawBook.expireAt || Date.now()
+            expireAt: rawBook.expireAt || Date.now(),
+            regions: [],
+            markets: [],
+            instruments: [],
+            investmentApproaches: [],
+            investmentTimeframes: [],
+            sectors: [],
+            positionTypes: {
+              long: false,
+              short: false
+            }
           };
           
           // Parse parameters if they exist
@@ -125,11 +139,26 @@ const BookDetailsPage: React.FC = () => {
             if (params.initialCapital) {
               formattedBook.initialCapital = params.initialCapital;
             }
-            if (params.marketFocus) {
-              formattedBook.marketFocus = params.marketFocus;
+            if (params.regions) {
+              formattedBook.regions = params.regions;
             }
-            if (params.investmentApproach) {
-              formattedBook.tradingStrategy = params.investmentApproach.join(', ');
+            if (params.markets) {
+              formattedBook.markets = params.markets;
+            }
+            if (params.instruments) {
+              formattedBook.instruments = params.instruments;
+            }
+            if (params.investmentApproaches) {
+              formattedBook.investmentApproaches = params.investmentApproaches;
+            }
+            if (params.investmentTimeframes) {
+              formattedBook.investmentTimeframes = params.investmentTimeframes;
+            }
+            if (params.sectors) {
+              formattedBook.sectors = params.sectors;
+            }
+            if (params.positionTypes) {
+              formattedBook.positionTypes = params.positionTypes;
             }
           }
           

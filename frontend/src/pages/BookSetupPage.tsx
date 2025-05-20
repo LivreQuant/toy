@@ -172,18 +172,18 @@ const BookSetupPage: React.FC = () => {
   useEffect(() => {
     let multiplier = 1.0;
     
-    // Apply region modifier
-    if (formData.region === 'us') multiplier *= aumModifiers.region.us;
-    else if (formData.region === 'eu') multiplier *= aumModifiers.region.eu;
-    else if (formData.region === 'asia') multiplier *= aumModifiers.region.asia;
-    else if (formData.region === 'emerging') multiplier *= aumModifiers.region.emerging;
+    // Apply region modifier - use the first region in the array
+    if (formData.regions.includes('us')) multiplier *= aumModifiers.region.us;
+    else if (formData.regions.includes('eu')) multiplier *= aumModifiers.region.eu;
+    else if (formData.regions.includes('asia')) multiplier *= aumModifiers.region.asia;
+    else if (formData.regions.includes('emerging')) multiplier *= aumModifiers.region.emerging;
     
-    // Apply markets modifier
-    if (formData.market === 'equities') multiplier *= aumModifiers.markets.equities;
-    else if (formData.market === 'bonds') multiplier *= aumModifiers.markets.bonds;
-    else if (formData.market === 'currencies') multiplier *= aumModifiers.markets.currencies;
-    else if (formData.market === 'commodities') multiplier *= aumModifiers.markets.commodities;
-    else if (formData.market === 'cryptos') multiplier *= aumModifiers.markets.crypto;
+    // Apply markets modifier - use the first market in the array
+    if (formData.markets.includes('equities')) multiplier *= aumModifiers.markets.equities;
+    else if (formData.markets.includes('bonds')) multiplier *= aumModifiers.markets.bonds;
+    else if (formData.markets.includes('currencies')) multiplier *= aumModifiers.markets.currencies;
+    else if (formData.markets.includes('commodities')) multiplier *= aumModifiers.markets.commodities;
+    else if (formData.markets.includes('cryptos')) multiplier *= aumModifiers.markets.crypto;
     
     // Apply investment approach modifier
     if (formData.investmentApproaches.includes('quantitative')) {
@@ -207,8 +207,9 @@ const BookSetupPage: React.FC = () => {
       return;
     }
     
-    // Set AUM based on the selected market with type checking
-    const marketValue = marketAumValues[formData.markets as MarketKey] || 100;
+    // Set AUM based on the selected market with type checking  
+    const marketKey = formData.markets[0] as MarketKey;
+    const marketValue = marketAumValues[marketKey] || 100;
     const calculatedValue = Math.round(marketValue * multiplier);
     
     // Update the AUM allocation and the form data
@@ -406,46 +407,46 @@ const BookSetupPage: React.FC = () => {
   };
   
   
-const handleSubmit = async () => {
-  // Final validation
-  if (!validateCurrentStep()) {
-    return;
-  }
-  
-  setIsSubmitting(true);
-  
-  try {
-    // Convert form data to new API format
-    const bookData: BookRequest = {
-      name: formData.name,
-      region: formData.regions,
-      market: formData.markets,
-      instrument: formData.instruments,
-      investmentApproaches: formData.investmentApproaches,
-      investmentTimeframes: formData.investmentTimeframes,
-      sectors: formData.sectors.filter(sector => sector !== 'generalist'),
-      positionTypes: {
-        long: formData.positionTypes.includes('long'),
-        short: formData.positionTypes.includes('short')
-      },
-      initialCapital: formData.initialCapital
-    };
-    
-    const result = await bookManager.createBook(bookData);
-    
-    if (result.success) {
-      addToast('success', 'Trading book created successfully!');
-      navigate('/home');
-    } else {
-      addToast('error', result.error || 'Failed to create trading book');
+  const handleSubmit = async () => {
+    // Final validation
+    if (!validateCurrentStep()) {
+      return;
     }
-  } catch (error: any) {
-    addToast('error', `Error creating trading book: ${error.message}`);
-  } finally {
-    setIsSubmitting(false);
-  }
-};
-  
+    
+    setIsSubmitting(true);
+    
+    try {
+      // Convert form data to new API format
+      const bookData: BookRequest = {
+        name: formData.name,
+        regions: formData.regions,
+        markets: formData.markets,
+        instruments: formData.instruments,
+        investmentApproaches: formData.investmentApproaches,
+        investmentTimeframes: formData.investmentTimeframes,
+        sectors: formData.sectors.filter(sector => sector !== 'generalist'),
+        positionTypes: {
+          long: formData.positionTypes.includes('long'),
+          short: formData.positionTypes.includes('short')
+        },
+        initialCapital: formData.initialCapital
+      };
+      
+      const result = await bookManager.createBook(bookData);
+      
+      if (result.success) {
+        addToast('success', 'Trading book created successfully!');
+        navigate('/home');
+      } else {
+        addToast('error', result.error || 'Failed to create trading book');
+      }
+    } catch (error: any) {
+      addToast('error', `Error creating trading book: ${error.message}`);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+    
   // Render step content
   const renderStepContent = () => {
     switch (activeStep) {

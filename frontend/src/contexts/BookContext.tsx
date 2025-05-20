@@ -6,16 +6,10 @@ import { Book } from '../types';
 import { httpClient, tokenManager } from '../api/api-client'; // Ensure these are exported
 
 interface BookManagerContextType {
-  createBook: (bookData: { 
-    name: string;
-    parameters: Array<[string, string, string]>; 
-  }) => Promise<{ success: boolean; bookId?: string; error?: string }>;
+  createBook: (bookData: BookRequest) => Promise<{ success: boolean; bookId?: string; error?: string }>;
   fetchBooks: () => Promise<{ success: boolean; books?: Book[]; error?: string }>;
   fetchBook: (bookId: string) => Promise<{ success: boolean; book?: Book; error?: string }>;
-  updateBook: (bookId: string, updateData: { 
-    name: string;
-    parameters: Array<[string, string, string]>;
-  }) => Promise<{ success: boolean; error?: string }>;
+  updateBook: (bookId: string, updateData: Partial<BookRequest>) => Promise<{ success: boolean; error?: string }>;
 }
 
 export const BookManagerContext = createContext<BookManagerContextType | null>(null);

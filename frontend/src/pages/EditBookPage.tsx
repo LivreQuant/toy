@@ -183,11 +183,27 @@ const EditBookPage: React.FC = () => {
   
   // Prepare form data for submission
   const prepareFormData = () => {
-    const parameters: Array<[string, string, string]> = [
-      ["Region", "", region],
-      ["Market", "", selectedMarket],
-      ["Instrument", "", selectedInstrument]
-    ];
+    const parameters: Array<[string, string, string]> = [];
+
+    // Add regions
+    regions.forEach(region => {
+      parameters.push(["Region", "", region]);
+    });
+    
+    // Add markets
+    markets.forEach(market => {
+      parameters.push(["Market", "", market]);
+    });
+    
+    // Add instruments
+    instruments.forEach(instrument => {
+      parameters.push(["Instrument", "", instrument]);
+    });
+    
+    // Add investment approaches
+    investmentApproaches.forEach(approach => {
+      parameters.push(["Investment Approach", "", approach]);
+    });
     
     // Add investment approaches
     investmentApproaches.forEach(approach => {
@@ -364,9 +380,8 @@ const EditBookPage: React.FC = () => {
         
         <ToggleButtonGroup
           value={regions}
-          exclusive
           onChange={(_, value) => value && setRegions(value)}
-          aria-label="Region"
+          aria-label="Regions"
           color="primary"
           fullWidth
         >
@@ -411,9 +426,8 @@ const EditBookPage: React.FC = () => {
         </Typography>
         
         <ToggleButtonGroup
-          value={selectedMarket}
-          exclusive
-          onChange={(_, value) => value && setSelectedMarket(value)}
+          value={markets}
+          onChange={(_, value) => value && setMarkets(value)}
           aria-label="Markets"
           color="primary"
           fullWidth
@@ -467,9 +481,8 @@ const EditBookPage: React.FC = () => {
         </Typography>
         
         <ToggleButtonGroup
-          value={selectedInstrument}
-          exclusive
-          onChange={(_, value) => value && setSelectedInstrument(value)}
+          value={instruments}
+          onChange={(_, value) => value && setInstruments(value)}
           aria-label="Instruments"
           color="primary"
           fullWidth
