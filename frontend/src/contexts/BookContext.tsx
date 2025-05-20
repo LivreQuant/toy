@@ -2,7 +2,7 @@
 import React, { createContext, ReactNode } from 'react';
 import { BookManager } from '../services/book/book-manager';
 import { BookApi } from '../api/book'; // Import BookApi explicitly
-import { Book } from '../types';
+import { Book, BookRequest } from '../types'; // Add BookRequest to imports
 import { httpClient, tokenManager } from '../api/api-client'; // Ensure these are exported
 
 interface BookManagerContextType {

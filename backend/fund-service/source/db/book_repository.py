@@ -33,7 +33,14 @@ class BookRepository:
         self.future_date = datetime.datetime(2999, 1, 1, tzinfo=datetime.timezone.utc)
         
         # Define which categories should be treated as lists
-        self.list_categories = ['Sector', 'Investment Timeframe', 'Investment Approach', 'Instrument']
+        self.list_categories = [
+            'Region', 
+            'Market', 
+            'Sector', 
+            'Investment Timeframe', 
+            'Investment Approach', 
+            'Instrument'
+        ]
 
     async def create_book(self, book_data: Dict[str, Any]) -> Optional[str]:
         """

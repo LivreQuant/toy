@@ -22,6 +22,7 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { useToast } from '../hooks/useToast';
 import { useBookManager } from '../hooks/useBookManager';
 import { useConnection } from '../hooks/useConnection';
+import { BookRequest } from '../types';
 import { getLogger } from '../boot/logging';
 
 // Initialize logger

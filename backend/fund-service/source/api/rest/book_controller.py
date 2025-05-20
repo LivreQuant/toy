@@ -96,7 +96,7 @@ class BookController(BaseController):
             await self.state_manager.release()
 
     async def _create_book(self, request: web.Request) -> web.Response:
-        """Handle book creation endpoint using temporal data pattern"""
+        """Handle book creation endpoint with new data format"""
         # Authenticate request
         logger.info(f"Processing book creation request from {request.remote}")
         auth_success, auth_result = await self.authenticate(request)
@@ -118,27 +118,20 @@ class BookController(BaseController):
         book_id = str(uuid.uuid4())
         logger.info(f"Generated new book ID: {book_id}")
 
-        # Prepare book data
+        # Prepare book data with the new format
         book_data = {
             'book_id': book_id,
             'user_id': user_id,
+            'name': data.get('name', ''),
+            'regions': data.get('regions', []),
+            'markets': data.get('markets', []),
+            'instruments': data.get('instruments', []),
+            'investmentApproaches': data.get('investmentApproaches', []),
+            'investmentTimeframes': data.get('investmentTimeframes', []),
+            'sectors': data.get('sectors', []),
+            'positionTypes': data.get('positionTypes', {'long': False, 'short': False}),
+            'initialCapital': data.get('initialCapital', 0)
         }
-                
-        # Create parameters list with name
-        if 'name' in data:
-            name_param = ["Name", "", data['name']]
-            parameters = [name_param]  # Start with name parameter
-            logger.info(f"Adding name parameter: {data['name']}")
-        else:
-            parameters = []  # Empty list if no name
-
-        # Add other parameters if they exist
-        if 'parameters' in data:
-            parameters.extend(data['parameters'])  # Extend our parameters list
-            logger.debug(f"Including parameters for book: {data['parameters']}")
-
-        # SET THE PARAMETERS IN BOOK_DATA
-        book_data['parameters'] = parameters  # This was missing!
 
         # Create book
         result = await self.book_manager.create_book(book_data, user_id)
@@ -167,7 +160,7 @@ class BookController(BaseController):
         if not result["success"]:
             return self.create_error_response(result.get("error", "Failed to retrieve books"), 500)
 
-        # Return books directly - transformation happens in the book manager
+        # Return books directly
         return self.create_success_response({"books": result["books"]})
 
     async def _get_book(self, request: web.Request) -> web.Response:
@@ -192,11 +185,11 @@ class BookController(BaseController):
         if not result["success"]:
             return self.create_error_response(result.get("error", "Book not found or does not belong to user"), 404)
 
-        # Return book directly - transformation happens in the book manager
+        # Return book directly
         return self.create_success_response({"book": result["book"]})
 
     async def _update_book(self, request: web.Request) -> web.Response:
-        """Handle book update endpoint using temporal data pattern"""
+        """Handle book update endpoint with new format"""
         # Authenticate request
         auth_success, auth_result = await self.authenticate(request)
         if not auth_success:
@@ -217,28 +210,21 @@ class BookController(BaseController):
         logger.info(f"Updating book {book_id} for user {user_id}")
         logger.debug(f"Update data: {data}")
 
-        # Prepare update data
-        update_data = {}
+        # Prepare book data with the new format
+        book_data = {
+            'book_id': book_id,
+            'user_id': user_id
+        }
         
-        # NEW CODE: If name is provided, add it as a parameter
-        parameters = []
-        if 'name' in data:
-            name_param = ["Name", "", data['name']]
-            parameters.append(name_param)
-            logger.info(f"Adding name parameter for update: {data['name']}")
-                    
-        # Extract parameters if present
-        if 'parameters' in data:
-            # Add existing parameters
-            parameters.extend(data['parameters'])
-            logger.debug(f"Including parameters in update: {data['parameters']}")
-        
-        # Only set parameters if we have any
-        if parameters:
-            update_data['parameters'] = parameters
+        # Include provided fields in the update
+        for field in ['name', 'regions', 'markets', 'instruments', 
+                     'investmentApproaches', 'investmentTimeframes', 
+                     'sectors', 'positionTypes', 'initialCapital']:
+            if field in data:
+                book_data[field] = data[field]
 
         # Update book
-        result = await self.book_manager.update_book(book_id, update_data, user_id)
+        result = await self.book_manager.update_book(book_id, book_data, user_id)
 
         if not result["success"]:
             return self.create_error_response(result.get("error", "Failed to update book"), 500)

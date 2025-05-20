@@ -18,19 +18,11 @@ class BookManager:
 
     async def create_book(self, book_data: Dict[str, Any], user_id: str) -> Dict[str, Any]:
         """
-        Create a new book for a user
-        
-        Args:
-            book_data: Book data dictionary
-            user_id: User ID
-            
-        Returns:
-            Result dictionary with success flag and book_id
+        Create a new book for a user with the new data format
         """
         logger.info(f"Creating book for user {user_id}")
         logger.debug(f"Book data: {book_data}")
         
-        # Create book model
         try:            
             book = Book(
                 user_id=user_id,
@@ -42,35 +34,57 @@ class BookManager:
             # Convert to dictionary for repository layer
             book_dict = book.to_dict()
             
-            # ADD THIS CODE to handle the name field:
-            # Check if name is provided separately and add to parameters
+            # Convert the new format to parameters format
+            parameters = []
+            
+            # Add name parameter
             if 'name' in book_data:
-                name_param = ["Name", "", book_data['name']]
-                # Create parameters list if it doesn't exist
-                if 'parameters' not in book_dict:
-                    book_dict['parameters'] = []
-                # Add name parameter at beginning
-                book_dict['parameters'].insert(0, name_param)
-                
-            # Ensure parameters are properly handled
-            if 'parameters' in book_data:
-                # Validate parameters format
-                if isinstance(book_data['parameters'], list):
-                    book_dict['parameters'] = book_data['parameters']
-                    param_count = len(book_data['parameters'])
-                    logger.info(f"Including {param_count} parameters for book")
-                else:
-                    # Convert dict parameters to list format if needed
-                    params_list = []
-                    for key, value in book_data['parameters'].items():
-                        category, subcategory = self._split_parameter_key(key)
-                        params_list.append([category, subcategory, value])
-                    book_dict['parameters'] = params_list
-                    logger.info(f"Converted dict parameters to list format, count: {len(params_list)}")
-            else:
-                # Ensure we always have an empty parameters list
-                book_dict['parameters'] = []
-                logger.info("No parameters provided, using empty list")
+                parameters.append(["Name", "", book_data['name']])
+            
+            # Add region parameters
+            if 'regions' in book_data and isinstance(book_data['regions'], list):
+                for region in book_data['regions']:
+                    parameters.append(["Region", "", region])
+            
+            # Add market parameters
+            if 'markets' in book_data and isinstance(book_data['markets'], list):
+                for market in book_data['markets']:
+                    parameters.append(["Market", "", market])
+            
+            # Add instrument parameters
+            if 'instruments' in book_data and isinstance(book_data['instruments'], list):
+                for instrument in book_data['instruments']:
+                    parameters.append(["Instrument", "", instrument])
+            
+            # Add investment approach parameters
+            if 'investmentApproaches' in book_data and isinstance(book_data['investmentApproaches'], list):
+                for approach in book_data['investmentApproaches']:
+                    parameters.append(["Investment Approach", "", approach])
+            
+            # Add investment timeframe parameters
+            if 'investmentTimeframes' in book_data and isinstance(book_data['investmentTimeframes'], list):
+                for timeframe in book_data['investmentTimeframes']:
+                    parameters.append(["Investment Timeframe", "", timeframe])
+            
+            # Add sector parameters
+            if 'sectors' in book_data and isinstance(book_data['sectors'], list):
+                for sector in book_data['sectors']:
+                    parameters.append(["Sector", "", sector])
+            
+            # Add position type parameters
+            if 'positionTypes' in book_data and isinstance(book_data['positionTypes'], dict):
+                position_types = book_data['positionTypes']
+                if position_types.get('long'):
+                    parameters.append(["Position", "Long", "true"])
+                if position_types.get('short'):
+                    parameters.append(["Position", "Short", "true"])
+            
+            # Add initialCapital parameter
+            if 'initialCapital' in book_data:
+                parameters.append(["Allocation", "", str(book_data['initialCapital'])])
+            
+            # Set parameters in book_dict
+            book_dict['parameters'] = parameters
             
             # Save to database
             logger.info(f"Calling repository to save book {book.book_id}")
@@ -98,55 +112,69 @@ class BookManager:
                 "error": f"Error creating book: {str(e)}"
             }
     
-    def _split_parameter_key(self, key: str) -> tuple:
-        """Split parameter key into category and subcategory"""
-        if '.' in key:
-            parts = key.split('.', 1)
-            return parts[0], parts[1]
-        
-        # Handle special cases
-        if key == 'name':
-            return 'Name', ''
-        elif key == 'region':
-            return 'Region', ''
-        elif key == 'market':
-            return 'Market', ''
-        elif key == 'instrument':
-            return 'Instrument', ''
-        elif key == 'investmentApproach':
-            return 'Investment Approach', ''
-        elif key == 'investmentTimeframe':
-            return 'Investment Timeframe', ''
-        elif key == 'sector':
-            return 'Sector', ''
-        elif key == 'positionLong':
-            return 'Position', 'Long'
-        elif key == 'positionShort':
-            return 'Position', 'Short'
-        elif key == 'allocation':
-            return 'Allocation', ''
-        
-        # Default case
-        return key, ''
-    
     async def get_books(self, user_id: str) -> Dict[str, Any]:
         """
-        Get all books for a user
-        
-        Args:
-            user_id: User ID
-            
-        Returns:
-            Result dictionary with success flag and books list
+        Get all books for a user and convert to new format
         """
         logger.info(f"Getting books for user {user_id}")
         
         try:
-            books = await self.book_repository.get_user_books(user_id)
+            # Get books from repository (in internal format)
+            books_internal = await self.book_repository.get_user_books(user_id)
             
-            logger.info(f"Retrieved {len(books)} books for user {user_id}")
+            logger.info(f"Retrieved {len(books_internal)} books for user {user_id}")
             
-            # Books should already be properly transformed in the repository
+            # Convert books to new format
+            books = []
+            for book_internal in books_internal:
+                # Create a book in the new format
+                book = {
+                    'book_id': book_internal['book_id'],
+                    'user_id': book_internal['user_id'],
+                    'name': '',
+                    'regions': [],
+                    'markets': [],
+                    'instruments': [],
+                    'investmentApproaches': [],
+                    'investmentTimeframes': [],
+                    'sectors': [],
+                    'positionTypes': {'long': False, 'short': False},
+                    'initialCapital': 0
+                }
+                
+                # Extract data from parameters
+                parameters = book_internal.get('parameters', [])
+                for param in parameters:
+                    if len(param) >= 3:
+                        category, subcategory, value = param
+                        
+                        if category == 'Name':
+                            book['name'] = value
+                        elif category == 'Region':
+                            book['regions'].append(value)
+                        elif category == 'Market':
+                            book['markets'].append(value)
+                        elif category == 'Instrument':
+                            book['instruments'].append(value)
+                        elif category == 'Investment Approach':
+                            book['investmentApproaches'].append(value)
+                        elif category == 'Investment Timeframe':
+                            book['investmentTimeframes'].append(value)
+                        elif category == 'Sector':
+                            book['sectors'].append(value)
+                        elif category == 'Position':
+                            if subcategory == 'Long':
+                                book['positionTypes']['long'] = value.lower() == 'true'
+                            elif subcategory == 'Short':
+                                book['positionTypes']['short'] = value.lower() == 'true'
+                        elif category == 'Allocation':
+                            try:
+                                book['initialCapital'] = int(value)
+                            except (ValueError, TypeError):
+                                book['initialCapital'] = 0
+                
+                books.append(book)
+            
             return {
                 "success": True,
                 "books": books
@@ -160,18 +188,92 @@ class BookManager:
     
     async def get_book(self, book_id: str, user_id: str) -> Dict[str, Any]:
         """
-        Get a single book by ID
-        
-        Args:
-            book_id: Book ID
-            user_id: User ID to validate ownership
-            
-        Returns:
-            Result dictionary with success flag and book data
+        Get a single book by ID and convert to new format
         """
         logger.info(f"Getting book {book_id} for user {user_id}")
         
         try:
+            # Get book from repository (in internal format)
+            book_internal = await self.book_repository.get_book(book_id)
+            
+            if not book_internal:
+                return {
+                    "success": False,
+                    "error": "Book not found"
+                }
+            
+            # Verify ownership
+            if book_internal['user_id'] != user_id:
+                return {
+                    "success": False,
+                    "error": "Book does not belong to this user"
+                }
+            
+            # Create a book in the new format
+            book = {
+                'book_id': book_internal['book_id'],
+                'user_id': book_internal['user_id'],
+                'name': '',
+                'regions': [],
+                'markets': [],
+                'instruments': [],
+                'investmentApproaches': [],
+                'investmentTimeframes': [],
+                'sectors': [],
+                'positionTypes': {'long': False, 'short': False},
+                'initialCapital': 0
+            }
+            
+            # Extract data from parameters
+            parameters = book_internal.get('parameters', [])
+            for param in parameters:
+                if len(param) >= 3:
+                    category, subcategory, value = param
+                    
+                    if category == 'Name':
+                        book['name'] = value
+                    elif category == 'Region':
+                        book['regions'].append(value)
+                    elif category == 'Market':
+                        book['markets'].append(value)
+                    elif category == 'Instrument':
+                        book['instruments'].append(value)
+                    elif category == 'Investment Approach':
+                        book['investmentApproaches'].append(value)
+                    elif category == 'Investment Timeframe':
+                        book['investmentTimeframes'].append(value)
+                    elif category == 'Sector':
+                        book['sectors'].append(value)
+                    elif category == 'Position':
+                        if subcategory == 'Long':
+                            book['positionTypes']['long'] = value.lower() == 'true'
+                        elif subcategory == 'Short':
+                            book['positionTypes']['short'] = value.lower() == 'true'
+                    elif category == 'Allocation':
+                        try:
+                            book['initialCapital'] = int(value)
+                        except (ValueError, TypeError):
+                            book['initialCapital'] = 0
+            
+            return {
+                "success": True,
+                "book": book
+            }
+        except Exception as e:
+            logger.error(f"Error getting book {book_id}: {e}")
+            return {
+                "success": False,
+                "error": f"Error getting book: {str(e)}"
+            }
+    
+    async def update_book(self, book_id: str, book_data: Dict[str, Any], user_id: str) -> Dict[str, Any]:
+        """
+        Update a book's properties using new format
+        """
+        logger.info(f"Updating book {book_id} for user {user_id}")
+        
+        try:
+            # First, get the book to verify ownership
             book = await self.book_repository.get_book(book_id)
             
             if not book:
@@ -187,82 +289,75 @@ class BookManager:
                     "error": "Book does not belong to this user"
                 }
             
-            # Book should already be properly transformed in the repository
-            return {
-                "success": True,
-                "book": book
+            # Convert to parameters format for repository
+            parameters = []
+            
+            # Add name parameter
+            if 'name' in book_data:
+                parameters.append(["Name", "", book_data['name']])
+            
+            # Add region parameters
+            if 'regions' in book_data and isinstance(book_data['regions'], list):
+                for region in book_data['regions']:
+                    parameters.append(["Region", "", region])
+            
+            # Add market parameters
+            if 'markets' in book_data and isinstance(book_data['markets'], list):
+                for market in book_data['markets']:
+                    parameters.append(["Market", "", market])
+            
+            # Add instrument parameters
+            if 'instruments' in book_data and isinstance(book_data['instruments'], list):
+                for instrument in book_data['instruments']:
+                    parameters.append(["Instrument", "", instrument])
+            
+            # Add investment approach parameters
+            if 'investmentApproaches' in book_data and isinstance(book_data['investmentApproaches'], list):
+                for approach in book_data['investmentApproaches']:
+                    parameters.append(["Investment Approach", "", approach])
+            
+            # Add investment timeframe parameters
+            if 'investmentTimeframes' in book_data and isinstance(book_data['investmentTimeframes'], list):
+                for timeframe in book_data['investmentTimeframes']:
+                    parameters.append(["Investment Timeframe", "", timeframe])
+            
+            # Add sector parameters
+            if 'sectors' in book_data and isinstance(book_data['sectors'], list):
+                for sector in book_data['sectors']:
+                    parameters.append(["Sector", "", sector])
+            
+            # Add position type parameters
+            if 'positionTypes' in book_data and isinstance(book_data['positionTypes'], dict):
+                position_types = book_data['positionTypes']
+                if position_types.get('long'):
+                    parameters.append(["Position", "Long", "true"])
+                if position_types.get('short'):
+                    parameters.append(["Position", "Short", "true"])
+            
+            # Add initialCapital parameter
+            if 'initialCapital' in book_data:
+                parameters.append(["Allocation", "", str(book_data['initialCapital'])])
+            
+            # Prepare update data
+            update_data = {
+                'parameters': parameters
             }
+            
+            # Apply updates using temporal pattern
+            success = await self.book_repository.update_book(book_id, update_data)
+            
+            if success:
+                return {
+                    "success": True
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": "Failed to update book"
+                }
         except Exception as e:
-            logger.error(f"Error getting book {book_id}: {e}")
+            logger.error(f"Error updating book {book_id}: {e}")
             return {
                 "success": False,
-                "error": f"Error getting book: {str(e)}"
+                "error": f"Error updating book: {str(e)}"
             }
-    
-    async def update_book(self, book_id: str, update_data: Dict[str, Any], user_id: str) -> Dict[str, Any]:
-       """
-       Update a book's properties using temporal data pattern
-       
-       Args:
-           book_id: Book ID
-           update_data: Dictionary of properties to update
-           user_id: User ID to validate ownership
-           
-       Returns:
-           Result dictionary with success flag
-       """
-       logger.info(f"Updating book {book_id} for user {user_id}")
-       
-       try:
-           # First, get the book to verify ownership
-           book = await self.book_repository.get_book(book_id)
-           
-           if not book:
-               return {
-                   "success": False,
-                   "error": "Book not found"
-               }
-           
-           # Verify ownership
-           if book['user_id'] != user_id:
-               return {
-                   "success": False,
-                   "error": "Book does not belong to this user"
-               }
-           
-           # Prepare update data
-           repository_update = {}
-                      
-           # Handle parameters update
-           if 'parameters' in update_data:
-               # Ensure parameters are in correct format for repository
-               if isinstance(update_data['parameters'], list):
-                   repository_update['parameters'] = update_data['parameters']
-                   logger.info(f"Updating book with {len(update_data['parameters'])} parameters")
-               else:
-                   # Convert dict parameters to list format if needed
-                   params_list = []
-                   for key, value in update_data['parameters'].items():
-                       category, subcategory = self._split_parameter_key(key)
-                       params_list.append([category, subcategory, value])
-                   repository_update['parameters'] = params_list
-                   logger.info(f"Converted dict parameters to list format, count: {len(params_list)}")
-           
-           # Apply updates using temporal pattern
-           success = await self.book_repository.update_book(book_id, repository_update)
-           
-           if success:
-               return {
-                   "success": True
-               }
-           else:
-               return {
-                   "success": False,
-                   "error": "Failed to update book"
-               }
-       except Exception as e:
-           logger.error(f"Error updating book {book_id}: {e}")
-           return {
-               "success": False,
-               "error": f"Error updating book: {str(e)}"
-           }
