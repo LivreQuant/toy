@@ -12,55 +12,25 @@ import { Book, FundProfile } from '../types';
 import DashboardHeader from '../components/Layout/DashboardHeader';
 import FundProfileCard from '../components/Dashboard/FundProfileCard';
 import TradingBooksGrid from '../components/Dashboard/TradingBooksGrid';
-import PerformanceDashboard from '../components/Dashboard/PerformanceDashboard';
-import ActivityFeed from '../components/Dashboard/ActivityFeed';
-import QuickActions from '../components/Dashboard/QuickActions';
-import PerformanceRanking from '../components/Dashboard/PerformanceRanking';
 
 const HomePage: React.FC = () => {
   const { logout } = useAuth();
   const { isConnected } = useConnection();
   const bookManager = useBookManager();
-  const fundManager = useFundManager(); // Add this hook
+  const fundManager = useFundManager();
   const navigate = useNavigate();
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
   const [books, setBooks] = useState<Book[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [fundProfile, setFundProfile] = useState<FundProfile | null>(null); // Add this state
-  const [isFundLoading, setIsFundLoading] = useState(true); // Add this state
+  const [isLoading, setIsLoading] = useState(false);
+  const [fundProfile, setFundProfile] = useState<FundProfile | null>(null);
+  const [isFundLoading, setIsFundLoading] = useState(true);
 
-  // Fetch book profile
-  useEffect(() => {
-    const fetchBooks = async () => {
-      // Only proceed if connected and a fund profile exists
-      if (!isConnected || !fundProfile) return;
-      
-      try {
-        setIsLoading(true);
-        const response = await bookManager.fetchBooks();
-        
-        if (response.success && response.books) {
-          setBooks(response.books);
-        } else {
-          console.error('Failed to fetch books:', response.error);
-          setBooks([]);
-        }
-      } catch (error) {
-        console.error('Error fetching books:', error);
-        setBooks([]);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchBooks();
-  }, [isConnected, fundProfile, bookManager]);
-
-  // Fetch fund profile
+  // Fetch fund profile first
   useEffect(() => {
     const fetchFundProfile = async () => {
+      if (!isConnected) return;
+      
       try {
         setIsFundLoading(true);
         const response = await fundManager.getFundProfile();
@@ -82,6 +52,34 @@ const HomePage: React.FC = () => {
       fetchFundProfile();
     }
   }, [isConnected, fundManager]);
+
+  // Only fetch books if we have a fund profile
+  useEffect(() => {
+    if (!isConnected || !fundProfile) {
+      return;
+    }
+    
+    const fetchBooks = async () => {
+      try {
+        setIsLoading(true);
+        const response = await bookManager.fetchBooks();
+        
+        if (response.success && response.books) {
+          setBooks(response.books);
+        } else {
+          console.error('Failed to fetch books:', response.error);
+          setBooks([]);
+        }
+      } catch (error) {
+        console.error('Error fetching books:', error);
+        setBooks([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchBooks();
+  }, [isConnected, fundProfile, bookManager]);
 
   const handleCreateBook = () => {
     navigate('/books/new');
@@ -108,45 +106,23 @@ const HomePage: React.FC = () => {
       
       <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 1400, mx: 'auto' }}>
         <Grid container spacing={3}>
-          {/* Main column - Fund Profile & Books */}
           <Grid {...{component: "div", item: true, xs: 12, lg: 12, sx: { width: '100%' }} as any}>
             <FundProfileCard 
-              onEditProfile={() => navigate('/profile/edit')}
+              onEditProfile={() => navigate(fundProfile ? '/profile/edit' : '/profile/create')}
               fundProfile={fundProfile}
               isLoading={isFundLoading}
             />
             
-            <TradingBooksGrid 
-              books={books} 
-              isLoading={isLoading} 
-              isConnected={isConnected}
-              onCreateBook={handleCreateBook}
-              onOpenBook={handleOpenBook}
-            />
+            {fundProfile && (
+              <TradingBooksGrid 
+                books={books} 
+                isLoading={isLoading}
+                isConnected={isConnected}
+                onCreateBook={handleCreateBook}
+                onOpenBook={handleOpenBook}
+              />
+            )}
           </Grid>
-          
-          {/* Side column - Activity & Actions */}
-          {/*
-          <Grid {...{component: "div", item: true, xs: 12, lg: 4} as any}>
-            <ActivityFeed books={books} />
-            
-            <QuickActions 
-              onCreateBook={handleCreateBook}
-              onEditProfile={() => navigate('/profile/create')}
-              hasBooks={books.length > 0}
-              isConnected={isConnected}
-            />
-            
-            <PerformanceRanking />
-          </Grid>
-          */}
-
-          {/* Full width - Performance Dashboard */}
-          {/*
-          <Grid {...{component: "div", item: true, xs: 12} as any}>
-            <PerformanceDashboard books={books} />
-          </Grid>
-          */}
         </Grid>
       </Box>
     </Box>

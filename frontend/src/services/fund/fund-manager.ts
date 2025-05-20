@@ -5,59 +5,6 @@ import { FundApi } from '../../api/fund';
 import { FundProfile, TeamMember, CreateFundProfileRequest, UpdateFundProfileRequest } from '../../types';
 import { toastService } from '../notification/toast-service';
 
-
-// Add this interface to define the structure of the API response
-interface FundProfileApiResponse {
-  fund_id: string;
-  user_id: string;
-  name: string;
-  status: string;
-  active_at: number;
-  expire_at: number;
-  properties?: {
-    general?: {
-      profile?: {
-        legalStructure?: string;
-        location?: string;
-        yearEstablished?: string;
-        aumRange?: string;
-        purpose?: string[];
-        otherDetails?: string;
-      };
-      strategy?: {
-        thesis?: string;
-      };
-    };
-  };
-  team_members?: Array<{
-    team_member_id: string;
-    properties?: {
-      personal?: {
-        info?: {
-          firstName?: string;
-          lastName?: string;
-          birthDate?: string;
-        };
-      };
-      professional?: {
-        info?: {
-          role?: string;
-          yearsExperience?: string;
-          currentEmployment?: string;
-          investmentExpertise?: string;
-          linkedin?: string;
-        };
-      };
-      education?: {
-        info?: {
-          institution?: string;
-        };
-      };
-    };
-  }>;
-}
-
-
 export class FundManager {
   private logger = getLogger('FundManager');
   private fundApi: FundApi;
@@ -108,6 +55,7 @@ export class FundManager {
     }
   }
 
+    
   /**
    * Retrieves the current user's fund profile
    */
@@ -119,64 +67,40 @@ export class FundManager {
     if (!this.tokenManager.isAuthenticated()) {
       return { success: false, error: 'Not authenticated' };
     }
-  
+
     try {
       const response = await this.fundApi.getFundProfile();
       
       if (response.success && response.fund) {
-        // Cast the response.fund to any to handle different structures
-        const apiData = response.fund as any;
+        // Transform the API response to match our expected FundProfile structure
+        // Use 'any' type for the API data since its structure differs from FundProfile
+        const apiData: any = response.fund;
         
-        // Create a properly formatted FundProfile
+        // Create a properly formatted FundProfile object
         const formattedFund: FundProfile = {
-          id: apiData.fund_id || apiData.id,
-          userId: apiData.user_id || apiData.userId,
-          fundName: apiData.name,
-          
-          // Check both flat and nested structures
-          legalStructure: apiData.legalStructure || 
-            apiData.fund_type_legal_structure,
-            
-          location: apiData.location || 
-            apiData.location_address,
-            
-          yearEstablished: apiData.yearEstablished || 
-            apiData.metadata_year_established,
-            
-          aumRange: apiData.aumRange || 
-            apiData.financial_aum_range,
-            
-          investmentStrategy: apiData.investmentStrategy || 
-            apiData.strategy_approach,
-            
-          profilePurpose: apiData.profilePurpose || 
-            apiData.purpose_objective || [],
-            
-          otherPurposeDetails: apiData.otherPurposeDetails || 
-            apiData.purpose_description,
-            
-          // Process team members with careful extraction of nested fields
-          teamMembers: apiData.team_members?.map((member: any) => {
-            // Handle different team member structures
-            return {
-              id: member.team_member_id || member.id,
-              firstName: member.personal?.firstName || '',
-              lastName: member.personal?.lastName || '',
-              role: member.professional?.role || '',
-              yearsExperience: member.professional?.yearsExperience || '',
-              // Specifically handle education as a string value
-              education: typeof member.education === 'object' && member.education?.institution 
-                ? member.education.institution 
-                : (typeof member.education === 'string' ? member.education : ''),
-              currentEmployment: member.professional?.currentEmployment || '',
-              investmentExpertise: member.professional?.investmentExpertise || '',
-              birthDate: member.personal?.birthDate || '',
-              linkedin: member.professional?.linkedin || '',
-            };
-          }) || [],
-          
-          activeAt: apiData.active_at || apiData.activeAt,
-          expireAt: apiData.expire_at || apiData.expireAt
+          id: apiData.fund_id,
+          userId: apiData.user_id,
+          fundName: apiData.fundName,
+          legalStructure: apiData.legalStructure,
+          location: apiData.location,
+          yearEstablished: apiData.yearEstablished,
+          aumRange: apiData.aumRange,
+          investmentStrategy: apiData.investmentStrategy,
+          profilePurpose: apiData.profilePurpose || [],
+          otherPurposeDetails: apiData.otherPurposeDetails,
+          teamMembers: (apiData.team_members || []).map((member: any) => ({
+            id: member.team_member_id,
+            firstName: member.firstName,
+            lastName: member.lastName,
+            role: member.role,
+            yearsExperience: member.yearsExperience,
+            education: member.education,
+            currentEmployment: member.currentEmployment,
+            investmentExpertise: member.investmentExpertise,
+            birthDate: member.birthDate,
+            linkedin: member.linkedin,
+          })),
+          activeAt: apiData.active_at
         };
         
         return { 

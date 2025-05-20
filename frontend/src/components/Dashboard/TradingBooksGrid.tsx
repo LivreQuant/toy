@@ -18,7 +18,6 @@ import AddIcon from '@mui/icons-material/Add';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import LaunchIcon from '@mui/icons-material/Launch';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
-import AssessmentIcon from '@mui/icons-material/Assessment';
 import FolderOpenIcon from '@mui/icons-material/FolderOpen';
 import EditIcon from '@mui/icons-material/Edit';
 import { useNavigate } from 'react-router-dom';
@@ -41,13 +40,16 @@ const TradingBooksGrid: React.FC<TradingBooksGridProps> = ({
   const theme = useTheme();
   const navigate = useNavigate();
 
+  // Helper function to format date
   const formatDate = (timestamp: number): string => {
+    if (!timestamp) return 'Unknown date';
     const date = new Date(timestamp * 1000); // Convert seconds to milliseconds if needed
     return date.toLocaleDateString();
   };
 
   // Helper function to calculate and format time elapsed
   const getTimeElapsed = (timestamp: number): string => {
+    if (!timestamp) return 'Unknown date';
     const now = Date.now();
     const millisecondsDiff = now - timestamp * 1000; // Convert seconds to milliseconds if needed
     const daysDiff = Math.floor(millisecondsDiff / (1000 * 60 * 60 * 24));
@@ -65,24 +67,6 @@ const TradingBooksGrid: React.FC<TradingBooksGridProps> = ({
       const years = Math.floor(daysDiff / 365);
       return `${years} ${years === 1 ? 'year' : 'years'} ago`;
     }
-  };
-
-  // Helper function to extract parameter value
-  const getParameterValue = (book: any, category: string, subcategory: string = ""): string | null => {
-    console.log(book)
-    if (!book.parameters) return null;
-    
-    // Parse parameters if it's a string
-    const params = typeof book.parameters === 'string' 
-      ? JSON.parse(book.parameters) 
-      : book.parameters;
-    
-    // Find the parameter that matches the category and subcategory
-    const param = params.find((p: any) => 
-      Array.isArray(p) && p[0] === category && p[1] === subcategory
-    );
-    
-    return param ? param[2] : null;
   };
 
   // Status color mapping
@@ -173,10 +157,11 @@ const TradingBooksGrid: React.FC<TradingBooksGridProps> = ({
                     }
                   }}
                 >
+                  // src/components/Dashboard/TradingBooksGrid.tsx (continued)
                   <CardHeader
                     title={book.name || 'Unnamed Book'}
                     titleTypographyProps={{ variant: 'subtitle1', fontWeight: 'medium' }}
-                    subheader={`Created ${getTimeElapsed(book.createdAt)}`}
+                    subheader={`Created ${book.createdAt ? getTimeElapsed(book.createdAt) : 'recently'}`}
                     action={
                       <Chip 
                         label={book.status || 'Unknown'} 
@@ -191,7 +176,6 @@ const TradingBooksGrid: React.FC<TradingBooksGridProps> = ({
                   
                   <CardContent sx={{ py: 2 }}>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                             
                       <Typography variant="body2" color="text.secondary">
                         <strong>Regions:</strong> {book.regions?.join(', ') || 'N/A'}
                       </Typography>
@@ -207,7 +191,6 @@ const TradingBooksGrid: React.FC<TradingBooksGridProps> = ({
                       <Typography variant="body2" color="text.secondary">
                         <strong>Approach:</strong> {book.investmentApproaches?.join(', ') || 'N/A'}
                       </Typography>
-                      
                     </Box>
                   </CardContent>
                   

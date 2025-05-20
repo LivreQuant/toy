@@ -65,6 +65,7 @@ export interface BookRequest {
   initialCapital: number;
 }
 
+
 export interface TeamMember {
   id: string;
   firstName: string;
@@ -77,6 +78,7 @@ export interface TeamMember {
   birthDate?: string;
   linkedin?: string;
 }
+
 
 export interface FundProfile {
   id?: string;

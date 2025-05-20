@@ -197,7 +197,7 @@ const FundProfileCard: React.FC<FundProfileCardProps> = ({
                   size="small"
                   variant="outlined"
                   sx={{
-                    px: 1.,
+                    px: 1,
                     height: 28,
                     display: 'flex',
                     alignItems: 'center',
@@ -223,7 +223,7 @@ const FundProfileCard: React.FC<FundProfileCardProps> = ({
                   size="small"
                   variant="outlined"
                   sx={{
-                    px: 1.,
+                    px: 1,
                     height: 28,
                     display: 'flex',
                     alignItems: 'center',
@@ -249,7 +249,7 @@ const FundProfileCard: React.FC<FundProfileCardProps> = ({
                   size="small"
                   variant="outlined"
                   sx={{
-                    px: 1.,
+                    px: 1,
                     height: 28,
                     display: 'flex',
                     alignItems: 'center',
@@ -275,7 +275,7 @@ const FundProfileCard: React.FC<FundProfileCardProps> = ({
                   size="small"
                   variant="outlined"
                   sx={{
-                    px: 1.,
+                    px: 1,
                     height: 28,
                     display: 'flex',
                     alignItems: 'center',
@@ -358,14 +358,14 @@ const FundProfileCard: React.FC<FundProfileCardProps> = ({
             
             {fundProfile.teamMembers && fundProfile.teamMembers.length > 0 ? (
               <List disablePadding sx={{ mt: 2 }}>
-                {fundProfile.teamMembers.map((member: any) => (
+                {fundProfile.teamMembers.map((member, index) => (
                   <ListItem 
-                    key={member.id} 
+                    key={member.id || index} 
                     disablePadding 
                     sx={{ 
                       mb: 2, 
                       pb: 2,
-                      borderBottom: fundProfile.teamMembers.indexOf(member) !== fundProfile.teamMembers.length - 1 
+                      borderBottom: index !== fundProfile.teamMembers.length - 1 
                         ? `1px solid ${theme.palette.divider}` 
                         : 'none'
                     }}
