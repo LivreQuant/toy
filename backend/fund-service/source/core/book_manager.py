@@ -129,8 +129,7 @@ class BookManager:
             for book_internal in books_internal:
                 # Create a book in the new format
                 book = {
-                    'book_id': book_internal['book_id'],
-                    'user_id': book_internal['user_id'],
+                    'bookId': book_internal['book_id'],
                     'name': '',
                     'regions': [],
                     'markets': [],
@@ -211,8 +210,7 @@ class BookManager:
             
             # Create a book in the new format
             book = {
-                'book_id': book_internal['book_id'],
-                'user_id': book_internal['user_id'],
+                'bookId': book_internal['book_id'],
                 'name': '',
                 'regions': [],
                 'markets': [],

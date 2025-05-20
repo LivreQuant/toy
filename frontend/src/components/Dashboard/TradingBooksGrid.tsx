@@ -227,7 +227,7 @@ const TradingBooksGrid: React.FC<TradingBooksGridProps> = ({
                         size="small"
                         color="primary"
                         startIcon={<EditIcon />}
-                        onClick={() => navigate(`/books/${book.id}/edit`)}
+                        onClick={() => navigate(`/books/${book.bookId}/edit`)}
                         sx={{ mr: 1 }}
                       >
                         Edit

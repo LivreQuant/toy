@@ -69,8 +69,20 @@ export class BookManager {
       const response = await this.bookApi.getBooks();
       
       if (response.success && response.books) {
-        // Process books - we'll just return them directly since they should now match our Book interface
-        return { success: true, books: response.books };
+        const transformedBooks = response.books.map(book => ({
+          bookId: book.bookId,
+          name: book.name,
+          regions: book.regions || [],
+          markets: book.markets || [],
+          instruments: book.instruments || [],
+          investmentApproaches: book.investmentApproaches || [],
+          investmentTimeframes: book.investmentTimeframes || [],
+          sectors: book.sectors || [],
+          positionTypes: book.positionTypes || { long: false, short: false },
+          initialCapital: book.initialCapital || 0
+        }));
+        
+        return { success: true, books: transformedBooks };
       } else {
         return { 
           success: false, 

@@ -55,9 +55,9 @@ export class BookStateService {
       ...currentState,
       books: {
         ...currentState.books,
-        [book.id]: book
+        [book.bookId]: book
       },
-      activeBookId: book.id,
+      activeBookId: book.bookId,
       lastUpdated: Date.now()
     });
   }
@@ -87,7 +87,6 @@ export class BookStateService {
         [bookId]: {
           ...existingBook,
           ...updates,
-          activeAt: Date.now()
         }
       },
       lastUpdated: Date.now()

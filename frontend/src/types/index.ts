@@ -35,13 +35,8 @@ export interface Order {
 }
 
 export interface Book {
-  id: string;
-  userId: string;
+  bookId: string;
   name: string;
-  status: string;
-  activeAt: number;
-  expireAt: number;
-  
   regions: string[];
   markets: string[];
   instruments: string[];

@@ -16,6 +16,7 @@ import './BookDetailsPage.css';
 interface BookApiResponse {
   id: string;
   user_id: string;
+  book_id: string;
   name: string;
   parameters: string;
   activeAt: number;
@@ -111,13 +112,9 @@ const BookDetailsPage: React.FC = () => {
           
           // Create a book object that matches the updated Book interface
           let formattedBook: Book = {
-            id: rawBook.id,
-            userId: rawBook.user_id,
+            bookId: rawBook.book_id,
             name: rawBook.name,
             initialCapital: 0,
-            status: 'CONFIGURED',
-            activeAt: rawBook.activeAt || Date.now(),
-            expireAt: rawBook.expireAt || Date.now(),
             regions: [],
             markets: [],
             instruments: [],
@@ -245,13 +242,6 @@ const BookDetailsPage: React.FC = () => {
                 <span className="value">{bookParams.marketFocus}</span>
               </div>
             )}
-            
-            <div className="detail-item">
-              <span className="label">Status</span>
-              <span className={`value status-${book.status.toLowerCase()}`}>
-                {book.status}
-              </span>
-            </div>
 
             {book.positionTypes && (
               <div className="detail-item">
