@@ -357,63 +357,58 @@ const FundProfileCard: React.FC<FundProfileCardProps> = ({
             </Box>
             
             {fundProfile.teamMembers && fundProfile.teamMembers.length > 0 ? (
-              <List disablePadding sx={{ mt: 2 }}>
-                {fundProfile.teamMembers.map((member, index) => (
-                  <ListItem 
-                    key={member.id || index} 
-                    disablePadding 
-                    sx={{ 
-                      mb: 2, 
-                      pb: 2,
-                      borderBottom: index !== fundProfile.teamMembers.length - 1 
-                        ? `1px solid ${theme.palette.divider}` 
-                        : 'none'
-                    }}
+              <Grid container spacing={2} sx={{ mt: 1 }}>
+                {/* Display up to 10 team members in a grid */}
+                {fundProfile.teamMembers.slice(0, 10).map((member, index) => (
+                  <Grid 
+                    {...{component: "div", item: true, key: member.id || index, xs: 12, 
+                        sm: fundProfile.teamMembers.length <= 2 ? 12 : 6} as any}
                   >
-                    <ListItemAvatar>
+                    <Box 
+                      sx={{ 
+                        display: 'flex',
+                        p: 1,
+                        borderBottom: index < fundProfile.teamMembers.length - 1 
+                          ? `1px solid ${theme.palette.divider}` 
+                          : 'none'
+                      }}
+                    >
                       <Avatar 
                         sx={{ 
                           bgcolor: theme.palette.primary.main,
-                          width: 48,
-                          height: 48
+                          width: 40,
+                          height: 40,
+                          mr: 1.5
                         }}
                       >
                         {member.firstName?.charAt(0) || ''}{member.lastName?.charAt(0) || ''}
                       </Avatar>
-                    </ListItemAvatar>
-                    <ListItemText
-                      primary={
-                        <Typography variant="subtitle1" sx={{ fontWeight: 'medium' }}>
+                      <Box>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 'medium' }}>
                           {member.firstName} {member.lastName}
                         </Typography>
-                      }
-                      secondary={
-                        <>
-                          <Typography variant="body2" component="span" color="text.primary">
-                            {member.role}
+                        <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
+                          {member.role}
+                        </Typography>
+                        {member.yearsExperience && (
+                          <Typography variant="caption" color="text.secondary" display="block">
+                            {member.yearsExperience} years experience
                           </Typography>
-                          {member.yearsExperience && (
-                            <>
-                              <br />
-                              <Typography variant="caption" color="text.secondary">
-                                {member.yearsExperience} years experience
-                              </Typography>
-                            </>
-                          )}
-                          {member.education && (
-                            <>
-                              <br />
-                              <Typography variant="caption" color="text.secondary">
-                                {member.education}
-                              </Typography>
-                            </>
-                          )}
-                        </>
-                      }
-                    />
-                  </ListItem>
+                        )}
+                      </Box>
+                    </Box>
+                  </Grid>
                 ))}
-              </List>
+                
+                {/* Show "More" indicator if there are more than 10 team members */}
+                {fundProfile.teamMembers.length > 10 && (
+                  <Grid {...{component: "div", item: true, xs: 12} as any}>
+                    <Typography variant="body2" color="text.secondary" align="center">
+                      +{fundProfile.teamMembers.length - 10} more team members
+                    </Typography>
+                  </Grid>
+                )}
+              </Grid>
             ) : (
               <Box sx={{ 
                 mt: 3, 

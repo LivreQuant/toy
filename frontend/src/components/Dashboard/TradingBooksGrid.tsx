@@ -133,14 +133,6 @@ const TradingBooksGrid: React.FC<TradingBooksGridProps> = ({
             <Typography variant="body2" color="text.secondary" paragraph>
               Create your first trading book to start managing your investments.
             </Typography>
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={onCreateBook}
-              disabled={!isConnected}
-            >
-              Create First Book
-            </Button>
           </Box>
         ) : (
           <Grid container spacing={3}>
@@ -157,16 +149,14 @@ const TradingBooksGrid: React.FC<TradingBooksGridProps> = ({
                     }
                   }}
                 >
-                  // src/components/Dashboard/TradingBooksGrid.tsx (continued)
                   <CardHeader
                     title={book.name || 'Unnamed Book'}
                     titleTypographyProps={{ variant: 'subtitle1', fontWeight: 'medium' }}
-                    subheader={`Created ${book.createdAt ? getTimeElapsed(book.createdAt) : 'recently'}`}
                     action={
                       <Chip 
-                        label={book.status || 'Unknown'} 
+                        label={`Created ${getTimeElapsed(book.createdAt)}`}
                         size="small"
-                        color={getStatusColor(book.status)}
+                        color={getStatusColor(book.status || 'CONFIGURED')}
                       />
                     }
                     sx={{ pb: 1 }}
@@ -197,14 +187,18 @@ const TradingBooksGrid: React.FC<TradingBooksGridProps> = ({
                   <Divider />
                   
                   <CardActions sx={{ justifyContent: 'space-between', p: 1 }}>
-                    <Button 
-                      size="small"
-                      startIcon={<TrendingUpIcon />}
-                      onClick={() => onOpenBook(book.id)}
-                    >
-                      Performance
-                    </Button>
                     <Box>
+                      <Button 
+                        variant="outlined"
+                        size="small"
+                        color="primary"
+                        startIcon={<TrendingUpIcon />}
+                        onClick={() => onOpenBook(book.id)}
+                        sx={{ mr: 1 }}
+                        disabled
+                      >
+                        Performance
+                      </Button>
                       <Button 
                         variant="outlined"
                         size="small"

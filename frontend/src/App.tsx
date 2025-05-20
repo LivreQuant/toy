@@ -51,12 +51,14 @@ import ResetPasswordPage from './pages/Auth/ResetPasswordPage';
 import HomePage from './pages/HomePage';
 import SimulatorPage from './pages/SimulatorPage';
 import BookDetailsPage from './pages/BookDetailsPage';
-import BookSetupPage from './pages/BookSetupPage';
-import EditBookPage from './pages/EditBookPage';
 import SessionDeactivatedPage from './pages/SessionDeactivatedPage';
 import EnterpriseContactPage from './pages/EnterpriseContactPage';
+
 import FundProfileForm from './components/Profile/FundProfileForm';
 import EditFundProfileForm from './components/Profile/EditFundProfileForm';
+
+import BookSetupPage from './components/Book/BookSetupPage';
+import EditBookPage from './components/Book/EditBookPage';
 
 // Initialize Logging First
 initializeLogging();
