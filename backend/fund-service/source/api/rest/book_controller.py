@@ -141,8 +141,8 @@ class BookController(BaseController):
             logger.error(f"Book creation failed: {result.get('error', 'Unknown error')}")
             return self.create_error_response(result.get('error', "Failed to create book in database"), 500)
 
-        logger.info(f"Book created successfully with ID: {result['bookId']}")
-        return self.create_success_response({"bookId": result["bookId"]})
+        logger.info(f"Book created successfully with ID: {result['book_id']}")
+        return self.create_success_response({"bookId": result["book_id"]})
 
     async def _get_books(self, request: web.Request) -> web.Response:
         """Handle books retrieval endpoint"""

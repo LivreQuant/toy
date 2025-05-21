@@ -38,11 +38,12 @@ export interface Order {
   category?: string;
 }
 
-export interface OrderSchemaConfig {
-  convictionMethod: 'side' | 'zscore';
-  includeParticipationRate: boolean;
-  includeCategory: boolean;
-  additionalFields?: string[];
+export interface ConvictionSchemaConfig {
+  portfolioApproach: 'incremental' | 'target';
+  targetPortfolioUnit?: 'percent' | 'notional';
+  convictionMethod?: 'side_score' | 'side_qty' | 'zscore' | 'multi-horizon';
+  scoreRange?: [number, number];
+  horizons?: string[];
 }
 
 export interface Book {
@@ -58,7 +59,7 @@ export interface Book {
     long: boolean;
     short: boolean;
   };
-  orderSchema?: OrderSchemaConfig;
+  convictionSchema?: ConvictionSchemaConfig;
   initialCapital: number;
 }
 
@@ -74,7 +75,7 @@ export interface BookRequest {
     long: boolean;
     short: boolean;
   };
-  orderSchema?: OrderSchemaConfig;
+  convictionSchema?: ConvictionSchemaConfig;
   initialCapital: number;
 }
 

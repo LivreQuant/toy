@@ -30,6 +30,7 @@ import { styled } from '@mui/material/styles';
 import { useToast } from '../../hooks/useToast';
 import { BookRequest } from '../../types';
 import { getLogger } from '../../boot/logging';
+import ConvictionModelForm, { ConvictionModelConfig } from './ConvictionModelForm';
 import './BaseBookForm.css';
 
 // Initialize logger
@@ -125,18 +126,16 @@ const BaseBookForm: React.FC<BaseBookFormProps> = ({
     ...(initialData.positionTypes?.short ? ['short'] : [])
   ]);
   const [initialCapital, setInitialCapital] = useState<number>(initialData.initialCapital || 100000000);
-  const [orderSchema, setOrderSchema] = useState<{
-    convictionMethod: 'side' | 'zscore';
-    includeParticipationRate: boolean;
-    includeCategory: boolean;
-  }>(initialData?.orderSchema || {
-    convictionMethod: 'side',
-    includeParticipationRate: true,
-    includeCategory: true
-  });
+
+  const [convictionSchema, setConvictionSchema] = useState<ConvictionModelConfig>(
+    initialData.convictionSchema || {
+      portfolioApproach: 'incremental',
+      convictionMethod: 'side_qty',
+    }
+  );
 
   // Steps array (same for both forms)
-  const steps = ['Basic Information', 'Investment Strategy', 'Investment Focus', 'Position & Capital', 'Order Schema'];
+  const steps = ['Basic Information', 'Investment Strategy', 'Investment Focus', 'Position & Capital', 'Conviction Model'];
 
   // All the validation, event handlers, and form logic
   // ... (include all the necessary handlers from your existing form)
@@ -365,11 +364,7 @@ const BaseBookForm: React.FC<BaseBookFormProps> = ({
           short: positionTypes.includes('short')
         },
         initialCapital: initialCapital,
-        orderSchema: {
-          convictionMethod: orderSchema.convictionMethod,
-          includeParticipationRate: orderSchema.includeParticipationRate,
-          includeCategory: orderSchema.includeCategory
-        }
+        convictionSchema: convictionSchema 
       };
       
       const result = await onSubmit(bookData);
@@ -806,136 +801,13 @@ const BaseBookForm: React.FC<BaseBookFormProps> = ({
   );
   
   // Add this function to BaseBookForm.tsx component
-  const renderOrderSchemaSection = () => (
+  const renderConvictionModelSection = () => (
     <Grid container spacing={3}>
-      <Grid {...{component: "div", item: true, xs: 12} as any}>
-        <Typography variant="h6" gutterBottom>
-          Order Schema Configuration
-        </Typography>
-        <Typography variant="body2" color="text.secondary" paragraph>
-          Define how your order files should be structured
-        </Typography>
-        
-        <Divider sx={{ my: 2 }} />
-        
-        <Typography variant="subtitle2" gutterBottom>
-          Required Fields
-        </Typography>
-        <Typography variant="body2" paragraph>
-          These fields are always required for all orders
-        </Typography>
-        
-        <Box sx={{ bgcolor: 'background.paper', p: 2, borderRadius: 1, mb: 3, border: '1px solid', borderColor: 'divider' }}>
-          <Chip label="Instrument ID" color="primary" sx={{ m: 0.5 }} />
-          <Chip label="Order ID" color="primary" sx={{ m: 0.5 }} />
-        </Box>
-        
-        <Typography variant="subtitle2" gutterBottom>
-          Conviction Method
-        </Typography>
-        <Typography variant="body2" paragraph>
-          Choose how traders express their conviction in orders
-        </Typography>
-        
-        <RadioGroup
-          name="convictionMethod"
-          value={orderSchema.convictionMethod}
-          onChange={(e) => {
-            setOrderSchema({
-              ...orderSchema,
-              convictionMethod: e.target.value as 'side' | 'zscore',
-            });
-          }}
-          row
-        >
-          <FormControlLabel 
-            value="side" 
-            control={<Radio />} 
-            label={
-              <Box>
-                <Typography variant="body2">Directional (Side)</Typography>
-                <Typography variant="caption" color="text.secondary">
-                  Traders specify BUY/SELL/CLOSE
-                </Typography>
-              </Box>
-            }
-          />
-          <FormControlLabel 
-            value="zscore" 
-            control={<Radio />} 
-            label={
-              <Box>
-                <Typography variant="body2">Quantitative (Z-Score)</Typography>
-                <Typography variant="caption" color="text.secondary">
-                  Traders provide Z-Score signal strength
-                </Typography>
-              </Box>
-            }
-          />
-        </RadioGroup>
-        
-        <Divider sx={{ my: 3 }} />
-        
-        <Typography variant="subtitle2" gutterBottom>
-          Execution Parameters
-        </Typography>
-        
-        <FormGroup>
-          <FormControlLabel
-            control={
-              <Checkbox 
-                checked={orderSchema.includeParticipationRate}
-                onChange={(e) => {
-                  setOrderSchema({
-                    ...orderSchema,
-                    includeParticipationRate: e.target.checked,
-                  });
-                }}
-              />
-            }
-            label={
-              <Box>
-                <Typography variant="body2">Participation Rate</Typography>
-                <Typography variant="caption" color="text.secondary">
-                  Controls market impact (LOW/MEDIUM/HIGH or numeric %)
-                </Typography>
-              </Box>
-            }
-          />
-          
-          <FormControlLabel
-            control={
-              <Checkbox 
-                checked={orderSchema.includeCategory}
-                onChange={(e) => {
-                  setOrderSchema({
-                    ...orderSchema,
-                    includeCategory: e.target.checked,
-                  });
-                }}
-              />
-            }
-            label={
-              <Box>
-                <Typography variant="body2">Order Category</Typography>
-                <Typography variant="caption" color="text.secondary">
-                  Strategy or reason for the order (value, momentum, etc.)
-                </Typography>
-              </Box>
-            }
-          />
-        </FormGroup>
-        
-        <Box sx={{ mt: 4, p: 2, bgcolor: 'primary.light', color: 'primary.contrastText', borderRadius: 1 }}>
-          <Typography variant="subtitle2">Order File Format Preview</Typography>
-          <Box sx={{ mt: 2, p: 2, bgcolor: 'background.paper', color: 'text.primary', fontFamily: 'monospace', overflowX: 'auto', borderRadius: 1 }}>
-            {`instrumentId,orderId,${orderSchema.convictionMethod === 'zscore' ? 'zscore' : 'side,quantity'},${orderSchema.includeParticipationRate ? 'participationRate,' : ''}${orderSchema.includeCategory ? 'category' : ''}\n`}
-            {orderSchema.convictionMethod === 'zscore' 
-              ? `AAPL.US,1.5,1000,${orderSchema.includeParticipationRate ? 'HIGH,' : ''}${orderSchema.includeCategory ? 'value,' : ''}order-001`
-              : `AAPL.US,BUY,1000,${orderSchema.includeParticipationRate ? 'HIGH,' : ''}${orderSchema.includeCategory ? 'value,' : ''}order-001`
-            }
-          </Box>
-        </Box>
+      <Grid {...{component: "div", item: true, xs: 12, size: 12} as any}>
+        <ConvictionModelForm
+          value={convictionSchema}
+          onChange={setConvictionSchema}
+        />
       </Grid>
     </Grid>
   );
@@ -951,7 +823,7 @@ const BaseBookForm: React.FC<BaseBookFormProps> = ({
       case 3:
         return renderPositionAndCapital();
       case 4:
-        return renderOrderSchemaSection();
+        return renderConvictionModelSection();
       default:
         return null;
     }

@@ -14,6 +14,13 @@ export interface OrderRequest {
   orderId?: string;      // Added as identifier
 }
 
+// Side, Score (1-N)
+// Side, Quantity 
+// ZScore 1
+// ZScore 1, ZScore 2, ...
+// Percentage, AUM
+// 
+
 // Keep the rest of the file unchanged
 export interface OrderResult {
   success: boolean;
