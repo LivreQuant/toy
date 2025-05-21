@@ -2,18 +2,20 @@
 import React, { useState, useCallback, useRef } from 'react';
 import { useToast } from '../../hooks/useToast';
 import { useOrderManager } from '../../contexts/OrderContext';
-import { OrderRequest, BatchOrderResponse } from '../../api/order';
+import { Order } from '../../types';
 import './CsvOrderUpload.css';
 
+// Operation types
 type Operation = 'SUBMIT' | 'CANCEL';
 
 interface OrderData {
-  symbol?: string;
-  side?: 'BUY' | 'SELL';
-  type?: 'MARKET' | 'LIMIT';
-  quantity?: number;
-  price?: number;
+  instrumentId?: string;
   orderId?: string;
+  side?: 'BUY' | 'SELL' | 'CLOSE';
+  quantity?: number;
+  zscore?: number;
+  participationRate?: 'LOW' | 'MEDIUM' | 'HIGH' | number;
+  category?: string;
 }
 
 const CsvOrderUpload: React.FC = () => {
@@ -46,7 +48,10 @@ const CsvOrderUpload: React.FC = () => {
 
     // Extract header and check required columns
     const header = lines[0].split(',').map(col => col.trim().toLowerCase());
-    const requiredColumns = ['symbol', 'side', 'type', 'quantity'];
+    
+    // Required columns for any order submission
+    const requiredColumns = ['instrumentid', 'orderid'];
+    
     const missingColumns = requiredColumns.filter(col => !header.includes(col));
     
     if (missingColumns.length > 0) {
@@ -55,13 +60,10 @@ const CsvOrderUpload: React.FC = () => {
     }
 
     // Map column indices
-    const columnMap = {
-      symbol: header.indexOf('symbol'),
-      side: header.indexOf('side'),
-      type: header.indexOf('type'),
-      quantity: header.indexOf('quantity'),
-      price: header.indexOf('price')
-    };
+    const columnMap: Record<string, number> = {};
+    header.forEach((colName, index) => {
+      columnMap[colName] = index;
+    });
 
     // Process data rows
     const parsedOrders: OrderData[] = [];
@@ -70,55 +72,86 @@ const CsvOrderUpload: React.FC = () => {
       
       const values = lines[i].split(',').map(val => val.trim());
       
-      // Validate required values
+      // Basic validation - ensure enough columns
       if (values.length < requiredColumns.length) {
         addToast('warning', `Skipping row ${i+1}: insufficient columns`);
         continue;
       }
 
-      const side = values[columnMap.side].toUpperCase();
-      const type = values[columnMap.type].toUpperCase();
+      // Create order object with required fields
+      const order: OrderData = {
+        instrumentId: values[columnMap.instrumentid],
+        orderId: values[columnMap.orderid]
+      };
       
-      // Validate side and type
-      if (side !== 'BUY' && side !== 'SELL') {
-        addToast('warning', `Skipping row ${i+1}: invalid side '${side}' (must be BUY or SELL)`);
-        continue;
-      }
+      // Add optional fields if they exist in the CSV
       
-      if (type !== 'MARKET' && type !== 'LIMIT') {
-        addToast('warning', `Skipping row ${i+1}: invalid type '${type}' (must be MARKET or LIMIT)`);
-        continue;
-      }
-
-      // Parse quantity
-      const quantity = parseFloat(values[columnMap.quantity]);
-      if (isNaN(quantity) || quantity <= 0) {
-        addToast('warning', `Skipping row ${i+1}: invalid quantity '${values[columnMap.quantity]}'`);
-        continue;
-      }
-
-      // For LIMIT orders, price is required
-      let price: number | undefined = undefined;
-      if (type === 'LIMIT') {
-        if (columnMap.price === -1 || !values[columnMap.price]) {
-          addToast('warning', `Skipping row ${i+1}: price is required for LIMIT orders`);
-          continue;
+      // Side
+      if ('side' in columnMap && values[columnMap.side]) {
+        const side = values[columnMap.side].toUpperCase();
+        if (['BUY', 'SELL', 'CLOSE'].includes(side)) {
+          order.side = side as 'BUY' | 'SELL' | 'CLOSE';
+        } else {
+          addToast('warning', `Row ${i+1}: invalid side '${values[columnMap.side]}' (must be BUY, SELL, or CLOSE), ignoring`);
         }
+      }
+      
+      // Quantity
+      if ('quantity' in columnMap && values[columnMap.quantity]) {
+        const quantity = parseFloat(values[columnMap.quantity]);
+        if (!isNaN(quantity) && quantity > 0) {
+          order.quantity = quantity;
+        } else {
+          addToast('warning', `Row ${i+1}: invalid quantity '${values[columnMap.quantity]}', ignoring`);
+        }
+      }
+      
+      // Z-score
+      if ('zscore' in columnMap && values[columnMap.zscore]) {
+        const zscore = parseFloat(values[columnMap.zscore]);
+        if (!isNaN(zscore)) {
+          order.zscore = zscore;
+        } else {
+          addToast('warning', `Row ${i+1}: invalid zscore '${values[columnMap.zscore]}', ignoring`);
+        }
+      }
+      
+      // Participation Rate
+      if ('participationrate' in columnMap && values[columnMap.participationrate]) {
+        const rateValue = values[columnMap.participationrate];
+        // Try to parse as number first
+        const numRate = parseFloat(rateValue);
         
-        price = parseFloat(values[columnMap.price]);
-        if (isNaN(price) || price <= 0) {
-          addToast('warning', `Skipping row ${i+1}: invalid price '${values[columnMap.price]}'`);
-          continue;
+        if (!isNaN(numRate)) {
+          order.participationRate = numRate;
+        } else {
+          // Try as string enum
+          const strRate = rateValue.toUpperCase();
+          if (['LOW', 'MEDIUM', 'HIGH'].includes(strRate)) {
+            order.participationRate = strRate as 'LOW' | 'MEDIUM' | 'HIGH';
+          } else {
+            addToast('warning', `Row ${i+1}: invalid participation rate '${rateValue}', ignoring`);
+          }
         }
       }
+      
+      // Category
+      if ('category' in columnMap) {
+        order.category = values[columnMap.category];
+      }
 
-      parsedOrders.push({
-        symbol: values[columnMap.symbol],
-        side: side as 'BUY' | 'SELL',
-        type: type as 'MARKET' | 'LIMIT',
-        quantity,
-        price
-      });
+      // Validation checks - we need either side or zscore, and quantity
+      if (!order.side && order.zscore === undefined) {
+        addToast('warning', `Row ${i+1}: at least one of 'side' or 'zscore' is required, skipping order`);
+        continue;
+      }
+      
+      if (order.quantity === undefined) {
+        addToast('warning', `Row ${i+1}: 'quantity' is required, skipping order`);
+        continue;
+      }
+
+      parsedOrders.push(order);
     }
 
     return parsedOrders;
@@ -238,25 +271,23 @@ const CsvOrderUpload: React.FC = () => {
   const handleSubmit = useCallback(async () => {
     if (orders.length === 0 || isSubmitting) return;
     
-    // IMPORTANT: Immediately set isSubmitting to prevent multiple submissions
     setIsSubmitting(true);
     
     try {
       if (operation === 'SUBMIT') {
         addToast('info', `Submitting ${orders.length} orders...`);
         
-        // Create unique request IDs to ensure idempotency
+        // Convert OrderData to Order format
         const submitOrders = orders.map(order => ({
-          symbol: order.symbol!,
-          side: order.side!,
-          type: order.type!,
-          quantity: order.quantity!,
-          price: order.price,
-          // Generate deterministic requestId based on order data to ensure idempotency
-          requestId: `csv-${Date.now()}-${order.symbol}-${order.side}-${order.quantity}-${Math.floor(Math.random() * 1000)}`
+          instrumentId: order.instrumentId!,
+          orderId: order.orderId!,
+          side: order.side,
+          quantity: order.quantity,
+          zscore: order.zscore,
+          participationRate: order.participationRate,
+          category: order.category
         }));
         
-        // CRITICAL CHANGE: NO AbortController, NO timeout, ONE attempt only
         try {
           const response = await orderManager.submitOrders(submitOrders);
           
@@ -269,7 +300,7 @@ const CsvOrderUpload: React.FC = () => {
             }
             
             if (failCount > 0) {
-              addToast('warning', `Failed to submit ${failCount} orders - NO RETRY ATTEMPTED`);
+              addToast('warning', `Failed to submit ${failCount} orders`);
               
               // Log first few failures
               response.results.forEach((result, index) => {
@@ -292,11 +323,10 @@ const CsvOrderUpload: React.FC = () => {
               }
             }
           } else {
-            addToast('error', `Failed to submit orders: ${response.errorMessage || 'Unknown error'} - NO RETRY ATTEMPTED`);
+            addToast('error', `Failed to submit orders: ${response.errorMessage || 'Unknown error'}`);
           }
         } catch (err: any) {
-          // Simple error handling - NO RETRY
-          addToast('error', `Error submitting orders: ${err.message} - NO RETRY ATTEMPTED`);
+          addToast('error', `Error submitting orders: ${err.message}`);
           console.error('Order submission error:', err);
         }
       } else {
@@ -305,7 +335,6 @@ const CsvOrderUpload: React.FC = () => {
         
         const orderIds = orders.map(o => o.orderId!);
         
-        // CRITICAL CHANGE: NO AbortController, NO timeout, ONE attempt only
         try {
           const response = await orderManager.cancelOrders(orderIds);
           
@@ -318,7 +347,7 @@ const CsvOrderUpload: React.FC = () => {
             }
             
             if (failCount > 0) {
-              addToast('warning', `Failed to cancel ${failCount} orders - NO RETRY ATTEMPTED`);
+              addToast('warning', `Failed to cancel ${failCount} orders`);
               
               // Log first few failures
               response.results.forEach((result, index) => {
@@ -341,19 +370,17 @@ const CsvOrderUpload: React.FC = () => {
               }
             }
           } else {
-            addToast('error', `Failed to cancel orders: ${response.errorMessage || 'Unknown error'} - NO RETRY ATTEMPTED`);
+            addToast('error', `Failed to cancel orders: ${response.errorMessage || 'Unknown error'}`);
           }
         } catch (err: any) {
-          // Simple error handling - NO RETRY
-          addToast('error', `Error cancelling orders: ${err.message} - NO RETRY ATTEMPTED`);
+          addToast('error', `Error cancelling orders: ${err.message}`);
           console.error('Order cancellation error:', err);
         }
       }
     } catch (error: any) {
-      addToast('error', `Error processing request: ${error.message || 'Unknown error'} - NO RETRY ATTEMPTED`);
-      console.error('Order submission error:', error);
+      addToast('error', `Error processing request: ${error.message || 'Unknown error'}`);
+      console.error('Request error:', error);
     } finally {
-      // Enable the button again
       setIsSubmitting(false);
     }
   }, [operation, orders, isSubmitting, orderManager, addToast]);
@@ -368,9 +395,14 @@ const CsvOrderUpload: React.FC = () => {
 
   const getSampleFormat = () => {
     if (operation === 'SUBMIT') {
-      return 'symbol,side,type,quantity,price\nAAPL,BUY,LIMIT,10,150.50\nMSFT,SELL,MARKET,5,';
+      return `instrumentId,side,quantity,participationRate,category,orderId
+AAPL.US,BUY,1000,HIGH,value,order-001
+MSFT.US,SELL,500,MEDIUM,momentum,order-002
+GOOG.US,BUY,200,0.25,technical,order-003`;
     } else {
-      return 'orderId\norder-123456\norder-789012';
+      return `orderId
+order-001
+order-002`;
     }
   };
 

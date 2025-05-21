@@ -1,42 +1,8 @@
 // src/services/orders/order-manager.ts
 import { getLogger } from '../../boot/logging';
 import { TokenManager } from '../auth/token-manager';
-import { OrdersApi } from '../../api/order';
+import { OrdersApi, OrderRequest, BatchOrderResponse, BatchCancelResponse } from '../../api/order';
 import { toastService } from '../notification/toast-service';
-
-// Define the types we need
-interface OrderRequest {
-  symbol: string;
-  side: 'BUY' | 'SELL';
-  type: 'MARKET' | 'LIMIT';
-  quantity: number;
-  price?: number;
-  requestId?: string;
-}
-
-interface OrderResult {
-  success: boolean;
-  orderId?: string;
-  errorMessage?: string;
-}
-
-interface BatchResponse {
-  success: boolean;
-  results: OrderResult[];
-  errorMessage?: string;
-}
-
-interface CancelResult {
-  orderId: string;
-  success: boolean;
-  errorMessage?: string;
-}
-
-interface BatchCancelResponse {
-  success: boolean;
-  results: CancelResult[];
-  errorMessage?: string;
-}
 
 export class OrderManager {
   private logger = getLogger('OrderManager');
@@ -49,7 +15,7 @@ export class OrderManager {
     this.logger.info('OrderManager initialized');
   }
 
-  async submitOrders(orders: OrderRequest[]): Promise<BatchResponse> {
+  async submitOrders(orders: OrderRequest[]): Promise<BatchOrderResponse> {
     // Check authentication
     if (!this.tokenManager.isAuthenticated()) {
       this.logger.warn('Order submission attempted without authentication');
@@ -74,8 +40,8 @@ export class OrderManager {
 
     const logContext = {
       orderCount: orders.length,
-      firstSymbol: orders[0].symbol,
-      firstSide: orders[0].side
+      firstInstrumentId: orders[0].instrumentId,
+      firstSide: orders[0].side || 'N/A'
     };
 
     this.logger.info('Attempting to submit orders', logContext);

@@ -1,18 +1,20 @@
 // src/api/order.ts
 import { HttpClient } from './http-client';
 
-export type OrderSide = 'BUY' | 'SELL';
+export type OrderSide = 'BUY' | 'SELL' | 'CLOSE'; // Added CLOSE
 export type OrderType = 'MARKET' | 'LIMIT';
 
 export interface OrderRequest {
-  symbol: string;
-  side: OrderSide;
-  type: OrderType;
-  quantity: number;
-  price?: number;
-  requestId?: string;
+  instrumentId: string;  // Changed from symbol
+  side?: OrderSide;      // Made optional
+  quantity?: number;     // Made optional
+  zscore?: number;       // Added for quantitative signals
+  participationRate?: 'LOW' | 'MEDIUM' | 'HIGH' | number; // Added instead of type/price
+  category?: string;     // Added for categorization
+  orderId?: string;      // Added as identifier
 }
 
+// Keep the rest of the file unchanged
 export interface OrderResult {
   success: boolean;
   orderId?: string;

@@ -193,7 +193,7 @@ const TradingBooksGrid: React.FC<TradingBooksGridProps> = ({
                         size="small"
                         color="primary"
                         startIcon={<TrendingUpIcon />}
-                        onClick={() => onOpenBook(book.id)}
+                        onClick={() => onOpenBook(book.bookId)}
                         sx={{ mr: 1 }}
                         disabled
                       >
@@ -214,7 +214,7 @@ const TradingBooksGrid: React.FC<TradingBooksGridProps> = ({
                         size="small"
                         color="primary"
                         startIcon={<LaunchIcon />}
-                        onClick={() => onOpenBook(book.id)}
+                        onClick={() => onOpenBook(book.bookId)}
                       >
                         Open
                       </Button>

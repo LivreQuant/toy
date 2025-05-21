@@ -20,18 +20,29 @@ export interface Position {
 
 // Example Order type (might differ slightly from API request/response)
 export interface Order {
-  orderId: string;
-  symbol: string;
-  side: 'BUY' | 'SELL';
-  type: 'MARKET' | 'LIMIT';
-  status: 'NEW' | 'PARTIALLY_FILLED' | 'FILLED' | 'CANCELED' | 'REJECTED'; // Align with your backend statuses
-  quantity: number;
-  filledQuantity: number;
-  remainingQuantity: number;
-  limitPrice?: number; // Price for limit orders
-  averageFillPrice?: number; // Average price if filled/partially filled
-  createdAt: number; // Timestamp
-  updatedAt: number; // Timestamp
+  // Required for all orders
+  instrumentId: string;  // FIGI or other identifier
+  orderId: string;       // For tracking/cancellation
+  
+  // Conviction (DISCRETIONARY)
+  side?: 'BUY' | 'SELL' | 'CLOSE';
+  quantity?: number;
+
+  // Conviction (QUANTITATIVE)
+  zscore?: number;
+  
+  // Execution parameters (% OF VWAP)
+  participationRate?: 'LOW' | 'MEDIUM' | 'HIGH' | number;
+  
+  // Metadata
+  category?: string;
+}
+
+export interface OrderSchemaConfig {
+  convictionMethod: 'side' | 'zscore';
+  includeParticipationRate: boolean;
+  includeCategory: boolean;
+  additionalFields?: string[];
 }
 
 export interface Book {
@@ -47,6 +58,7 @@ export interface Book {
     long: boolean;
     short: boolean;
   };
+  orderSchema?: OrderSchemaConfig;
   initialCapital: number;
 }
 
@@ -62,6 +74,7 @@ export interface BookRequest {
     long: boolean;
     short: boolean;
   };
+  orderSchema?: OrderSchemaConfig;
   initialCapital: number;
 }
 
