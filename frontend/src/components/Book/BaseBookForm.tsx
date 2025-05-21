@@ -30,7 +30,8 @@ import { styled } from '@mui/material/styles';
 import { useToast } from '../../hooks/useToast';
 import { BookRequest } from '../../types';
 import { getLogger } from '../../boot/logging';
-import ConvictionModelForm, { ConvictionModelConfig } from './ConvictionModelForm';
+import ConvictionModelForm from './ConvictionModelForm';
+import { ConvictionModelConfig } from '../../types';
 import './BaseBookForm.css';
 
 // Initialize logger
@@ -130,7 +131,10 @@ const BaseBookForm: React.FC<BaseBookFormProps> = ({
   const [convictionSchema, setConvictionSchema] = useState<ConvictionModelConfig>(
     initialData.convictionSchema || {
       portfolioApproach: 'incremental',
-      convictionMethod: 'side_qty',
+      targetConvictionMethod: 'percent',
+      incrementalConvictionMethod: 'side_score',
+      maxScore: 3,
+      horizons: ['30m', '1h', '1d'],
     }
   );
 

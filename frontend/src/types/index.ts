@@ -22,27 +22,24 @@ export interface Position {
 export interface Order {
   // Required for all orders
   instrumentId: string;  // FIGI or other identifier
+  participationRate?: 'LOW' | 'MEDIUM' | 'HIGH';
+  tag?: string;
   orderId: string;       // For tracking/cancellation
   
-  // Conviction (DISCRETIONARY)
+  // Optional depending on the conviction format
   side?: 'BUY' | 'SELL' | 'CLOSE';
+  score?: number;
   quantity?: number;
-
-  // Conviction (QUANTITATIVE)
-  zscore?: number;
-  
-  // Execution parameters (% OF VWAP)
-  participationRate?: 'LOW' | 'MEDIUM' | 'HIGH' | number;
-  
-  // Metadata
-  category?: string;
+  zscore?: [number];
+  targetPercent?: number;
+  targetNotional?: number;
 }
 
-export interface ConvictionSchemaConfig {
+export interface ConvictionModelConfig {
   portfolioApproach: 'incremental' | 'target';
-  targetPortfolioUnit?: 'percent' | 'notional';
-  convictionMethod?: 'side_score' | 'side_qty' | 'zscore' | 'multi-horizon';
-  scoreRange?: [number, number];
+  targetConvictionMethod?: 'percent' | 'notional';
+  incrementalConvictionMethod?: 'side_score' | 'side_qty' | 'zscore' | 'multi-horizon';
+  maxScore?: number;
   horizons?: string[];
 }
 
@@ -59,7 +56,7 @@ export interface Book {
     long: boolean;
     short: boolean;
   };
-  convictionSchema?: ConvictionSchemaConfig;
+  convictionSchema?: ConvictionModelConfig;
   initialCapital: number;
 }
 
@@ -75,7 +72,7 @@ export interface BookRequest {
     long: boolean;
     short: boolean;
   };
-  convictionSchema?: ConvictionSchemaConfig;
+  convictionSchema?: ConvictionModelConfig;
   initialCapital: number;
 }
 
