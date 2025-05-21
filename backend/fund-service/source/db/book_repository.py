@@ -182,6 +182,17 @@ class BookRepository:
             return 'position', 'short'
         elif category == 'Allocation':
             return 'metadata', 'allocation'
+        # Add conviction model mapping
+        elif category == 'Conviction' and subcategory == 'PortfolioApproach':
+            return 'conviction_model', 'portfolio_approach'
+        elif category == 'Conviction' and subcategory == 'TargetConvictionMethod':
+            return 'conviction_model', 'target_conviction_method'
+        elif category == 'Conviction' and subcategory == 'IncrementalConvictionMethod':
+            return 'conviction_model', 'incremental_conviction_method'
+        elif category == 'Conviction' and subcategory == 'MaxScore':
+            return 'conviction_model', 'max_score'
+        elif category == 'Conviction' and subcategory == 'Horizons':
+            return 'conviction_model', 'horizons'
         else:
             # Default fallback - use category/subcategory as-is but lowercase
             return category.lower(), subcategory.lower()
@@ -208,6 +219,17 @@ class BookRepository:
             return 'Position', 'Short'
         elif category == 'metadata' and subcategory == 'allocation':
             return 'Allocation', ''
+        # Add conviction model mapping
+        elif category == 'conviction_model' and subcategory == 'portfolio_approach':
+            return 'Conviction', 'PortfolioApproach'
+        elif category == 'conviction_model' and subcategory == 'target_conviction_method':
+            return 'Conviction', 'TargetConvictionMethod'
+        elif category == 'conviction_model' and subcategory == 'incremental_conviction_method':
+            return 'Conviction', 'IncrementalConvictionMethod'
+        elif category == 'conviction_model' and subcategory == 'max_score':
+            return 'Conviction', 'MaxScore'
+        elif category == 'conviction_model' and subcategory == 'horizons':
+            return 'Conviction', 'Horizons'
         else:
             # Default case - first letter uppercase
             return category.capitalize(), subcategory

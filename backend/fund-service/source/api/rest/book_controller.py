@@ -118,7 +118,7 @@ class BookController(BaseController):
         book_id = str(uuid.uuid4())
         logger.info(f"Generated new book ID: {book_id}")
 
-        # Prepare book data with the new format
+        # Prepare book data with the new format including conviction schema
         book_data = {
             'book_id': book_id,
             'user_id': user_id,
@@ -130,7 +130,8 @@ class BookController(BaseController):
             'investmentTimeframes': data.get('investmentTimeframes', []),
             'sectors': data.get('sectors', []),
             'positionTypes': data.get('positionTypes', {'long': False, 'short': False}),
-            'initialCapital': data.get('initialCapital', 0)
+            'initialCapital': data.get('initialCapital', 0),
+            'convictionSchema': data.get('convictionSchema', {})
         }
 
         # Create book
@@ -218,8 +219,8 @@ class BookController(BaseController):
         
         # Include provided fields in the update
         for field in ['name', 'regions', 'markets', 'instruments', 
-                     'investmentApproaches', 'investmentTimeframes', 
-                     'sectors', 'positionTypes', 'initialCapital']:
+                    'investmentApproaches', 'investmentTimeframes', 
+                    'sectors', 'positionTypes', 'initialCapital', 'convictionSchema']:
             if field in data:
                 book_data[field] = data[field]
 

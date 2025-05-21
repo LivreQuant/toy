@@ -1,6 +1,7 @@
 # source/core/book_manager.py
 import logging
 import uuid
+import json
 from typing import Dict, Any, List
 
 from source.models.book import Book
@@ -83,6 +84,30 @@ class BookManager:
             if 'initialCapital' in book_data:
                 parameters.append(["Allocation", "", str(book_data['initialCapital'])])
             
+            # Add conviction schema parameters
+            if 'convictionSchema' in book_data and isinstance(book_data['convictionSchema'], dict):
+                conviction_schema = book_data['convictionSchema']
+                
+                # Portfolio approach
+                if 'portfolioApproach' in conviction_schema:
+                    parameters.append(["Conviction", "PortfolioApproach", conviction_schema['portfolioApproach']])
+                
+                # Target conviction method
+                if 'targetConvictionMethod' in conviction_schema:
+                    parameters.append(["Conviction", "TargetConvictionMethod", conviction_schema['targetConvictionMethod']])
+                
+                # Incremental conviction method
+                if 'incrementalConvictionMethod' in conviction_schema:
+                    parameters.append(["Conviction", "IncrementalConvictionMethod", conviction_schema['incrementalConvictionMethod']])
+                
+                # Max score
+                if 'maxScore' in conviction_schema:
+                    parameters.append(["Conviction", "MaxScore", str(conviction_schema['maxScore'])])
+                
+                # Horizons (array)
+                if 'horizons' in conviction_schema and isinstance(conviction_schema['horizons'], list):
+                    parameters.append(["Conviction", "Horizons", json.dumps(conviction_schema['horizons'])])
+            
             # Set parameters in book_dict
             book_dict['parameters'] = parameters
             
@@ -111,7 +136,7 @@ class BookManager:
                 "success": False,
                 "error": f"Error creating book: {str(e)}"
             }
-    
+            
     async def get_books(self, user_id: str) -> Dict[str, Any]:
         """
         Get all books for a user and convert to new format
@@ -140,6 +165,9 @@ class BookManager:
                     'positionTypes': {'long': False, 'short': False},
                     'initialCapital': 0
                 }
+                
+                # Create empty conviction schema
+                conviction_schema = {}
                 
                 # Extract data from parameters
                 parameters = book_internal.get('parameters', [])
@@ -171,6 +199,28 @@ class BookManager:
                                 book['initialCapital'] = int(value)
                             except (ValueError, TypeError):
                                 book['initialCapital'] = 0
+                        # Handle conviction schema parameters
+                        elif category == 'Conviction':
+                            if subcategory == 'PortfolioApproach':
+                                conviction_schema['portfolioApproach'] = value
+                            elif subcategory == 'TargetConvictionMethod':
+                                conviction_schema['targetConvictionMethod'] = value
+                            elif subcategory == 'IncrementalConvictionMethod':
+                                conviction_schema['incrementalConvictionMethod'] = value
+                            elif subcategory == 'MaxScore':
+                                try:
+                                    conviction_schema['maxScore'] = int(value)
+                                except (ValueError, TypeError):
+                                    conviction_schema['maxScore'] = value
+                            elif subcategory == 'Horizons':
+                                try:
+                                    conviction_schema['horizons'] = json.loads(value)
+                                except (json.JSONDecodeError, TypeError):
+                                    conviction_schema['horizons'] = []
+                
+                # Add conviction schema if any values were found
+                if conviction_schema:
+                    book['convictionSchema'] = conviction_schema
                 
                 books.append(book)
             
@@ -184,7 +234,7 @@ class BookManager:
                 "success": False,
                 "error": f"Error getting books: {str(e)}"
             }
-    
+            
     async def get_book(self, book_id: str, user_id: str) -> Dict[str, Any]:
         """
         Get a single book by ID and convert to new format
@@ -222,6 +272,9 @@ class BookManager:
                 'initialCapital': 0
             }
             
+            # Create empty conviction schema
+            conviction_schema = {}
+            
             # Extract data from parameters
             parameters = book_internal.get('parameters', [])
             for param in parameters:
@@ -252,6 +305,28 @@ class BookManager:
                             book['initialCapital'] = int(value)
                         except (ValueError, TypeError):
                             book['initialCapital'] = 0
+                    # Handle conviction schema parameters
+                    elif category == 'Conviction':
+                        if subcategory == 'PortfolioApproach':
+                            conviction_schema['portfolioApproach'] = value
+                        elif subcategory == 'TargetConvictionMethod':
+                            conviction_schema['targetConvictionMethod'] = value
+                        elif subcategory == 'IncrementalConvictionMethod':
+                            conviction_schema['incrementalConvictionMethod'] = value
+                        elif subcategory == 'MaxScore':
+                            try:
+                                conviction_schema['maxScore'] = int(value)
+                            except (ValueError, TypeError):
+                                conviction_schema['maxScore'] = value
+                        elif subcategory == 'Horizons':
+                            try:
+                                conviction_schema['horizons'] = json.loads(value)
+                            except (json.JSONDecodeError, TypeError):
+                                conviction_schema['horizons'] = []
+            
+            # Add conviction schema if any values were found
+            if conviction_schema:
+                book['convictionSchema'] = conviction_schema
             
             return {
                 "success": True,
@@ -263,7 +338,7 @@ class BookManager:
                 "success": False,
                 "error": f"Error getting book: {str(e)}"
             }
-    
+        
     async def update_book(self, book_id: str, book_data: Dict[str, Any], user_id: str) -> Dict[str, Any]:
         """
         Update a book's properties using new format
@@ -336,6 +411,30 @@ class BookManager:
             if 'initialCapital' in book_data:
                 parameters.append(["Allocation", "", str(book_data['initialCapital'])])
             
+            # Add conviction schema parameters
+            if 'convictionSchema' in book_data and isinstance(book_data['convictionSchema'], dict):
+                conviction_schema = book_data['convictionSchema']
+                
+                # Portfolio approach
+                if 'portfolioApproach' in conviction_schema:
+                    parameters.append(["Conviction", "PortfolioApproach", conviction_schema['portfolioApproach']])
+                
+                # Target conviction method
+                if 'targetConvictionMethod' in conviction_schema:
+                    parameters.append(["Conviction", "TargetConvictionMethod", conviction_schema['targetConvictionMethod']])
+                
+                # Incremental conviction method
+                if 'incrementalConvictionMethod' in conviction_schema:
+                    parameters.append(["Conviction", "IncrementalConvictionMethod", conviction_schema['incrementalConvictionMethod']])
+                
+                # Max score
+                if 'maxScore' in conviction_schema:
+                    parameters.append(["Conviction", "MaxScore", str(conviction_schema['maxScore'])])
+                
+                # Horizons (array)
+                if 'horizons' in conviction_schema and isinstance(conviction_schema['horizons'], list):
+                    parameters.append(["Conviction", "Horizons", json.dumps(conviction_schema['horizons'])])
+            
             # Prepare update data
             update_data = {
                 'parameters': parameters
@@ -359,3 +458,4 @@ class BookManager:
                 "success": False,
                 "error": f"Error updating book: {str(e)}"
             }
+        
