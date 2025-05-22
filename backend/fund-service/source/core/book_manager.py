@@ -174,6 +174,7 @@ class BookManager:
                 for param in parameters:
                     if len(param) >= 3:
                         category, subcategory, value = param
+                        logger.debug(f"Processing param: category='{category}', subcategory='{subcategory}', value='{value}'")
                         
                         if category == 'Name':
                             book['name'] = value
@@ -201,26 +202,47 @@ class BookManager:
                                 book['initialCapital'] = 0
                         # Handle conviction schema parameters
                         elif category == 'Conviction':
+                            logger.info(f"Found Conviction parameter: subcategory='{subcategory}', value='{value}'")
                             if subcategory == 'PortfolioApproach':
                                 conviction_schema['portfolioApproach'] = value
+                                logger.debug(f"Set portfolioApproach = '{value}'")
                             elif subcategory == 'TargetConvictionMethod':
                                 conviction_schema['targetConvictionMethod'] = value
+                                logger.debug(f"Set targetConvictionMethod = '{value}'")
                             elif subcategory == 'IncrementalConvictionMethod':
                                 conviction_schema['incrementalConvictionMethod'] = value
+                                logger.debug(f"Set incrementalConvictionMethod = '{value}'")
                             elif subcategory == 'MaxScore':
                                 try:
                                     conviction_schema['maxScore'] = int(value)
+                                    logger.debug(f"Set maxScore = {int(value)}")
                                 except (ValueError, TypeError):
                                     conviction_schema['maxScore'] = value
+                                    logger.debug(f"Set maxScore = '{value}' (as string)")
                             elif subcategory == 'Horizons':
-                                try:
-                                    conviction_schema['horizons'] = json.loads(value)
-                                except (json.JSONDecodeError, TypeError):
-                                    conviction_schema['horizons'] = []
-                
+                                logger.info(f"Processing Horizons: raw value = '{value}', type = {type(value)}")
+                                if isinstance(value, list):
+                                    # Already a list, use it directly
+                                    conviction_schema['horizons'] = value
+                                    logger.info(f"Using horizons as-is (already a list): {value}")
+                                else:
+                                    # It's a string, try to parse as JSON
+                                    try:
+                                        parsed_horizons = json.loads(value)
+                                        conviction_schema['horizons'] = parsed_horizons
+                                        logger.info(f"Successfully parsed horizons: {parsed_horizons}")
+                                    except (json.JSONDecodeError, TypeError) as e:
+                                        logger.error(f"Failed to parse horizons JSON: {e}")
+                                        conviction_schema['horizons'] = []
+                            else:
+                                logger.warning(f"Unknown Conviction subcategory: '{subcategory}'")
+
                 # Add conviction schema if any values were found
                 if conviction_schema:
+                    logger.info(f"Final conviction_schema before adding to book: {conviction_schema}")
                     book['convictionSchema'] = conviction_schema
+                else:
+                    logger.warning("No conviction_schema values found")
                 
                 books.append(book)
             
@@ -280,6 +302,7 @@ class BookManager:
             for param in parameters:
                 if len(param) >= 3:
                     category, subcategory, value = param
+                    logger.debug(f"Processing param: category='{category}', subcategory='{subcategory}', value='{value}'")
                     
                     if category == 'Name':
                         book['name'] = value
@@ -307,26 +330,47 @@ class BookManager:
                             book['initialCapital'] = 0
                     # Handle conviction schema parameters
                     elif category == 'Conviction':
+                        logger.info(f"Found Conviction parameter: subcategory='{subcategory}', value='{value}'")
                         if subcategory == 'PortfolioApproach':
                             conviction_schema['portfolioApproach'] = value
+                            logger.debug(f"Set portfolioApproach = '{value}'")
                         elif subcategory == 'TargetConvictionMethod':
                             conviction_schema['targetConvictionMethod'] = value
+                            logger.debug(f"Set targetConvictionMethod = '{value}'")
                         elif subcategory == 'IncrementalConvictionMethod':
                             conviction_schema['incrementalConvictionMethod'] = value
+                            logger.debug(f"Set incrementalConvictionMethod = '{value}'")
                         elif subcategory == 'MaxScore':
                             try:
                                 conviction_schema['maxScore'] = int(value)
+                                logger.debug(f"Set maxScore = {int(value)}")
                             except (ValueError, TypeError):
                                 conviction_schema['maxScore'] = value
+                                logger.debug(f"Set maxScore = '{value}' (as string)")
                         elif subcategory == 'Horizons':
-                            try:
-                                conviction_schema['horizons'] = json.loads(value)
-                            except (json.JSONDecodeError, TypeError):
-                                conviction_schema['horizons'] = []
+                            logger.info(f"Processing Horizons: raw value = '{value}', type = {type(value)}")
+                            if isinstance(value, list):
+                                # Already a list, use it directly
+                                conviction_schema['horizons'] = value
+                                logger.info(f"Using horizons as-is (already a list): {value}")
+                            else:
+                                # It's a string, try to parse as JSON
+                                try:
+                                    parsed_horizons = json.loads(value)
+                                    conviction_schema['horizons'] = parsed_horizons
+                                    logger.info(f"Successfully parsed horizons: {parsed_horizons}")
+                                except (json.JSONDecodeError, TypeError) as e:
+                                    logger.error(f"Failed to parse horizons JSON: {e}")
+                                    conviction_schema['horizons'] = []
+                        else:
+                            logger.warning(f"Unknown Conviction subcategory: '{subcategory}'")
             
             # Add conviction schema if any values were found
             if conviction_schema:
+                logger.info(f"Final conviction_schema before adding to book: {conviction_schema}")
                 book['convictionSchema'] = conviction_schema
+            else:
+                logger.warning("No conviction_schema values found")
             
             return {
                 "success": True,
