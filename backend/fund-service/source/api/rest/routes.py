@@ -5,7 +5,7 @@ from aiohttp import web
 from source.api.rest.state_controller import StateController
 from source.api.rest.fund_controller import FundController
 from source.api.rest.book_controller import BookController
-from source.api.rest.order_controller import OrderController
+from source.api.rest.conviction_controller import ConvictionController
 
 
 from source.core.state_manager import StateManager
@@ -13,7 +13,7 @@ from source.core.session_manager import SessionManager
 
 from source.core.fund_manager import FundManager
 from source.core.book_manager import BookManager
-from source.core.order_manager import OrderManager
+from source.core.conviction_manager import ConvictionManager
 
 from source.config import config
 
@@ -50,7 +50,7 @@ async def setup_app(
     session_manager: SessionManager,
     fund_manager: FundManager,
     book_manager: BookManager,
-    order_manager: OrderManager,
+    conviction_manager: ConvictionManager,
     ) -> tuple:
     """
     Set up the REST API application with routes and middleware
@@ -76,10 +76,12 @@ async def setup_app(
     app.router.add_get('/api/books/{id}', book_controller.get_book)
     app.router.add_put('/api/books/{id}', book_controller.update_book)
 
-    # Add order routes
-    order_controller = OrderController(state_manager, session_manager, order_manager)
-    app.router.add_post('/api/orders/submit', order_controller.submit_orders)
-    app.router.add_post('/api/orders/cancel', order_controller.cancel_orders)
+    # Add conviction routes
+    conviction_controller = ConvictionController(state_manager, session_manager, conviction_manager)
+    app.router.add_post('/api/conviction/submit', conviction_controller.submit_convictions)
+    app.router.add_post('/api/conviction/cancel', conviction_controller.cancel_convictions)
+    app.router.add_post('/api/conviction/encoded_submit', conviction_controller.submit_convictions_encoded)
+    app.router.add_post('/api/conviction/encoded_cancel', conviction_controller.cancel_convictions_encoded)
 
     # Start the application
     runner = web.AppRunner(app)

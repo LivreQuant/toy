@@ -5,21 +5,21 @@ import uuid
 import json
 from typing import Dict, Any, Optional
 
-from source.models.order import Order
-from source.db.order_repository import OrderRepository
-from source.utils.metrics import track_order_created, track_user_order
+from source.models.conviction import ConvictionData
+from source.db.conviction_repository import ConvictionRepository
+from source.utils.metrics import track_conviction_created, track_user_conviction
 
 logger = logging.getLogger('record_manager')
 
 
 class RecordManager:
-    """Manager for recording orders and tracking request duplicates"""
+    """Manager for recording convictions and tracking request duplicates"""
 
     def __init__(
             self,
-            order_repository: OrderRepository
+            conviction_repository: ConvictionRepository
     ):
-        self.order_repository = order_repository
+        self.conviction_repository = conviction_repository
 
     async def check_duplicate_request(self, user_id: str, request_id: str) -> Optional[Dict[str, Any]]:
         """
@@ -36,10 +36,10 @@ class RecordManager:
             return None
 
         try:
-            pool = await self.order_repository.db_pool.get_pool()
+            pool = await self.conviction_repository.db_pool.get_pool()
             async with pool.acquire() as conn:
                 query = """
-                SELECT response FROM trading.orders
+                SELECT response FROM trading.convictions
                 WHERE request_id = $1 AND user_id = $2
                 """
                 row = await conn.fetchrow(query, request_id, user_id)
@@ -65,7 +65,7 @@ class RecordManager:
             return
 
         try:
-            pool = await self.order_repository.db_pool.get_pool()
+            pool = await self.conviction_repository.db_pool.get_pool()
             async with pool.acquire() as conn:
                 query = """
                 INSERT INTO trading.request_idempotency (request_id, user_id, response)
@@ -83,7 +83,7 @@ class RecordManager:
         This method should be called periodically, e.g., via a scheduled task
         """
         try:
-            pool = await self.order_repository.db_pool.get_pool()
+            pool = await self.conviction_repository.db_pool.get_pool()
             async with pool.acquire() as conn:
                 query = """
                 DELETE FROM trading.request_idempotency
@@ -94,79 +94,79 @@ class RecordManager:
         except Exception as e:
             logger.error(f"Error cleaning up old requests: {e}")
 
-    async def save_order(self, order_params: Dict[str, Any], user_id: str,
+    async def save_conviction(self, conviction_params: Dict[str, Any], user_id: str,
                            request_id: str = None,
-                           simulator_id: str = None) -> Order:
+                           simulator_id: str = None) -> ConvictionData:
         """
-        Create a new order object and save it to database
+        Create a new conviction object and save it to database
         
         Args:
-            order_params: Validated order parameters
+            conviction_params: Validated conviction parameters
             user_id: User ID
             request_id: Optional request ID for idempotency
             simulator_id: Optional simulator ID
             
         Returns:
-            New Order object
+            New conviction object
         """
-        # Create order object with a new UUID
-        order = Order(
-            symbol=order_params.get('symbol'),
-            side=order_params.get('side'),
-            quantity=order_params.get('quantity'),
-            order_type=order_params.get('order_type'),
-            price=order_params.get('price'),
+        # Create conviction object with a new UUID
+        conviction = ConvictionData(
+            symbol=conviction_params.get('symbol'),
+            side=conviction_params.get('side'),
+            quantity=conviction_params.get('quantity'),
+            conviction_type=conviction_params.get('conviction_type'),
+            price=conviction_params.get('price'),
             user_id=user_id,
             request_id=request_id,
-            order_id=str(uuid.uuid4()),  # Generate new order ID
+            conviction_id=str(uuid.uuid4()),  # Generate new conviction ID
             created_at=time.time(),
             updated_at=time.time(),
             simulator_id=simulator_id
         )
 
-        # Track order creation metrics
-        track_order_created(order.order_type, order.symbol, order.side)
-        track_user_order(user_id)
+        # Track oconviction creation metrics
+        track_conviction_created(conviction.conviction_type, conviction.symbol, conviction.side)
+        track_user_conviction(user_id)
 
         # Save to database
-        success = await self.order_repository.save_order(order)
+        success = await self.conviction_repository.save_conviction(conviction)
         if not success:
-            logger.error(f"Failed to save order {order.order_id} to database")
-            raise Exception("Database error: Failed to save order")
+            logger.error(f"Failed to save conviction {conviction.conviction_id} to database")
+            raise Exception("Database error: Failed to save conviction")
 
-        logger.info(f"Successfully created and saved order {order.order_id}")
-        return order
+        logger.info(f"Successfully created and saved conviction {conviction.conviction_id}")
+        return conviction
 
-    async def validate_order_parameters(self, order_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def validate_conviction_parameters(self, conviction_data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Validate order parameters
+        Validate conviction parameters
 
         Args:
-            order_data: Order data to validate
+            conviction_data: Conviction data to validate
 
         Returns:
             Validation result with extracted parameters if valid
         """
         try:
-            symbol = order_data.get('symbol')
-            side = order_data.get('side')
-            quantity = float(order_data.get('quantity', 0))
-            order_type = order_data.get('type')
-            price = float(order_data.get('price', 0)) if 'price' in order_data else None
+            symbol = conviction_data.get('symbol')
+            side = conviction_data.get('side')
+            quantity = float(conviction_data.get('quantity', 0))
+            conviction_type = conviction_data.get('type')
+            price = float(conviction_data.get('price', 0)) if 'price' in conviction_data else None
 
             # Basic validation
-            if not symbol or not side or not order_type or quantity <= 0:
-                logger.warning(f"Order validation failed: {order_data}")
+            if not symbol or not side or not conviction_type or quantity <= 0:
+                logger.warning(f"Conviction validation failed: {conviction_data}")
                 return {
                     "valid": False,
-                    "error": "Invalid order parameters"
+                    "error": "Invalid conviction parameters"
                 }
 
-            # For limit orders, price is required
-            if order_type == 'LIMIT' and (price is None or price <= 0):
+            # For limit convictions, price is required
+            if conviction_type == 'LIMIT' and (price is None or price <= 0):
                 return {
                     "valid": False,
-                    "error": "Limit orders require a valid price greater than zero"
+                    "error": "Limit convictions require a valid price greater than zero"
                 }
 
             # Return validated parameters
@@ -175,12 +175,12 @@ class RecordManager:
                 "symbol": symbol,
                 "side": side,
                 "quantity": quantity,
-                "order_type": order_type,
+                "conviction_type": conviction_type,
                 "price": price
             }
 
         except ValueError:
             return {
                 "valid": False,
-                "error": "Invalid order parameters: quantity and price must be numeric"
+                "error": "Invalid conviction parameters: quantity and price must be numeric"
             }

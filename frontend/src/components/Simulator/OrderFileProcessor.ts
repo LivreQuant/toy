@@ -1,20 +1,6 @@
 // src/components/Simulator/OrderFileProcessor.ts
-import { ConvictionModelConfig } from '../../types';
+import { ConvictionModelConfig, OrderData } from '../../types';
 
-interface OrderData {
-  instrumentId?: string;
-  orderId?: string;
-  side?: 'BUY' | 'SELL' | 'CLOSE';
-  quantity?: number;
-  zscore?: number;
-  participationRate?: 'LOW' | 'MEDIUM' | 'HIGH' | number;
-  tag?: string;
-  score?: number;
-  targetPercent?: number;
-  targetNotional?: number;
-  // Allow dynamic properties for multi-horizon z-scores and other fields
-  [key: string]: string | number | undefined;
-}
 
 export class OrderFileProcessor {
   constructor(
@@ -260,7 +246,7 @@ export class OrderFileProcessor {
       }
 
       // Build order object based on available columns
-      const order: Partial<OrderData> = {};
+      const order: Partial<OrderData> = {}; // Use Partial<OrderData> to allow empty initialization
       
       // Map all available columns
       header.forEach((colName, colIndex) => {

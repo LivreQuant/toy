@@ -4,11 +4,10 @@ import { useParams } from 'react-router-dom';
 import { useToast } from '../../hooks/useToast';
 import { useOrderManager } from '../../contexts/OrderContext';
 import { useBookManager } from '../../hooks/useBookManager';
-import { ConvictionModelConfig } from '../../types';
+import { ConvictionModelConfig, OrderData, ApiOrderData } from '../../types'; // Add OrderData import
 import FileUploadZone from './FileUploadZone';
 import NotesInput from './NotesInput';
 import OrderFileProcessor from './OrderFileProcessor';
-import { OrderData } from '../../types';
 import './CsvOrderUpload.css';
 
 // Operation types
@@ -84,10 +83,19 @@ const CsvOrderUpload: React.FC = () => {
         parsedOrders = processor.processCancelCsv(content);
       }
       
-      setOrders(parsedOrders);
+      // Filter out orders that don't have required fields for the API
+      const validOrders = parsedOrders.filter(order => {
+        if (operation === 'SUBMIT') {
+          return order.instrumentId && order.orderId;
+        } else {
+          return order.orderId;
+        }
+      });
       
-      if (parsedOrders.length > 0) {
-        addToast('success', `Loaded ${parsedOrders.length} ${operation === 'SUBMIT' ? 'orders' : 'cancellations'} from CSV`);
+      setOrders(validOrders);
+      
+      if (validOrders.length > 0) {
+        addToast('success', `Loaded ${validOrders.length} ${operation === 'SUBMIT' ? 'orders' : 'cancellations'} from CSV`);
       } else {
         addToast('warning', `No valid ${operation === 'SUBMIT' ? 'orders' : 'cancellations'} found in CSV`);
       }
@@ -124,26 +132,35 @@ const CsvOrderUpload: React.FC = () => {
         
         addToast('info', submitMessage);
         
-        // Convert OrderData to OrderRequest format
-        const submitOrders = orders.map(order => ({
-          instrumentId: order.instrumentId!,
-          orderId: order.orderId!,
-          side: order.side,
-          quantity: order.quantity,
-          score: order.score,
-          zscore: order.zscore,
-          targetPercent: order.targetPercent,
-          targetNotional: order.targetNotional,
-          participationRate: order.participationRate,
-          tag: order.tag,
-          // Include multi-horizon zscores
-          ...Object.keys(order).reduce((acc, key) => {
-            if (key.startsWith('z') && (key.includes('min') || key.includes('hour') || key.includes('day') || key.includes('week'))) {
-              acc[key] = order[key];
-            }
-            return acc;
-          }, {} as Record<string, any>)
-        }));
+        // Convert OrderData to API format, filtering out invalid orders
+        const submitOrders = orders
+          .filter((order): order is ApiOrderData => 
+            !!order.instrumentId && !!order.orderId
+          )
+          .map(order => ({
+            instrumentId: order.instrumentId,
+            orderId: order.orderId,
+            side: order.side,
+            quantity: order.quantity,
+            score: order.score,
+            zscore: order.zscore,
+            targetPercent: order.targetPercent,
+            targetNotional: order.targetNotional,
+            participationRate: order.participationRate,
+            tag: order.tag,
+            // Include multi-horizon zscores
+            ...Object.keys(order).reduce((acc, key) => {
+              if (key.startsWith('z') && (key.includes('min') || key.includes('hour') || key.includes('day') || key.includes('week'))) {
+                acc[key] = order[key];
+              }
+              return acc;
+            }, {} as Record<string, any>)
+          }));
+
+        if (submitOrders.length === 0) {
+          addToast('error', 'No valid orders found. Please check that all orders have instrumentId and orderId.');
+          return;
+        }
         
         try {
           const response = await orderManager.submitOrders({
@@ -197,7 +214,14 @@ const CsvOrderUpload: React.FC = () => {
         const hasResearch = researchFile ? 'and research' : '';
         addToast('info', `Cancelling ${orders.length} orders ${hasResearch} ${hasNotes}`.trim());
         
-        const orderIds = orders.map(o => o.orderId!);
+        const orderIds = orders
+          .filter(order => !!order.orderId)
+          .map(o => o.orderId!);
+
+        if (orderIds.length === 0) {
+          addToast('error', 'No valid order IDs found for cancellation.');
+          return;
+        }
         
         try {
           const response = await orderManager.cancelOrders({

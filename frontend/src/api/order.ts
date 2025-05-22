@@ -9,7 +9,7 @@ export interface OrderSubmissionRequest {
 }
 
 export interface OrderCancellationRequest {
-  orderIds: [string];
+  orderIds: string[];
   researchFile?: File;
   notes?: string;
 }

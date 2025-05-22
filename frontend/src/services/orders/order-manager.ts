@@ -78,7 +78,7 @@ export class OrderManager {
       };
     }
   }
-
+  
   async cancelOrders(cancelData: OrderCancellationRequest): Promise<BatchCancelResponse> {
     // Check authentication
     if (!this.tokenManager.isAuthenticated()) {
@@ -101,8 +101,8 @@ export class OrderManager {
     this.logger.info(`Attempting to cancel ${cancelData.orderIds.length} orders`);
   
     try {
-      // Cancel orders via API - pass the orderIds array to the API
-      const response = await this.ordersApi.cancelOrders(cancelData.orderIds);
+      // Cancel orders via API - pass the full cancelData object to the API
+      const response = await this.ordersApi.cancelOrders(cancelData);
   
       if (response.success) {
         this.logger.info(`Orders cancelled successfully`);

@@ -20,21 +20,40 @@ export interface Position {
 
 // Example Order type (might differ slightly from API request/response)
 export interface OrderData {
-  // Required for all orders
-  instrumentId: string;  // FIGI or other identifier
-  participationRate?: 'LOW' | 'MEDIUM' | 'HIGH' | number;  // Allow number values
+  // All fields are optional during processing, but some become required for API calls
+  instrumentId?: string;
+  participationRate?: 'LOW' | 'MEDIUM' | 'HIGH' | number; // Allow number values
   tag?: string;
-  orderId: string;       // For tracking/cancellation
+  orderId?: string;
   
   // Optional depending on the conviction format
   side?: 'BUY' | 'SELL' | 'CLOSE';
   score?: number;
   quantity?: number;
-  zscore?: number;       // Fixed: Changed from [number] to number
+  zscore?: number;
   targetPercent?: number;
   targetNotional?: number;
   
   // Allow dynamic properties for multi-horizon z-scores
+  [key: string]: string | number | undefined;
+}
+
+export type ApiOrderData = OrderData & {
+  instrumentId: string;
+  orderId: string;
+};
+
+export interface ValidatedOrderData {
+  instrumentId: string;  // Required
+  orderId: string;       // Required
+  participationRate?: 'LOW' | 'MEDIUM' | 'HIGH';
+  tag?: string;
+  side?: 'BUY' | 'SELL' | 'CLOSE';
+  score?: number;
+  quantity?: number;
+  zscore?: number;
+  targetPercent?: number;
+  targetNotional?: number;
   [key: string]: string | number | undefined;
 }
 

@@ -1,0 +1,66 @@
+# k8s/config/db-schemas-conv.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: db-schemas-conv
+data:
+  conv.sql: |
+    -- Conviction Schema
+    CREATE SCHEMA IF NOT EXISTS conv;
+
+    -- User (SUBMIT) table
+    CREATE TABLE conv.submit (
+        book_id UUID NOT NULL REFERENCES fund.books(book_id) ON DELETE CASCADE,
+        tx_id UUID NOT NULL REFERENCES crypto.txs(tx_id) ON DELETE CASCADE,
+        ix INTEGER NOT NULL, -- ROW NUMBER IN CSV FILE
+        -- REQUIRED INFORMATION
+        instrument_id TEXT NOT NULL,
+        participation_rate TEXT NOT NULL,
+        tag TEXT NOT NULL,
+        order_id TEXT NOT NULL,
+        -- OPTIONAL INFORMATION
+        side TEXT,
+        score FLOAT,
+        quantity FLOAT,
+        zscore FLOAT,
+        target_percentage FLOAT,
+        target_notional FLOAT,
+        horizon_zscore TEXT,
+        PRIMARY KEY (book_id, tx_id, ix)
+    );
+
+    -- User (CANCEL) table
+    CREATE TABLE conv.cancel (
+        book_id UUID NOT NULL REFERENCES fund.books(book_id) ON DELETE CASCADE,
+        tx_id UUID NOT NULL REFERENCES crypto.txs(tx_id) ON DELETE CASCADE,
+        ix INTEGER NOT NULL, -- ROW NUMBER IN CSV FILE
+        order_id TEXT,
+        PRIMARY KEY (book_id, tx_id, ix)
+    );
+
+    -- Performance Indexes for conv.submit
+    CREATE INDEX idx_submit_book_id ON conv.submit(book_id);
+    CREATE INDEX idx_submit_tx_id ON conv.submit(tx_id);
+    CREATE INDEX idx_submit_order_id ON conv.submit(order_id);
+    CREATE INDEX idx_submit_instrument_id ON conv.submit(instrument_id);
+    CREATE INDEX idx_submit_tag ON conv.submit(tag);
+    CREATE INDEX idx_submit_side ON conv.submit(side) WHERE side IS NOT NULL;
+    CREATE INDEX idx_submit_book_tx ON conv.submit(book_id, tx_id); -- Composite for common queries
+    CREATE INDEX idx_submit_book_instrument ON conv.submit(book_id, instrument_id); -- For book-specific instrument queries
+
+    -- Performance Indexes for conv.cancel
+    CREATE INDEX idx_cancel_book_id ON conv.cancel(book_id);
+    CREATE INDEX idx_cancel_tx_id ON conv.cancel(tx_id);
+    CREATE INDEX idx_cancel_order_id ON conv.cancel(order_id) WHERE order_id IS NOT NULL;
+    CREATE INDEX idx_cancel_book_tx ON conv.cancel(book_id, tx_id); -- Composite for common queries
+
+    -- Indexes for common query patterns
+    CREATE INDEX idx_submit_recent_by_book ON conv.submit(book_id, tx_id DESC); -- For getting recent submissions
+    CREATE INDEX idx_cancel_recent_by_book ON conv.cancel(book_id, tx_id DESC); -- For getting recent cancellations
+
+    -- Grant permissions
+    GRANT USAGE ON SCHEMA conv TO opentp;
+    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA conv TO opentp;
+    GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA conv TO opentp;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA conv GRANT ALL ON TABLES TO opentp;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA conv GRANT ALL ON SEQUENCES TO opentp;

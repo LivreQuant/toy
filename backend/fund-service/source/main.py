@@ -16,14 +16,15 @@ from source.db.state_repository import StateRepository
 from source.db.session_repository import SessionRepository
 from source.db.fund_repository import FundRepository
 from source.db.book_repository import BookRepository
-from source.db.order_repository import OrderRepository
+from source.db.conviction_repository import ConvictionRepository
+from source.db.crypto_repository import CryptoRepository
 
 # MANAGERS
 from source.core.state_manager import StateManager
 from source.core.session_manager import SessionManager
 from source.core.fund_manager import FundManager
 from source.core.book_manager import BookManager
-from source.core.order_manager import OrderManager
+from source.core.conviction_manager import ConvictionManager
 
 # CLIENTS
 from source.clients.auth_client import AuthClient
@@ -65,7 +66,8 @@ async def main():
         'session_repository': None,
         'fund_repository': None,
         'book_repository': None,
-        'order_repository': None,
+        'conviction_repository': None,
+        'crypto_repository': None,
         'auth_client': None,
         'exchange_client': None,
         'state_manager': None
@@ -94,10 +96,14 @@ async def main():
         book_repository = BookRepository()
         resources['book_repository'] = book_repository
 
-        # Initialize order repository
-        order_repository = OrderRepository()
-        resources['order_repository'] = order_repository
+        # Initialize conviction repository
+        conviction_repository = ConvictionRepository()
+        resources['conviction_repository'] = conviction_repository
 
+        # Initialize crypto repository
+        crypto_repository = CryptoRepository()
+        resources['crypto_repository'] = crypto_repository
+        
         # Initialize API clients
         auth_client = AuthClient(config.auth_service_url)
         exchange_client = ExchangeClient()
@@ -119,17 +125,18 @@ async def main():
         # Initialize book manager
         book_manager = BookManager(book_repository)
         
-        # Initialize order manager
-        order_manager = OrderManager(order_repository,
-                                     session_manager,
-                                     exchange_client)
+        # Initialize conviction manager
+        conviction_manager = ConvictionManager(conviction_repository,
+                                               crypto_repository,
+                                               session_manager, 
+                                               exchange_client)
 
         # Setup and start REST API
         app, runner, site = await setup_app(state_manager,
                                             session_manager,
                                             fund_manager,
                                             book_manager,
-                                            order_manager)
+                                            conviction_manager)
         resources['runner'] = runner
 
         # Set up signal handlers

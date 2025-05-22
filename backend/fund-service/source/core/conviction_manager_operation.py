@@ -4,21 +4,20 @@ import time
 import uuid
 from typing import Dict, Any, List
 
-from source.models.order import Order
-from source.models.enums import OrderStatus, OrderSide, OrderType
-from source.utils.metrics import track_order_submission_latency
+from source.models.conviction import ConvictionData
+from source.utils.metrics import track_conviction_submission_latency
 
-from source.db.order_repository import OrderRepository
+from source.db.conviction_repository import ConvictionRepository
 from source.core.session_manager import SessionManager
 
-from source.core.order_manager_record import RecordManager
-from source.core.order_manager_exchange import ExchangeManager
+from source.core.conviction_manager_record import RecordManager
+from source.core.conviction_manager_exchange import ExchangeManager
 
 logger = logging.getLogger('operation_manager')
 
 
 class OperationManager:
-    """Manager for order operations that coordinates other managers"""
+    """Manager for conviction operations that coordinates other managers"""
 
     def __init__(
             self,

@@ -6,11 +6,11 @@ from prometheus_client import Counter, Histogram, Gauge, start_http_server
 
 logger = logging.getLogger('metrics')
 
-# Order Lifecycle Metrics
-ORDER_CREATED = Counter(
-    'order_created_total',
-    'Total number of orders created',
-    ['order_type', 'symbol', 'side']
+# Conviction Lifecycle Metrics
+CONVICTION_CREATED = Counter(
+    'conviction_created_total',
+    'Total number of convictions created',
+    ['conviction_type', 'symbol', 'side']
 )
 
 BOOK_CREATED = Counter(
@@ -19,28 +19,28 @@ BOOK_CREATED = Counter(
     ['user_id']
 )
 
-ORDER_SUBMITTED = Counter(
-    'order_submitted_total',
-    'Total number of orders submitted to exchange',
-    ['order_type', 'symbol', 'side']
+CONVICTION_SUBMITTED = Counter(
+    'conviction_submitted_total',
+    'Total number of convictions submitted to exchange',
+    ['conviction_type', 'symbol', 'side']
 )
 
-ORDER_SUBMISSION_LATENCY = Histogram(
-    'order_submission_latency_seconds',
-    'Latency of order submission process',
-    ['order_type', 'success']
+CONVICTION_SUBMISSION_LATENCY = Histogram(
+    'conviction_submission_latency_seconds',
+    'Latency of conviction submission process',
+    ['conviction_type', 'success']
 )
 
-ORDER_STATUS_CHANGES = Counter(
-    'order_status_changes_total',
-    'Total number of order status changes',
+CONVICTION_STATUS_CHANGES = Counter(
+    'conviction_status_changes_total',
+    'Total number of conviction status changes',
     ['from_status', 'to_status']
 )
 
 # User Activity Metrics
-USER_ORDER_COUNT = Counter(
-    'user_order_count_total',
-    'Total number of orders per user',
+USER_CONVICTION_COUNT = Counter(
+    'user_conviction_count_total',
+    'Total number of conviction per user',
     ['user_id']
 )
 
@@ -118,29 +118,29 @@ def setup_metrics():
 
 
 # Helper functions to track metrics
-def track_order_created(order_type, symbol, side):
-    """Track order creation"""
-    ORDER_CREATED.labels(order_type=order_type, symbol=symbol, side=side).inc()
+def track_conviction_created(conviction_type, symbol, side):
+    """Track conviction creation"""
+    CONVICTION_CREATED.labels(conviction_type=conviction_type, symbol=symbol, side=side).inc()
 
 
-def track_order_submitted(order_type, symbol, side):
-    """Track order submission to exchange"""
-    ORDER_SUBMITTED.labels(order_type=order_type, symbol=symbol, side=side).inc()
+def track_conviction_submitted(conviction_type, symbol, side):
+    """Track conviction submission to exchange"""
+    CONVICTION_SUBMITTED.labels(conviction_type=conviction_type, symbol=symbol, side=side).inc()
 
 
-def track_order_submission_latency(order_type, success, duration_seconds):
-    """Track order submission latency"""
-    ORDER_SUBMISSION_LATENCY.labels(order_type=order_type, success=str(success).lower()).observe(duration_seconds)
+def track_conviction_submission_latency(conviction_type, success, duration_seconds):
+    """Track conviction submission latency"""
+    CONVICTION_SUBMISSION_LATENCY.labels(conviction_type=conviction_type, success=str(success).lower()).observe(duration_seconds)
 
 
-def track_order_status_change(from_status, to_status):
-    """Track order status changes"""
-    ORDER_STATUS_CHANGES.labels(from_status=from_status, to_status=to_status).inc()
+def track_conviction_status_change(from_status, to_status):
+    """Track conviction status changes"""
+    CONVICTION_STATUS_CHANGES.labels(from_status=from_status, to_status=to_status).inc()
 
 
-def track_user_order(user_id):
-    """Track orders per user"""
-    USER_ORDER_COUNT.labels(user_id=user_id).inc()
+def track_user_conviction(user_id):
+    """Track conviction per user"""
+    USER_CONVICTION_COUNT.labels(user_id=user_id).inc()
 
 
 def track_book_created(user_id):

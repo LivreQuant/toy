@@ -65,22 +65,6 @@ data:
         PRIMARY KEY (property_id, category, subcategory, active_at)
     );
 
-    -- Fund portfolios (smart contracts) table - One-to-many relationship with fund
-    CREATE TABLE fund.portfolios (
-        portfolio_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-        fund_id UUID NOT NULL REFERENCES fund.funds(fund_id) ON DELETE CASCADE,
-        book_id VARCHAR(255) NOT NULL,
-        app_id VARCHAR(255) NOT NULL,
-        app_address VARCHAR(255) NOT NULL,
-        parameters TEXT,
-        status VARCHAR(50) NOT NULL DEFAULT 'ACTIVE',
-        blockchain_status VARCHAR(50) NOT NULL DEFAULT 'Active',
-        active_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-        expire_at TIMESTAMP WITH TIME ZONE DEFAULT '2999-01-01',
-        expire_note TEXT,
-        UNIQUE(fund_id, book_id)
-    );
-
     -- Create indexes for performance
     CREATE INDEX idx_fund_funds_user_id ON fund.funds(user_id);
     CREATE INDEX idx_fund_team_members_fund ON fund.team_members(fund_id);
@@ -89,9 +73,6 @@ data:
     CREATE INDEX idx_fund_properties_lookup ON fund.fund_properties(fund_id, category, subcategory);
     CREATE INDEX idx_fund_team_member_properties_lookup ON fund.team_member_properties(member_id, category, subcategory);
     CREATE INDEX idx_book_properties_category ON fund.book_properties(book_id, category, subcategory);
-
-    CREATE INDEX idx_fund_portfolios_fund ON fund.portfolios(fund_id);
-    CREATE INDEX idx_fund_portfolios_book_id ON fund.portfolios(book_id);
 
     -- Grant permissions
     GRANT USAGE ON SCHEMA fund TO opentp;

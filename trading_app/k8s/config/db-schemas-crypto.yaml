@@ -27,7 +27,7 @@ data:
     CREATE TABLE crypto.contracts (
       contract_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
       user_id UUID NOT NULL REFERENCES auth.users(user_id) ON DELETE CASCADE,
-      fund_id UUID NOT NULL REFERENCES fund.funds(fund_id) ON DELETE CASCADE,
+      book_id UUID NOT NULL REFERENCES fund.books(book_id) ON DELETE CASCADE,
       app_id VARCHAR(255) NOT NULL,
       app_address VARCHAR(255) NOT NULL,
       parameters TEXT,
@@ -47,11 +47,12 @@ data:
     CREATE TABLE crypto.txs (
       tx_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
       user_id UUID NOT NULL REFERENCES auth.users(user_id),
-      fund_id UUID NOT NULL REFERENCES fund.funds(fund_id),
+      book_id UUID NOT NULL REFERENCES fund.books(book_id),
       contract_id UUID NOT NULL REFERENCES crypto.contracts(contract_id) ON DELETE CASCADE,
       app_id VARCHAR(255) NOT NULL,
       transaction_id VARCHAR(255) NOT NULL,
       date TIMESTAMP WITH TIME ZONE NOT NULL,
+
       sender VARCHAR(255) NOT NULL,
       action VARCHAR(50) NOT NULL,
       g_user_id VARCHAR(255),
@@ -61,7 +62,29 @@ data:
       l_book_hash VARCHAR(255),
       l_research_hash VARCHAR(255),
       l_params VARCHAR(255),
+      
       created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+      UNIQUE(transaction_id)
+    );
+
+    CREATE TABLE crypto.supplemental (
+      tx_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+      user_id UUID NOT NULL REFERENCES auth.users(user_id),
+      fund_id UUID NOT NULL REFERENCES fund.funds(fund_id),
+      contract_id UUID NOT NULL REFERENCES crypto.contracts(contract_id) ON DELETE CASCADE,
+      app_id VARCHAR(255) NOT NULL,
+      transaction_id VARCHAR(255) NOT NULL,
+      date TIMESTAMP WITH TIME ZONE NOT NULL,
+
+      conviction_file_path TEXT,
+      conviction_file_encoded TEXT,
+
+      research_file_path TEXT,
+      research_file_encoded TEXT,
+
+      notes TEXT,
+      notes_encoded TEXT,
+      
       UNIQUE(transaction_id)
     );
   

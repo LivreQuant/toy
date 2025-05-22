@@ -24,7 +24,7 @@ def setup_tracing():
         trace.set_tracer_provider(provider)
         return True
 
-    service_name = os.getenv('OTEL_SERVICE_NAME', 'order-service')
+    service_name = os.getenv('OTEL_SERVICE_NAME', 'fund-service')
     jaeger_endpoint = os.getenv('OTEL_EXPORTER_JAEGER_ENDPOINT', 'http://jaeger-collector:14268/api/traces')
 
     try:

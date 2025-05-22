@@ -1,10 +1,12 @@
 # source/db/order_repository.py
 import logging
 import time
+import uuid
 from typing import Dict, Any, List, Optional
 
 from source.db.connection_pool import DatabasePool
-from source.models.order import Order
+from source.models.conviction import ConvictionData
+
 from source.utils.metrics import track_db_operation, track_order_created, track_user_order
 
 
@@ -18,7 +20,7 @@ class OrderRepository:
         """Initialize the order repository"""
         self.db_pool = DatabasePool()
         
-    async def save_orders(self, orders: List[Order]) -> Dict[str, List[str]]:
+    async def save_orders(self, orders: List[ConvictionData]) -> Dict[str, List[str]]:
         """
         Save multiple orders in a batch
         
@@ -166,7 +168,7 @@ class OrderRepository:
             logger.error(f"Error checking duplicate request: {e}")
             return None
       
-    async def save_order(self, order: Order) -> bool:
+    async def save_order(self, order: ConvictionData) -> bool:
         """Save a single order to the database"""
         pool = await self.db_pool.get_pool()
         
@@ -441,7 +443,7 @@ class OrderRepository:
             logger.error(f"Error getting open orders: {e}")
             return []
     
-    async def get_order(self, order_id: str) -> Optional[Order]:
+    async def get_order(self, order_id: str) -> Optional[ConvictionData]:
         """Get a single order by ID (latest status)"""
         pool = await self.db_pool.get_pool()
         
@@ -475,3 +477,112 @@ class OrderRepository:
             logger.error(f"Error getting order {order_id}: {e}")
             return None
     
+    async def store_submit_conviction_data(self, tx_id: str, book_id: str, orders_data: list) -> bool:
+        """
+        Store submission data in conv.submit table
+        
+        Args:
+            tx_id: Transaction ID from crypto.txs
+            book_id: Book ID
+            orders_data: List of order data dictionaries
+            
+        Returns:
+            Success flag
+        """
+        pool = await self.db_pool.get_pool()
+        
+        submit_query = """
+        INSERT INTO conv.submit (
+            book_id, tx_id, ix, instrument_id, participation_rate, tag, order_id,
+            side, score, quantity, zscore, target_percentage, target_notional, horizon_zscore
+        ) VALUES (
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
+        )
+        """
+        
+        start_time = time.time()
+        try:
+            async with pool.acquire() as conn:
+                async with conn.transaction():
+                    for ix, order in enumerate(orders_data):
+                        # Map ConvictionData fields to database columns
+                        instrument_id = order.get('instrumentId', '')
+                        participation_rate = str(order.get('participationRate', ''))
+                        tag = order.get('tag', '')
+                        order_id = order.get('orderId', str(uuid.uuid4()))  # Generate if not provided
+                        
+                        # Optional fields
+                        side = order.get('side')
+                        score = order.get('score')
+                        quantity = order.get('quantity')
+                        zscore = order.get('zscore')
+                        target_percentage = order.get('targetPercent')
+                        target_notional = order.get('targetNotional')
+                        
+                        # Handle dynamic horizon z-scores (multi-horizon support)
+                        horizon_zscore = None
+                        horizon_fields = {k: v for k, v in order.items() 
+                                        if k not in ['instrumentId', 'participationRate', 'tag', 'orderId', 
+                                                'side', 'score', 'quantity', 'zscore', 'targetPercent', 'targetNotional']}
+                        if horizon_fields:
+                            horizon_zscore = json.dumps(horizon_fields)
+                        
+                        await conn.execute(
+                            submit_query,
+                            book_id, tx_id, ix, instrument_id, participation_rate, tag, order_id,
+                            side, score, quantity, zscore, target_percentage, target_notional, horizon_zscore
+                        )
+                    
+                    duration = time.time() - start_time
+                    track_db_operation("store_submit_conviction", True, duration)
+                    logger.info(f"Stored {len(orders_data)} conviction submit records for transaction {tx_id}")
+                    return True
+                    
+        except Exception as e:
+            duration = time.time() - start_time
+            track_db_operation("store_submit_conviction", False, duration)
+            logger.error(f"Error storing conviction submit data: {e}")
+            return False
+
+    async def store_cancel_conviction_data(self, tx_id: str, book_id: str, order_ids: list) -> bool:
+        """
+        Store cancellation data in conv.cancel table
+        
+        Args:
+            tx_id: Transaction ID from crypto.txs
+            book_id: Book ID
+            order_ids: List of order IDs to cancel
+            
+        Returns:
+            Success flag
+        """
+        pool = await self.db_pool.get_pool()
+        
+        cancel_query = """
+        INSERT INTO conv.cancel (
+            book_id, tx_id, ix, order_id
+        ) VALUES (
+            $1, $2, $3, $4
+        )
+        """
+        
+        start_time = time.time()
+        try:
+            async with pool.acquire() as conn:
+                async with conn.transaction():
+                    for ix, order_id in enumerate(order_ids):
+                        await conn.execute(
+                            cancel_query,
+                            book_id, tx_id, ix, order_id
+                        )
+                    
+                    duration = time.time() - start_time
+                    track_db_operation("store_cancel_conviction", True, duration)
+                    logger.info(f"Stored {len(order_ids)} conviction cancel records for transaction {tx_id}")
+                    return True
+                    
+        except Exception as e:
+            duration = time.time() - start_time
+            track_db_operation("store_cancel_conviction", False, duration)
+            logger.error(f"Error storing conviction cancel data: {e}")
+            return False
