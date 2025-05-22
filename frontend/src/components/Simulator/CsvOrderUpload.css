@@ -180,3 +180,150 @@
     white-space: pre;
     overflow-x: auto;
   }
+
+  .csv-order-upload {
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    padding: 20px;
+    margin-bottom: 20px;
+    width: 100%;
+}
+
+.operation-toggle {
+    display: flex;
+    margin-bottom: 20px;
+    border-radius: 4px;
+    overflow: hidden;
+    border: 1px solid #e1e4e8;
+}
+
+.toggle-button {
+    flex: 1;
+    padding: 10px;
+    background-color: #f6f8fa;
+    border: none;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    font-weight: 500;
+}
+
+.toggle-button.active {
+    background-color: #0366d6;
+    color: white;
+}
+
+.toggle-button:hover:not(.active) {
+    background-color: #e1e4e8;
+}
+
+/* New upload section styles */
+.upload-section {
+    margin-bottom: 20px;
+}
+
+.preview {
+    background-color: #f6f8fa;
+    border: 1px solid #e1e4e8;
+    border-radius: 6px;
+    padding: 15px;
+    margin-bottom: 20px;
+}
+
+.preview-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 15px;
+    font-weight: 500;
+}
+
+.order-stats {
+    color: #586069;
+    font-size: 0.9rem;
+}
+
+.submission-summary {
+    background-color: white;
+    border: 1px solid #e1e4e8;
+    border-radius: 4px;
+    padding: 12px;
+    margin-bottom: 15px;
+}
+
+.summary-item {
+    margin-bottom: 8px;
+    font-size: 0.9rem;
+}
+
+.summary-item:last-child {
+    margin-bottom: 0;
+}
+
+.summary-item strong {
+    color: #333;
+}
+
+.action-buttons {
+    display: flex;
+    gap: 10px;
+}
+
+.clear-button {
+    background-color: #fafbfc;
+    color: #24292e;
+    border: 1px solid #e1e4e8;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    flex: 1;
+    transition: background-color 0.2s;
+}
+
+.clear-button:hover {
+    background-color: #f3f4f6;
+}
+
+.submit-button {
+    background-color: #2ea44f;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    flex: 2;
+    font-weight: 500;
+    transition: background-color 0.2s;
+}
+
+.submit-button:hover {
+    background-color: #22863a;
+}
+
+.submit-button:disabled, .clear-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.format-info {
+    background-color: #f6f8fa;
+    border: 1px solid #e1e4e8;
+    border-radius: 6px;
+    padding: 15px;
+    margin-top: 20px;
+}
+
+.format-header {
+    font-weight: 500;
+    margin-bottom: 10px;
+}
+
+.format-example {
+    display: block;
+    background-color: #ffffff;
+    border: 1px solid #e1e4e8;
+    border-radius: 4px;
+    padding: 10px;
+    font-family: monospace;
+    white-space: pre;
+    overflow-x: auto;
+}

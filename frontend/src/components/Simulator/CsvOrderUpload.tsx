@@ -1,8 +1,13 @@
 // src/components/Simulator/CsvOrderUpload.tsx
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import { useToast } from '../../hooks/useToast';
 import { useOrderManager } from '../../contexts/OrderContext';
-import { Order } from '../../types';
+import { useBookManager } from '../../hooks/useBookManager';
+import { ConvictionModelConfig } from '../../types';
+import FileUploadZone from './FileUploadZone';
+import NotesInput from './NotesInput';
+import OrderFileProcessor from './OrderFileProcessor';
 import './CsvOrderUpload.css';
 
 // Operation types
@@ -15,280 +20,155 @@ interface OrderData {
   quantity?: number;
   zscore?: number;
   participationRate?: 'LOW' | 'MEDIUM' | 'HIGH' | number;
-  category?: string;
+  tag?: string;
+  score?: number;
+  targetPercent?: number;
+  targetNotional?: number;
+  [key: string]: any;
+}
+
+interface SubmissionData {
+  orders: OrderData[];
+  researchFile?: File;
+  notes: string;
 }
 
 const CsvOrderUpload: React.FC = () => {
-  const [file, setFile] = useState<File | null>(null);
-  const [orders, setOrders] = useState<OrderData[]>([]);
-  const [operation, setOperation] = useState<Operation>('SUBMIT');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { bookId } = useParams<{ bookId?: string }>();
   const { addToast } = useToast();
   const orderManager = useOrderManager();
+  const bookManager = useBookManager();
 
-  const handleDragEnter = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  }, []);
+  // State
+  const [operation, setOperation] = useState<Operation>('SUBMIT');
+  const [orderFile, setOrderFile] = useState<File | null>(null);
+  const [researchFile, setResearchFile] = useState<File | null>(null);
+  const [notes, setNotes] = useState('');
+  const [orders, setOrders] = useState<OrderData[]>([]);
+  const [convictionSchema, setConvictionSchema] = useState<ConvictionModelConfig | null>(null);
+  const [isLoadingSchema, setIsLoadingSchema] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  }, []);
-
-  const handleDragLeave = useCallback(() => {
-    setIsDragging(false);
-  }, []);
-
-  const processSubmitCsv = useCallback((content: string): OrderData[] => {
-    const lines = content.trim().split('\n');
-    if (lines.length === 0) return [];
-
-    // Extract header and check required columns
-    const header = lines[0].split(',').map(col => col.trim().toLowerCase());
-    
-    // Required columns for any order submission
-    const requiredColumns = ['instrumentid', 'orderid'];
-    
-    const missingColumns = requiredColumns.filter(col => !header.includes(col));
-    
-    if (missingColumns.length > 0) {
-      addToast('error', `CSV is missing required columns: ${missingColumns.join(', ')}`);
-      return [];
-    }
-
-    // Map column indices
-    const columnMap: Record<string, number> = {};
-    header.forEach((colName, index) => {
-      columnMap[colName] = index;
-    });
-
-    // Process data rows
-    const parsedOrders: OrderData[] = [];
-    for (let i = 1; i < lines.length; i++) {
-      if (!lines[i].trim()) continue;
+  // Load the book's conviction schema
+  useEffect(() => {
+    const loadBookSchema = async () => {
+      if (!bookId) return;
       
-      const values = lines[i].split(',').map(val => val.trim());
-      
-      // Basic validation - ensure enough columns
-      if (values.length < requiredColumns.length) {
-        addToast('warning', `Skipping row ${i+1}: insufficient columns`);
-        continue;
-      }
-
-      // Create order object with required fields
-      const order: OrderData = {
-        instrumentId: values[columnMap.instrumentid],
-        orderId: values[columnMap.orderid]
-      };
-      
-      // Add optional fields if they exist in the CSV
-      
-      // Side
-      if ('side' in columnMap && values[columnMap.side]) {
-        const side = values[columnMap.side].toUpperCase();
-        if (['BUY', 'SELL', 'CLOSE'].includes(side)) {
-          order.side = side as 'BUY' | 'SELL' | 'CLOSE';
-        } else {
-          addToast('warning', `Row ${i+1}: invalid side '${values[columnMap.side]}' (must be BUY, SELL, or CLOSE), ignoring`);
-        }
-      }
-      
-      // Quantity
-      if ('quantity' in columnMap && values[columnMap.quantity]) {
-        const quantity = parseFloat(values[columnMap.quantity]);
-        if (!isNaN(quantity) && quantity > 0) {
-          order.quantity = quantity;
-        } else {
-          addToast('warning', `Row ${i+1}: invalid quantity '${values[columnMap.quantity]}', ignoring`);
-        }
-      }
-      
-      // Z-score
-      if ('zscore' in columnMap && values[columnMap.zscore]) {
-        const zscore = parseFloat(values[columnMap.zscore]);
-        if (!isNaN(zscore)) {
-          order.zscore = zscore;
-        } else {
-          addToast('warning', `Row ${i+1}: invalid zscore '${values[columnMap.zscore]}', ignoring`);
-        }
-      }
-      
-      // Participation Rate
-      if ('participationrate' in columnMap && values[columnMap.participationrate]) {
-        const rateValue = values[columnMap.participationrate];
-        // Try to parse as number first
-        const numRate = parseFloat(rateValue);
+      setIsLoadingSchema(true);
+      try {
+        const response = await bookManager.fetchBook(bookId);
         
-        if (!isNaN(numRate)) {
-          order.participationRate = numRate;
-        } else {
-          // Try as string enum
-          const strRate = rateValue.toUpperCase();
-          if (['LOW', 'MEDIUM', 'HIGH'].includes(strRate)) {
-            order.participationRate = strRate as 'LOW' | 'MEDIUM' | 'HIGH';
-          } else {
-            addToast('warning', `Row ${i+1}: invalid participation rate '${rateValue}', ignoring`);
-          }
+        if (response.success && response.book?.convictionSchema) {
+          setConvictionSchema(response.book.convictionSchema);
         }
+      } catch (error: any) {
+        console.error('Error loading book schema:', error);
+        addToast('warning', 'Could not load book schema, using default validation');
+      } finally {
+        setIsLoadingSchema(false);
       }
-      
-      // Category
-      if ('category' in columnMap) {
-        order.category = values[columnMap.category];
-      }
+    };
 
-      // Validation checks - we need either side or zscore, and quantity
-      if (!order.side && order.zscore === undefined) {
-        addToast('warning', `Row ${i+1}: at least one of 'side' or 'zscore' is required, skipping order`);
-        continue;
-      }
-      
-      if (order.quantity === undefined) {
-        addToast('warning', `Row ${i+1}: 'quantity' is required, skipping order`);
-        continue;
-      }
+    loadBookSchema();
+  }, [bookId, bookManager, addToast]);
 
-      parsedOrders.push(order);
+  // Process order file when it changes
+  useEffect(() => {
+    if (!orderFile) {
+      setOrders([]);
+      return;
     }
 
-    return parsedOrders;
-  }, [addToast]);
-
-  const processCancelCsv = useCallback((content: string): OrderData[] => {
-    const lines = content.trim().split('\n');
-    if (lines.length === 0) return [];
-
-    // Extract header and check required columns
-    const header = lines[0].split(',').map(col => col.trim().toLowerCase());
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target?.result as string;
+      const processor = new OrderFileProcessor(convictionSchema, addToast);
+      
+      let parsedOrders: OrderData[];
+      if (operation === 'SUBMIT') {
+        parsedOrders = processor.processSubmitCsv(content);
+      } else {
+        parsedOrders = processor.processCancelCsv(content);
+      }
+      
+      setOrders(parsedOrders);
+      
+      if (parsedOrders.length > 0) {
+        addToast('success', `Loaded ${parsedOrders.length} ${operation === 'SUBMIT' ? 'orders' : 'cancellations'} from CSV`);
+      } else {
+        addToast('warning', `No valid ${operation === 'SUBMIT' ? 'orders' : 'cancellations'} found in CSV`);
+      }
+    };
     
-    if (!header.includes('orderid')) {
-      addToast('error', 'CSV is missing required column: orderId');
-      return [];
-    }
-
-    const orderIdIndex = header.indexOf('orderid');
-    
-    // Process data rows
-    const parsedOrders: OrderData[] = [];
-    for (let i = 1; i < lines.length; i++) {
-      if (!lines[i].trim()) continue;
-      
-      const values = lines[i].split(',').map(val => val.trim());
-      
-      // Validate required values
-      if (values.length <= orderIdIndex) {
-        addToast('warning', `Skipping row ${i+1}: missing orderId`);
-        continue;
-      }
-
-      const orderId = values[orderIdIndex];
-      if (!orderId) {
-        addToast('warning', `Skipping row ${i+1}: empty orderId`);
-        continue;
-      }
-
-      parsedOrders.push({ orderId });
-    }
-
-    return parsedOrders;
-  }, [addToast]);
-
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    
-    const droppedFile = e.dataTransfer.files[0];
-    if (droppedFile && droppedFile.type === 'text/csv') {
-      setFile(droppedFile);
-      
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const content = event.target?.result as string;
-        const processor = operation === 'SUBMIT' ? processSubmitCsv : processCancelCsv;
-        const parsedOrders = processor(content);
-        setOrders(parsedOrders);
-        
-        if (parsedOrders.length > 0) {
-          addToast('success', `Loaded ${parsedOrders.length} ${operation === 'SUBMIT' ? 'orders' : 'cancellations'} from CSV`);
-        } else {
-          addToast('warning', `No valid ${operation === 'SUBMIT' ? 'orders' : 'cancellations'} found in CSV`);
-        }
-      };
-      
-      reader.readAsText(droppedFile);
-    } else {
-      addToast('error', 'Please drop a CSV file');
-    }
-  }, [operation, processSubmitCsv, processCancelCsv, addToast]);
-
-  const handleFileInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files || e.target.files.length === 0) return;
-    
-    const selectedFile = e.target.files[0];
-    if (selectedFile.type === 'text/csv') {
-      setFile(selectedFile);
-      
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const content = event.target?.result as string;
-        const processor = operation === 'SUBMIT' ? processSubmitCsv : processCancelCsv;
-        const parsedOrders = processor(content);
-        setOrders(parsedOrders);
-        
-        if (parsedOrders.length > 0) {
-          addToast('success', `Loaded ${parsedOrders.length} ${operation === 'SUBMIT' ? 'orders' : 'cancellations'} from CSV`);
-        } else {
-          addToast('warning', `No valid ${operation === 'SUBMIT' ? 'orders' : 'cancellations'} found in CSV`);
-        }
-      };
-      
-      reader.readAsText(selectedFile);
-    } else {
-      addToast('error', 'Please select a CSV file');
-    }
-  }, [operation, processSubmitCsv, processCancelCsv, addToast]);
-
-  const handleBrowseClick = useCallback(() => {
-    if (fileInputRef.current) {
-      fileInputRef.current.click();
-    }
-  }, []);
+    reader.readAsText(orderFile);
+  }, [orderFile, operation, convictionSchema, addToast]);
 
   const handleOperationChange = useCallback((newOperation: Operation) => {
     if (operation !== newOperation) {
       setOperation(newOperation);
-      setFile(null);
+      setOrderFile(null);
+      setResearchFile(null);
+      setNotes('');
       setOrders([]);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
     }
   }, [operation]);
 
   const handleSubmit = useCallback(async () => {
     if (orders.length === 0 || isSubmitting) return;
+
+    // Validation - only order file is required
+    if (!orderFile) {
+      addToast('error', 'Order file is required');
+      return;
+    }
     
     setIsSubmitting(true);
     
     try {
+      const submissionData: SubmissionData = {
+        orders,
+        researchFile: researchFile || undefined,
+        notes: notes.trim()
+      };
+
       if (operation === 'SUBMIT') {
-        addToast('info', `Submitting ${orders.length} orders...`);
+        const hasResearch = researchFile ? 'with research' : '';
+        const hasNotes = notes.trim() ? 'and notes' : '';
+        const submitMessage = `Submitting ${orders.length} orders ${hasResearch} ${hasNotes}`.trim();
         
-        // Convert OrderData to Order format
+        addToast('info', submitMessage);
+        
+        // Convert OrderData to Order format for the API
         const submitOrders = orders.map(order => ({
           instrumentId: order.instrumentId!,
           orderId: order.orderId!,
           side: order.side,
           quantity: order.quantity,
+          score: order.score,
           zscore: order.zscore,
+          targetPercent: order.targetPercent,
+          targetNotional: order.targetNotional,
           participationRate: order.participationRate,
-          category: order.category
+          tag: order.tag,
+          // Include multi-horizon zscores
+          ...Object.keys(order).reduce((acc, key) => {
+            if (key.startsWith('z') && (key.includes('min') || key.includes('hour') || key.includes('day') || key.includes('week'))) {
+              acc[key] = order[key];
+            }
+            return acc;
+          }, {} as Record<string, any>)
         }));
         
         try {
+          // TODO: Update this to include research file and notes in the API call
+          // For now, we'll just submit the orders and log the additional data
+          console.log('Submission data:', {
+            orders: submitOrders,
+            researchFileName: researchFile?.name,
+            researchFileSize: researchFile?.size,
+            notes: notes.trim() || null
+          });
+
           const response = await orderManager.submitOrders(submitOrders);
           
           if (response.success) {
@@ -296,13 +176,15 @@ const CsvOrderUpload: React.FC = () => {
             const failCount = response.results.length - successCount;
             
             if (successCount > 0) {
-              addToast('success', `Successfully submitted ${successCount} orders`);
+              const successMessage = researchFile || notes.trim() ? 
+                `Successfully submitted ${successCount} orders with additional context` :
+                `Successfully submitted ${successCount} orders`;
+              addToast('success', successMessage);
             }
             
             if (failCount > 0) {
               addToast('warning', `Failed to submit ${failCount} orders`);
               
-              // Log first few failures
               response.results.forEach((result, index) => {
                 if (!result.success && index < 5) {
                   addToast('error', `Order #${index + 1} failed: ${result.errorMessage || 'Unknown error'}`);
@@ -314,16 +196,15 @@ const CsvOrderUpload: React.FC = () => {
               }
             }
             
-            // Clear state if all orders were successful
+            // Clear form on successful submission
             if (failCount === 0) {
-              setFile(null);
+              setOrderFile(null);
+              setResearchFile(null);
+              setNotes('');
               setOrders([]);
-              if (fileInputRef.current) {
-                fileInputRef.current.value = '';
-              }
             }
           } else {
-            addToast('error', `Failed to submit orders: ${response.errorMessage || 'Unknown error'}`);
+            addToast('error', `Failed to submit convictions: ${response.errorMessage || 'Unknown error'}`);
           }
         } catch (err: any) {
           addToast('error', `Error submitting orders: ${err.message}`);
@@ -331,11 +212,19 @@ const CsvOrderUpload: React.FC = () => {
         }
       } else {
         // CANCEL operation
-        addToast('info', `Cancelling ${orders.length} orders...`);
+        const hasNotes = notes.trim() ? 'with notes' : '';
+        addToast('info', `Cancelling ${orders.length} orders ${hasNotes}`.trim());
         
         const orderIds = orders.map(o => o.orderId!);
         
         try {
+          // TODO: Update this to include notes in the API call
+          console.log('Cancellation data:', {
+            orderIds: orderIds,
+            researchFileName: researchFile?.name,
+            notes: notes.trim() || null
+          });
+
           const response = await orderManager.cancelOrders(orderIds);
           
           if (response.success) {
@@ -343,13 +232,15 @@ const CsvOrderUpload: React.FC = () => {
             const failCount = response.results.length - successCount;
             
             if (successCount > 0) {
-              addToast('success', `Successfully cancelled ${successCount} orders`);
+              const successMessage = notes.trim() ? 
+                `Successfully cancelled ${successCount} orders with notes` :
+                `Successfully cancelled ${successCount} orders`;
+              addToast('success', successMessage);
             }
             
             if (failCount > 0) {
               addToast('warning', `Failed to cancel ${failCount} orders`);
               
-              // Log first few failures
               response.results.forEach((result, index) => {
                 if (!result.success && index < 5) {
                   addToast('error', `Cancel #${index + 1} failed: ${result.errorMessage || 'Unknown error'}`);
@@ -361,13 +252,12 @@ const CsvOrderUpload: React.FC = () => {
               }
             }
             
-            // Clear state if all cancellations were successful
+            // Clear form on successful submission
             if (failCount === 0) {
-              setFile(null);
+              setOrderFile(null);
+              setResearchFile(null);
+              setNotes('');
               setOrders([]);
-              if (fileInputRef.current) {
-                fileInputRef.current.value = '';
-              }
             }
           } else {
             addToast('error', `Failed to cancel orders: ${response.errorMessage || 'Unknown error'}`);
@@ -383,28 +273,36 @@ const CsvOrderUpload: React.FC = () => {
     } finally {
       setIsSubmitting(false);
     }
-  }, [operation, orders, isSubmitting, orderManager, addToast]);
+  }, [operation, orders, orderFile, researchFile, notes, isSubmitting, orderManager, addToast]);
 
   const handleClear = useCallback(() => {
-    setFile(null);
+    setOrderFile(null);
+    setResearchFile(null);
+    setNotes('');
     setOrders([]);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
   }, []);
 
-  const getSampleFormat = () => {
-    if (operation === 'SUBMIT') {
-      return `instrumentId,side,quantity,participationRate,category,orderId
-AAPL.US,BUY,1000,HIGH,value,order-001
-MSFT.US,SELL,500,MEDIUM,momentum,order-002
-GOOG.US,BUY,200,0.25,technical,order-003`;
-    } else {
+  const getSampleFormat = useCallback(() => {
+    if (operation === 'CANCEL') {
       return `orderId
 order-001
 order-002`;
     }
-  };
+
+    // Use OrderFileProcessor to get the sample format
+    const processor = new OrderFileProcessor(convictionSchema, addToast);
+    return processor.getSampleFormat();
+  }, [operation, convictionSchema, addToast]);
+
+  if (isLoadingSchema) {
+    return (
+      <div className="csv-order-upload">
+        <div style={{ textAlign: 'center', padding: '20px' }}>
+          Loading book schema...
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="csv-order-upload">
@@ -413,51 +311,43 @@ order-002`;
           className={`toggle-button ${operation === 'SUBMIT' ? 'active' : ''}`} 
           onClick={() => handleOperationChange('SUBMIT')}
         >
-          Submit Orders
+          Submit Convictions
         </button>
         <button 
           className={`toggle-button ${operation === 'CANCEL' ? 'active' : ''}`} 
           onClick={() => handleOperationChange('CANCEL')}
         >
-          Cancel Orders
+          Cancel Convictions
         </button>
       </div>
-      
-      <div 
-        className={`drop-area ${isDragging ? 'dragging' : ''}`}
-        onDragEnter={handleDragEnter}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-      >
-        <input
-          type="file"
-          ref={fileInputRef}
-          onChange={handleFileInputChange}
-          accept=".csv"
-          className="file-input"
+
+      <div className="upload-section">
+        <FileUploadZone
+          title="Conviction File"
+          acceptedTypes=".csv"
+          onFileSelect={setOrderFile}
+          file={orderFile}
+          required={true}
+          description={operation === 'SUBMIT' ? 'CSV file containing your convictions' : 'CSV file containing conviction IDs to cancel'}
         />
-        
-        {file ? (
-          <div className="file-info">
-            <p className="file-name">{file.name}</p>
-            <p className="file-stats">
-              {orders.length} {operation === 'SUBMIT' ? 'orders' : 'cancellations'} loaded
-            </p>
-          </div>
-        ) : (
-          <div className="drop-message">
-            <p>Drop {operation === 'SUBMIT' ? 'orders' : 'cancels'} CSV file here</p>
-            <p>or</p>
-            <button 
-              type="button" 
-              onClick={handleBrowseClick}
-              className="browse-button"
-            >
-              Browse Files
-            </button>
-          </div>
-        )}
+
+        <FileUploadZone
+          title="Research File"
+          acceptedTypes=".pdf,.doc,.docx,.txt,.md"
+          onFileSelect={setResearchFile}
+          file={researchFile}
+          required={false}
+          description="Optional research document supporting your decisions"
+        />
+
+        <NotesInput
+          value={notes}
+          onChange={setNotes}
+          required={false}
+          placeholder={operation === 'SUBMIT' ? 
+            "Optional: Explain your trading thesis, risk considerations, and rationale..." : 
+            "Optional: Explain why you're cancelling these convictions..."}
+        />
       </div>
       
       {orders.length > 0 && (
@@ -471,18 +361,39 @@ order-002`;
             )}
           </div>
           
+          <div className="submission-summary">
+            <div className="summary-item">
+              <strong>Order File:</strong> {orderFile?.name} ({orders.length} {operation === 'SUBMIT' ? 'orders' : 'cancellations'})
+            </div>
+            {researchFile && (
+              <div className="summary-item">
+                <strong>Research File:</strong> {researchFile.name} ({(researchFile.size / 1024).toFixed(1)} KB)
+              </div>
+            )}
+            {notes.trim() && (
+              <div className="summary-item">
+                <strong>Notes:</strong> {notes.length > 100 ? `${notes.substring(0, 100)}...` : notes}
+              </div>
+            )}
+            {!researchFile && !notes.trim() && (
+              <div className="summary-item" style={{ color: '#666', fontStyle: 'italic' }}>
+                No additional context provided
+              </div>
+            )}
+          </div>
+          
           <div className="action-buttons">
             <button 
               onClick={handleClear}
               disabled={isSubmitting}
               className="clear-button"
             >
-              Clear
+              Clear All
             </button>
             
             <button 
               onClick={handleSubmit}
-              disabled={isSubmitting || orders.length === 0}
+              disabled={isSubmitting || orders.length === 0 || !orderFile}
               className={`submit-button ${isSubmitting ? 'processing' : ''}`}
             >
               {isSubmitting 
@@ -497,7 +408,16 @@ order-002`;
       
       <div className="format-info">
         <div className="format-header">
-          <span>Expected CSV Format:</span>
+          <span>Expected CSV Conviction Format:</span>
+          {convictionSchema && (
+            <small style={{ display: 'block', marginTop: '4px', color: '#666' }}>
+              Based on book's conviction model: {convictionSchema.portfolioApproach} / {
+                convictionSchema.portfolioApproach === 'target' 
+                  ? convictionSchema.targetConvictionMethod 
+                  : convictionSchema.incrementalConvictionMethod
+              }
+            </small>
+          )}
         </div>
         <code className="format-example">{getSampleFormat()}</code>
       </div>

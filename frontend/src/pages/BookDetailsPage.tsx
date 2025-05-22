@@ -6,7 +6,8 @@ import { useConnection } from '../hooks/useConnection';
 import { useToast } from '../hooks/useToast';
 import { useBookManager } from '../hooks/useBookManager';
 import { Book } from '../types';
-import CsvOrderUpload from '../components/Simulator/CsvOrderUpload';
+import OrderSubmissionContainer from '../components/Simulator/OrderSubmissionContainer';
+
 
 import { 
   Box, 
@@ -267,16 +268,15 @@ const BookDetailsPage: React.FC = () => {
       <Card variant="outlined" sx={{ mb: 4 }}>
         <CardContent>
           <Typography variant="h6" gutterBottom>
-            Order Management
+            Conviction Management
           </Typography>
           <Typography variant="body2" color="text.secondary" paragraph>
-            You can submit and manage orders without starting the simulator. 
-            Upload CSV files to process orders in bulk.
+            You can submit and manage convictions without starting the simulator.
           </Typography>
           
           <Divider sx={{ my: 2 }} />
           
-          <CsvOrderUpload />
+          <OrderSubmissionContainer />
         </CardContent>
       </Card>
     </Box>
