@@ -12,7 +12,8 @@ interface OrderData {
   score?: number;
   targetPercent?: number;
   targetNotional?: number;
-  [key: string]: any;
+  // Allow dynamic properties for multi-horizon z-scores and other fields
+  [key: string]: string | number | undefined;
 }
 
 export class OrderFileProcessor {
@@ -209,7 +210,7 @@ export class OrderFileProcessor {
 
     // Validate common fields
     if (order.participationRate && 
-        !['LOW', 'MEDIUM', 'HIGH'].includes(order.participationRate as string) && 
+        !(['LOW', 'MEDIUM', 'HIGH'].includes(order.participationRate as string)) && 
         (typeof order.participationRate !== 'number' || order.participationRate < 0 || order.participationRate > 1)) {
       errors.push(`Row ${rowIndex}: participationRate must be LOW, MEDIUM, HIGH, or a decimal between 0 and 1`);
     }
@@ -259,7 +260,7 @@ export class OrderFileProcessor {
       }
 
       // Build order object based on available columns
-      const order: OrderData = {};
+      const order: Partial<OrderData> = {};
       
       // Map all available columns
       header.forEach((colName, colIndex) => {
@@ -323,13 +324,13 @@ export class OrderFileProcessor {
       });
 
       // Validate the order data
-      const orderErrors = this.validateOrderData(order, i + 1);
+      const orderErrors = this.validateOrderData(order as OrderData, i + 1);
       if (orderErrors.length > 0) {
         allValidationErrors.push(...orderErrors);
         continue; // Skip invalid orders
       }
 
-      parsedOrders.push(order);
+      parsedOrders.push(order as OrderData);
     }
 
     // Show validation errors
@@ -378,7 +379,7 @@ export class OrderFileProcessor {
         continue;
       }
 
-      parsedOrders.push({ orderId });
+      parsedOrders.push({ orderId } as OrderData);
     }
 
     return parsedOrders;

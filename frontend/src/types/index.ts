@@ -19,10 +19,10 @@ export interface Position {
 }
 
 // Example Order type (might differ slightly from API request/response)
-export interface Order {
+export interface OrderData {
   // Required for all orders
   instrumentId: string;  // FIGI or other identifier
-  participationRate?: 'LOW' | 'MEDIUM' | 'HIGH';
+  participationRate?: 'LOW' | 'MEDIUM' | 'HIGH' | number;  // Allow number values
   tag?: string;
   orderId: string;       // For tracking/cancellation
   
@@ -30,9 +30,12 @@ export interface Order {
   side?: 'BUY' | 'SELL' | 'CLOSE';
   score?: number;
   quantity?: number;
-  zscore?: [number];
+  zscore?: number;       // Fixed: Changed from [number] to number
   targetPercent?: number;
   targetNotional?: number;
+  
+  // Allow dynamic properties for multi-horizon z-scores
+  [key: string]: string | number | undefined;
 }
 
 export interface ConvictionModelConfig {

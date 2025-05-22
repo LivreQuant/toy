@@ -8,27 +8,20 @@ import { ConvictionModelConfig } from '../../types';
 import FileUploadZone from './FileUploadZone';
 import NotesInput from './NotesInput';
 import OrderFileProcessor from './OrderFileProcessor';
+import { OrderData } from '../../types';
 import './CsvOrderUpload.css';
 
 // Operation types
 type Operation = 'SUBMIT' | 'CANCEL';
 
-interface OrderData {
-  instrumentId?: string;
-  orderId?: string;
-  side?: 'BUY' | 'SELL' | 'CLOSE';
-  quantity?: number;
-  zscore?: number;
-  participationRate?: 'LOW' | 'MEDIUM' | 'HIGH' | number;
-  tag?: string;
-  score?: number;
-  targetPercent?: number;
-  targetNotional?: number;
-  [key: string]: any;
-}
-
 interface SubmissionData {
   orders: OrderData[];
+  researchFile?: File;
+  notes: string;
+}
+
+interface CancelData {
+  orderIds: [string];
   researchFile?: File;
   notes: string;
 }
@@ -115,8 +108,7 @@ const CsvOrderUpload: React.FC = () => {
 
   const handleSubmit = useCallback(async () => {
     if (orders.length === 0 || isSubmitting) return;
-
-    // Validation - only order file is required
+  
     if (!orderFile) {
       addToast('error', 'Order file is required');
       return;
@@ -125,12 +117,6 @@ const CsvOrderUpload: React.FC = () => {
     setIsSubmitting(true);
     
     try {
-      const submissionData: SubmissionData = {
-        orders,
-        researchFile: researchFile || undefined,
-        notes: notes.trim()
-      };
-
       if (operation === 'SUBMIT') {
         const hasResearch = researchFile ? 'with research' : '';
         const hasNotes = notes.trim() ? 'and notes' : '';
@@ -138,7 +124,7 @@ const CsvOrderUpload: React.FC = () => {
         
         addToast('info', submitMessage);
         
-        // Convert OrderData to Order format for the API
+        // Convert OrderData to OrderRequest format
         const submitOrders = orders.map(order => ({
           instrumentId: order.instrumentId!,
           orderId: order.orderId!,
@@ -160,16 +146,11 @@ const CsvOrderUpload: React.FC = () => {
         }));
         
         try {
-          // TODO: Update this to include research file and notes in the API call
-          // For now, we'll just submit the orders and log the additional data
-          console.log('Submission data:', {
+          const response = await orderManager.submitOrders({
             orders: submitOrders,
-            researchFileName: researchFile?.name,
-            researchFileSize: researchFile?.size,
-            notes: notes.trim() || null
+            researchFile: researchFile || undefined,
+            notes: notes.trim() || undefined
           });
-
-          const response = await orderManager.submitOrders(submitOrders);
           
           if (response.success) {
             const successCount = response.results.filter(r => r.success).length;
@@ -213,27 +194,25 @@ const CsvOrderUpload: React.FC = () => {
       } else {
         // CANCEL operation
         const hasNotes = notes.trim() ? 'with notes' : '';
-        addToast('info', `Cancelling ${orders.length} orders ${hasNotes}`.trim());
+        const hasResearch = researchFile ? 'and research' : '';
+        addToast('info', `Cancelling ${orders.length} orders ${hasResearch} ${hasNotes}`.trim());
         
         const orderIds = orders.map(o => o.orderId!);
         
         try {
-          // TODO: Update this to include notes in the API call
-          console.log('Cancellation data:', {
+          const response = await orderManager.cancelOrders({
             orderIds: orderIds,
-            researchFileName: researchFile?.name,
-            notes: notes.trim() || null
+            researchFile: researchFile || undefined,
+            notes: notes.trim() || undefined
           });
-
-          const response = await orderManager.cancelOrders(orderIds);
           
           if (response.success) {
             const successCount = response.results.filter(r => r.success).length;
             const failCount = response.results.length - successCount;
             
             if (successCount > 0) {
-              const successMessage = notes.trim() ? 
-                `Successfully cancelled ${successCount} orders with notes` :
+              const successMessage = researchFile || notes.trim() ? 
+                `Successfully cancelled ${successCount} orders with additional context` :
                 `Successfully cancelled ${successCount} orders`;
               addToast('success', successMessage);
             }
@@ -284,7 +263,8 @@ const CsvOrderUpload: React.FC = () => {
 
   const getSampleFormat = useCallback(() => {
     if (operation === 'CANCEL') {
-      return `orderId
+      return `
+orderId
 order-001
 order-002`;
     }

@@ -46,6 +46,45 @@ export class HttpClient {
     return this.request<T>('DELETE', endpoint, undefined, options);
   }
 
+  
+  async postMultipart<T>(endpoint: string, formData: FormData, options: RequestOptions = {}): Promise<T> {
+    // Get your auth token however your HttpClient currently does it
+    const headers: Record<string, string> = {};
+    
+    // Add authentication if you have a method for it
+    const accessToken = await this.tokenManager?.getAccessToken();
+    if (accessToken) {
+      headers['Authorization'] = `Bearer ${accessToken}`;
+    }
+    
+    // Don't set Content-Type for FormData - let the browser set it with boundary
+    // The browser will automatically set 'multipart/form-data' with the correct boundary
+    
+    const response = await fetch(`${this.baseUrl}${endpoint}`, {
+      method: 'POST',
+      headers: headers,
+      body: formData,
+      // Add any other options your HttpClient typically uses
+      ...options
+    });
+
+    if (!response.ok) {
+      // Handle error response however your HttpClient currently does it
+      let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+      
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.message || errorData.error || errorMessage;
+      } catch {
+        // If we can't parse JSON, use the default message
+      }
+      
+      throw new Error(errorMessage);
+    }
+
+    return response.json();
+  }
+
   private async request<T>(
     method: string,
     endpoint: string,

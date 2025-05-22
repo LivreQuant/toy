@@ -66,7 +66,7 @@ const FingerprintUpload: React.FC = () => {
     const fingerprintRegex = /^[A-Za-z0-9+/]+=*$/; // Base64 format
     return fingerprintRegex.test(fingerprint) && fingerprint.length >= 32;
   };
-
+    
   const handleSubmit = useCallback(async () => {
     if (isSubmitting) return;
 
@@ -89,12 +89,6 @@ const FingerprintUpload: React.FC = () => {
     setIsSubmitting(true);
     
     try {
-      const fingerprintData: FingerprintData = {
-        orderFileFingerprint: orderFileFingerprint.trim(),
-        researchFileFingerprint: researchFileFingerprint.trim() || undefined,
-        notes: notes.trim() || undefined
-      };
-
       if (operation === 'SUBMIT') {
         const hasResearch = researchFileFingerprint ? 'with research fingerprint' : '';
         const hasNotes = notes.trim() ? 'and notes' : '';
@@ -103,43 +97,49 @@ const FingerprintUpload: React.FC = () => {
         addToast('info', submitMessage);
         
         try {
-          // TODO: Update this to submit fingerprints to the API
-          // For now, we'll just log the fingerprint data
-          console.log('Fingerprint submission data:', fingerprintData);
-
-          // Simulate API call
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          const response = await orderManager.submitOrdersEncoded({
+            orders: orderFileFingerprint.trim(),
+            researchFile: researchFileFingerprint.trim() || undefined,
+            notes: notes.trim() || undefined
+          });
           
-          addToast('success', 'Order fingerprint submitted successfully');
-          
-          // Clear form on successful submission
-          setOrderFileFingerprint('');
-          setResearchFileFingerprint('');
-          setNotes('');
-          
+          if (response.success) {
+            addToast('success', 'Order fingerprint submitted successfully');
+            
+            // Clear form on successful submission
+            setOrderFileFingerprint('');
+            setResearchFileFingerprint('');
+            setNotes('');
+          } else {
+            addToast('error', `Failed to submit fingerprint: ${response.errorMessage || 'Unknown error'}`);
+          }
         } catch (err: any) {
           addToast('error', `Error submitting fingerprint: ${err.message}`);
           console.error('Fingerprint submission error:', err);
         }
       } else {
         // CANCEL operation
-        const hasNotes = notes.trim() ? 'with notes' : '';
-        addToast('info', `Submitting cancellation fingerprint ${hasNotes}`.trim());
+        const hasResearch = researchFileFingerprint ? 'with research fingerprint' : '';
+        const hasNotes = notes.trim() ? 'and notes' : '';
+        addToast('info', `Submitting cancellation fingerprint ${hasResearch} ${hasNotes}`.trim());
         
         try {
-          // TODO: Update this to submit cancellation fingerprints to the API
-          console.log('Cancellation fingerprint data:', fingerprintData);
-
-          // Simulate API call
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          const response = await orderManager.cancelOrdersEncoded({
+            orderIds: orderFileFingerprint.trim(), // For cancel, the fingerprint contains order IDs
+            researchFile: researchFileFingerprint.trim() || undefined,
+            notes: notes.trim() || undefined
+          });
           
-          addToast('success', 'Cancellation fingerprint submitted successfully');
-          
-          // Clear form on successful submission
-          setOrderFileFingerprint('');
-          setResearchFileFingerprint('');
-          setNotes('');
-          
+          if (response.success) {
+            addToast('success', 'Cancellation fingerprint submitted successfully');
+            
+            // Clear form on successful submission
+            setOrderFileFingerprint('');
+            setResearchFileFingerprint('');
+            setNotes('');
+          } else {
+            addToast('error', `Failed to submit cancellation fingerprint: ${response.errorMessage || 'Unknown error'}`);
+          }
         } catch (err: any) {
           addToast('error', `Error submitting cancellation fingerprint: ${err.message}`);
           console.error('Cancellation fingerprint error:', err);
@@ -151,7 +151,7 @@ const FingerprintUpload: React.FC = () => {
     } finally {
       setIsSubmitting(false);
     }
-  }, [operation, orderFileFingerprint, researchFileFingerprint, notes, isSubmitting, addToast]);
+  }, [operation, orderFileFingerprint, researchFileFingerprint, notes, isSubmitting, orderManager, addToast]);
 
   const handleClear = useCallback(() => {
     setOrderFileFingerprint('');

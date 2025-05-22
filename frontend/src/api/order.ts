@@ -1,25 +1,30 @@
 // src/api/order.ts
 import { HttpClient } from './http-client';
+import { OrderData } from '../types';
 
-export type OrderSide = 'BUY' | 'SELL' | 'CLOSE'; // Added CLOSE
-export type OrderType = 'MARKET' | 'LIMIT';
-
-export interface OrderRequest {
-  instrumentId: string;  // Changed from symbol
-  side?: OrderSide;      // Made optional
-  quantity?: number;     // Made optional
-  zscore?: number;       // Added for quantitative signals
-  participationRate?: 'LOW' | 'MEDIUM' | 'HIGH' | number; // Added instead of type/price
-  category?: string;     // Added for categorization
-  orderId?: string;      // Added as identifier
+export interface OrderSubmissionRequest {
+  orders: OrderData[];
+  researchFile?: File;
+  notes?: string;
 }
 
-// Side, Score (1-N)
-// Side, Quantity 
-// ZScore 1
-// ZScore 1, ZScore 2, ...
-// Percentage, AUM
-// 
+export interface OrderCancellationRequest {
+  orderIds: [string];
+  researchFile?: File;
+  notes?: string;
+}
+
+export interface EncodedOrderSubmissionRequest {
+  orders: string; // Encoded fingerprint string
+  researchFile?: string; // Encoded research file fingerprint string
+  notes?: string;
+}
+
+export interface EncodedOrderCancellationRequest {
+  orderIds: string; // Encoded fingerprint string
+  researchFile?: string; // Encoded research file fingerprint string
+  notes?: string;
+}
 
 // Keep the rest of the file unchanged
 export interface OrderResult {
@@ -46,6 +51,7 @@ export interface BatchCancelResponse {
   errorMessage?: string;
 }
 
+
 export class OrdersApi {
   private client: HttpClient;
 
@@ -53,11 +59,58 @@ export class OrdersApi {
     this.client = client;
   }
 
-  async submitOrders(orders: OrderRequest[]): Promise<BatchOrderResponse> {
-    return this.client.post<BatchOrderResponse>('/orders/submit', { orders });
+  async submitOrders(submissionData: OrderSubmissionRequest): Promise<BatchOrderResponse> {
+    const formData = new FormData();
+    
+    // Add the orders as a JSON blob
+    formData.append('orders', JSON.stringify(submissionData.orders));
+    
+    // Add research file if provided
+    if (submissionData.researchFile) {
+      formData.append('researchFile', submissionData.researchFile);
+    }
+    
+    // Add notes if provided
+    if (submissionData.notes) {
+      formData.append('notes', submissionData.notes);
+    }
+
+    return this.client.postMultipart<BatchOrderResponse>('/orders/submit', formData);
   }
 
-  async cancelOrders(orderIds: string[]): Promise<BatchCancelResponse> {
-    return this.client.post<BatchCancelResponse>('/orders/cancel', { orderIds });
+  async cancelOrders(cancellationData: OrderCancellationRequest): Promise<BatchCancelResponse> {
+    const formData = new FormData();
+    
+    // Add the order IDs as a JSON array
+    formData.append('orderIds', JSON.stringify(cancellationData.orderIds));
+    
+    // Add research file if provided
+    if (cancellationData.researchFile) {
+      formData.append('researchFile', cancellationData.researchFile);
+    }
+    
+    // Add notes if provided
+    if (cancellationData.notes) {
+      formData.append('notes', cancellationData.notes);
+    }
+
+    return this.client.postMultipart<BatchCancelResponse>('/orders/cancel', formData);
+  }
+
+  // New encoded fingerprint methods
+  async submitOrdersEncoded(submissionData: EncodedOrderSubmissionRequest): Promise<BatchOrderResponse> {
+    return this.client.post<BatchOrderResponse>('/orders/encoded_submit', {
+      orders: submissionData.orders,
+      researchFile: submissionData.researchFile,
+      notes: submissionData.notes
+    });
+  }
+
+  async cancelOrdersEncoded(cancellationData: EncodedOrderCancellationRequest): Promise<BatchCancelResponse> {
+    return this.client.post<BatchCancelResponse>('/orders/encoded_cancel', {
+      orderIds: cancellationData.orderIds,
+      researchFile: cancellationData.researchFile,
+      notes: cancellationData.notes
+    });
   }
 }

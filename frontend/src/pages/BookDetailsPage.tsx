@@ -8,6 +8,8 @@ import { useBookManager } from '../hooks/useBookManager';
 import { Book } from '../types';
 import OrderSubmissionContainer from '../components/Simulator/OrderSubmissionContainer';
 
+import { Tabs, Tab } from '@mui/material';
+
 
 import { 
   Box, 
@@ -38,6 +40,8 @@ const BookDetailsPage: React.FC = () => {
   const [book, setBook] = useState<Book | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isStartingSimulator, setIsStartingSimulator] = useState(false);
+
+  const [activeTab, setActiveTab] = useState(0);
 
   useEffect(() => {
     const fetchBookDetails = async () => {
@@ -348,59 +352,77 @@ const BookDetailsPage: React.FC = () => {
           )}
         </Box>
       </CardContent>
-
-              {/* Simulator Card - Prominently placed in the center */}
-        <Paper 
-          elevation={3} 
-          sx={{ 
-            p: 4, 
-            m: 4,
-            textAlign: 'center',
-            background: 'linear-gradient(to right, #f5f7fa, #e4e8ef)'
-          }}
-        >
-          
-          <Button 
-            variant="contained" 
-            color="primary"
-            size="large"
-            startIcon={<PlayArrowIcon />}
-            onClick={handleStartSimulator}
-            disabled={isStartingSimulator || !isConnected}
-            sx={{ 
-              py: 1.5, 
-              px: 4,
-              fontSize: '1.1rem',
-              borderRadius: 2
-            }}
-          >
-            {isStartingSimulator ? 'Starting Simulator...' : 'Start Simulator'}
-          </Button>
-
-          <Typography variant="body1" sx={{ mt: 3, maxWidth: 600, mx: 'auto' }}>
-            Launch the simulator to begin trading with this book's settings. 
-            The simulator provides a real-time trading environment to test your convictions.
-          </Typography>
-
-        </Paper>
-        
+       
 
       </Card>
       
 
       {/* Order Management Section - Always accessible */}
       <Card variant="outlined" sx={{ mb: 4 }}>
+        <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+          <Tabs 
+            value={activeTab} 
+            onChange={(_, newValue) => setActiveTab(newValue)}
+            variant="fullWidth"
+            sx={{
+              '& .MuiTab-root': {
+                fontSize: '1.2rem',
+                fontWeight: 600,
+                textTransform: 'none',
+                minHeight: 72,
+                py: 2.5,
+                transition: 'all 0.2s ease'
+              },
+              '& .Mui-selected': {
+                fontWeight: 700,
+                color: 'primary.main',
+                backgroundColor: 'action.selected'
+              },
+              '& .MuiTabs-indicator': {
+                height: 3,
+                borderRadius: 1.5
+              }
+            }}
+          >
+            <Tab 
+              label="Start Simulator" 
+            />
+            <Tab 
+              label="Conviction Management" 
+            />
+          </Tabs>
+        </Box>
+        
         <CardContent>
-          <Typography variant="h6" gutterBottom>
-            Conviction Management
-          </Typography>
-          <Typography variant="body2" color="text.secondary" paragraph>
-            You can submit and manage convictions without starting the simulator.
-          </Typography>
+          {activeTab === 0 && (
+            <Box sx={{ textAlign: 'center', py: 4 }}>
+              <Button 
+                variant="contained" 
+                color="primary"
+                size="large"
+                startIcon={<PlayArrowIcon />}
+                onClick={handleStartSimulator}
+                disabled={isStartingSimulator || !isConnected}
+                sx={{ 
+                  py: 1.5, 
+                  px: 4,
+                  fontSize: '1.1rem',
+                  borderRadius: 2
+                }}
+              >
+                {isStartingSimulator ? 'Starting Simulator...' : 'Start Simulator'}
+              </Button>
+
+              <Typography variant="body1" sx={{ mt: 3, maxWidth: 600, mx: 'auto' }}>
+                Launch the simulator to begin trading with this book's settings. 
+                The simulator provides a real-time trading environment to test your convictions.
+              </Typography>
+            </Box>
+          )}
           
-          <Divider sx={{ my: 2 }} />
-          
-          <OrderSubmissionContainer />
+          {activeTab === 1 && (
+            <OrderSubmissionContainer />
+          )}
         </CardContent>
       </Card>
     </Box>
