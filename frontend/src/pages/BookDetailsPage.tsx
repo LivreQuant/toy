@@ -139,131 +139,255 @@ const BookDetailsPage: React.FC = () => {
           Edit Book
         </Button>
       </Box>
-      
-      {/* Book Title */}
-      <Typography variant="h4" component="h1" gutterBottom>
-        {book.name}
-      </Typography>
-      
-      {/* Book Details Card */}
-      <Card variant="outlined" sx={{ mb: 4 }}>
-        <CardContent>
-          <Typography variant="h6" gutterBottom>
-            Book Overview
+            
+      {/* Book Details Card - Clean Horizontal Layout */}
+      <Card 
+      variant="outlined" 
+      sx={{ 
+        mb: 4,
+        border: '1px solid #e5e7eb',
+        borderRadius: 2
+      }}
+      >
+      <CardContent sx={{ p: 0 }}>
+        {/* Header */}
+        <Box sx={{ 
+          p: 3, 
+          borderBottom: '1px solid #f3f4f6'
+        }}>
+          <Typography variant="h5" sx={{ fontWeight: 600, color: '#111827' }}>
+            {book.name}
           </Typography>
-          
-          <Grid container spacing={3}>
-            <Grid {...{component: "div", item: true, xs: 12, md: 6} as any}>
-              <Typography variant="subtitle2" color="text.secondary">
-                Initial Capital
-              </Typography>
-              <Typography variant="body1" gutterBottom fontWeight="medium">
-                ${book.initialCapital.toLocaleString()}
-              </Typography>
-              
-              <Typography variant="subtitle2" color="text.secondary" sx={{ mt: 2 }}>
+        </Box>
+
+        {/* Main Content - Horizontal Layout */}
+        <Box sx={{ p: 3, size: 12 }}>
+          <Grid container spacing={0}>
+            {/* Regions */}
+            <Grid {...{component: "div", item: true, xs: 12, md: 2, size: 2} as any} sx={{ pr: 4 }}>
+              <Typography variant="subtitle2" sx={{ mb: 1, textAlign: 'center', color: '#6b7280', fontWeight: 600 }}>
                 Regions
               </Typography>
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                 {book.regions.map((region) => (
-                  <Chip key={region} label={region.toUpperCase()} size="small" />
-                ))}
-              </Box>
-              
-              <Typography variant="subtitle2" color="text.secondary">
-                Markets & Instruments
-              </Typography>
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
-                {book.markets.map((market) => (
-                  <Chip key={market} label={market} size="small" color="primary" variant="outlined" />
-                ))}
-                {book.instruments.map((instrument) => (
-                  <Chip key={instrument} label={instrument} size="small" color="secondary" variant="outlined" />
+                  <Chip 
+                    key={region.toUpperCase()}
+                    label={region.toUpperCase()}
+                    size="small"
+                    sx={{
+                      bgcolor: '#f9fafb',
+                      color: '#374151',
+                      border: '1px solid #e5e7eb',
+                      fontSize: '0.75rem',
+                      height: 20,
+                      '& .MuiChip-label': { px: 1 }
+                    }}
+                  />
                 ))}
               </Box>
             </Grid>
-            
-            <Grid {...{component: "div", item: true, xs: 12, md: 6} as any}>
-              <Typography variant="subtitle2" color="text.secondary">
-                Investment Approach
+
+            {/* Markets */}
+            <Grid {...{component: "div", item: true, xs: 12, md: 2, size: 2} as any} sx={{ pr: 4 }}>
+              <Typography variant="subtitle2" sx={{ mb: 1, textAlign: 'center', color: '#6b7280', fontWeight: 600 }}>
+                Markets
               </Typography>
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                {book.markets.map((market) => (
+                  <Chip 
+                    key={market.toUpperCase()} 
+                    label={market.toUpperCase()} 
+                    size="small"
+                    sx={{
+                      bgcolor: '#f9fafb',
+                      color: '#374151',
+                      border: '1px solid #e5e7eb',
+                      fontSize: '0.75rem',
+                      height: 20,
+                      '& .MuiChip-label': { px: 1 }
+                    }}
+                  />
+                ))}
+              </Box>
+            </Grid>
+
+            {/* Instruments */}
+            <Grid {...{component: "div", item: true, xs: 12, md: 2, size: 2} as any} sx={{ pr: 4 }}>
+              <Typography variant="subtitle2" sx={{ mb: 1, textAlign: 'center', color: '#6b7280', fontWeight: 600 }}>
+                Instruments
+              </Typography>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                {book.instruments.map((instrument) => (
+                  <Chip 
+                    key={instrument.toUpperCase()} 
+                    label={instrument.toUpperCase()} 
+                    size="small"
+                    sx={{
+                      bgcolor: '#f9fafb',
+                      color: '#374151',
+                      border: '1px solid #e5e7eb',
+                      fontSize: '0.75rem',
+                      height: 20,
+                      '& .MuiChip-label': { px: 1 }
+                    }}
+                  />
+                ))}
+              </Box>
+            </Grid>
+
+            {/* Investment Approach */}
+            <Grid {...{component: "div", item: true, xs: 12, md: 2, size: 2} as any} sx={{ pr: 4 }}>
+              <Typography variant="subtitle2" sx={{ mb: 1, textAlign: 'center', color: '#6b7280', fontWeight: 600 }}>
+                Approach
+              </Typography>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                 {book.investmentApproaches.map((approach) => (
-                  <Chip key={approach} label={approach} size="small" color="info" />
+                  <Chip 
+                    key={approach.toUpperCase()} 
+                    label={approach.toUpperCase()} 
+                    size="small"
+                    sx={{
+                      bgcolor: '#f9fafb',
+                      color: '#374151',
+                      border: '1px solid #e5e7eb',
+                      fontSize: '0.75rem',
+                      height: 20,
+                      '& .MuiChip-label': { px: 1 }
+                    }}
+                  />
                 ))}
               </Box>
-              
-              <Typography variant="subtitle2" color="text.secondary">
-                Investment Timeframe
+            </Grid>
+
+            {/* Position Types */}
+            <Grid {...{component: "div", item: true, xs: 12, md: 2, size: 2} as any} sx={{ pr: 4 }}>
+              <Typography variant="subtitle2" sx={{ mb: 1, textAlign: 'center', color: '#6b7280', fontWeight: 600 }}>
+                Position Types
               </Typography>
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                {book.positionTypes.long && (
+                  <Chip 
+                    label="LONG" 
+                    size="small"
+                    sx={{
+                      bgcolor: '#f9fafb',
+                      color: '#374151',
+                      border: '1px solid #e5e7eb',
+                      fontSize: '0.75rem',
+                      height: 20,
+                      '& .MuiChip-label': { px: 1 }
+                    }}
+                  />
+                )}
+                {book.positionTypes.short && (
+                  <Chip 
+                    label="SHORT" 
+                    size="small"
+                    sx={{
+                      bgcolor: '#f9fafb',
+                      color: '#374151',
+                      border: '1px solid #e5e7eb',
+                      fontSize: '0.75rem',
+                      height: 20,
+                      '& .MuiChip-label': { px: 1 }
+                    }}
+                  />
+                )}
+              </Box>
+            </Grid>
+
+            {/* Timeframe */}
+            <Grid {...{component: "div", item: true, xs: 12, md: 2, size: 2} as any}>
+              <Typography variant="subtitle2" sx={{ mb: 1, textAlign: 'center', color: '#6b7280', fontWeight: 600 }}>
+                Timeframe
+              </Typography>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                 {book.investmentTimeframes.map((timeframe) => (
-                  <Chip key={timeframe} label={timeframe} size="small" color="info" variant="outlined" />
+                  <Chip 
+                    key={timeframe.toUpperCase()} 
+                    label={timeframe.toUpperCase()} 
+                    size="small"
+                    sx={{
+                      bgcolor: '#f9fafb',
+                      color: '#374151',
+                      border: '1px solid #e5e7eb',
+                      fontSize: '0.75rem',
+                      height: 20,
+                      '& .MuiChip-label': { px: 1 }
+                    }}
+                  />
                 ))}
               </Box>
-              
-              <Typography variant="subtitle2" color="text.secondary">
-                Position Type
-              </Typography>
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
-                {book.positionTypes.long && <Chip label="Long" size="small" color="success" />}
-                {book.positionTypes.short && <Chip label="Short" size="small" color="error" />}
-              </Box>
-              
-              {book.sectors && book.sectors.length > 0 && (
-                <>
-                  <Typography variant="subtitle2" color="text.secondary">
-                    Sectors
-                  </Typography>
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                    {book.sectors.map((sector) => (
-                      <Chip key={sector} label={sector} size="small" />
-                    ))}
-                  </Box>
-                </>
-              )}
             </Grid>
           </Grid>
-        </CardContent>
-      </Card>
-      
-      {/* Simulator Card - Prominently placed in the center */}
-      <Paper 
-        elevation={3} 
-        sx={{ 
-          p: 4, 
-          mb: 4, 
-          textAlign: 'center',
-          background: 'linear-gradient(to right, #f5f7fa, #e4e8ef)'
-        }}
-      >
-        <Typography variant="h5" gutterBottom>
-          Start Trading Simulation
-        </Typography>
-        
-        <Typography variant="body1" sx={{ mb: 3, maxWidth: 600, mx: 'auto' }}>
-          Launch the simulator to begin trading with this book's settings. 
-          The simulator provides a real-time trading environment to test your strategies.
-        </Typography>
-        
-        <Button 
-          variant="contained" 
-          color="primary"
-          size="large"
-          startIcon={<PlayArrowIcon />}
-          onClick={handleStartSimulator}
-          disabled={isStartingSimulator || !isConnected}
+
+          {/* Sectors Row - Only if exists */}
+          {book.sectors && book.sectors.length > 0 && (
+            <Box sx={{ mt: 3, pt: 3 }}>
+              <Typography variant="subtitle2" sx={{ mb: 1, textAlign: 'center', color: '#6b7280', fontWeight: 600 }}>
+                Focus
+              </Typography>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 0.5 }}>
+                {book.sectors.map((sector) => (
+                  <Chip 
+                    key={sector.toUpperCase()} 
+                    label={sector.toUpperCase()} 
+                    size="small"
+                    sx={{
+                      bgcolor: '#f9fafb',
+                      color: '#374151',
+                      border: '1px solid #e5e7eb',
+                      fontSize: '0.75rem',
+                      height: 20,
+                      '& .MuiChip-label': { px: 1 }
+                    }}
+                  />
+                ))}
+              </Box>
+            </Box>
+          )}
+        </Box>
+      </CardContent>
+
+              {/* Simulator Card - Prominently placed in the center */}
+        <Paper 
+          elevation={3} 
           sx={{ 
-            py: 1.5, 
-            px: 4,
-            fontSize: '1.1rem',
-            borderRadius: 2
+            p: 4, 
+            m: 4,
+            textAlign: 'center',
+            background: 'linear-gradient(to right, #f5f7fa, #e4e8ef)'
           }}
         >
-          {isStartingSimulator ? 'Starting Simulator...' : 'Start Simulator'}
-        </Button>
-      </Paper>
+          
+          <Button 
+            variant="contained" 
+            color="primary"
+            size="large"
+            startIcon={<PlayArrowIcon />}
+            onClick={handleStartSimulator}
+            disabled={isStartingSimulator || !isConnected}
+            sx={{ 
+              py: 1.5, 
+              px: 4,
+              fontSize: '1.1rem',
+              borderRadius: 2
+            }}
+          >
+            {isStartingSimulator ? 'Starting Simulator...' : 'Start Simulator'}
+          </Button>
+
+          <Typography variant="body1" sx={{ mt: 3, maxWidth: 600, mx: 'auto' }}>
+            Launch the simulator to begin trading with this book's settings. 
+            The simulator provides a real-time trading environment to test your convictions.
+          </Typography>
+
+        </Paper>
+        
+
+      </Card>
       
+
       {/* Order Management Section - Always accessible */}
       <Card variant="outlined" sx={{ mb: 4 }}>
         <CardContent>
