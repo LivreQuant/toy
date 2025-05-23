@@ -384,7 +384,7 @@ class ConvictionController(BaseController):
                         all_keys.update(conviction.keys())
                     
                     # Sort fieldnames for consistency, put common fields first
-                    common_fields = ['instrumentId', 'side', 'quantity', 'score', 'zscore', 'targetPercent', 'targetNotional', 'participationRate', 'tag', 'orderId']
+                    common_fields = ['instrumentId', 'side', 'quantity', 'score', 'zscore', 'targetPercent', 'targetNotional', 'participationRate', 'tag', 'convictionId']
                     other_fields = sorted([k for k in all_keys if k not in common_fields])
                     fieldnames = [f for f in common_fields if f in all_keys] + other_fields
                     

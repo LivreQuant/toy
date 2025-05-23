@@ -1,42 +1,42 @@
-// src/components/Simulator/CsvOrderUpload.tsx
+// src/components/Simulator/CsvConvictionUpload.tsx
 import React, { useState, useCallback, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { useToast } from '../../hooks/useToast';
-import { useOrderManager } from '../../contexts/OrderContext';
+import { useConvictionManager } from '../../contexts/ConvictionContext';
 import { useBookManager } from '../../hooks/useBookManager';
-import { ConvictionModelConfig, OrderData, ApiOrderData } from '../../types'; // Add OrderData import
+import { ConvictionModelConfig, ConvictionData } from '../../types'; // Add ConvictionData import
 import FileUploadZone from './FileUploadZone';
 import NotesInput from './NotesInput';
-import OrderFileProcessor from './OrderFileProcessor';
-import './CsvOrderUpload.css';
+import ConvictionFileProcessor from './ConvictionFileProcessor';
+import './CsvConvictionUpload.css';
 
 // Operation types
 type Operation = 'SUBMIT' | 'CANCEL';
 
 interface SubmissionData {
-  orders: OrderData[];
+  convictions: ConvictionData[];
   researchFile?: File;
   notes: string;
 }
 
 interface CancelData {
-  orderIds: [string];
+  convictionIds: [string];
   researchFile?: File;
   notes: string;
 }
 
-const CsvOrderUpload: React.FC = () => {
+const CsvConvictionUpload: React.FC = () => {
   const { bookId } = useParams<{ bookId?: string }>();
   const { addToast } = useToast();
-  const orderManager = useOrderManager();
+  const convictionManager = useConvictionManager();
   const bookManager = useBookManager();
 
   // State
   const [operation, setOperation] = useState<Operation>('SUBMIT');
-  const [orderFile, setOrderFile] = useState<File | null>(null);
+  const [convictionFile, setConvictionFile] = useState<File | null>(null);
   const [researchFile, setResearchFile] = useState<File | null>(null);
   const [notes, setNotes] = useState('');
-  const [orders, setOrders] = useState<OrderData[]>([]);
+  const [convictions, setConvictions] = useState<ConvictionData[]>([]);
   const [convictionSchema, setConvictionSchema] = useState<ConvictionModelConfig | null>(null);
   const [isLoadingSchema, setIsLoadingSchema] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -64,61 +64,61 @@ const CsvOrderUpload: React.FC = () => {
     loadBookSchema();
   }, [bookId, bookManager, addToast]);
 
-  // Process order file when it changes
+  // Process conviction file when it changes
   useEffect(() => {
-    if (!orderFile) {
-      setOrders([]);
+    if (!convictionFile) {
+      setConvictions([]);
       return;
     }
 
     const reader = new FileReader();
     reader.onload = (event) => {
       const content = event.target?.result as string;
-      const processor = new OrderFileProcessor(convictionSchema, addToast);
+      const processor = new ConvictionFileProcessor(convictionSchema, addToast);
       
-      let parsedOrders: OrderData[];
+      let parsedConvictions: ConvictionData[];
       if (operation === 'SUBMIT') {
-        parsedOrders = processor.processSubmitCsv(content);
+        parsedConvictions = processor.processSubmitCsv(content);
       } else {
-        parsedOrders = processor.processCancelCsv(content);
+        parsedConvictions = processor.processCancelCsv(content);
       }
       
-      // Filter out orders that don't have required fields for the API
-      const validOrders = parsedOrders.filter(order => {
+      // Filter out convictions that don't have required fields for the API
+      const validConvictions = parsedConvictions.filter(conviction => {
         if (operation === 'SUBMIT') {
-          return order.instrumentId && order.orderId;
+          return conviction.instrumentId && conviction.convictionId;
         } else {
-          return order.orderId;
+          return conviction.convictionId;
         }
       });
       
-      setOrders(validOrders);
+      setConvictions(validConvictions);
       
-      if (validOrders.length > 0) {
-        addToast('success', `Loaded ${validOrders.length} ${operation === 'SUBMIT' ? 'orders' : 'cancellations'} from CSV`);
+      if (validConvictions.length > 0) {
+        addToast('success', `Loaded ${validConvictions.length} ${operation === 'SUBMIT' ? 'convictions' : 'cancellations'} from CSV`);
       } else {
-        addToast('warning', `No valid ${operation === 'SUBMIT' ? 'orders' : 'cancellations'} found in CSV`);
+        addToast('warning', `No valid ${operation === 'SUBMIT' ? 'convictions' : 'cancellations'} found in CSV`);
       }
     };
     
-    reader.readAsText(orderFile);
-  }, [orderFile, operation, convictionSchema, addToast]);
+    reader.readAsText(convictionFile);
+  }, [convictionFile, operation, convictionSchema, addToast]);
 
   const handleOperationChange = useCallback((newOperation: Operation) => {
     if (operation !== newOperation) {
       setOperation(newOperation);
-      setOrderFile(null);
+      setConvictionFile(null);
       setResearchFile(null);
       setNotes('');
-      setOrders([]);
+      setConvictions([]);
     }
   }, [operation]);
 
   const handleSubmit = useCallback(async () => {
-    if (orders.length === 0 || isSubmitting) return;
+    if (convictions.length === 0 || isSubmitting) return;
   
-    if (!orderFile) {
-      addToast('error', 'Order file is required');
+    if (!convictionFile) {
+      addToast('error', 'Conviction file is required');
       return;
     }
     
@@ -128,43 +128,43 @@ const CsvOrderUpload: React.FC = () => {
       if (operation === 'SUBMIT') {
         const hasResearch = researchFile ? 'with research' : '';
         const hasNotes = notes.trim() ? 'and notes' : '';
-        const submitMessage = `Submitting ${orders.length} orders ${hasResearch} ${hasNotes}`.trim();
+        const submitMessage = `Submitting ${convictions.length} convictions ${hasResearch} ${hasNotes}`.trim();
         
         addToast('info', submitMessage);
         
-        // Convert OrderData to API format, filtering out invalid orders
-        const submitOrders = orders
-          .filter((order): order is ApiOrderData => 
-            !!order.instrumentId && !!order.orderId
+        // Convert ConvictionData to API format, filtering out invalid convictions
+        const submitConvictions = convictions
+          .filter((conviction): conviction is ConvictionData => 
+            !!conviction.instrumentId && !!conviction.convictionId
           )
-          .map(order => ({
-            instrumentId: order.instrumentId,
-            orderId: order.orderId,
-            side: order.side,
-            quantity: order.quantity,
-            score: order.score,
-            zscore: order.zscore,
-            targetPercent: order.targetPercent,
-            targetNotional: order.targetNotional,
-            participationRate: order.participationRate,
-            tag: order.tag,
+          .map(conviction => ({
+            instrumentId: conviction.instrumentId,
+            convictionId: conviction.convictionId,
+            side: conviction.side,
+            quantity: conviction.quantity,
+            score: conviction.score,
+            zscore: conviction.zscore,
+            targetPercent: conviction.targetPercent,
+            targetNotional: conviction.targetNotional,
+            participationRate: conviction.participationRate,
+            tag: conviction.tag,
             // Include multi-horizon zscores
-            ...Object.keys(order).reduce((acc, key) => {
+            ...Object.keys(conviction).reduce((acc, key) => {
               if (key.startsWith('z') && (key.includes('min') || key.includes('hour') || key.includes('day') || key.includes('week'))) {
-                acc[key] = order[key];
+                acc[key] = conviction[key];
               }
               return acc;
             }, {} as Record<string, any>)
           }));
 
-        if (submitOrders.length === 0) {
-          addToast('error', 'No valid orders found. Please check that all orders have instrumentId and orderId.');
+        if (submitConvictions.length === 0) {
+          addToast('error', 'No valid convictions found. Please check that all convictions have instrumentId and convictionId.');
           return;
         }
         
         try {
-          const response = await orderManager.submitOrders({
-            orders: submitOrders,
+          const response = await convictionManager.submitConvictions({
+            convictions: submitConvictions,
             researchFile: researchFile || undefined,
             notes: notes.trim() || undefined
           });
@@ -175,57 +175,57 @@ const CsvOrderUpload: React.FC = () => {
             
             if (successCount > 0) {
               const successMessage = researchFile || notes.trim() ? 
-                `Successfully submitted ${successCount} orders with additional context` :
-                `Successfully submitted ${successCount} orders`;
+                `Successfully submitted ${successCount} convictions with additional context` :
+                `Successfully submitted ${successCount} convictions`;
               addToast('success', successMessage);
             }
             
             if (failCount > 0) {
-              addToast('warning', `Failed to submit ${failCount} orders`);
+              addToast('warning', `Failed to submit ${failCount} convictions`);
               
               response.results.forEach((result, index) => {
                 if (!result.success && index < 5) {
-                  addToast('error', `Order #${index + 1} failed: ${result.errorMessage || 'Unknown error'}`);
+                  addToast('error', `Conviction #${index + 1} failed: ${result.errorMessage || 'Unknown error'}`);
                 }
               });
               
               if (failCount > 5) {
-                addToast('info', `${failCount - 5} more order failures not shown`);
+                addToast('info', `${failCount - 5} more conviction failures not shown`);
               }
             }
             
             // Clear form on successful submission
             if (failCount === 0) {
-              setOrderFile(null);
+              setConvictionFile(null);
               setResearchFile(null);
               setNotes('');
-              setOrders([]);
+              setConvictions([]);
             }
           } else {
             addToast('error', `Failed to submit convictions: ${response.errorMessage || 'Unknown error'}`);
           }
         } catch (err: any) {
-          addToast('error', `Error submitting orders: ${err.message}`);
-          console.error('Order submission error:', err);
+          addToast('error', `Error submitting convictions: ${err.message}`);
+          console.error('Conviction submission error:', err);
         }
       } else {
         // CANCEL operation
         const hasNotes = notes.trim() ? 'with notes' : '';
         const hasResearch = researchFile ? 'and research' : '';
-        addToast('info', `Cancelling ${orders.length} orders ${hasResearch} ${hasNotes}`.trim());
+        addToast('info', `Cancelling ${convictions.length} convictions ${hasResearch} ${hasNotes}`.trim());
         
-        const orderIds = orders
-          .filter(order => !!order.orderId)
-          .map(o => o.orderId!);
+        const convictionIds = convictions
+          .filter(conviction => !!conviction.convictionId)
+          .map(o => o.convictionId!);
 
-        if (orderIds.length === 0) {
-          addToast('error', 'No valid order IDs found for cancellation.');
+        if (convictionIds.length === 0) {
+          addToast('error', 'No valid conviction IDs found for cancellation.');
           return;
         }
         
         try {
-          const response = await orderManager.cancelOrders({
-            orderIds: orderIds,
+          const response = await convictionManager.cancelConvictions({
+            convictionIds: convictionIds,
             researchFile: researchFile || undefined,
             notes: notes.trim() || undefined
           });
@@ -236,13 +236,13 @@ const CsvOrderUpload: React.FC = () => {
             
             if (successCount > 0) {
               const successMessage = researchFile || notes.trim() ? 
-                `Successfully cancelled ${successCount} orders with additional context` :
-                `Successfully cancelled ${successCount} orders`;
+                `Successfully cancelled ${successCount} convictions with additional context` :
+                `Successfully cancelled ${successCount} convictions`;
               addToast('success', successMessage);
             }
             
             if (failCount > 0) {
-              addToast('warning', `Failed to cancel ${failCount} orders`);
+              addToast('warning', `Failed to cancel ${failCount} convictions`);
               
               response.results.forEach((result, index) => {
                 if (!result.success && index < 5) {
@@ -257,17 +257,17 @@ const CsvOrderUpload: React.FC = () => {
             
             // Clear form on successful submission
             if (failCount === 0) {
-              setOrderFile(null);
+              setConvictionFile(null);
               setResearchFile(null);
               setNotes('');
-              setOrders([]);
+              setConvictions([]);
             }
           } else {
-            addToast('error', `Failed to cancel orders: ${response.errorMessage || 'Unknown error'}`);
+            addToast('error', `Failed to cancel convictions: ${response.errorMessage || 'Unknown error'}`);
           }
         } catch (err: any) {
-          addToast('error', `Error cancelling orders: ${err.message}`);
-          console.error('Order cancellation error:', err);
+          addToast('error', `Error cancelling convictions: ${err.message}`);
+          console.error('Conviction cancellation error:', err);
         }
       }
     } catch (error: any) {
@@ -276,31 +276,31 @@ const CsvOrderUpload: React.FC = () => {
     } finally {
       setIsSubmitting(false);
     }
-  }, [operation, orders, orderFile, researchFile, notes, isSubmitting, orderManager, addToast]);
+  }, [operation, convictions, convictionFile, researchFile, notes, isSubmitting, convictionManager, addToast]);
 
   const handleClear = useCallback(() => {
-    setOrderFile(null);
+    setConvictionFile(null);
     setResearchFile(null);
     setNotes('');
-    setOrders([]);
+    setConvictions([]);
   }, []);
 
   const getSampleFormat = useCallback(() => {
     if (operation === 'CANCEL') {
       return `
-orderId
-order-001
-order-002`;
+convictionId
+conviction-001
+conviction-002`;
     }
 
-    // Use OrderFileProcessor to get the sample format
-    const processor = new OrderFileProcessor(convictionSchema, addToast);
+    // Use ConvictionFileProcessor to get the sample format
+    const processor = new ConvictionFileProcessor(convictionSchema, addToast);
     return processor.getSampleFormat();
   }, [operation, convictionSchema, addToast]);
 
   if (isLoadingSchema) {
     return (
-      <div className="csv-order-upload">
+      <div className="csv-conviction-upload">
         <div style={{ textAlign: 'center', padding: '20px' }}>
           Loading book schema...
         </div>
@@ -309,7 +309,7 @@ order-002`;
   }
 
   return (
-    <div className="csv-order-upload">
+    <div className="csv-conviction-upload">
       <div className="operation-toggle">
         <button 
           className={`toggle-button ${operation === 'SUBMIT' ? 'active' : ''}`} 
@@ -329,8 +329,8 @@ order-002`;
         <FileUploadZone
           title="Conviction File"
           acceptedTypes=".csv"
-          onFileSelect={setOrderFile}
-          file={orderFile}
+          onFileSelect={setConvictionFile}
+          file={convictionFile}
           required={true}
           description={operation === 'SUBMIT' ? 'CSV file containing your convictions' : 'CSV file containing conviction IDs to cancel'}
         />
@@ -354,20 +354,20 @@ order-002`;
         />
       </div>
       
-      {orders.length > 0 && (
+      {convictions.length > 0 && (
         <div className="preview">
           <div className="preview-header">
-            <span>Preview: {orders.length} {operation === 'SUBMIT' ? 'orders' : 'cancellations'}</span>
+            <span>Preview: {convictions.length} {operation === 'SUBMIT' ? 'convictions' : 'cancellations'}</span>
             {operation === 'SUBMIT' && (
-              <span className="order-stats">
-                {orders.filter(o => o.side === 'BUY').length} BUY | {orders.filter(o => o.side === 'SELL').length} SELL
+              <span className="conviction-stats">
+                {convictions.filter(o => o.side === 'BUY').length} BUY | {convictions.filter(o => o.side === 'SELL').length} SELL
               </span>
             )}
           </div>
           
           <div className="submission-summary">
             <div className="summary-item">
-              <strong>Order File:</strong> {orderFile?.name} ({orders.length} {operation === 'SUBMIT' ? 'orders' : 'cancellations'})
+              <strong>Conviction File:</strong> {convictionFile?.name} ({convictions.length} {operation === 'SUBMIT' ? 'convictions' : 'cancellations'})
             </div>
             {researchFile && (
               <div className="summary-item">
@@ -397,14 +397,14 @@ order-002`;
             
             <button 
               onClick={handleSubmit}
-              disabled={isSubmitting || orders.length === 0 || !orderFile}
+              disabled={isSubmitting || convictions.length === 0 || !convictionFile}
               className={`submit-button ${isSubmitting ? 'processing' : ''}`}
             >
               {isSubmitting 
                 ? 'Processing... Do Not Refresh' 
                 : operation === 'SUBMIT' 
-                  ? `Submit ${orders.length} Orders` 
-                  : `Cancel ${orders.length} Orders`}
+                  ? `Submit ${convictions.length} Convictions` 
+                  : `Cancel ${convictions.length} Convictions`}
             </button>
           </div>
         </div>
@@ -429,4 +429,4 @@ order-002`;
   );
 };
 
-export default CsvOrderUpload;
+export default CsvConvictionUpload;

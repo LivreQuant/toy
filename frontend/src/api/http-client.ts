@@ -31,9 +31,9 @@ export class HttpClient {
   }
   
   public async post<T>(endpoint: string, data?: any, options: RequestOptions = {}): Promise<T> {
-    // For orders, always set retries to 0
-    if (endpoint.includes('/orders/submit') || endpoint.includes('/orders/cancel')) {
-      options.retries = 0; // Force zero retries for orders
+    // For convictions, always set retries to 0
+    if (endpoint.includes('/convictions/submit') || endpoint.includes('/convictions/cancel')) {
+      options.retries = 0; // Force zero retries for convictions
     }
     return this.request<T>('POST', endpoint, data, options);
   }
@@ -92,10 +92,10 @@ export class HttpClient {
     options: RequestOptions = {},
     retryCount: number = 0 
   ): Promise<T> {
-    // Never retry order operations
-    if ((endpoint.includes('/orders/submit') || endpoint.includes('/orders/cancel')) && retryCount > 0) {
-      this.logger.error(`BLOCKING RETRY attempt for order endpoint: ${endpoint}`, { retryCount });
-      throw new Error("Order operations cannot be retried");
+    // Never retry conviction operations
+    if ((endpoint.includes('/convictions/submit') || endpoint.includes('/convictions/cancel')) && retryCount > 0) {
+      this.logger.error(`BLOCKING RETRY attempt for conviction endpoint: ${endpoint}`, { retryCount });
+      throw new Error("Conviction operations cannot be retried");
     }
 
     // Create full URL string
@@ -149,12 +149,12 @@ export class HttpClient {
       return responseData as T;
 
     } catch (networkError: any) {
-      // Handle network failures (never retry orders)
-      if (endpoint.includes('/orders/submit') || endpoint.includes('/orders/cancel')) {
-        this.logger.error(`Network error for order endpoint: ${endpoint} - NO RETRY`, { 
+      // Handle network failures (never retry convictions)
+      if (endpoint.includes('/convictions/submit') || endpoint.includes('/convictions/cancel')) {
+        this.logger.error(`Network error for conviction endpoint: ${endpoint} - NO RETRY`, { 
           error: networkError.message 
         });
-        throw new Error(`Network error for order operation: ${networkError.message} - NOT RETRIED`);
+        throw new Error(`Network error for conviction operation: ${networkError.message} - NOT RETRIED`);
       }
       
       return await this.handleNetworkOrFetchError<T>(networkError, method, endpoint, data, options, retryCount);
@@ -215,19 +215,19 @@ export class HttpClient {
       }
     }
     
-    // Check if this is an order endpoint - never retry
-    if (endpoint.includes('/orders/submit') || endpoint.includes('/orders/cancel')) {
-      this.logger.error(`Error for order endpoint ${endpoint}: ${response.status} - NO RETRY`, { 
+    // Check if this is an conviction endpoint - never retry
+    if (endpoint.includes('/convictions/submit') || endpoint.includes('/convictions/cancel')) {
+      this.logger.error(`Error for conviction endpoint ${endpoint}: ${response.status} - NO RETRY`, { 
         status: response.status, 
         error: errorMessage
       });
       
-      // Show error toast for order operations unless suppressed
+      // Show error toast for conviction operations unless suppressed
       if (!options.suppressErrorToast) {
-        toastService.error(`Order operation failed: ${errorMessage}`);
+        toastService.error(`Conviction operation failed: ${errorMessage}`);
       }
       
-      throw new Error(`Order operation failed (${response.status}): ${errorMessage} - NOT RETRIED`);
+      throw new Error(`Conviction operation failed (${response.status}): ${errorMessage} - NOT RETRIED`);
     }
 
     // --- Handle different status codes ---
@@ -287,8 +287,8 @@ export class HttpClient {
     } else if (response.status >= 500) {
       errorMessage = options.customErrorMessage || `Server error (${response.status}). NOT RETRYING.`;
       
-      // Never retry 5xx errors for order endpoints
-      if (!endpoint.includes('/orders/submit') && !endpoint.includes('/orders/cancel')) {
+      // Never retry 5xx errors for conviction endpoints
+      if (!endpoint.includes('/convictions/submit') && !endpoint.includes('/convictions/cancel')) {
         const maxRetriesForServerError = options.retries ?? this.maxRetries;
         if (retryCount < maxRetriesForServerError) {
           const delay = Math.pow(2, retryCount) * 500 + (Math.random() * 500);
@@ -310,11 +310,11 @@ export class HttpClient {
           }
         }
       } else {
-        this.logger.error(`Server error ${response.status} for order endpoint: ${endpoint} - NO RETRY ATTEMPTED`, { endpoint });
+        this.logger.error(`Server error ${response.status} for conviction endpoint: ${endpoint} - NO RETRY ATTEMPTED`, { endpoint });
         
-        // Show server error toast for order endpoints unless suppressed
+        // Show server error toast for conviction endpoints unless suppressed
         if (!options.suppressErrorToast) {
-          toastService.error(`Server error for order operation: ${errorMessage}`);
+          toastService.error(`Server error for conviction operation: ${errorMessage}`);
         }
       }
     }
@@ -361,21 +361,21 @@ export class HttpClient {
 
       this.logger.error('Network or fetch error occurred', { endpoint, error: error.message, retryCount });
 
-      // Never retry order operations
-      if (endpoint.includes('/orders/submit') || endpoint.includes('/orders/cancel')) {
-        this.logger.error(`Network error for order endpoint: ${endpoint} - NO RETRY`, { 
+      // Never retry conviction operations
+      if (endpoint.includes('/convictions/submit') || endpoint.includes('/convictions/cancel')) {
+        this.logger.error(`Network error for conviction endpoint: ${endpoint} - NO RETRY`, { 
           error: error.message 
         });
         
-        // Show network error toast for order operations unless suppressed
+        // Show network error toast for conviction operations unless suppressed
         if (!options.suppressErrorToast) {
-          toastService.error(`Network error for order operation: ${error.message}`);
+          toastService.error(`Network error for conviction operation: ${error.message}`);
         }
         
-        throw new Error(`Network error for order operation: ${error.message} - NOT RETRIED`);
+        throw new Error(`Network error for conviction operation: ${error.message} - NOT RETRIED`);
       }
       
-      // Simple retry logic for non-order operations
+      // Simple retry logic for non-conviction operations
       const maxRetriesForNetworkError = options.retries ?? this.maxRetries;
       if (retryCount < maxRetriesForNetworkError) {
           const delay = Math.pow(2, retryCount) * 1000 + (Math.random() * 1000);

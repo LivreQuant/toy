@@ -15,11 +15,11 @@ import { TokenManager } from './services/auth/token-manager';
 // APIS
 import { HttpClient } from './api/http-client';
 import { AuthApi } from './api/auth';
-import { OrdersApi } from './api/order';
+import { ConvictionsApi } from './api/conviction';
 
 // SERVICES
 import { ConnectionManager } from './services/connection/connection-manager';
-import { OrderManager } from './services/orders/order-manager';
+import { ConvictionManager } from './services/convictions/conviction-manager';
 
 // HOOKS
 import { useConnection } from './hooks/useConnection';
@@ -30,7 +30,7 @@ import { ToastProvider } from './contexts/ToastContext';
 import { AuthProvider } from './contexts/AuthContext';
 import { TokenManagerProvider } from './contexts/TokenManagerContext';
 import { ConnectionProvider } from './contexts/ConnectionContext';
-import { OrderProvider } from './contexts/OrderContext';
+import { ConvictionProvider } from './contexts/ConvictionContext';
 import { BookManagerProvider } from './contexts/BookContext';
 import { FundProvider } from './contexts/FundContext';
 
@@ -78,7 +78,7 @@ const tokenManager = new TokenManager(
 // Initialize Rest APIs + Websocket
 const httpClient = new HttpClient(tokenManager);
 const authApi = new AuthApi(httpClient);
-const ordersApi = new OrdersApi(httpClient);
+const convictionsApi = new ConvictionsApi(httpClient);
 
 tokenManager.setAuthApi(authApi);
 
@@ -86,8 +86,8 @@ const connectionManager = new ConnectionManager(
   tokenManager
 );
 
-const orderManager = new OrderManager(
-  ordersApi, 
+const convictionManager = new ConvictionManager(
+  convictionsApi, 
   tokenManager
 );
 
@@ -216,7 +216,7 @@ function App() {
         <AuthProvider tokenManager={tokenManager} authApi={authApi} connectionManager={connectionManager}>
           <TokenManagerProvider tokenManager={tokenManager}>
             <BookManagerProvider>
-              <OrderProvider orderManager={orderManager}>
+              <ConvictionProvider convictionManager={convictionManager}>
                 <ConnectionProvider connectionManager={connectionManager}>
                   <FundProvider>  
                     <Router>
@@ -226,7 +226,7 @@ function App() {
                     </Router>
                   </FundProvider>
                 </ConnectionProvider>
-              </OrderProvider>
+              </ConvictionProvider>
             </BookManagerProvider>
           </TokenManagerProvider>
         </AuthProvider>

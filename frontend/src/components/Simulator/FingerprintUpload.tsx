@@ -2,17 +2,17 @@
 import React, { useState, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { useToast } from '../../hooks/useToast';
-import { useOrderManager } from '../../contexts/OrderContext';
+import { useConvictionManager } from '../../contexts/ConvictionContext';
 import { useBookManager } from '../../hooks/useBookManager';
 import { ConvictionModelConfig } from '../../types';
-import OrderFileProcessor from './OrderFileProcessor';
+import ConvictionFileProcessor from './ConvictionFileProcessor';
 import './FingerprintUpload.css';
 
 // Operation types
 type Operation = 'SUBMIT' | 'CANCEL';
 
 interface FingerprintData {
-  orderFileFingerprint: string;
+  convictionFileFingerprint: string;
   researchFileFingerprint?: string;
   notes?: string;
 }
@@ -20,12 +20,12 @@ interface FingerprintData {
 const FingerprintUpload: React.FC = () => {
   const { bookId } = useParams<{ bookId?: string }>();
   const { addToast } = useToast();
-  const orderManager = useOrderManager();
+  const convictionManager = useConvictionManager();
   const bookManager = useBookManager();
 
   // State
   const [operation, setOperation] = useState<Operation>('SUBMIT');
-  const [orderFileFingerprint, setOrderFileFingerprint] = useState('');
+  const [convictionFileFingerprint, setConvictionFileFingerprint] = useState('');
   const [researchFileFingerprint, setResearchFileFingerprint] = useState('');
   const [notes, setNotes] = useState('');
   const [convictionSchema, setConvictionSchema] = useState<ConvictionModelConfig | null>(null);
@@ -54,7 +54,7 @@ const FingerprintUpload: React.FC = () => {
   const handleOperationChange = useCallback((newOperation: Operation) => {
     if (operation !== newOperation) {
       setOperation(newOperation);
-      setOrderFileFingerprint('');
+      setConvictionFileFingerprint('');
       setResearchFileFingerprint('');
       setNotes('');
     }
@@ -71,13 +71,13 @@ const FingerprintUpload: React.FC = () => {
     if (isSubmitting) return;
 
     // Validation
-    if (!orderFileFingerprint.trim()) {
-      addToast('error', 'Order file fingerprint is required');
+    if (!convictionFileFingerprint.trim()) {
+      addToast('error', 'Conviction file fingerprint is required');
       return;
     }
 
-    if (!validateFingerprint(orderFileFingerprint)) {
-      addToast('error', 'Invalid order file fingerprint format');
+    if (!validateFingerprint(convictionFileFingerprint)) {
+      addToast('error', 'Invalid conviction file fingerprint format');
       return;
     }
 
@@ -92,22 +92,22 @@ const FingerprintUpload: React.FC = () => {
       if (operation === 'SUBMIT') {
         const hasResearch = researchFileFingerprint ? 'with research fingerprint' : '';
         const hasNotes = notes.trim() ? 'and notes' : '';
-        const submitMessage = `Submitting order fingerprint ${hasResearch} ${hasNotes}`.trim();
+        const submitMessage = `Submitting conviction fingerprint ${hasResearch} ${hasNotes}`.trim();
         
         addToast('info', submitMessage);
         
         try {
-          const response = await orderManager.submitOrdersEncoded({
-            orders: orderFileFingerprint.trim(),
+          const response = await convictionManager.submitConvictionsEncoded({
+            convictions: convictionFileFingerprint.trim(),
             researchFile: researchFileFingerprint.trim() || undefined,
             notes: notes.trim() || undefined
           });
           
           if (response.success) {
-            addToast('success', 'Order fingerprint submitted successfully');
+            addToast('success', 'Conviction fingerprint submitted successfully');
             
             // Clear form on successful submission
-            setOrderFileFingerprint('');
+            setConvictionFileFingerprint('');
             setResearchFileFingerprint('');
             setNotes('');
           } else {
@@ -124,8 +124,8 @@ const FingerprintUpload: React.FC = () => {
         addToast('info', `Submitting cancellation fingerprint ${hasResearch} ${hasNotes}`.trim());
         
         try {
-          const response = await orderManager.cancelOrdersEncoded({
-            orderIds: orderFileFingerprint.trim(), // For cancel, the fingerprint contains order IDs
+          const response = await convictionManager.cancelConvictionsEncoded({
+            convictionIds: convictionFileFingerprint.trim(), // For cancel, the fingerprint contains conviction IDs
             researchFile: researchFileFingerprint.trim() || undefined,
             notes: notes.trim() || undefined
           });
@@ -134,7 +134,7 @@ const FingerprintUpload: React.FC = () => {
             addToast('success', 'Cancellation fingerprint submitted successfully');
             
             // Clear form on successful submission
-            setOrderFileFingerprint('');
+            setConvictionFileFingerprint('');
             setResearchFileFingerprint('');
             setNotes('');
           } else {
@@ -151,24 +151,24 @@ const FingerprintUpload: React.FC = () => {
     } finally {
       setIsSubmitting(false);
     }
-  }, [operation, orderFileFingerprint, researchFileFingerprint, notes, isSubmitting, orderManager, addToast]);
+  }, [operation, convictionFileFingerprint, researchFileFingerprint, notes, isSubmitting, convictionManager, addToast]);
 
   const handleClear = useCallback(() => {
-    setOrderFileFingerprint('');
+    setConvictionFileFingerprint('');
     setResearchFileFingerprint('');
     setNotes('');
   }, []);
 
   const getSampleFormat = useCallback(() => {
     if (operation === 'CANCEL') {
-      return `orderId
-order-001
-order-002`;
+      return `convictionId
+conviction-001
+conviction-002`;
     }
 
-    // Use OrderFileProcessor to get the sample format
+    // Use ConvictionFileProcessor to get the sample format
     if (convictionSchema) {
-      const processor = new OrderFileProcessor(convictionSchema, addToast);
+      const processor = new ConvictionFileProcessor(convictionSchema, addToast);
       return processor.getSampleFormat();
     }
     
@@ -203,19 +203,19 @@ order-002`;
 
         <div className="fingerprint-input-group">
           <div className="fingerprint-input-container">
-            <label htmlFor="order-fingerprint">
+            <label htmlFor="conviction-fingerprint">
               Conviction File Fingerprint <span className="required">*</span>
             </label>
             <textarea
-              id="order-fingerprint"
+              id="conviction-fingerprint"
               className="fingerprint-input"
-              value={orderFileFingerprint}
-              onChange={(e) => setOrderFileFingerprint(e.target.value)}
-              placeholder="Paste your encoded order file fingerprint here..."
+              value={convictionFileFingerprint}
+              onChange={(e) => setConvictionFileFingerprint(e.target.value)}
+              placeholder="Paste your encoded conviction file fingerprint here..."
               rows={4}
               required
             />
-            {orderFileFingerprint && !validateFingerprint(orderFileFingerprint) && (
+            {convictionFileFingerprint && !validateFingerprint(convictionFileFingerprint) && (
               <p className="error-message">Invalid fingerprint format</p>
             )}
           </div>
@@ -248,7 +248,7 @@ order-002`;
               onChange={(e) => setNotes(e.target.value)}
               placeholder={operation === 'SUBMIT' ? 
                 "Optional: Explain your trading thesis, risk considerations, and rationale..." : 
-                "Optional: Explain why you're cancelling these orders..."}
+                "Optional: Explain why you're cancelling these convictions..."}
               rows={4}
               maxLength={1000}
             />
@@ -269,7 +269,7 @@ order-002`;
           
           <button 
             onClick={handleSubmit}
-            disabled={isSubmitting || !orderFileFingerprint.trim() || !validateFingerprint(orderFileFingerprint)}
+            disabled={isSubmitting || !convictionFileFingerprint.trim() || !validateFingerprint(convictionFileFingerprint)}
             className={`submit-button ${isSubmitting ? 'processing' : ''}`}
           >
             {isSubmitting 

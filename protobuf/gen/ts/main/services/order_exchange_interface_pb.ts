@@ -10,41 +10,66 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file main/services/order_exchange_interface.proto.
  */
 export const file_main_services_order_exchange_interface: GenFile = /*@__PURE__*/
-  fileDesc("CixtYWluL3NlcnZpY2VzL29yZGVyX2V4Y2hhbmdlX2ludGVyZmFjZS5wcm90bxIOb3JkZXJfZXhjaGFuZ2Ui7wEKDE9yZGVyUmVxdWVzdBIOCgZzeW1ib2wYASABKAkSLwoEc2lkZRgCIAEoDjIhLm9yZGVyX2V4Y2hhbmdlLk9yZGVyUmVxdWVzdC5TaWRlEhAKCHF1YW50aXR5GAMgASgBEg0KBXByaWNlGAQgASgBEi8KBHR5cGUYBSABKA4yIS5vcmRlcl9leGNoYW5nZS5PcmRlclJlcXVlc3QuVHlwZRISCgpyZXF1ZXN0X2lkGAYgASgJIhkKBFNpZGUSBwoDQlVZEAASCAoEU0VMTBABIh0KBFR5cGUSCgoGTUFSS0VUEAASCQoFTElNSVQQASJBChFCYXRjaE9yZGVyUmVxdWVzdBIsCgZvcmRlcnMYASADKAsyHC5vcmRlcl9leGNoYW5nZS5PcmRlclJlcXVlc3QiSQoNT3JkZXJSZXNwb25zZRIPCgdzdWNjZXNzGAEgASgIEhAKCG9yZGVyX2lkGAIgASgJEhUKDWVycm9yX21lc3NhZ2UYAyABKAkibAoSQmF0Y2hPcmRlclJlc3BvbnNlEg8KB3N1Y2Nlc3MYASABKAgSLgoHcmVzdWx0cxgCIAMoCzIdLm9yZGVyX2V4Y2hhbmdlLk9yZGVyUmVzcG9uc2USFQoNZXJyb3JfbWVzc2FnZRgDIAEoCSInChJCYXRjaENhbmNlbFJlcXVlc3QSEQoJb3JkZXJfaWRzGAEgAygJIkgKDENhbmNlbFJlc3VsdBIQCghvcmRlcl9pZBgBIAEoCRIPCgdzdWNjZXNzGAIgASgIEhUKDWVycm9yX21lc3NhZ2UYAyABKAkibAoTQmF0Y2hDYW5jZWxSZXNwb25zZRIPCgdzdWNjZXNzGAEgASgIEi0KB3Jlc3VsdHMYAiADKAsyHC5vcmRlcl9leGNoYW5nZS5DYW5jZWxSZXN1bHQSFQoNZXJyb3JfbWVzc2FnZRgDIAEoCTLIAQoWT3JkZXJFeGNoYW5nZVNpbXVsYXRvchJVCgxTdWJtaXRPcmRlcnMSIS5vcmRlcl9leGNoYW5nZS5CYXRjaE9yZGVyUmVxdWVzdBoiLm9yZGVyX2V4Y2hhbmdlLkJhdGNoT3JkZXJSZXNwb25zZRJXCgxDYW5jZWxPcmRlcnMSIi5vcmRlcl9leGNoYW5nZS5CYXRjaENhbmNlbFJlcXVlc3QaIy5vcmRlcl9leGNoYW5nZS5CYXRjaENhbmNlbFJlc3BvbnNlQoUBChJjb20ub3JkZXJfZXhjaGFuZ2VCG09yZGVyRXhjaGFuZ2VJbnRlcmZhY2VQcm90b1ABogIDT1hYqgINT3JkZXJFeGNoYW5nZcoCDU9yZGVyRXhjaGFuZ2XiAhlPcmRlckV4Y2hhbmdlXEdQQk1ldGFkYXRh6gINT3JkZXJFeGNoYW5nZWIGcHJvdG8z");
+  fileDesc("CixtYWluL3NlcnZpY2VzL29yZGVyX2V4Y2hhbmdlX2ludGVyZmFjZS5wcm90bxIOb3JkZXJfZXhjaGFuZ2UiqQIKDE9yZGVyUmVxdWVzdBIVCg1pbnN0cnVtZW50X2lkGAEgASgJEhUKDWNvbnZpY3Rpb25faWQYAiABKAkSPQoScGFydGljaXBhdGlvbl9yYXRlGAMgASgOMiEub3JkZXJfZXhjaGFuZ2UuUGFydGljaXBhdGlvblJhdGUSCwoDdGFnGAQgASgJEiIKBHNpZGUYBSABKA4yFC5vcmRlcl9leGNoYW5nZS5TaWRlEg0KBXNjb3JlGAYgASgBEhAKCHF1YW50aXR5GAcgASgBEg4KBnpzY29yZRgIIAEoARIZChF0YXJnZXRfcGVyY2VudGFnZRgJIAEoARIXCg90YXJnZXRfbm90aW9uYWwYCiABKAESFgoOaG9yaXpvbl96c2NvcmUYCyABKAkiQQoRQmF0Y2hPcmRlclJlcXVlc3QSLAoGb3JkZXJzGAEgAygLMhwub3JkZXJfZXhjaGFuZ2UuT3JkZXJSZXF1ZXN0IkoKDU9yZGVyUmVzcG9uc2USDwoHc3VjY2VzcxgBIAEoCBIRCglicm9rZXJfaWQYAiABKAkSFQoNZXJyb3JfbWVzc2FnZRgDIAEoCSJsChJCYXRjaE9yZGVyUmVzcG9uc2USDwoHc3VjY2VzcxgBIAEoCBIuCgdyZXN1bHRzGAIgAygLMh0ub3JkZXJfZXhjaGFuZ2UuT3JkZXJSZXNwb25zZRIVCg1lcnJvcl9tZXNzYWdlGAMgASgJIisKEkJhdGNoQ2FuY2VsUmVxdWVzdBIVCg1jb252aWN0aW9uX2lkGAEgAygJIkkKDENhbmNlbFJlc3VsdBIRCglicm9rZXJfaWQYASABKAkSDwoHc3VjY2VzcxgCIAEoCBIVCg1lcnJvcl9tZXNzYWdlGAMgASgJImwKE0JhdGNoQ2FuY2VsUmVzcG9uc2USDwoHc3VjY2VzcxgBIAEoCBItCgdyZXN1bHRzGAIgAygLMhwub3JkZXJfZXhjaGFuZ2UuQ2FuY2VsUmVzdWx0EhUKDWVycm9yX21lc3NhZ2UYAyABKAkqGQoEU2lkZRIHCgNCVVkQABIICgRTRUxMEAEqMgoRUGFydGljaXBhdGlvblJhdGUSBwoDTE9XEAASCgoGTUVESVVNEAESCAoESElHSBACMsgBChZPcmRlckV4Y2hhbmdlU2ltdWxhdG9yElUKDFN1Ym1pdE9yZGVycxIhLm9yZGVyX2V4Y2hhbmdlLkJhdGNoT3JkZXJSZXF1ZXN0GiIub3JkZXJfZXhjaGFuZ2UuQmF0Y2hPcmRlclJlc3BvbnNlElcKDENhbmNlbE9yZGVycxIiLm9yZGVyX2V4Y2hhbmdlLkJhdGNoQ2FuY2VsUmVxdWVzdBojLm9yZGVyX2V4Y2hhbmdlLkJhdGNoQ2FuY2VsUmVzcG9uc2VChQEKEmNvbS5vcmRlcl9leGNoYW5nZUIbT3JkZXJFeGNoYW5nZUludGVyZmFjZVByb3RvUAGiAgNPWFiqAg1PcmRlckV4Y2hhbmdlygINT3JkZXJFeGNoYW5nZeICGU9yZGVyRXhjaGFuZ2VcR1BCTWV0YWRhdGHqAg1PcmRlckV4Y2hhbmdlYgZwcm90bzM");
 
 /**
  * @generated from message order_exchange.OrderRequest
  */
 export type OrderRequest = Message<"order_exchange.OrderRequest"> & {
   /**
-   * @generated from field: string symbol = 1;
+   * @generated from field: string instrument_id = 1;
    */
-  symbol: string;
+  instrumentId: string;
 
   /**
-   * @generated from field: order_exchange.OrderRequest.Side side = 2;
+   * @generated from field: string conviction_id = 2;
    */
-  side: OrderRequest_Side;
+  convictionId: string;
 
   /**
-   * @generated from field: double quantity = 3;
+   * @generated from field: order_exchange.ParticipationRate participation_rate = 3;
+   */
+  participationRate: ParticipationRate;
+
+  /**
+   * @generated from field: string tag = 4;
+   */
+  tag: string;
+
+  /**
+   * @generated from field: order_exchange.Side side = 5;
+   */
+  side: Side;
+
+  /**
+   * @generated from field: double score = 6;
+   */
+  score: number;
+
+  /**
+   * @generated from field: double quantity = 7;
    */
   quantity: number;
 
   /**
-   * @generated from field: double price = 4;
+   * @generated from field: double zscore = 8;
    */
-  price: number;
+  zscore: number;
 
   /**
-   * @generated from field: order_exchange.OrderRequest.Type type = 5;
+   * @generated from field: double target_percentage = 9;
    */
-  type: OrderRequest_Type;
+  targetPercentage: number;
 
   /**
-   * @generated from field: string request_id = 6;
+   * @generated from field: double target_notional = 10;
    */
-  requestId: string;
+  targetNotional: number;
+
+  /**
+   * @generated from field: string horizon_zscore = 11;
+   */
+  horizonZscore: string;
 };
 
 /**
@@ -53,48 +78,6 @@ export type OrderRequest = Message<"order_exchange.OrderRequest"> & {
  */
 export const OrderRequestSchema: GenMessage<OrderRequest> = /*@__PURE__*/
   messageDesc(file_main_services_order_exchange_interface, 0);
-
-/**
- * @generated from enum order_exchange.OrderRequest.Side
- */
-export enum OrderRequest_Side {
-  /**
-   * @generated from enum value: BUY = 0;
-   */
-  BUY = 0,
-
-  /**
-   * @generated from enum value: SELL = 1;
-   */
-  SELL = 1,
-}
-
-/**
- * Describes the enum order_exchange.OrderRequest.Side.
- */
-export const OrderRequest_SideSchema: GenEnum<OrderRequest_Side> = /*@__PURE__*/
-  enumDesc(file_main_services_order_exchange_interface, 0, 0);
-
-/**
- * @generated from enum order_exchange.OrderRequest.Type
- */
-export enum OrderRequest_Type {
-  /**
-   * @generated from enum value: MARKET = 0;
-   */
-  MARKET = 0,
-
-  /**
-   * @generated from enum value: LIMIT = 1;
-   */
-  LIMIT = 1,
-}
-
-/**
- * Describes the enum order_exchange.OrderRequest.Type.
- */
-export const OrderRequest_TypeSchema: GenEnum<OrderRequest_Type> = /*@__PURE__*/
-  enumDesc(file_main_services_order_exchange_interface, 0, 1);
 
 /**
  * @generated from message order_exchange.BatchOrderRequest
@@ -123,9 +106,9 @@ export type OrderResponse = Message<"order_exchange.OrderResponse"> & {
   success: boolean;
 
   /**
-   * @generated from field: string order_id = 2;
+   * @generated from field: string broker_id = 2;
    */
-  orderId: string;
+  brokerId: string;
 
   /**
    * @generated from field: string error_message = 3;
@@ -172,9 +155,9 @@ export const BatchOrderResponseSchema: GenMessage<BatchOrderResponse> = /*@__PUR
  */
 export type BatchCancelRequest = Message<"order_exchange.BatchCancelRequest"> & {
   /**
-   * @generated from field: repeated string order_ids = 1;
+   * @generated from field: repeated string conviction_id = 1;
    */
-  orderIds: string[];
+  convictionId: string[];
 };
 
 /**
@@ -189,9 +172,9 @@ export const BatchCancelRequestSchema: GenMessage<BatchCancelRequest> = /*@__PUR
  */
 export type CancelResult = Message<"order_exchange.CancelResult"> & {
   /**
-   * @generated from field: string order_id = 1;
+   * @generated from field: string broker_id = 1;
    */
-  orderId: string;
+  brokerId: string;
 
   /**
    * @generated from field: bool success = 2;
@@ -237,6 +220,53 @@ export type BatchCancelResponse = Message<"order_exchange.BatchCancelResponse"> 
  */
 export const BatchCancelResponseSchema: GenMessage<BatchCancelResponse> = /*@__PURE__*/
   messageDesc(file_main_services_order_exchange_interface, 6);
+
+/**
+ * @generated from enum order_exchange.Side
+ */
+export enum Side {
+  /**
+   * @generated from enum value: BUY = 0;
+   */
+  BUY = 0,
+
+  /**
+   * @generated from enum value: SELL = 1;
+   */
+  SELL = 1,
+}
+
+/**
+ * Describes the enum order_exchange.Side.
+ */
+export const SideSchema: GenEnum<Side> = /*@__PURE__*/
+  enumDesc(file_main_services_order_exchange_interface, 0);
+
+/**
+ * @generated from enum order_exchange.ParticipationRate
+ */
+export enum ParticipationRate {
+  /**
+   * @generated from enum value: LOW = 0;
+   */
+  LOW = 0,
+
+  /**
+   * @generated from enum value: MEDIUM = 1;
+   */
+  MEDIUM = 1,
+
+  /**
+   * @generated from enum value: HIGH = 2;
+   */
+  HIGH = 2,
+}
+
+/**
+ * Describes the enum order_exchange.ParticipationRate.
+ */
+export const ParticipationRateSchema: GenEnum<ParticipationRate> = /*@__PURE__*/
+  enumDesc(file_main_services_order_exchange_interface, 1);
 
 /**
  * @generated from service order_exchange.OrderExchangeSimulator

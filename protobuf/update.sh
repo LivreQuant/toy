@@ -146,12 +146,12 @@ copy_proto_files() {
 # Copy Python files
 PY_PATH_REPLACEMENTS="from main.services import:from source.api.grpc import"
                 
-# Order Manager
+# Conviction Manager
 copy_proto_files "gen/python/main/services" \
-                 "../backend/order-service/source/api/grpc" \
-                 "order*.py" \
-                 "Python market data service files copied to Order Service" \
-                 "No Python market data service files found for Order Service" \
+                 "../backend/fund-service/source/api/grpc" \
+                 "conviction*.py" \
+                 "Python market data service files copied to Conviction Service" \
+                 "No Python market data service files found for Conviction Service" \
                  "$PY_PATH_REPLACEMENTS"
 
 # Session Manager
@@ -173,7 +173,7 @@ copy_proto_files "gen/python/main/services" \
 # Exchange Manager
 copy_proto_files "gen/python/main/services" \
                  "../backend/exchange-service/source/api/grpc" \
-                 "order*.py" \
+                 "conviction*.py" \
                  "Python market data service files copied to Exchange Manager Service" \
                  "No Python market data service files found for Exchange Manager Service" \
                  "$PY_PATH_REPLACEMENTS"

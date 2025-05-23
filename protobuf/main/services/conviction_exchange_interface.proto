@@ -1,0 +1,70 @@
+syntax = "proto3";
+
+package conviction_exchange;
+
+service ConvictionExchangeSimulator {
+  // Submit convictions in batch
+  rpc SubmitConvictions(BatchConvictionRequest) returns (BatchConvictionResponse);
+  
+  // Cancel convictions in batch
+  rpc CancelConvictions(BatchCancelRequest) returns (BatchCancelResponse);
+}
+
+enum Side {
+  BUY = 0;
+  SELL = 1;
+}
+
+enum ParticipationRate {
+  LOW = 0;
+  MEDIUM = 1;
+  HIGH = 2;
+}
+
+message ConvictionRequest {
+  string instrument_id = 1;
+  string conviction_id = 2;
+  ParticipationRate participation_rate = 3;
+  string tag = 4;
+
+  Side side = 5;
+  double score = 6;
+  double quantity = 7;
+  double zscore = 8;
+  double target_percentage = 9;
+  double target_notional = 10;
+
+  string horizon_zscore = 11;
+}
+
+message BatchConvictionRequest {
+  repeated ConvictionRequest convictions = 1;
+}
+
+message ConvictionResponse {
+  bool success = 1;
+  string broker_id = 2;
+  string error_message = 3;
+}
+
+message BatchConvictionResponse {
+  bool success = 1;
+  repeated ConvictionResponse results = 2;
+  string error_message = 3;
+}
+
+message BatchCancelRequest {
+  repeated string conviction_id = 1;
+}
+
+message CancelResult {
+  string broker_id = 1;
+  bool success = 2;
+  string error_message = 3;
+}
+
+message BatchCancelResponse {
+  bool success = 1;
+  repeated CancelResult results = 2;
+  string error_message = 3;
+}

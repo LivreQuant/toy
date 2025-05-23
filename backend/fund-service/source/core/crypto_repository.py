@@ -66,7 +66,7 @@ class CryptoRepository:
                 created_contract_id = await conn.fetchval(
                     create_query,
                     contract_id, user_id, book_id, app_id, app_address,
-                    json.dumps({"created_for": "conviction_orders", "created_at": time.time()})
+                    json.dumps({"created_for": "convictions", "created_at": time.time()})
                 )
                 
                 duration = time.time() - start_time

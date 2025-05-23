@@ -6,10 +6,10 @@ import time
 from typing import Dict, Any
 
 from source.utils.circuit_breaker import CircuitBreaker, CircuitOpenError
-from source.api.grpc.order_exchange_interface_pb2 import (
-    BatchOrderRequest, BatchCancelRequest, OrderRequest
+from source.api.grpc.conviction_exchange_interface_pb2 import (
+    BatchConvictionRequest, BatchCancelRequest, ConvictionRequest
 )
-from source.api.grpc.order_exchange_interface_pb2_grpc import OrderExchangeSimulatorStub
+from source.api.grpc.conviction_exchange_interface_pb2_grpc import ConvictionExchangeSimulatorStub
 from source.utils.metrics import track_exchange_request, set_circuit_state, track_circuit_failure
 
 logger = logging.getLogger('exchange_client')
@@ -50,7 +50,7 @@ class ExchangeClient:
             try:
                 # Create channel
                 channel = grpc.aio.insecure_channel(endpoint, options=options)
-                stub = OrderExchangeSimulatorStub(channel)
+                stub = ConvictionExchangeSimulatorStub(channel)
 
                 # Store for reuse
                 self.channels[endpoint] = channel
@@ -72,12 +72,12 @@ class ExchangeClient:
         self.channels.clear()
         self.stubs.clear()
 
-    async def submit_orders(self, batch_request: Dict[str, Any], endpoint: str) -> Dict[str, Any]:
+    async def submit_convictions(self, batch_request: Dict[str, Any], endpoint: str) -> Dict[str, Any]:
         """
-        Submit a batch of orders to the exchange simulator
+        Submit a batch of convictions to the exchange simulator
         
         Args:
-            batch_request: orders array
+            batch_request: convictions array
             endpoint: Exchange endpoint
             
         Returns:
@@ -90,7 +90,7 @@ class ExchangeClient:
             # Execute with circuit breaker
             start_time = time.time()
             result = await self.breaker.execute(
-                self._submit_orders_request,
+                self._submit_convictions_request,
                 batch_request,
                 endpoint
             )
@@ -98,7 +98,7 @@ class ExchangeClient:
 
             # Record metrics
             success = result.get('success', False)
-            track_exchange_request("submit_orders_batch", success, duration)
+            track_exchange_request("submit_convictions_batch", success, duration)
 
             return result
         except CircuitOpenError:
@@ -110,37 +110,37 @@ class ExchangeClient:
                 "results": []
             }
 
-    async def _submit_orders_request(self, batch_request: Dict[str, Any], endpoint: str) -> Dict[str, Any]:
-        """Make the actual batch order submission request to gRPC service"""
+    async def _submit_convictions_request(self, batch_request: Dict[str, Any], endpoint: str) -> Dict[str, Any]:
+        """Make the actual batch conviction submission request to gRPC service"""
         try:
             # Get gRPC connection
             _, stub = await self.get_channel(endpoint)
 
             # Prepare the gRPC request
-            order_requests = []
-            for order_data in batch_request["orders"]:
+            conviction_requests = []
+            for conviction_data in batch_request["convictions"]:
                 # Convert enum values
-                side_enum = 0 if order_data["side"] == "BUY" else 1
-                type_enum = 0 if order_data["type"] == "MARKET" else 1
+                side_enum = 0 if conviction_data["side"] == "BUY" else 1
+                type_enum = 0 if conviction_data["type"] == "MARKET" else 1
 
-                # Create OrderRequest for each order
-                order_request = OrderRequest(
-                    symbol=order_data["symbol"],
+                # Create ConvictionRequest for each conviction
+                conviction_request = ConvictionRequest(
+                    symbol=conviction_data["symbol"],
                     side=side_enum,
-                    quantity=float(order_data["quantity"]),
-                    price=float(order_data.get("price", 0)),
+                    quantity=float(conviction_data["quantity"]),
+                    price=float(conviction_data.get("price", 0)),
                     type=type_enum,
-                    request_id=order_data.get("request_id", "")
+                    request_id=conviction_data.get("request_id", "")
                 )
-                order_requests.append(order_request)
+                conviction_requests.append(conviction_request)
 
             # Create the batch request
-            grpc_request = BatchOrderRequest(
-                orders=order_requests
+            grpc_request = BatchConvictionRequest(
+                convictions=conviction_requests
             )
 
             # Call gRPC service with timeout
-            response = await stub.SubmitOrders(grpc_request, timeout=10)
+            response = await stub.SubmitConvictions(grpc_request, timeout=10)
 
             # Convert to dictionary format
             result = {
@@ -149,34 +149,34 @@ class ExchangeClient:
                 "results": []
             }
 
-            # Process individual order results
-            for order_result in response.results:
+            # Process individual conviction results
+            for conviction_result in response.results:
                 result["results"].append({
-                    "success": order_result.success,
-                    "orderId": order_result.order_id,
-                    "error": order_result.error_message
+                    "success": conviction_result.success,
+                    "convictionId": conviction_result.conviction_id,
+                    "error": conviction_result.error_message
                 })
 
             return result
 
         except grpc.aio.AioRpcError as e:
             # Handle gRPC errors
-            return self._handle_grpc_error(e, "submit_orders")
+            return self._handle_grpc_error(e, "submit_convictions")
 
         except Exception as e:
-            logger.error(f"Unexpected error in submit_orders: {e}")
+            logger.error(f"Unexpected error in submit_convictions: {e}")
             return {
                 "success": False,
                 "error": f"Exchange communication error: {str(e)}",
                 "results": []
             }
 
-    async def cancel_orders(self, batch_request: Dict[str, Any], endpoint: str) -> Dict[str, Any]:
+    async def cancel_convictions(self, batch_request: Dict[str, Any], endpoint: str) -> Dict[str, Any]:
         """
-        Cancel a batch of orders on the exchange simulator
+        Cancel a batch of convictions on the exchange simulator
         
         Args:
-            batch_request: order_ids array
+            batch_request: conviction_ids array
             endpoint: Exchange endpoint
             
         Returns:
@@ -189,7 +189,7 @@ class ExchangeClient:
             # Execute with circuit breaker
             start_time = time.time()
             result = await self.breaker.execute(
-                self._cancel_orders_request,
+                self._cancel_convictions_request,
                 batch_request,
                 endpoint
             )
@@ -197,7 +197,7 @@ class ExchangeClient:
 
             # Record metrics
             success = result.get('success', False)
-            track_exchange_request("cancel_orders_batch", success, duration)
+            track_exchange_request("cancel_convictions_batch", success, duration)
 
             return result
         except CircuitOpenError:
@@ -209,7 +209,7 @@ class ExchangeClient:
                 "results": []
             }
 
-    async def _cancel_orders_request(self, batch_request: Dict[str, Any], endpoint: str) -> Dict[str, Any]:
+    async def _cancel_convictions_request(self, batch_request: Dict[str, Any], endpoint: str) -> Dict[str, Any]:
         """Make the actual batch cancel request to gRPC service"""
         try:
             # Get gRPC connection
@@ -217,11 +217,11 @@ class ExchangeClient:
 
             # Create the batch request
             grpc_request = BatchCancelRequest(
-                order_ids=batch_request["order_ids"]
+                conviction_ids=batch_request["conviction_ids"]
             )
 
             # Call gRPC service with timeout
-            response = await stub.CancelOrders(grpc_request, timeout=10)
+            response = await stub.CancelConvictions(grpc_request, timeout=10)
 
             # Convert to dictionary format
             result = {
@@ -234,7 +234,7 @@ class ExchangeClient:
             for cancel_result in response.results:
                 result["results"].append({
                     "success": cancel_result.success,
-                    "orderId": cancel_result.order_id,
+                    "convictionId": cancel_result.conviction_id,
                     "error": cancel_result.error_message if hasattr(cancel_result, "error_message") else None
                 })
 
@@ -242,10 +242,10 @@ class ExchangeClient:
 
         except grpc.aio.AioRpcError as e:
             # Handle gRPC errors
-            return self._handle_grpc_error(e, "cancel_orders")
+            return self._handle_grpc_error(e, "cancel_convictions")
 
         except Exception as e:
-            logger.error(f"Unexpected error in cancel_orders: {e}")
+            logger.error(f"Unexpected error in cancel_convictions: {e}")
             return {
                 "success": False,
                 "error": f"Exchange communication error: {str(e)}",

@@ -6,7 +6,7 @@ import { useConnection } from '../hooks/useConnection';
 import { useToast } from '../hooks/useToast';
 import { useBookManager } from '../hooks/useBookManager';
 import { Book } from '../types';
-import OrderSubmissionContainer from '../components/Simulator/OrderSubmissionContainer';
+import ConvictionSubmissionContainer from '../components/Simulator/ConvictionSubmissionContainer';
 
 import { Tabs, Tab } from '@mui/material';
 
@@ -357,7 +357,7 @@ const BookDetailsPage: React.FC = () => {
       </Card>
       
 
-      {/* Order Management Section - Always accessible */}
+      {/* Conviction Management Section - Always accessible */}
       <Card variant="outlined" sx={{ mb: 4 }}>
         <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
           <Tabs 
@@ -421,7 +421,7 @@ const BookDetailsPage: React.FC = () => {
           )}
           
           {activeTab === 1 && (
-            <OrderSubmissionContainer />
+            <ConvictionSubmissionContainer />
           )}
         </CardContent>
       </Card>

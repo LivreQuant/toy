@@ -1,6 +1,6 @@
 import { HttpClient } from './http-client';
 import { AuthApi } from './auth';
-import { OrdersApi } from './order';
+import { ConvictionsApi } from './conviction';
 import { BookApi } from './book'; // Add this
 import { TokenManager } from '../services/auth/token-manager';
 import { DeviceIdManager } from '../services/auth/device-id-manager';
@@ -23,9 +23,9 @@ export const httpClient = new HttpClient(tokenManager);
 
 // Create API clients
 export const authApi = new AuthApi(httpClient);
-export const ordersApi = new OrdersApi(httpClient);
 export const bookApi = new BookApi(httpClient);
 export const fundApi = new FundApi(httpClient);
+export const convictionsApi = new ConvictionsApi(httpClient);
 
 // Set the auth API on the token manager to handle token refreshes
 tokenManager.setAuthApi(authApi);

@@ -11,7 +11,7 @@ logger = logging.getLogger('validation_manager')
 
 
 class SessionManager:
-    """Manager for validating authentication, sessions, and orders"""
+    """Manager for validating authentication, sessions, and convictions"""
 
     def __init__(
             self,

@@ -209,7 +209,7 @@ const ConvictionModelForm: React.FC<ConvictionModelFormProps> = ({ value, onChan
         // Always include these required fields
         columns.push('participationRate');
         columns.push('tag');
-        columns.push('orderId');
+        columns.push('convictionId');
         
         return columns;
     };
@@ -245,14 +245,14 @@ const ConvictionModelForm: React.FC<ConvictionModelFormProps> = ({ value, onChan
         // Always include these required fields
         values.push('MEDIUM');
         values.push('value');
-        values.push('order-001');
+        values.push('conviction-001');
         
         return values;
     };
 
   return (
     <Box>
-      {/* Order Format Preview */}
+      {/* Conviction Format Preview */}
       <Box sx={{ mb: 2 }}>
         <Typography variant="h6" gutterBottom>
             Conviction Schema Configuration
@@ -308,7 +308,7 @@ const ConvictionModelForm: React.FC<ConvictionModelFormProps> = ({ value, onChan
                 </Typography>
                 
                 <Typography component="li" variant="body2">
-                    <strong>orderId:</strong> A self defined unique identifier (e.g., ord_YYYYMMDDHHMM_AAPL.US_BUY) to help you identify an order in the event you want to cancel it.
+                    <strong>convictionId:</strong> A self defined unique identifier (e.g., ord_YYYYMMDDHHMM_AAPL.US_BUY) to help you identify an conviction in the event you want to cancel it.
                 </Typography>
             </Box>
         </Alert>
@@ -420,7 +420,7 @@ const ConvictionModelForm: React.FC<ConvictionModelFormProps> = ({ value, onChan
             Conviction Expression Method
           </Typography>
           <Typography variant="body2" color="text.secondary" paragraph>
-            How will traders express their conviction in orders?
+            How will traders express their conviction in convictions?
           </Typography>
           
           <ToggleButtonGroup
@@ -519,7 +519,7 @@ const ConvictionModelForm: React.FC<ConvictionModelFormProps> = ({ value, onChan
             {localConfig.incrementalConvictionMethod === 'side_qty' && (
               <Box>
                 <Typography variant="body2" paragraph>
-                  Specify orders using BUY/SELL directions with explicit quantities.
+                  Specify convictions using BUY/SELL directions with explicit quantities.
                   This approach is well-suited for discretionary traders who think in terms of
                   specific position sizes.
                 </Typography>

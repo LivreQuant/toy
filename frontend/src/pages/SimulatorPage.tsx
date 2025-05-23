@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useConnection } from '../hooks/useConnection';
 import { useRequireAuth } from '../hooks/useRequireAuth';
 import { useToast } from '../hooks/useToast';
-import CsvOrderUpload from '../components/Simulator/CsvOrderUpload';
+import CsvConvictionUpload from '../components/Simulator/CsvConvictionUpload';
 import './SimulatorPage.css';
 
 const SimulatorPage: React.FC = () => {
@@ -113,14 +113,14 @@ const SimulatorPage: React.FC = () => {
         </header>
 
         <div className="simulator-content">
-            <div className="order-entry-container">
-                <h2 className="order-entry-title">Order Management</h2>
+            <div className="conviction-entry-container">
+                <h2 className="conviction-entry-title">Conviction Management</h2>
                 {isConnected && isSimulatorRunning ? (
-                    <CsvOrderUpload />
+                    <CsvConvictionUpload />
                 ) : (
-                    <div className="order-form-placeholder">
+                    <div className="conviction-form-placeholder">
                         <p>
-                        {!isConnected ? "Waiting for connection..." : "Simulator not running. Start the simulator to manage orders."}
+                        {!isConnected ? "Waiting for connection..." : "Simulator not running. Start the simulator to manage convictions."}
                         </p>
                     </div>
                 )}

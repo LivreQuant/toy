@@ -1,12 +1,12 @@
-// src/components/Simulator/OrderSubmissionContainer.tsx
+// src/components/Simulator/ConvictionSubmissionContainer.tsx
 import React, { useState, useCallback } from 'react';
-import CsvOrderUpload from './CsvOrderUpload';
+import CsvConvictionUpload from './CsvConvictionUpload';
 import FingerprintUpload from './FingerprintUpload';
-import './OrderSubmissionContainer.css';
+import './ConvictionSubmissionContainer.css';
 
 type SubmissionMode = 'FILES' | 'FINGERPRINTS';
 
-const OrderSubmissionContainer: React.FC = () => {
+const ConvictionSubmissionContainer: React.FC = () => {
   const [submissionMode, setSubmissionMode] = useState<SubmissionMode>('FILES');
 
   const handleModeChange = useCallback((newMode: SubmissionMode) => {
@@ -14,7 +14,7 @@ const OrderSubmissionContainer: React.FC = () => {
   }, []);
 
   return (
-    <div className="order-submission-container">
+    <div className="conviction-submission-container">
       <div className="submission-mode-selector">
         <div className="mode-selector-header">
           <h3>Submission Method</h3>
@@ -48,7 +48,7 @@ const OrderSubmissionContainer: React.FC = () => {
 
       <div className="submission-content">
         {submissionMode === 'FILES' ? (
-          <CsvOrderUpload />
+          <CsvConvictionUpload />
         ) : (
           <FingerprintUpload />
         )}
@@ -57,4 +57,4 @@ const OrderSubmissionContainer: React.FC = () => {
   );
 };
 
-export default OrderSubmissionContainer;
+export default ConvictionSubmissionContainer;

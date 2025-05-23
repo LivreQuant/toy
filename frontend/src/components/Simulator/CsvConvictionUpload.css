@@ -1,5 +1,5 @@
-/* src/components/Simulator/CsvOrderUpload.css */
-.csv-order-upload {
+/* src/components/Simulator/CsvConvictionUpload.css */
+.csv-conviction-upload {
     background-color: white;
     border-radius: 8px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
@@ -111,7 +111,7 @@
     font-weight: 500;
   }
   
-  .order-stats {
+  .conviction-stats {
     color: #586069;
     font-size: 0.9rem;
   }
@@ -181,7 +181,7 @@
     overflow-x: auto;
   }
 
-  .csv-order-upload {
+  .csv-conviction-upload {
     background-color: white;
     border-radius: 8px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
@@ -237,7 +237,7 @@
     font-weight: 500;
 }
 
-.order-stats {
+.conviction-stats {
     color: #586069;
     font-size: 0.9rem;
 }

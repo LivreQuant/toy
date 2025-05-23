@@ -1,8 +1,8 @@
-// src/components/Simulator/OrderFileProcessor.ts
-import { ConvictionModelConfig, OrderData } from '../../types';
+// src/components/Simulator/ConvictionFileProcessor.ts
+import { ConvictionModelConfig, ConvictionData } from '../../types';
 
 
-export class OrderFileProcessor {
+export class ConvictionFileProcessor {
   constructor(
     private convictionSchema: ConvictionModelConfig | null,
     private addToast: (type: 'success' | 'error' | 'warning' | 'info', message: string, duration?: number, id?: string) => void
@@ -12,7 +12,7 @@ export class OrderFileProcessor {
   getExpectedColumns(): { required: string[], optional: string[] } {
     if (!this.convictionSchema) {
       return {
-        required: ['instrumentId', 'orderId'],
+        required: ['instrumentId', 'convictionId'],
         optional: ['participationRate', 'tag']
       };
     }
@@ -54,7 +54,7 @@ export class OrderFileProcessor {
       }
     }
 
-    required.push('participationRate', 'tag', 'orderId');
+    required.push('participationRate', 'tag', 'convictionId');
     return { required, optional };
   }
 
@@ -72,7 +72,7 @@ export class OrderFileProcessor {
         case 'targetNotional': return '250000';
         case 'participationRate': return 'MEDIUM';
         case 'tag': return 'value';
-        case 'orderId': return 'order-001';
+        case 'convictionId': return 'conviction-001';
         default:
           // Handle multi-horizon zscore columns
           if (col.startsWith('z') && (col.includes('min') || col.includes('hour') || col.includes('day') || col.includes('week'))) {
@@ -117,8 +117,8 @@ export class OrderFileProcessor {
     };
   }
 
-  // Validate individual order data
-  validateOrderData(order: OrderData, rowIndex: number): string[] {
+  // Validate individual conviction data
+  validateConvictionData(conviction: ConvictionData, rowIndex: number): string[] {
     const errors: string[] = [];
     
     if (!this.convictionSchema) return errors;
@@ -126,42 +126,42 @@ export class OrderFileProcessor {
     // Validate based on conviction schema
     if (this.convictionSchema.portfolioApproach === 'target') {
       if (this.convictionSchema.targetConvictionMethod === 'percent') {
-        if (order.targetPercent === undefined) {
+        if (conviction.targetPercent === undefined) {
           errors.push(`Row ${rowIndex}: targetPercent is required`);
-        } else if (Math.abs(order.targetPercent) > 100) {
+        } else if (Math.abs(conviction.targetPercent) > 100) {
           errors.push(`Row ${rowIndex}: targetPercent should be between -100 and 100`);
         }
       } else {
-        if (order.targetNotional === undefined) {
+        if (conviction.targetNotional === undefined) {
           errors.push(`Row ${rowIndex}: targetNotional is required`);
         }
       }
     } else {
       // Incremental approach validation
       if (this.convictionSchema.incrementalConvictionMethod === 'side_score') {
-        if (!order.side) {
+        if (!conviction.side) {
           errors.push(`Row ${rowIndex}: side is required (BUY, SELL, or CLOSE)`);
-        } else if (!['BUY', 'SELL', 'CLOSE'].includes(order.side)) {
+        } else if (!['BUY', 'SELL', 'CLOSE'].includes(conviction.side)) {
           errors.push(`Row ${rowIndex}: side must be BUY, SELL, or CLOSE`);
         }
         
-        if (order.score === undefined) {
+        if (conviction.score === undefined) {
           errors.push(`Row ${rowIndex}: score is required`);
         } else {
           const maxScore = this.convictionSchema.maxScore || 5;
-          if (order.score < 1 || order.score > maxScore) {
+          if (conviction.score < 1 || conviction.score > maxScore) {
             errors.push(`Row ${rowIndex}: score must be between 1 and ${maxScore}`);
           }
         }
       } else if (this.convictionSchema.incrementalConvictionMethod === 'side_qty') {
-        if (!order.side || !['BUY', 'SELL', 'CLOSE'].includes(order.side)) {
+        if (!conviction.side || !['BUY', 'SELL', 'CLOSE'].includes(conviction.side)) {
           errors.push(`Row ${rowIndex}: side must be BUY, SELL, or CLOSE`);
         }
-        if (!order.quantity || order.quantity <= 0) {
+        if (!conviction.quantity || conviction.quantity <= 0) {
           errors.push(`Row ${rowIndex}: quantity must be a positive number`);
         }
       } else if (this.convictionSchema.incrementalConvictionMethod === 'zscore') {
-        if (order.zscore === undefined) {
+        if (conviction.zscore === undefined) {
           errors.push(`Row ${rowIndex}: zscore is required`);
         }
       } else if (this.convictionSchema.incrementalConvictionMethod === 'multi-horizon') {
@@ -182,7 +182,7 @@ export class OrderFileProcessor {
             }
             
             const colName = `z${value}${unitText}`;
-            if (order[colName] !== undefined) {
+            if (conviction[colName] !== undefined) {
               hasAnyZScore = true;
             }
           }
@@ -195,9 +195,9 @@ export class OrderFileProcessor {
     }
 
     // Validate common fields
-    if (order.participationRate && 
-        !(['LOW', 'MEDIUM', 'HIGH'].includes(order.participationRate as string)) && 
-        (typeof order.participationRate !== 'number' || order.participationRate < 0 || order.participationRate > 1)) {
+    if (conviction.participationRate && 
+        !(['LOW', 'MEDIUM', 'HIGH'].includes(conviction.participationRate as string)) && 
+        (typeof conviction.participationRate !== 'number' || conviction.participationRate < 0 || conviction.participationRate > 1)) {
       errors.push(`Row ${rowIndex}: participationRate must be LOW, MEDIUM, HIGH, or a decimal between 0 and 1`);
     }
 
@@ -205,7 +205,7 @@ export class OrderFileProcessor {
   }
 
   // Process submit CSV
-  processSubmitCsv(content: string): OrderData[] {
+  processSubmitCsv(content: string): ConvictionData[] {
     // First validate structure
     const structureValidation = this.validateCSVStructure(content);
     
@@ -231,7 +231,7 @@ export class OrderFileProcessor {
       columnMap[colName] = index;
     });
 
-    const parsedOrders: OrderData[] = [];
+    const parsedConvictions: ConvictionData[] = [];
     const allValidationErrors: string[] = [];
 
     // Process data rows
@@ -245,8 +245,8 @@ export class OrderFileProcessor {
         continue;
       }
 
-      // Build order object based on available columns
-      const order: Partial<OrderData> = {}; // Use Partial<OrderData> to allow empty initialization
+      // Build conviction object based on available columns
+      const conviction: Partial<ConvictionData> = {}; // Use Partial<ConvictionData> to allow empty initialization
       
       // Map all available columns
       header.forEach((colName, colIndex) => {
@@ -255,68 +255,65 @@ export class OrderFileProcessor {
 
         switch (colName) {
           case 'instrumentid':
-            order.instrumentId = value;
+            conviction.instrumentId = value;
             break;
-          case 'orderid':
-            order.orderId = value;
+          case 'convictionid':
+            conviction.convictionId = value;
             break;
           case 'side':
             const side = value.toUpperCase();
             if (['BUY', 'SELL', 'CLOSE'].includes(side)) {
-              order.side = side as 'BUY' | 'SELL' | 'CLOSE';
+              conviction.side = side as 'BUY' | 'SELL' | 'CLOSE';
             }
             break;
           case 'quantity':
             const qty = parseFloat(value);
-            if (!isNaN(qty)) order.quantity = qty;
+            if (!isNaN(qty)) conviction.quantity = qty;
             break;
           case 'score':
             const score = parseInt(value);
-            if (!isNaN(score)) order.score = score;
+            if (!isNaN(score)) conviction.score = score;
             break;
           case 'zscore':
             const zscore = parseFloat(value);
-            if (!isNaN(zscore)) order.zscore = zscore;
+            if (!isNaN(zscore)) conviction.zscore = zscore;
             break;
           case 'targetpercent':
             const targetPct = parseFloat(value);
-            if (!isNaN(targetPct)) order.targetPercent = targetPct;
+            if (!isNaN(targetPct)) conviction.targetPercent = targetPct;
             break;
           case 'targetnotional':
             const targetNot = parseFloat(value);
-            if (!isNaN(targetNot)) order.targetNotional = targetNot;
+            if (!isNaN(targetNot)) conviction.targetNotional = targetNot;
             break;
           case 'participationrate':
             if (['LOW', 'MEDIUM', 'HIGH'].includes(value.toUpperCase())) {
-              order.participationRate = value.toUpperCase() as 'LOW' | 'MEDIUM' | 'HIGH';
-            } else {
-              const rate = parseFloat(value);
-              if (!isNaN(rate)) order.participationRate = rate;
+              conviction.participationRate = value.toUpperCase() as 'LOW' | 'MEDIUM' | 'HIGH';
             }
             break;
           case 'tag':
-            order.tag = value;
+            conviction.tag = value;
             break;
           default:
             // Handle multi-horizon columns
             if (colName.startsWith('z') && (colName.includes('min') || colName.includes('hour') || colName.includes('day') || colName.includes('week'))) {
               const zValue = parseFloat(value);
               if (!isNaN(zValue)) {
-                order[colName] = zValue;
+                conviction[colName] = zValue;
               }
             }
             break;
         }
       });
 
-      // Validate the order data
-      const orderErrors = this.validateOrderData(order as OrderData, i + 1);
-      if (orderErrors.length > 0) {
-        allValidationErrors.push(...orderErrors);
-        continue; // Skip invalid orders
+      // Validate the conviction data
+      const convictionErrors = this.validateConvictionData(conviction as ConvictionData, i + 1);
+      if (convictionErrors.length > 0) {
+        allValidationErrors.push(...convictionErrors);
+        continue; // Skip invalid convictions
       }
 
-      parsedOrders.push(order as OrderData);
+      parsedConvictions.push(conviction as ConvictionData);
     }
 
     // Show validation errors
@@ -331,45 +328,45 @@ export class OrderFileProcessor {
       }
     }
 
-    return parsedOrders;
+    return parsedConvictions;
   }
 
   // Process cancel CSV
-  processCancelCsv(content: string): OrderData[] {
+  processCancelCsv(content: string): ConvictionData[] {
     const lines = content.trim().split('\n');
     if (lines.length === 0) return [];
 
     const header = lines[0].split(',').map(col => col.trim().toLowerCase());
     
-    if (!header.includes('orderid')) {
-      this.addToast('error', 'CSV is missing required column: orderId');
+    if (!header.includes('convictionid')) {
+      this.addToast('error', 'CSV is missing required column: convictionId');
       return [];
     }
 
-    const orderIdIndex = header.indexOf('orderid');
-    const parsedOrders: OrderData[] = [];
+    const convictionIdIndex = header.indexOf('convictionid');
+    const parsedConvictions: ConvictionData[] = [];
     
     for (let i = 1; i < lines.length; i++) {
       if (!lines[i].trim()) continue;
       
       const values = lines[i].split(',').map(val => val.trim());
       
-      if (values.length <= orderIdIndex) {
-        this.addToast('warning', `Row ${i+1}: missing orderId, skipping`);
+      if (values.length <= convictionIdIndex) {
+        this.addToast('warning', `Row ${i+1}: missing convictionId, skipping`);
         continue;
       }
 
-      const orderId = values[orderIdIndex];
-      if (!orderId) {
-        this.addToast('warning', `Row ${i+1}: empty orderId, skipping`);
+      const convictionId = values[convictionIdIndex];
+      if (!convictionId) {
+        this.addToast('warning', `Row ${i+1}: empty convictionId, skipping`);
         continue;
       }
 
-      parsedOrders.push({ orderId } as OrderData);
+      parsedConvictions.push({ convictionId } as ConvictionData);
     }
 
-    return parsedOrders;
+    return parsedConvictions;
   }
 }
 
-export default OrderFileProcessor;
+export default ConvictionFileProcessor;
