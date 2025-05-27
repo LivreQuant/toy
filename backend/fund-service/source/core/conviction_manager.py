@@ -1,5 +1,6 @@
 # source/core/conviction_manager.py
 import logging
+import json 
 
 from typing import Dict, Any
 
@@ -8,6 +9,7 @@ from source.clients.exchange_client import ExchangeClient
 from source.db.conviction_repository import ConvictionRepository
 from source.db.crypto_repository import CryptoRepository
 
+from source.core.book_manager import BookManager
 from source.core.session_manager import SessionManager
 
 from source.core.conviction_manager_exchange import ExchangeManager
@@ -25,12 +27,14 @@ class ConvictionManager:
             self,
             conviction_repository: ConvictionRepository,
             crypto_repository: CryptoRepository,
+            book_manager: BookManager,
             session_manager: SessionManager,
             exchange_client: ExchangeClient,
     ):
         """Initialize the conviction manager with dependencies"""
         # Create specialized managers
         self.conviction_repository = conviction_repository
+        self.book_manager = book_manager
         self.session_manager = session_manager
         self.crypto_repository = crypto_repository 
 
@@ -68,7 +72,7 @@ class ConvictionManager:
         """Submit conviction with complete database and file storage"""
         # Extract all data
         book_id = submission_data.get('book_id')
-        convictions_data = submission_data.get('conviction', [])
+        convictions_data = submission_data.get('convictions', [])
         notes = submission_data.get('notes', '')
         research_file_path = submission_data.get('research_file_path')
         csv_path = submission_data.get('csv_path')
@@ -132,12 +136,6 @@ class ConvictionManager:
             
             # Process convictions through existing exchange pipeline
             exchange_result = await self.operation_manager.submit_convictions(enriched_convictions, user_id)
-            
-            # Update transaction status based on exchange result
-            if exchange_result.get('success'):
-                await self.crypto_repository.update_transaction_status(tx_id, 'COMPLETED')
-            else:
-                await self.crypto_repository.update_transaction_status(tx_id, 'FAILED')
             
             # Add transaction metadata to result
             exchange_result.update({

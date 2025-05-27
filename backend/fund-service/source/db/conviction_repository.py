@@ -32,12 +32,13 @@ class ConvictionRepository:
         # Query exactly matching the schema
         query = """
         INSERT INTO trading.convictions (
-            conviction_id, user_id, symbol, side, quantity, price, 
-            conviction_type, status, filled_quantity, avg_price,
-            created_at, updated_at, request_id, error_message
+            instrument_id, conviction_id, participation_rate, tag,
+            side, score, quantity, zscore, 
+            target_percentage, target_notional, horizon_zscore
         ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-            to_timestamp($11), to_timestamp($12), $13, $14
+            $1, $2, $3, $4, 
+            $5, $6, $7, $8, 
+            $9, $10, $11
         )
         """
         
@@ -53,20 +54,17 @@ class ConvictionRepository:
                         try:
                             await conn.execute(
                                 query,
+                                conviction.instrument_id,
                                 conviction.conviction_id,
-                                conviction.user_id,
-                                conviction.symbol,
-                                conviction.side.value,
+                                conviction.participation_rate,
+                                conviction.tag,
+                                conviction.side,
+                                conviction.score,
                                 conviction.quantity,
-                                conviction.price,
-                                conviction.conviction_type.value,
-                                conviction.status.value,
-                                conviction.filled_quantity,
-                                conviction.avg_price,
-                                conviction.created_at,
-                                conviction.updated_at,
-                                conviction.request_id,
-                                conviction.error_message
+                                conviction.zscore,
+                                conviction.target_percentage,
+                                conviction.target_notional,
+                                conviction.horizon_zscore
                             )
                             successful_conviction_ids.append(conviction.conviction_id)
                         except Exception as conviction_error:
@@ -174,12 +172,13 @@ class ConvictionRepository:
         
         query = """
         INSERT INTO trading.convictions (
-            conviction_id, user_id, symbol, side, quantity, price, 
-            conviction_type, status, filled_quantity, avg_price,
-            created_at, updated_at, request_id, error_message
+            instrument_id, conviction_id, participation_rate, tag,
+            side, score, quantity, zscore,
+            target_percentage, target_notional, horizon_score
         ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-            to_timestamp($11), to_timestamp($12), $13, $14
+            $1, $2, $3, $4, 
+            $5, $6, $7, $8, 
+            $9, $10, $11
         )
         """
         
@@ -188,20 +187,17 @@ class ConvictionRepository:
             async with pool.acquire() as conn:
                 await conn.execute(
                     query,
+                    conviction.instrument_id,
                     conviction.conviction_id,
-                    conviction.user_id,
-                    conviction.symbol,
-                    conviction.side.value,
+                    conviction.participation_rate,
+                    conviction.tag,
+                    conviction.side,
+                    conviction.score, 
                     conviction.quantity,
-                    conviction.price,
-                    conviction.conviction_type.value,
-                    conviction.status.value,
-                    conviction.filled_quantity,
-                    conviction.avg_price,
-                    conviction.created_at,
-                    conviction.updated_at,
-                    conviction.request_id,
-                    conviction.error_message
+                    conviction.zscore,
+                    conviction.target_percentage,
+                    conviction.target_notional,
+                    conviction.horizon_zscore,
                 )
                 
                 duration = time.time() - start_time
@@ -254,12 +250,13 @@ class ConvictionRepository:
                 # Insert new row with updated status
                 query_insert = """
                 INSERT INTO trading.convictions (
-                    conviction_id, status, user_id, symbol, side, quantity, price, 
-                    oconviction_type, filled_quantity, avg_price, created_at, updated_at, 
-                    request_id, error_message
+                    instrument_id, conviction_id, participation_rate, tag,
+                    side, score, quantity, zscore,
+                    target_percentage, target_notional, horizon_score
                 ) VALUES (
-                    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 
-                    to_timestamp($11), to_timestamp($12), $13, $14
+                    $1, $2, $3, $4, 
+                    $5, $6, $7, $8, 
+                    $9, $10, $11
                 )
                 """
                 
@@ -267,20 +264,17 @@ class ConvictionRepository:
                 
                 await conn.execute(
                     query_insert,
+                    instrument_id,
                     conviction_id,
-                    status,
-                    conviction_data['user_id'],
-                    conviction_data['symbol'],
+                    perticipation_rate,
+                    tag,
                     conviction_data['side'],
+                    conviction_data['score'],
                     conviction_data['quantity'],
-                    conviction_data['price'],
-                    conviction_data['conviction_type'],
-                    conviction_data['filled_quantity'],
-                    conviction_data['avg_price'],
-                    now,
-                    now,
-                    conviction_data['request_id'],
-                    error_message or conviction_data['error_message']
+                    conviction_data['zscore'],
+                    conviction_data['target_percentage'],
+                    conviction_data['target_notional'],
+                    conviction_data['horizon_score'],
                 )
                 
                 return True
@@ -335,12 +329,13 @@ class ConvictionRepository:
                             # Insert new row with updated status
                             query_insert = """
                             INSERT INTO trading.convictions (
-                                conviction_id, status, user_id, symbol, side, quantity, price, 
-                                conviction_type, filled_quantity, avg_price, created_at, updated_at, 
-                                request_id, error_message
+                                instrument_id, conviction_id, participation_rate, tag,
+                                side, score, quantity, zscore,
+                                target_percentage, target_notional, horizon_score
                             ) VALUES (
-                                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 
-                                to_timestamp($11), to_timestamp($12), $13, $14
+                                $1, $2, $3, $4, 
+                                $5, $6, $7, $8, 
+                                $9, $10, $11
                             )
                             """
                             
@@ -348,20 +343,17 @@ class ConvictionRepository:
                             
                             await conn.execute(
                                 query_insert,
+                                instrument_id,
                                 conviction_id,
-                                status,
-                                conviction_data['user_id'],
-                                conviction_data['symbol'],
+                                perticipation_rate,
+                                tag,
                                 conviction_data['side'],
+                                conviction_data['score'],
                                 conviction_data['quantity'],
-                                conviction_data['price'],
-                                conviction_data['conviction_type'],
-                                conviction_data['filled_quantity'],
-                                conviction_data['avg_price'],
-                                now,
-                                now,
-                                conviction_data['request_id'],
-                                error_message or conviction_data['error_message']
+                                conviction_data['zscore'],
+                                conviction_data['target_percentage'],
+                                conviction_data['target_notional'],
+                                conviction_data['horizon_score'],
                             )
                             
                             successful.append(conviction_id)
@@ -472,7 +464,7 @@ class ConvictionRepository:
                 if 'updated_at' in conviction_data:
                     conviction_data['updated_at'] = conviction_data['updated_at'].timestamp()
                 
-                return Conviction.from_dict(conviction_data)
+                return ConvictionData.from_dict(conviction_data)
         except Exception as e:
             logger.error(f"Error getting conviction {conviction_id}: {e}")
             return None

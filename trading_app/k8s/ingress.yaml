@@ -88,6 +88,13 @@ spec:
             name: session-service
             port:
               number: 8080
+      - path: /storage/?(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: storage-service
+            port:
+              number: 9001
       # Admin dashboard and monitoring paths
       - path: /admin/?(.*)
         pathType: ImplementationSpecific

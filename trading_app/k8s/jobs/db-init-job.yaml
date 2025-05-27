@@ -22,6 +22,7 @@ spec:
             ls -la /schemas-session/ || echo "No schemas-session directory"
             ls -la /schemas-fund/ || echo "No schemas-fund directory" 
             ls -la /schemas-crypto/ || echo "No schemas-crypto directory"
+            ls -la /schemas-conv/ || echo "No schemas-conv directory"
             ls -la /schemas/ || echo "No schemas directory"
             
             # Wait for database to be fully ready
@@ -59,20 +60,6 @@ spec:
               fi
             done
             
-            echo "Applying auth schema files..."
-            for schema in users.sql auth_tokens.sql password_reset.sql user_feedback.sql; do
-              echo "Applying $schema..."
-              if [ -f "/schemas-auth/$schema" ]; then
-                PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -f /schemas-auth/$schema
-                if [ $? -ne 0 ]; then
-                  echo "Error applying $schema"
-                  exit 1
-                fi
-              else
-                echo "WARNING: File /schemas-auth/$schema not found"
-              fi
-            done
-
             echo "Applying fund schema files..."
             for schema in funds.sql; do
               echo "Applying $schema..."
@@ -114,6 +101,20 @@ spec:
                 echo "WARNING: File /schemas-crypto/$schema not found"
               fi
             done
+
+            echo "Applying conv schema files..."
+            for schema in conv.sql; do
+              echo "Applying $schema..."
+              if [ -f "/schemas-conv/$schema" ]; then
+                PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -f /schemas-conv/$schema
+                if [ $? -ne 0 ]; then
+                  echo "Error applying $schema"
+                  exit 1
+                fi
+              else
+                echo "WARNING: File /schemas-conv/$schema not found"
+              fi
+            done
             
             # Verify the function exists
             echo "Verifying session.cleanup_expired_sessions exists..."
@@ -146,6 +147,8 @@ spec:
           mountPath: /schemas-session
         - name: db-schemas-crypto
           mountPath: /schemas-crypto
+        - name: db-schemas-conv
+          mountPath: /schemas-conv
         - name: db-credentials
           mountPath: /db-credentials
           readOnly: true
@@ -162,6 +165,9 @@ spec:
       - name: db-schemas-crypto
         configMap:
           name: db-schemas-crypto
+      - name: db-schemas-conv
+        configMap:
+          name: db-schemas-conv
       - name: db-credentials
         secret:
           secretName: db-credentials

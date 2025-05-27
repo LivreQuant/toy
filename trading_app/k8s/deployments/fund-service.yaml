@@ -41,6 +41,23 @@ spec:
             secretKeyRef:
               name: db-credentials
               key: password
+        - name: MINIO_ENDPOINT
+          value: "storage-service:9000"
+        - name: MINIO_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: storage-credentials
+              key: access-key
+        - name: MINIO_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: storage-credentials
+              key: secret-key
+        - name: MINIO_BUCKET_NAME
+          valueFrom:
+            secretKeyRef:
+              name: storage-credentials
+              key: bucket-name
         - name: SESSION_SERVICE_URL
           value: "http://session-service:8080"
         - name: AUTH_SERVICE_URL

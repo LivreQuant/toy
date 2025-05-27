@@ -10,3 +10,4 @@ psql -h $PGHOST -p $PGPORT -U $PGUSER -d $PGDATABASE -f db-schemas-auth.sql
 psql -h $PGHOST -p $PGPORT -U $PGUSER -d $PGDATABASE -f db-schemas-session.sql
 psql -h $PGHOST -p $PGPORT -U $PGUSER -d $PGDATABASE -f db-schemas-fund.sql
 psql -h $PGHOST -p $PGPORT -U $PGUSER -d $PGDATABASE -f db-schemas-crypto.sql
+psql -h $PGHOST -p $PGPORT -U $PGUSER -d $PGDATABASE -f db-schemas-conv.sql

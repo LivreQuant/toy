@@ -11,6 +11,7 @@ kubectl apply -f "$K8S_DIR/config/db-schemas-auth.yaml"
 kubectl apply -f "$K8S_DIR/config/db-schemas-session.yaml"
 kubectl apply -f "$K8S_DIR/config/db-schemas-fund.yaml"
 kubectl apply -f "$K8S_DIR/config/db-schemas-crypto.yaml"
+kubectl apply -f "$K8S_DIR/config/db-schemas-conv.yaml"
 
 # Initialize database with the job
 kubectl apply -f "$K8S_DIR/jobs/db-init-job.yaml"

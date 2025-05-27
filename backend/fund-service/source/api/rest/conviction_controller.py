@@ -5,8 +5,12 @@ import os
 import csv
 import time
 import uuid
+import asyncio
 from aiohttp import web
 from aiohttp.web import FileField
+from minio import Minio
+from minio.error import S3Error
+import io
 
 from source.api.rest.base_controller import BaseController
 from source.core.state_manager import StateManager
@@ -27,12 +31,46 @@ class ConvictionController(BaseController):
         self.state_manager = state_manager
         self.conviction_manager = conviction_manager
         
-        # Create uploads directory if it doesn't exist
-        self.uploads_dir = os.path.join(os.getcwd(), 'uploads')
-        os.makedirs(self.uploads_dir, exist_ok=True)
+        # Initialize MinIO client
+        self._init_minio_client()
+
+    def _init_minio_client(self):
+        """Initialize MinIO client for file storage"""
+        try:
+            # Get MinIO configuration from environment or use defaults
+            minio_endpoint = os.getenv('MINIO_ENDPOINT', 'storage-service:9000')
+            minio_access_key = os.getenv('MINIO_ACCESS_KEY', 'convictions-storage')
+            minio_secret_key = os.getenv('MINIO_SECRET_KEY', 'conviction-storage-secret-2024')
+            
+            self.minio_client = Minio(
+                minio_endpoint,
+                access_key=minio_access_key,
+                secret_key=minio_secret_key,
+                secure=False  # Set to True if using HTTPS
+            )
+            
+            self.bucket_name = os.getenv('MINIO_BUCKET_NAME', 'conviction-files')
+            
+            # Ensure bucket exists
+            self._ensure_bucket_exists()
+            
+            logger.info(f"MinIO client initialized successfully with endpoint: {minio_endpoint}")
+            
+        except Exception as e:
+            logger.error(f"Failed to initialize MinIO client: {e}")
+            self.minio_client = None
+
+    def _ensure_bucket_exists(self):
+        """Ensure the bucket exists"""
+        try:
+            if not self.minio_client.bucket_exists(self.bucket_name):
+                self.minio_client.make_bucket(self.bucket_name)
+                logger.info(f"Created bucket: {self.bucket_name}")
+        except Exception as e:
+            logger.error(f"Error ensuring bucket exists: {e}")
 
     async def submit_convictions(self, request: web.Request) -> web.Response:
-        """Handle conviction submission endpoint with multipart support"""
+        """Handle conviction submission endpoint with file storage"""
         acquired = await self.state_manager.acquire()
         if not acquired:
             return self.create_error_response("Service is currently busy. Please try again later.", 503)
@@ -60,7 +98,7 @@ class ConvictionController(BaseController):
             await self.state_manager.release()
 
     async def cancel_convictions(self, request: web.Request) -> web.Response:
-        """Handle conviction cancellation endpoint with multipart support"""
+        """Handle conviction cancellation endpoint with file storage"""
         acquired = await self.state_manager.acquire()
         if not acquired:
             return self.create_error_response("Service is currently busy. Please try again later.", 503)
@@ -88,7 +126,7 @@ class ConvictionController(BaseController):
             await self.state_manager.release()
 
     async def _submit_convictions(self, request: web.Request) -> web.Response:
-        """Handle multipart conviction submission with file upload"""
+        """Handle multipart conviction submission with MinIO storage"""
         # Authenticate request
         auth_success, auth_result = await self.authenticate(request)
         if not auth_success:
@@ -103,7 +141,8 @@ class ConvictionController(BaseController):
             book_id = None
             convictions_json = None
             notes = ""
-            research_file_path = None
+            research_file_data = None
+            research_file_name = None
             
             # Process multipart fields
             async for field in reader:
@@ -122,9 +161,9 @@ class ConvictionController(BaseController):
                 elif field.name == 'notes':
                     notes = await field.text()
                     
-                elif field.name == 'researchFile':
-                    if isinstance(field, FileField):
-                        research_file_path = await self._save_uploaded_file(field, user_id, book_id, 'research')
+                elif field.name == 'researchFile' and isinstance(field, FileField):
+                    research_file_data = await field.read()
+                    research_file_name = field.filename
             
             # Validate required fields
             if not book_id:
@@ -141,8 +180,20 @@ class ConvictionController(BaseController):
             if not book_validation.get('valid'):
                 return self.create_error_response(book_validation.get('error', 'Invalid book ID'), 403)
 
-            # Store convictions as CSV
-            csv_path = await self._store_convictions_csv(convictions_json, user_id, book_id, 'submit')
+            # Store files in MinIO and create CSV
+            research_file_path = None
+            csv_file_path = None
+            
+            # Store research file if provided
+            if research_file_data and research_file_name:
+                research_file_path = await self._store_research_file(
+                    research_file_data, research_file_name, user_id, book_id
+                )
+            
+            # Create and store CSV file
+            csv_file_path = await self._store_convictions_csv(
+                convictions_json, user_id, book_id, 'submit'
+            )
             
             # Process convictions with additional metadata
             submission_data = {
@@ -150,7 +201,7 @@ class ConvictionController(BaseController):
                 'convictions': convictions_json,
                 'notes': notes,
                 'research_file_path': research_file_path,
-                'csv_path': csv_path
+                'csv_file_path': csv_file_path
             }
             
             result = await self.conviction_manager.submit_convictions(submission_data, user_id)
@@ -206,11 +257,11 @@ class ConvictionController(BaseController):
             'encoded_data_path': encoded_data_path
         }
         
-        result = await self.oconviction_manager.submit_encoded_convictions(submission_data, user_id)
+        result = await self.conviction_manager.submit_encoded_convictions(submission_data, user_id)
         return web.json_response(result)
 
     async def _cancel_convictions(self, request: web.Request) -> web.Response:
-        """Handle multipart conviction cancellation with file upload"""
+        """Handle multipart conviction cancellation with file storage"""
         # Authenticate request
         auth_success, auth_result = await self.authenticate(request)
         if not auth_success:
@@ -224,7 +275,8 @@ class ConvictionController(BaseController):
             book_id = None
             conviction_ids = None
             notes = ""
-            research_file_path = None
+            research_file_data = None
+            research_file_name = None
             
             # Process multipart fields
             async for field in reader:
@@ -243,16 +295,16 @@ class ConvictionController(BaseController):
                 elif field.name == 'notes':
                     notes = await field.text()
                     
-                elif field.name == 'researchFile':
-                    if isinstance(field, FileField):
-                        research_file_path = await self._save_uploaded_file(field, user_id, book_id, 'research')
+                elif field.name == 'researchFile' and isinstance(field, FileField):
+                    research_file_data = await field.read()
+                    research_file_name = field.filename
             
             # Validate required fields
             if not book_id:
                 return self.create_error_response("Book ID is required", 400)
                 
             if not conviction_ids:
-                return self.create_error_response("Convictions IDs are required", 400)
+                return self.create_error_response("Conviction IDs are required", 400)
                 
             if len(conviction_ids) == 0:
                 return self.create_error_response("No conviction IDs provided", 400)
@@ -265,16 +317,26 @@ class ConvictionController(BaseController):
             if not book_validation.get('valid'):
                 return self.create_error_response(book_validation.get('error', 'Invalid book ID'), 403)
 
-            # Store cancellation data as CSV
-            csv_path = await self._store_cancellation_csv(conviction_ids, user_id, book_id)
+            # Store files
+            research_file_path = None
+            csv_file_path = None
             
-            # Process cancellations with additional metadata
+            # Store research file if provided
+            if research_file_data and research_file_name:
+                research_file_path = await self._store_research_file(
+                    research_file_data, research_file_name, user_id, book_id
+                )
+            
+            # Create and store cancellation CSV
+            csv_file_path = await self._store_cancellation_csv(conviction_ids, user_id, book_id)
+            
+            # Process cancellations
             cancellation_data = {
                 'book_id': book_id,
                 'conviction_ids': conviction_ids,
                 'notes': notes,
                 'research_file_path': research_file_path,
-                'csv_path': csv_path
+                'csv_file_path': csv_file_path
             }
             
             result = await self.conviction_manager.cancel_convictions(cancellation_data, user_id)
@@ -333,125 +395,150 @@ class ConvictionController(BaseController):
         result = await self.conviction_manager.cancel_encoded_convictions(cancellation_data, user_id)
         return web.json_response(result)
 
-    async def _save_uploaded_file(self, field: FileField, user_id: str, book_id: str, file_type: str) -> str:
-        """Save uploaded file to local storage organized by user and book"""
-        # Create user and book specific directory structure
-        user_book_dir = os.path.join(self.uploads_dir, user_id, book_id or 'unknown')
-        os.makedirs(user_book_dir, exist_ok=True)
-        
-        # Generate unique filename
-        timestamp = int(time.time())
-        unique_id = str(uuid.uuid4())[:8]
-        filename = f"{file_type}_{timestamp}_{unique_id}_{field.filename}"
-        file_path = os.path.join(user_book_dir, filename)
-        
-        try:
-            # Save file
-            with open(file_path, 'wb') as f:
-                while True:
-                    chunk = await field.read_chunk(8192)
-                    if not chunk:
-                        break
-                    f.write(chunk)
+    async def _store_research_file(self, file_data: bytes, filename: str, 
+                                  user_id: str, book_id: str) -> str:
+        """Store research file in MinIO"""
+        if not self.minio_client:
+            logger.warning("MinIO client not available, skipping file storage")
+            return None
             
-            logger.info(f"Saved uploaded file for book {book_id}: {file_path}")
+        try:
+            # Generate unique file path
+            timestamp = int(time.time())
+            unique_id = str(uuid.uuid4())[:8]
+            file_path = f"research/{user_id}/{book_id}/{timestamp}_{unique_id}_{filename}"
+            
+            # Upload to MinIO
+            file_stream = io.BytesIO(file_data)
+            self.minio_client.put_object(
+                self.bucket_name,
+                file_path,
+                file_stream,
+                length=len(file_data),
+                content_type='application/octet-stream'
+            )
+            
+            logger.info(f"Stored research file: {file_path}")
             return file_path
             
+        except S3Error as e:
+            logger.error(f"Error storing research file in MinIO: {e}")
+            return None
         except Exception as e:
-            logger.error(f"Error saving uploaded file: {e}")
-            # Clean up partial file
-            if os.path.exists(file_path):
-                os.remove(file_path)
-            raise
+            logger.error(f"Unexpected error storing research file: {e}")
+            return None
 
-    async def _store_convictions_csv(self, convictions: list, user_id: str, book_id: str, operation: str) -> str:
-        """Store convictions data as CSV file organized by user and book"""
-        # Create user and book specific directory structure
-        user_book_dir = os.path.join(self.uploads_dir, user_id, book_id)
-        os.makedirs(user_book_dir, exist_ok=True)
-        
-        # Generate filename
-        timestamp = int(time.time())
-        filename = f"convictions_{operation}_{timestamp}.csv"
-        csv_path = os.path.join(user_book_dir, filename)
-        
+    async def _store_convictions_csv(self, convictions: list, user_id: str, 
+                                   book_id: str, operation: str) -> str:
+        """Store convictions data as CSV file in MinIO"""
+        if not self.minio_client:
+            logger.warning("MinIO client not available, skipping CSV storage")
+            return None
+            
         try:
-            with open(csv_path, 'w', newline='', encoding='utf-8') as csvfile:
-                if convictions:
-                    # Get all unique keys from all convictions (handles dynamic properties)
-                    all_keys = set()
-                    for conviction in convictions:
-                        all_keys.update(conviction.keys())
-                    
-                    # Sort fieldnames for consistency, put common fields first
-                    common_fields = ['instrumentId', 'side', 'quantity', 'score', 'zscore', 'targetPercent', 'targetNotional', 'participationRate', 'tag', 'convictionId']
-                    other_fields = sorted([k for k in all_keys if k not in common_fields])
-                    fieldnames = [f for f in common_fields if f in all_keys] + other_fields
-                    
-                    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-                    
-                    # Write header
-                    writer.writeheader()
-                    
-                    # Write convictions
-                    for conviction in convictions:
-                        writer.writerow(conviction)
+            # Generate CSV content
+            csv_content = io.StringIO()
             
-            logger.info(f"Stored {len(convictions)} convictions CSV for book {book_id}: {csv_path}")
-            return csv_path
+            if convictions:
+                # Get all unique keys from all convictions
+                all_keys = set()
+                for conviction in convictions:
+                    all_keys.update(conviction.keys())
+                
+                # Sort fieldnames for consistency
+                common_fields = ['instrumentId', 'side', 'quantity', 'score', 'zscore', 
+                               'targetPercent', 'targetNotional', 'participationRate', 'tag', 'convictionId']
+                other_fields = sorted([k for k in all_keys if k not in common_fields])
+                fieldnames = [f for f in common_fields if f in all_keys] + other_fields
+                
+                writer = csv.DictWriter(csv_content, fieldnames=fieldnames)
+                writer.writeheader()
+                
+                for conviction in convictions:
+                    writer.writerow(conviction)
             
+            # Generate file path
+            timestamp = int(time.time())
+            file_path = f"convictions/{user_id}/{book_id}/{operation}_{timestamp}.csv"
+            
+            # Convert to bytes
+            csv_bytes = csv_content.getvalue().encode('utf-8')
+            csv_stream = io.BytesIO(csv_bytes)
+            
+            # Upload to MinIO
+            self.minio_client.put_object(
+                self.bucket_name,
+                file_path,
+                csv_stream,
+                length=len(csv_bytes),
+                content_type='text/csv'
+            )
+            
+            logger.info(f"Stored CSV file with {len(convictions)} convictions: {file_path}")
+            return file_path
+            
+        except S3Error as e:
+            logger.error(f"Error storing CSV file in MinIO: {e}")
+            return None
         except Exception as e:
-            logger.error(f"Error storing convictions CSV: {e}")
-            # Clean up partial file
-            if os.path.exists(csv_path):
-                os.remove(csv_path)
-            raise
+            logger.error(f"Unexpected error storing CSV file: {e}")
+            return None
 
     async def _store_cancellation_csv(self, conviction_ids: list, user_id: str, book_id: str) -> str:
-        """Store cancellation data as CSV file organized by user and book"""
-        # Create user and book specific directory structure
-        user_book_dir = os.path.join(self.uploads_dir, user_id, book_id)
-        os.makedirs(user_book_dir, exist_ok=True)
-        
-        # Generate filename
-        timestamp = int(time.time())
-        filename = f"cancellations_{timestamp}.csv"
-        csv_path = os.path.join(user_book_dir, filename)
-        
+        """Store cancellation data as CSV file in MinIO"""
+        if not self.minio_client:
+            logger.warning("MinIO client not available, skipping CSV storage")
+            return None
+            
         try:
-            with open(csv_path, 'w', newline='', encoding='utf-8') as csvfile:
-                writer = csv.writer(csvfile)
-                
-                # Write header
-                writer.writerow(['conviction_id'])
-                
-                # Write conviction IDs
-                for conviction_id in conviction_ids:
-                    writer.writerow([conviction_id])
+            # Generate CSV content
+            csv_content = io.StringIO()
+            writer = csv.writer(csv_content)
             
-            logger.info(f"Stored cancellation CSV for {len(conviction_ids)} convictions in book {book_id}: {csv_path}")
-            return csv_path
+            # Write header and data
+            writer.writerow(['conviction_id'])
+            for conviction_id in conviction_ids:
+                writer.writerow([conviction_id])
             
+            # Generate file path
+            timestamp = int(time.time())
+            file_path = f"convictions/{user_id}/{book_id}/cancel_{timestamp}.csv"
+            
+            # Convert to bytes
+            csv_bytes = csv_content.getvalue().encode('utf-8')
+            csv_stream = io.BytesIO(csv_bytes)
+            
+            # Upload to MinIO
+            self.minio_client.put_object(
+                self.bucket_name,
+                file_path,
+                csv_stream,
+                length=len(csv_bytes),
+                content_type='text/csv'
+            )
+            
+            logger.info(f"Stored cancellation CSV with {len(conviction_ids)} conviction IDs: {file_path}")
+            return file_path
+            
+        except S3Error as e:
+            logger.error(f"Error storing cancellation CSV in MinIO: {e}")
+            return None
         except Exception as e:
-            logger.error(f"Error storing cancellation CSV: {e}")
-            # Clean up partial file
-            if os.path.exists(csv_path):
-                os.remove(csv_path)
-            raise
+            logger.error(f"Unexpected error storing cancellation CSV: {e}")
+            return None
 
     async def _store_encoded_data(self, book_id: str, encoded_convictions: str, encoded_research: str, 
                                  notes: str, user_id: str, operation: str) -> str:
-        """Store encoded data as JSON file organized by user and book"""
-        # Create user and book specific directory structure
-        user_book_dir = os.path.join(self.uploads_dir, user_id, book_id)
-        os.makedirs(user_book_dir, exist_ok=True)
-        
-        # Generate filename
-        timestamp = int(time.time())
-        filename = f"encoded_{operation}_{timestamp}.json"
-        file_path = os.path.join(user_book_dir, filename)
-        
+        """Store encoded data as JSON file in MinIO"""
+        if not self.minio_client:
+            logger.warning("MinIO client not available, skipping encoded data storage")
+            return None
+            
         try:
+            # Generate file path
+            timestamp = int(time.time())
+            file_path = f"encoded/{user_id}/{book_id}/{operation}_{timestamp}.json"
+            
             encoded_data = {
                 'operation': operation,
                 'timestamp': timestamp,
@@ -462,15 +549,25 @@ class ConvictionController(BaseController):
                 'notes': notes
             }
             
-            with open(file_path, 'w', encoding='utf-8') as f:
-                json.dump(encoded_data, f, indent=2)
+            # Convert to JSON bytes
+            json_bytes = json.dumps(encoded_data, indent=2).encode('utf-8')
+            json_stream = io.BytesIO(json_bytes)
+            
+            # Upload to MinIO
+            self.minio_client.put_object(
+                self.bucket_name,
+                file_path,
+                json_stream,
+                length=len(json_bytes),
+                content_type='application/json'
+            )
             
             logger.info(f"Stored encoded data for book {book_id}: {file_path}")
             return file_path
             
+        except S3Error as e:
+            logger.error(f"Error storing encoded data in MinIO: {e}")
+            return None
         except Exception as e:
-            logger.error(f"Error storing encoded data: {e}")
-            # Clean up partial file
-            if os.path.exists(file_path):
-                os.remove(file_path)
-            raise
+            logger.error(f"Unexpected error storing encoded data: {e}")
+            return None
