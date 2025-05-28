@@ -78,10 +78,10 @@ async def setup_app(
 
     # Add conviction routes
     conviction_controller = ConvictionController(state_manager, session_manager, conviction_manager)
-    app.router.add_post('/api/conviction/submit', conviction_controller.submit_convictions)
-    app.router.add_post('/api/conviction/cancel', conviction_controller.cancel_convictions)
-    app.router.add_post('/api/conviction/encoded_submit', conviction_controller.submit_convictions_encoded)
-    app.router.add_post('/api/conviction/encoded_cancel', conviction_controller.cancel_convictions_encoded)
+    app.router.add_post('/api/convictions/submit', conviction_controller.submit_convictions)
+    app.router.add_post('/api/convictions/cancel', conviction_controller.cancel_convictions)
+    app.router.add_post('/api/convictions/encoded_submit', conviction_controller.submit_convictions_encoded)
+    app.router.add_post('/api/convictions/encoded_cancel', conviction_controller.cancel_convictions_encoded)
 
     # Start the application
     runner = web.AppRunner(app)

@@ -3,7 +3,7 @@ SECTION=$1
 
 if [ -z "$SECTION" ]; then
     echo "Usage: $0 <section>"
-    echo "Sections: storage databases pgbouncer db-init auth session fund simulator market jaeger ingress monitor all"
+    echo "Sections: storage databases pgbouncer db-init minio auth session fund simulator market jaeger ingress monitor all"
     exit 1
 fi
 
@@ -33,6 +33,13 @@ case $SECTION in
         kubectl delete service jaeger-query jaeger-collector jaeger-agent
         kubectl delete deployment jaeger
         kubectl delete configmap opentelemetry-config --ignore-not-found=true
+        ;;
+    minio)
+        echo "Resetting Conviction..."
+        kubectl delete deployment storage-service
+        kubectl delete service storage-service
+        kubectl delete pvc storage-pvc
+        kubectl delete secret storage-credentials --ignore-not-found=true
         ;;
     auth)
         echo "Resetting auth service..."

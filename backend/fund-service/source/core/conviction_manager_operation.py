@@ -4,6 +4,8 @@ import time
 import uuid
 from typing import Dict, Any, List
 
+from source.models.enums import Side
+
 from source.models.conviction import ConvictionData
 from source.utils.metrics import track_conviction_submission_latency
 
@@ -81,7 +83,7 @@ class OperationManager:
                 continue
                 
             # Validate conviction parameters
-            conviction_validation = await self.conviction_repository.validate_conviction_parameters(conviction_data)
+            conviction_validation = await self.record_manager.validate_conviction_parameters(conviction_data)
             if not conviction_validation.get('valid'):
                 error_msg = conviction_validation.get('error', 'Invalid conviction parameters')
                 
@@ -97,16 +99,16 @@ class OperationManager:
             # Create conviction object (but don't save yet)
             try:
                 conviction = ConvictionData(
-                    symbol=conviction_validation.get('symbol'),
-                    side=Side(conviction_validation.get('side')),
+                    instrumentId=conviction_validation.get('instrumentId'),
+                    side=conviction_validation.get('side'),
                     quantity=conviction_validation.get('quantity'),
-                    price=conviction_validation.get('price'),
-                    user_id=user_id,
-                    simulator_id=simulator_id,
-                    request_id=request_id,
-                    conviction_id=str(uuid.uuid4()),
-                    created_at=time.time(),
-                    updated_at=time.time()
+                    score=conviction_validation.get('score'),
+                    zscore=conviction_validation.get('zscore'),
+                    targetPercent=conviction_validation.get('targetPercent'),
+                    targetNotional=conviction_validation.get('targetNotional'),
+                    participationRate=conviction_validation.get('participationRate'),
+                    tag=conviction_validation.get('tag'),
+                    convictionId=conviction_validation.get('convictionId') or str(uuid.uuid4())
                 )
                 
                 valid_convictions.append((conviction, i))
@@ -123,23 +125,14 @@ class OperationManager:
         
         # 7. Save all valid convictions in a single batch operation
         if valid_convictions:
-            convictions_to_save = [conviction for conviction, _ in valid_convictions]
-            save_result = await self.record_manager.save_convictions(convictions_to_save)
-            
-            # Add results for saved convictions
+            # Add results for all valid convictions
             for conviction, idx in valid_convictions:
-                if conviction.conviction_id in save_result["successful"]:
-                    results.append({
-                        "success": True,
-                        "convictionId": conviction.conviction_id,
-                        "index": idx
-                    })
-                else:
-                    results.append({
-                        "success": False,
-                        "error": "Failed to save conviction to database",
-                        "index": idx
-                    })
+                results.append({
+                    "success": True,
+                    "convictionId": conviction.convictionId,
+                    "index": idx
+                })
+                logger.info(f"Processed conviction: {conviction.convictionId}")
         
         logger.info(f"VALID CONVICTIONS: {valid_convictions}")
         

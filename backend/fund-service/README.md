@@ -26,3 +26,15 @@ Yes, your infrastructure setup is indeed looking more professional with these re
 The architecture now resembles what you'd find in production trading systems, with multiple independent services communicating through well-defined interfaces, proper state management, and a focus on reliability.
 
 For your walking skeleton, this represents an excellent foundation that can scale and evolve as needed. The core architectural patterns are solid and aligned with modern cloud-native application development principles.
+
+
+### GET THE FILES FROM MIMIO TO LOCAL MACHINE
+
+# Stream the CSV file directly to your local machine
+kubectl exec storage-service-5fc444d47b-xhr5l -- cat /tmp/conv_data.csv > ./convictions.csv
+
+# Stream the text file
+kubectl exec storage-service-5fc444d47b-xhr5l -- cat /tmp/notes_data.txt > ./notes.txt
+
+# Stream the PDF file
+kubectl exec storage-service-5fc444d47b-xhr5l -- cat /tmp/research_data.pdf > ./research.pdf

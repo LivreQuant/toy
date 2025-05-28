@@ -19,7 +19,7 @@ data:
         reason TEXT NOT NULL, 
         
         PRIMARY KEY (book_id, tx_id)
-    )
+    );
 
     -- User (SUBMIT) table
     CREATE TABLE conv.submit (

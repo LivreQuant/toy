@@ -139,7 +139,7 @@ class RecordManager:
 
     async def validate_conviction_parameters(self, conviction_data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Validate conviction parameters
+        Validate conviction parameters with sensible defaults
 
         Args:
             conviction_data: Conviction data to validate
@@ -148,39 +148,88 @@ class RecordManager:
             Validation result with extracted parameters if valid
         """
         try:
-            symbol = conviction_data.get('symbol')
-            side = conviction_data.get('side')
-            quantity = float(conviction_data.get('quantity', 0))
-            conviction_type = conviction_data.get('type')
-            price = float(conviction_data.get('price', 0)) if 'price' in conviction_data else None
-
-            # Basic validation
-            if not symbol or not side or not conviction_type or quantity <= 0:
-                logger.warning(f"Conviction validation failed: {conviction_data}")
+            # Extract required fields
+            instrument_id = conviction_data.get('instrumentId')
+            
+            # Basic validation - only instrumentId is truly required
+            if not instrument_id:
+                logger.warning(f"Conviction validation failed - missing instrumentId: {conviction_data}")
                 return {
                     "valid": False,
-                    "error": "Invalid conviction parameters"
+                    "error": "instrumentId is required"
                 }
-
-            # For limit convictions, price is required
-            if conviction_type == 'LIMIT' and (price is None or price <= 0):
-                return {
-                    "valid": False,
-                    "error": "Limit convictions require a valid price greater than zero"
-                }
-
-            # Return validated parameters
+            
+            # Set defaults for missing fields
+            side = conviction_data.get('side', 'BUY')
+            score = conviction_data.get('score', 0.0)
+            quantity = conviction_data.get('quantity', 100.0)
+            zscore = conviction_data.get('zscore', 0.0)
+            target_percent = conviction_data.get('targetPercent', 1.0)
+            target_notional = conviction_data.get('targetNotional', 1000.0)
+            participation_rate = conviction_data.get('participationRate', 'MEDIUM')
+            tag = conviction_data.get('tag', 'default')
+            conviction_id = conviction_data.get('convictionId', str(uuid.uuid4()))
+            
+            # Validate side
+            if side not in ['BUY', 'SELL', 'CLOSE']:
+                logger.warning(f"Invalid side '{side}', defaulting to BUY")
+                side = 'BUY'
+            
+            # Validate participation rate
+            if participation_rate not in ['LOW', 'MEDIUM', 'HIGH']:
+                logger.warning(f"Invalid participationRate '{participation_rate}', defaulting to MEDIUM")
+                participation_rate = 'MEDIUM'
+            
+            # Ensure numeric fields are numeric with defaults
+            try:
+                score = float(score)
+            except (ValueError, TypeError):
+                logger.warning(f"Invalid score '{score}', defaulting to 0.0")
+                score = 0.0
+                
+            try:
+                quantity = float(quantity)
+            except (ValueError, TypeError):
+                logger.warning(f"Invalid quantity '{quantity}', defaulting to 100.0")
+                quantity = 100.0
+                
+            try:
+                zscore = float(zscore)
+            except (ValueError, TypeError):
+                logger.warning(f"Invalid zscore '{zscore}', defaulting to 0.0")
+                zscore = 0.0
+                
+            try:
+                target_percent = float(target_percent)
+            except (ValueError, TypeError):
+                logger.warning(f"Invalid targetPercent '{target_percent}', defaulting to 1.0")
+                target_percent = 1.0
+                
+            try:
+                target_notional = float(target_notional)
+            except (ValueError, TypeError):
+                logger.warning(f"Invalid targetNotional '{target_notional}', defaulting to 1000.0")
+                target_notional = 1000.0
+            
+            logger.info(f"Conviction validation successful for {instrument_id}")
+            
             return {
                 "valid": True,
-                "symbol": symbol,
+                "instrumentId": instrument_id,
                 "side": side,
+                "score": score,
                 "quantity": quantity,
-                "conviction_type": conviction_type,
-                "price": price
+                "zscore": zscore,
+                "targetPercent": target_percent,
+                "targetNotional": target_notional,
+                "participationRate": participation_rate,
+                "tag": tag,
+                "convictionId": conviction_id
             }
 
-        except ValueError:
+        except Exception as e:
+            logger.error(f"Error validating conviction parameters: {e}")
             return {
                 "valid": False,
-                "error": "Invalid conviction parameters: quantity and price must be numeric"
+                "error": f"Validation error: {str(e)}"
             }

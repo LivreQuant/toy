@@ -3,24 +3,28 @@ import { HttpClient } from './http-client';
 import { ConvictionData } from '../types';
 
 export interface ConvictionSubmissionRequest {
+  bookId: string;
   convictions: ConvictionData[];
   researchFile?: File;
   notes?: string;
 }
 
 export interface ConvictionCancellationRequest {
+  bookId: string;
   convictionIds: string[];
   researchFile?: File;
   notes?: string;
 }
 
 export interface EncodedConvictionSubmissionRequest {
+  bookId: string;
   convictions: string; // Encoded fingerprint string
   researchFile?: string; // Encoded research file fingerprint string
   notes?: string;
 }
 
 export interface EncodedConvictionCancellationRequest {
+  bookId: string;
   convictionIds: string; // Encoded fingerprint string
   researchFile?: string; // Encoded research file fingerprint string
   notes?: string;
@@ -51,7 +55,6 @@ export interface BatchCancelResponse {
   errorMessage?: string;
 }
 
-
 export class ConvictionsApi {
   private client: HttpClient;
 
@@ -61,6 +64,9 @@ export class ConvictionsApi {
 
   async submitConvictions(submissionData: ConvictionSubmissionRequest): Promise<BatchConvictionResponse> {
     const formData = new FormData();
+    
+    // Add the bookId
+    formData.append('bookId', submissionData.bookId);
     
     // Add the convictions as a JSON blob
     formData.append('convictions', JSON.stringify(submissionData.convictions));
@@ -81,6 +87,9 @@ export class ConvictionsApi {
   async cancelConvictions(cancellationData: ConvictionCancellationRequest): Promise<BatchCancelResponse> {
     const formData = new FormData();
     
+    // Add the bookId
+    formData.append('bookId', cancellationData.bookId);
+    
     // Add the conviction IDs as a JSON array
     formData.append('convictionIds', JSON.stringify(cancellationData.convictionIds));
     
@@ -100,6 +109,7 @@ export class ConvictionsApi {
   // New encoded fingerprint methods
   async submitConvictionsEncoded(submissionData: EncodedConvictionSubmissionRequest): Promise<BatchConvictionResponse> {
     return this.client.post<BatchConvictionResponse>('/convictions/encoded_submit', {
+      bookId: submissionData.bookId,
       convictions: submissionData.convictions,
       researchFile: submissionData.researchFile,
       notes: submissionData.notes
@@ -108,6 +118,7 @@ export class ConvictionsApi {
 
   async cancelConvictionsEncoded(cancellationData: EncodedConvictionCancellationRequest): Promise<BatchCancelResponse> {
     return this.client.post<BatchCancelResponse>('/convictions/encoded_cancel', {
+      bookId: cancellationData.bookId,
       convictionIds: cancellationData.convictionIds,
       researchFile: cancellationData.researchFile,
       notes: cancellationData.notes

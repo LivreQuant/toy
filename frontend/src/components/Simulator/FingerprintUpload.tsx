@@ -11,12 +11,6 @@ import './FingerprintUpload.css';
 // Operation types
 type Operation = 'SUBMIT' | 'CANCEL';
 
-interface FingerprintData {
-  convictionFileFingerprint: string;
-  researchFileFingerprint?: string;
-  notes?: string;
-}
-
 const FingerprintUpload: React.FC = () => {
   const { bookId } = useParams<{ bookId?: string }>();
   const { addToast } = useToast();
@@ -98,6 +92,7 @@ const FingerprintUpload: React.FC = () => {
         
         try {
           const response = await convictionManager.submitConvictionsEncoded({
+            bookId: bookId!, // ADD THIS LINE
             convictions: convictionFileFingerprint.trim(),
             researchFile: researchFileFingerprint.trim() || undefined,
             notes: notes.trim() || undefined
@@ -125,6 +120,7 @@ const FingerprintUpload: React.FC = () => {
         
         try {
           const response = await convictionManager.cancelConvictionsEncoded({
+            bookId: bookId!, // ADD THIS LINE
             convictionIds: convictionFileFingerprint.trim(), // For cancel, the fingerprint contains conviction IDs
             researchFile: researchFileFingerprint.trim() || undefined,
             notes: notes.trim() || undefined

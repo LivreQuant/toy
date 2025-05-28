@@ -146,11 +146,15 @@ class ConvictionController(BaseController):
             
             # Process multipart fields
             async for field in reader:
+                logger.info(f"Processing field: {field.name}, type: {type(field)}")
+                
                 if field.name == 'bookId':
                     book_id = await field.text()
+                    logger.info(f"Got bookId: {book_id}")
                     
                 elif field.name == 'convictions':
                     convictions_data = await field.text()
+                    logger.info(f"Got convictions data length: {len(convictions_data)}")
                     try:
                         convictions_json = json.loads(convictions_data)
                         if not isinstance(convictions_json, list):
@@ -160,10 +164,18 @@ class ConvictionController(BaseController):
                         
                 elif field.name == 'notes':
                     notes = await field.text()
+                    logger.info(f"Got notes: {notes}")
                     
-                elif field.name == 'researchFile' and isinstance(field, FileField):
-                    research_file_data = await field.read()
-                    research_file_name = field.filename
+                elif field.name == 'researchFile':
+                    if hasattr(field, 'filename') and field.filename:
+                        research_file_data = await field.read()
+                        research_file_name = field.filename
+                        logger.info(f"Got research file: {research_file_name}, size: {len(research_file_data)} bytes")
+                    else:
+                        logger.warning(f"researchFile field has no filename")
+
+                else:
+                    logger.warning(f"Unknown field: {field.name}")
             
             # Validate required fields
             if not book_id:
@@ -184,17 +196,28 @@ class ConvictionController(BaseController):
             research_file_path = None
             csv_file_path = None
             
+            # Get fund_id first (you'll need to query this)
+            fund_id = await self._get_fund_id_for_user(user_id)
+
+            # Create and store CSV file
+            csv_file_path = await self._store_convictions_csv(
+                convictions_json, user_id, book_id, '0001', fund_id
+            )
+
             # Store research file if provided
             if research_file_data and research_file_name:
                 research_file_path = await self._store_research_file(
-                    research_file_data, research_file_name, user_id, book_id
+                    research_file_data, research_file_name, fund_id, book_id, '0001'
                 )
-            
-            # Create and store CSV file
-            csv_file_path = await self._store_convictions_csv(
-                convictions_json, user_id, book_id, 'submit'
-            )
-            
+                logger.info(f"Stored research file: {research_file_path}")
+            else:
+                logger.info("No research file provided")
+
+            # Store notes if provided
+            if notes and notes.strip():
+                notes_file_path = await self._store_notes_file(notes, fund_id, book_id, '0001')
+                logger.info(f"Stored notes file: {notes_file_path}")
+
             # Process convictions with additional metadata
             submission_data = {
                 'book_id': book_id,
@@ -203,14 +226,30 @@ class ConvictionController(BaseController):
                 'research_file_path': research_file_path,
                 'csv_file_path': csv_file_path
             }
-            
+
             result = await self.conviction_manager.submit_convictions(submission_data, user_id)
             return web.json_response(result)
             
         except Exception as e:
             logger.error(f"Error processing multipart submission: {e}")
             return self.create_error_response("Error processing file upload", 500)
-
+            
+    async def _get_fund_id_for_user(self, user_id: str) -> str:
+        """Get fund_id for a user"""
+        try:
+            # You already have access to fund data through your managers
+            # This is a quick database query
+            pool = await self.conviction_manager.conviction_repository.db_pool.get_pool()
+            async with pool.acquire() as conn:
+                fund_id = await conn.fetchval(
+                    "SELECT fund_id FROM fund.funds WHERE user_id = $1 LIMIT 1",
+                    user_id
+                )
+                return str(fund_id) if fund_id else user_id  # fallback to user_id
+        except Exception as e:
+            logger.error(f"Error getting fund_id for user {user_id}: {e}")
+            return user_id  # fallback to user_id
+    
     async def _submit_convictions_encoded(self, request: web.Request) -> web.Response:
         """Handle encoded conviction submission"""
         # Authenticate request
@@ -298,6 +337,9 @@ class ConvictionController(BaseController):
                 elif field.name == 'researchFile' and isinstance(field, FileField):
                     research_file_data = await field.read()
                     research_file_name = field.filename
+                    logger.info(f"Got research file: {research_file_name}, size: {len(research_file_data)} bytes")
+                else:
+                    logger.warning(f"Unknown multipart field: {field.name}")
             
             # Validate required fields
             if not book_id:
@@ -396,17 +438,16 @@ class ConvictionController(BaseController):
         return web.json_response(result)
 
     async def _store_research_file(self, file_data: bytes, filename: str, 
-                                  user_id: str, book_id: str) -> str:
-        """Store research file in MinIO"""
+                                fund_id: str, book_id: str, tx_id: str) -> str:
+        """Store research file in MinIO with proper structure"""
         if not self.minio_client:
             logger.warning("MinIO client not available, skipping file storage")
             return None
             
         try:
-            # Generate unique file path
-            timestamp = int(time.time())
-            unique_id = str(uuid.uuid4())[:8]
-            file_path = f"research/{user_id}/{book_id}/{timestamp}_{unique_id}_{filename}"
+            # Generate file path: fund_id/book_id/tx_id/research.{extension}
+            file_extension = filename.split('.')[-1] if '.' in filename else 'txt'
+            file_path = f"{fund_id}/{book_id}/{tx_id}/research.{file_extension}"
             
             # Upload to MinIO
             file_stream = io.BytesIO(file_data)
@@ -428,69 +469,101 @@ class ConvictionController(BaseController):
             logger.error(f"Unexpected error storing research file: {e}")
             return None
 
-    async def _store_convictions_csv(self, convictions: list, user_id: str, 
-                                   book_id: str, operation: str) -> str:
-        """Store convictions data as CSV file in MinIO"""
-        if not self.minio_client:
-            logger.warning("MinIO client not available, skipping CSV storage")
+    async def _store_notes_file(self, notes: str, fund_id: str, book_id: str, tx_id: str) -> str:
+        """Store notes as text file in MinIO"""
+        if not self.minio_client or not notes.strip():
             return None
             
         try:
-            # Generate CSV content
-            csv_content = io.StringIO()
+            # Generate file path: fund_id/book_id/tx_id/notes.txt
+            file_path = f"{fund_id}/{book_id}/{tx_id}/notes.txt"
             
-            if convictions:
-                # Get all unique keys from all convictions
-                all_keys = set()
-                for conviction in convictions:
-                    all_keys.update(conviction.keys())
-                
-                # Sort fieldnames for consistency
-                common_fields = ['instrumentId', 'side', 'quantity', 'score', 'zscore', 
-                               'targetPercent', 'targetNotional', 'participationRate', 'tag', 'convictionId']
-                other_fields = sorted([k for k in all_keys if k not in common_fields])
-                fieldnames = [f for f in common_fields if f in all_keys] + other_fields
-                
-                writer = csv.DictWriter(csv_content, fieldnames=fieldnames)
-                writer.writeheader()
-                
-                for conviction in convictions:
-                    writer.writerow(conviction)
-            
-            # Generate file path
-            timestamp = int(time.time())
-            file_path = f"convictions/{user_id}/{book_id}/{operation}_{timestamp}.csv"
-            
-            # Convert to bytes
-            csv_bytes = csv_content.getvalue().encode('utf-8')
-            csv_stream = io.BytesIO(csv_bytes)
+            # Convert notes to bytes
+            notes_bytes = notes.encode('utf-8')
+            notes_stream = io.BytesIO(notes_bytes)
             
             # Upload to MinIO
             self.minio_client.put_object(
                 self.bucket_name,
                 file_path,
-                csv_stream,
-                length=len(csv_bytes),
-                content_type='text/csv'
+                notes_stream,
+                length=len(notes_bytes),
+                content_type='text/plain'
             )
             
-            logger.info(f"Stored CSV file with {len(convictions)} convictions: {file_path}")
+            logger.info(f"Stored notes file: {file_path}")
             return file_path
             
         except S3Error as e:
-            logger.error(f"Error storing CSV file in MinIO: {e}")
+            logger.error(f"Error storing notes file in MinIO: {e}")
             return None
         except Exception as e:
-            logger.error(f"Unexpected error storing CSV file: {e}")
+            logger.error(f"Unexpected error storing notes file: {e}")
             return None
 
-    async def _store_cancellation_csv(self, conviction_ids: list, user_id: str, book_id: str) -> str:
-        """Store cancellation data as CSV file in MinIO"""
+    async def _store_convictions_csv(self, convictions: list, user_id: str, 
+                                book_id: str, tx_id: str, fund_id: str) -> str:
+        """Store convictions data as CSV file in MinIO with proper structure"""
         if not self.minio_client:
             logger.warning("MinIO client not available, skipping CSV storage")
             return None
             
         try:
+            # Generate file path: fund_id/book_id/tx_id/convictions.csv
+            file_path = f"{fund_id}/{book_id}/{tx_id}/convictions.csv"
+            
+            # DEBUG: Log what we're trying to store
+            logger.info(f"Storing {len(convictions)} convictions to {file_path}")
+            logger.info(f"First conviction: {convictions[0] if convictions else 'NONE'}")
+            
+            # Generate CSV content as a simple string first
+            if not convictions:
+                csv_string = "instrumentId,side,score,participationRate,tag,convictionId\n"
+            else:
+                # Build CSV manually to debug
+                lines = ["instrumentId,side,score,participationRate,tag,convictionId"]
+                for conviction in convictions:
+                    line = f"{conviction.get('instrumentId','')},{conviction.get('side','')},{conviction.get('score','')},{conviction.get('participationRate','')},{conviction.get('tag','')},{conviction.get('convictionId','')}"
+                    lines.append(line)
+                csv_string = "\n".join(lines)
+            
+            logger.info(f"CSV content length: {len(csv_string)}")
+            logger.info(f"CSV content preview: {csv_string[:100]}...")
+            
+            # Convert to bytes
+            csv_bytes = csv_string.encode('utf-8')
+            
+            # Create a fresh BytesIO stream
+            data_stream = io.BytesIO(csv_bytes)
+            
+            # Upload with explicit parameters
+            result = self.minio_client.put_object(
+                bucket_name=self.bucket_name,
+                object_name=file_path,
+                data=data_stream,
+                length=len(csv_bytes),
+                content_type='text/csv'
+            )
+            
+            logger.info(f"MinIO upload result: {result}")
+            logger.info(f"Successfully stored CSV file: {file_path}")
+            return file_path
+            
+        except Exception as e:
+            logger.error(f"Error storing CSV file: {e}")
+            logger.error(f"Error type: {type(e)}")
+            return None
+
+    async def _store_cancellation_csv(self, conviction_ids: list, fund_id: str, book_id: str, tx_id: str) -> str:
+        """Store cancellation data as CSV file in MinIO with proper structure"""
+        if not self.minio_client:
+            logger.warning("MinIO client not available, skipping CSV storage")
+            return None
+            
+        try:
+            # Generate file path: fund_id/book_id/tx_id/cancellations.csv
+            file_path = f"{fund_id}/{book_id}/{tx_id}/cancellations.csv"
+            
             # Generate CSV content
             csv_content = io.StringIO()
             writer = csv.writer(csv_content)
@@ -499,10 +572,6 @@ class ConvictionController(BaseController):
             writer.writerow(['conviction_id'])
             for conviction_id in conviction_ids:
                 writer.writerow([conviction_id])
-            
-            # Generate file path
-            timestamp = int(time.time())
-            file_path = f"convictions/{user_id}/{book_id}/cancel_{timestamp}.csv"
             
             # Convert to bytes
             csv_bytes = csv_content.getvalue().encode('utf-8')

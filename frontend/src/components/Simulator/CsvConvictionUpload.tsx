@@ -14,12 +14,14 @@ import './CsvConvictionUpload.css';
 type Operation = 'SUBMIT' | 'CANCEL';
 
 interface SubmissionData {
+  bookId: string;
   convictions: ConvictionData[];
   researchFile?: File;
   notes: string;
 }
 
 interface CancelData {
+  bookId: string;
   convictionIds: [string];
   researchFile?: File;
   notes: string;
@@ -164,6 +166,7 @@ const CsvConvictionUpload: React.FC = () => {
         
         try {
           const response = await convictionManager.submitConvictions({
+            bookId: bookId!, // ADD THIS LINE
             convictions: submitConvictions,
             researchFile: researchFile || undefined,
             notes: notes.trim() || undefined
@@ -225,6 +228,7 @@ const CsvConvictionUpload: React.FC = () => {
         
         try {
           const response = await convictionManager.cancelConvictions({
+            bookId: bookId!, // ADD THIS LINE
             convictionIds: convictionIds,
             researchFile: researchFile || undefined,
             notes: notes.trim() || undefined

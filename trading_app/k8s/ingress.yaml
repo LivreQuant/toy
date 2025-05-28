@@ -53,7 +53,7 @@ spec:
             name: session-service
             port:
               number: 8080
-      - path: /api/orders/(.*)
+      - path: /api/convictions/(.*)
         pathType: ImplementationSpecific
         backend:
           service:

@@ -45,44 +45,71 @@ export class HttpClient {
   public async delete<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
     return this.request<T>('DELETE', endpoint, undefined, options);
   }
-
   
   async postMultipart<T>(endpoint: string, formData: FormData, options: RequestOptions = {}): Promise<T> {
-    // Get your auth token however your HttpClient currently does it
+    // Create full URL string
+    const fullUrl = `${this.baseUrl}${endpoint}`;
+    
+    // Get device ID for authentication (SAME AS REGULAR REQUESTS)
+    const deviceId = DeviceIdManager.getInstance().getDeviceId();
+    
+    // Add deviceId as a query parameter by appending to endpoint string (SAME AS REGULAR REQUESTS)
+    const urlWithDeviceId = fullUrl + (fullUrl.includes('?') ? '&' : '?') + `deviceId=${deviceId}`;
+
+    // Initialize headers
     const headers: Record<string, string> = {};
     
-    // Add authentication if you have a method for it
-    const accessToken = await this.tokenManager?.getAccessToken();
-    if (accessToken) {
+    // Add Authorization header if not skipping auth
+    if (!options.skipAuth) {
+      const accessToken = await this.tokenManager?.getAccessToken();
+      if (!accessToken) {
+        throw new Error("Not authenticated");
+      }
       headers['Authorization'] = `Bearer ${accessToken}`;
+      
+      // Add CSRF protection for authenticated endpoints
+      try {
+        const csrfToken = await this.tokenManager.getCsrfToken();
+        if (csrfToken) {
+          headers['X-CSRF-Token'] = csrfToken;
+        }
+      } catch (error) {
+        this.logger.warn('Failed to get CSRF token for multipart request', { error });
+      }
     }
     
     // Don't set Content-Type for FormData - let the browser set it with boundary
     // The browser will automatically set 'multipart/form-data' with the correct boundary
     
-    const response = await fetch(`${this.baseUrl}${endpoint}`, {
+    const fetchOptions: RequestInit = {
       method: 'POST',
       headers: headers,
       body: formData,
-      // Add any other options your HttpClient typically uses
+      // Add any other options
       ...options
-    });
+    };
 
-    if (!response.ok) {
-      // Handle error response however your HttpClient currently does it
-      let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
-      
-      try {
-        const errorData = await response.json();
-        errorMessage = errorData.message || errorData.error || errorMessage;
-      } catch {
-        // If we can't parse JSON, use the default message
+    try {
+      const response = await fetch(urlWithDeviceId, fetchOptions);
+
+      if (!response.ok) {
+        // Handle error response using the same pattern as your main request method
+        return await this.handleHttpErrorResponse<T>(response, 'POST', endpoint, formData, options, 0);
       }
-      
-      throw new Error(errorMessage);
-    }
 
-    return response.json();
+      // Handle successful responses
+      if (response.status === 204) { // No Content
+        return undefined as unknown as T;
+      }
+
+      // Assuming successful responses return JSON
+      const responseData = await response.json();
+      return responseData as T;
+
+    } catch (networkError: any) {
+      // Handle network failures using the same pattern as your main request method
+      return await this.handleNetworkOrFetchError<T>(networkError, 'POST', endpoint, formData, options, 0);
+    }
   }
 
   private async request<T>(

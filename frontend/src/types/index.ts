@@ -38,6 +38,35 @@ export interface ConvictionData {
   [key: string]: string | number | undefined;
 }
 
+// Conviction API Request interfaces
+export interface ConvictionSubmissionRequest {
+  bookId: string;
+  convictions: ConvictionData[];
+  researchFile?: File;
+  notes?: string;
+}
+
+export interface ConvictionCancellationRequest {
+  bookId: string;
+  convictionIds: string[];
+  researchFile?: File;
+  notes?: string;
+}
+
+export interface EncodedConvictionSubmissionRequest {
+  bookId: string;
+  convictions: string; // Encoded fingerprint string
+  researchFile?: string; // Encoded research file fingerprint string
+  notes?: string;
+}
+
+export interface EncodedConvictionCancellationRequest {
+  bookId: string;
+  convictionIds: string; // Encoded fingerprint string
+  researchFile?: string; // Encoded research file fingerprint string
+  notes?: string;
+}
+
 export interface ConvictionModelConfig {
   portfolioApproach: 'incremental' | 'target';
   targetConvictionMethod?: 'percent' | 'notional';
@@ -79,7 +108,6 @@ export interface BookRequest {
   initialCapital: number;
 }
 
-
 export interface TeamMember {
   id: string;
   firstName: string;
@@ -92,7 +120,6 @@ export interface TeamMember {
   birthDate?: string;
   linkedin?: string;
 }
-
 
 export interface FundProfile {
   id?: string;
