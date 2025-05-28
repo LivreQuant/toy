@@ -131,7 +131,6 @@ async def main():
         
         # Initialize conviction manager
         conviction_manager = ConvictionManager(conviction_repository,
-                                               crypto_repository,
                                                book_manager, 
                                                crypto_manager,
                                                session_manager, 

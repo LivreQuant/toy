@@ -32,6 +32,7 @@ class ConvictionManager:
     ):
         """Initialize the conviction manager with dependencies"""
         self.book_manager = book_manager
+        self.crypto_manager = crypto_manager
         self.session_manager = session_manager
 
         # Create specialized managers

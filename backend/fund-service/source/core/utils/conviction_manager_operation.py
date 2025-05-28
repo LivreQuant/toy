@@ -12,8 +12,8 @@ from source.utils.metrics import track_conviction_submission_latency
 from source.db.conviction_repository import ConvictionRepository
 from source.core.session_manager import SessionManager
 
-from source.core.conviction_manager_db import RecordManager
-from source.core.conviction_manager_exchange import ExchangeManager
+from source.core.utils.conviction_manager_db import DBManager
+from source.core.utils.conviction_manager_exchange import ExchangeManager
 
 logger = logging.getLogger('operation_manager')
 
@@ -25,13 +25,13 @@ class OperationManager:
             self,
             conviction_repository: ConvictionRepository,
             session_manager: SessionManager,
-            record_manager: RecordManager,
+            db_manager: DBManager,
             exchange_manager: ExchangeManager
     ):
         self.conviction_repository = conviction_repository
         self.session_manager = session_manager
 
-        self.record_manager = record_manager
+        self.db_manager = db_manager
         self.exchange_manager = exchange_manager
 
     async def submit_convictions(self, convictions_data: List[Dict[str, Any]], user_id: str) -> Dict[str, Any]:
@@ -83,7 +83,7 @@ class OperationManager:
                 continue
                 
             # Validate conviction parameters
-            conviction_validation = await self.record_manager.validate_conviction_parameters(conviction_data)
+            conviction_validation = await self.db_manager.validate_conviction_parameters(conviction_data)
             if not conviction_validation.get('valid'):
                 error_msg = conviction_validation.get('error', 'Invalid conviction parameters')
                 
@@ -152,7 +152,7 @@ class OperationManager:
                     
                     for conviction in convictions_to_submit:
                         # Create new row with REJECTED status
-                        await self.record_manager.save_conviction_status(
+                        await self.db_manager.save_conviction_status(
                             conviction.conviction_id, user_id, error_msg
                         )
                         
@@ -207,7 +207,7 @@ class OperationManager:
         simulator_endpoint = simulator.get('endpoint') if simulator else None
         
         # 2. Get all conviction information in a single query
-        conviction_info_list = await self.record_manager.get_convictions_info(conviction_ids)
+        conviction_info_list = await self.db_manager.get_convictions_info(conviction_ids)
         
         # Create mapping of conviction_id to info
         conviction_info_map = {info['conviction_id']: info for info in conviction_info_list}
@@ -266,7 +266,7 @@ class OperationManager:
                         
                         if ex_result.get('success'):
                             # Create new row with CANCELED status
-                            success = await self.record_manager.save_conviction_status(
+                            success = await self.db_manager.save_conviction_status(
                                 conviction.conviction_id, user_id
                             )
                             
@@ -299,7 +299,7 @@ class OperationManager:
             # No simulator - just mark convictions as canceled in database
             for conviction, idx in valid_convictions:
                 # Create new row with CANCELED status
-                success = await self.record_manager.save_conviction_status(
+                success = await self.db_manager.save_conviction_status(
                     conviction.conviction_id, user_id
                 )
                 
