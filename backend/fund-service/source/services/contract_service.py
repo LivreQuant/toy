@@ -198,6 +198,14 @@ def update_global_state(
         True if successful, False otherwise
     """
     try:
+        # Debug logging
+        logger.info(f"update_global_state called with:")
+        logger.info(f"  app_id: {app_id}")
+        logger.info(f"  user_id: {user_id}")
+        logger.info(f"  book_id: {book_id}")
+        logger.info(f"  user_address: {user_address}")
+        logger.info(f"  params_str: {params_str}")
+        
         # Get admin credentials
         admin_private_key, admin_address = get_admin_credentials()
         
@@ -224,7 +232,7 @@ def update_global_state(
             create_method_signature("update_global(byte[],byte[],account,byte[])uint64"),
             user_id_bytes,
             book_id_bytes,
-            (0).to_bytes(8, "big"),  # Index 0 in accounts array
+            (1).to_bytes(8, "big"),  # Index 0 in accounts array
             params_bytes,
         ]
 

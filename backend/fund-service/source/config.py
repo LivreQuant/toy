@@ -73,6 +73,15 @@ class Config:
         """Check if running in production environment"""
         return self.environment.lower() == 'production'
 
+    @property
+    def contract_approval_path(self) -> Path:
+        """Get path to the contract approval TEAL file"""
+        return Path(__file__).parent / "artifacts" / "BookContract.approval.teal"
+
+    @property
+    def contract_clear_path(self) -> Path:
+        """Get path to the contract clear TEAL file"""
+        return Path(__file__).parent / "artifacts" / "BookContract.clear.teal"
 
 # Create global instance
 config = Config()

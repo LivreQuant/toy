@@ -14,7 +14,7 @@ from source.services.utils.algorand import get_algod_client, fund_account, check
 
 from source.services.contract_service import deploy_contract_for_user_book, update_global_state, remove_contract
 
-from source.services.user_contract_service import user_opt_in_to_contract, user_close_out_from_contract, update_user_local_state
+from source.services.user_contract_service import user_opt_in_to_contract, update_user_local_state
 
 logger = logging.getLogger('crypto_manager')
 
@@ -171,7 +171,7 @@ class CryptoManager:
     
     async def create_contract(self, user_id: str, book_id: str, book_data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Create a new contract for a user/book combination
+        Create a new contract for a user/book combination with complete setup
         
         Args:
             user_id: User ID
@@ -182,7 +182,7 @@ class CryptoManager:
             Result dictionary with success flag and contract info
         """
         try:
-            logger.info(f"Creating contract for user {user_id}, book {book_id}")
+            logger.info(f"Creating complete contract setup for user {user_id}, book {book_id}")
             
             # Check if contract already exists
             existing_contract = await self.crypto_repository.get_contract(user_id, book_id)
@@ -193,52 +193,136 @@ class CryptoManager:
                     "app_id": existing_contract['app_id'],
                     "contract_info": existing_contract
                 }
-                        
-            # Convert book parameters to params string
-            params_str = self._convert_book_data_to_params(book_data)
             
-            # Deploy contract
-            contract_info = deploy_contract_for_user_book(user_id, book_id, params_str)
-            
-            if contract_info and contract_info.get('app_id'):
-                # Save to database
-                contract_data = {
-                    'app_id': str(contract_info['app_id']),
-                    'app_address': contract_info['app_address'],
-                    'parameters': params_str,
-                    'status': 'ACTIVE',
-                    'blockchain_status': 'Active'
+            # Get user's wallet info first - we'll need it for global state update and opt-in
+            fund_id = await self._get_fund_id_for_user(user_id)
+            if not fund_id:
+                logger.error(f"No fund found for user {user_id}")
+                return {
+                    "success": False,
+                    "error": "User fund not found - cannot create contract"
                 }
                 
-                success = await self.crypto_repository.save_contract(user_id, book_id, contract_data)
-                
-                if success:
-                    logger.info(f"Contract created successfully for user {user_id}, book {book_id}")
-                    return {
-                        "success": True,
-                        "app_id": contract_info['app_id'],
-                        "contract_info": contract_info
-                    }
-                else:
-                    logger.error("Failed to save contract to database")
-                    return {
-                        "success": False,
-                        "error": "Failed to save contract to database"
-                    }
-            else:
+            wallet_data = await self.get_wallet(user_id, fund_id)
+            if not wallet_data:
+                logger.error(f"No wallet found for user {user_id}")
+                return {
+                    "success": False,
+                    "error": "User wallet not found - cannot create contract"
+                }
+            
+            user_address = wallet_data['address']
+            logger.info(f"Found user wallet address: {user_address}")
+                    
+            # Convert book parameters to fingerprint
+            params_fingerprint = self._convert_book_data_to_params(book_data)
+            
+            # STEP 1: Deploy contract with placeholder values
+            logger.info(f"Step 1: Deploying contract for user {user_id}, book {book_id}")
+            contract_info = deploy_contract_for_user_book(user_id, book_id, params_fingerprint)
+            
+            if not contract_info or not contract_info.get('app_id'):
                 logger.error("Failed to deploy contract")
                 return {
                     "success": False,
                     "error": "Failed to deploy contract"
                 }
+            
+            app_id = contract_info['app_id']
+            logger.info(f"Contract deployed successfully with app ID: {app_id}")
+            
+            # STEP 2: Update global state with real user address
+            logger.info(f"Step 2: Updating global state with user address: {user_address}")
+            global_update_success = update_global_state(app_id, user_id, book_id, user_address, params_fingerprint)
+            
+            if not global_update_success:
+                logger.error("Failed to update contract global state")
+                return {
+                    "success": False,
+                    "error": "Contract created but failed to update global state"
+                }
+            
+            logger.info(f"Global state updated successfully")
+
+            # STEP 2.5: Verify the contract status is now ACTIVE
+            import time
+            time.sleep(5)  # Small delay to ensure state is committed
+
+            # Debug: Check contract status before opt-in
+            try:
+                from source.services.utils.algorand import get_algod_client
+                import base64
+                
+                algod_client = get_algod_client()
+                app_info = algod_client.application_info(app_id)
+                global_state = app_info["params"].get("global-state", [])
+                
+                logger.info(f"DEBUG: Contract {app_id} global state before opt-in:")
+                for item in global_state:
+                    key_bytes = base64.b64decode(item["key"])
+                    key = key_bytes.decode("utf-8")
+                    if item["value"]["type"] == 1:  # bytes
+                        value_bytes = base64.b64decode(item["value"]["bytes"])
+                        value = value_bytes.decode("utf-8")
+                    else:  # uint
+                        value = item["value"]["uint"]
+                    logger.info(f"  {key}: {value}")
+                    
+            except Exception as e:
+                logger.error(f"Error checking contract state: {e}")
+
+            # STEP 3: User opt-in to the contract (pass the data we already have)
+            logger.info(f"Step 3: User opt-in to contract")
+            opt_in_success = await user_opt_in_to_contract(
+                user_id, 
+                book_id, 
+                self,  # crypto_manager
+                app_id=app_id,  # Pass the app_id we just created
+                wallet_data=wallet_data  # Pass the wallet_data we already have
+            )
+            
+            if not opt_in_success:
+                logger.warning(f"Failed to opt user into contract")
+                return {
+                    "success": False,
+                    "error": "Contract created and global state updated, but user opt-in failed"
+                }
+            else:
+                logger.info(f"User opted in successfully")
+            
+            # STEP 4: Save to database
+            contract_data = {
+                'app_id': str(app_id),
+                'app_address': contract_info['app_address'],
+                'parameters': params_fingerprint,
+                'status': 'ACTIVE',
+                'blockchain_status': 'Active'
+            }
+            
+            success = await self.crypto_repository.save_contract(user_id, book_id, contract_data)
+            
+            if success:
+                logger.info(f"Complete contract setup finished successfully for user {user_id}, book {book_id}")
+                return {
+                    "success": True,
+                    "app_id": app_id,
+                    "contract_info": contract_info,
+                    "user_opted_in": True
+                }
+            else:
+                logger.error("Failed to save contract to database")
+                return {
+                    "success": False,
+                    "error": "Contract deployed and user opted in, but failed to save to database"
+                }
                 
         except Exception as e:
-            logger.error(f"Error creating contract: {e}")
+            logger.error(f"Error in complete contract creation: {e}")
             return {
                 "success": False,
                 "error": f"Error creating contract: {str(e)}"
             }
-
+    
     async def get_contract(self, user_id: str, book_id: str) -> Optional[Dict[str, Any]]:
         """
         Get contract information for a user/book combination
@@ -388,19 +472,26 @@ class CryptoManager:
 
     def _convert_book_data_to_params(self, book_data: Dict[str, Any]) -> str:
         """
-        Convert book data to parameters string format
+        Convert book data to parameters fingerprint for blockchain storage
         
         Args:
             book_data: Book data dictionary
             
         Returns:
-            Parameters string
+            SHA-256 fingerprint of parameters (64 hex characters)
         """
+        import hashlib
+        import json
+        
+        # Build the full parameters string first
         params = []
         
-        # Extract parameters from book_data
+        # Extract parameters from book_data in a deterministic order
         if 'parameters' in book_data and isinstance(book_data['parameters'], list):
-            for param in book_data['parameters']:
+            # Sort parameters for deterministic hashing
+            sorted_params = sorted(book_data['parameters'], key=lambda x: (x[0], x[1], str(x[2])))
+            
+            for param in sorted_params:
                 if len(param) >= 3:
                     category, subcategory, value = param[0], param[1], param[2]
                     if subcategory:
@@ -408,22 +499,25 @@ class CryptoManager:
                     else:
                         params.append(f"{category}:{value}")
         
-        # If no parameters, use default
+        # Create the full parameters string
         if not params:
-            return config.default_params_str
-            
-        return "|".join(params)
-
+            params_string = config.default_params_str
+        else:
+            params_string = "|".join(params)
+        
+        # Create SHA-256 fingerprint of the parameters string
+        fingerprint = hashlib.sha256(params_string.encode('utf-8')).hexdigest()
+        
+        logger.info(f"Created parameters fingerprint: {fingerprint[:16]}... (from {len(params_string)} byte string)")
+        
+        return fingerprint
+    
     ####################################################
     # USER OPERATIONS - USER SUBMIT/CANCEL CONVICTIONS #
     ####################################################
 
     async def _get_fund_id_for_user(self, user_id: str) -> Optional[str]:
         """Get fund_id for a user by querying the fund repository"""
-        # This is a helper method - you might need to add fund_repository to crypto_manager
-        # For now, we can make a database query directly or add fund_repository as a dependency
-        
-        # Quick solution - query database directly
         try:
             pool = await self.crypto_repository.db_pool.get_pool()
             async with pool.acquire() as conn:
@@ -436,23 +530,6 @@ class CryptoManager:
             logger.error(f"Error getting fund_id for user {user_id}: {e}")
             return None
     
-    async def opt_in(self, user_id: str, book_id: str) -> Dict[str, Any]:
-        """User opt-in to contract"""
-        try:
-            logger.info(f"User {user_id} opting in to contract for book {book_id}")
-            
-            success = await user_opt_in_to_contract(user_id, book_id, self)  # Pass self
-            
-            if success:
-                logger.info(f"User {user_id} opted in successfully to book {book_id}")
-                return {"success": True}
-            else:
-                return {"success": False, "error": "Failed to opt in to contract"}
-                
-        except Exception as e:
-            logger.error(f"Error in opt-in: {e}")
-            return {"success": False, "error": f"Error in opt-in: {str(e)}"}
-
     async def update_local_state(self, user_id: str, book_id: str, 
                                 book_hash: str = None, research_hash: str = None, 
                                 params_hash: str = None) -> Dict[str, Any]:
@@ -478,20 +555,36 @@ class CryptoManager:
         except Exception as e:
             logger.error(f"Error updating local state: {e}")
             return {"success": False, "error": f"Error updating local state: {str(e)}"}
+        
+    ########
+    # MISC #
+    ########
 
-    async def opt_out(self, user_id: str, book_id: str) -> Dict[str, Any]:
-        """User opt-out from contract"""
+    def verify_contract_status(app_id: int, expected_status: str = "ACTIVE") -> bool:
+        """Verify the contract has the expected status"""
         try:
-            logger.info(f"User {user_id} opting out from contract for book {book_id}")
+            from source.services.utils.algorand import get_algod_client
             
-            success = await user_close_out_from_contract(user_id, book_id, self)  # Pass self
+            algod_client = get_algod_client()
+            app_info = algod_client.application_info(app_id)
             
-            if success:
-                logger.info(f"User {user_id} opted out successfully from book {book_id}")
-                return {"success": True}
-            else:
-                return {"success": False, "error": "Failed to opt out from contract"}
-                
+            global_state = app_info["params"].get("global-state", [])
+            
+            for item in global_state:
+                key_bytes = base64.b64decode(item["key"])
+                try:
+                    key = key_bytes.decode("utf-8")
+                    if key == "status" and item["value"]["type"] == 1:
+                        value_bytes = base64.b64decode(item["value"]["bytes"])
+                        status = value_bytes.decode("utf-8")
+                        logger.info(f"Contract {app_id} status: {status}")
+                        return status == expected_status
+                except:
+                    continue
+            
+            logger.warning(f"Could not find status in contract {app_id}")
+            return False
+            
         except Exception as e:
-            logger.error(f"Error in opt-out: {e}")
-            return {"success": False, "error": f"Error in opt-out: {str(e)}"}
+            logger.error(f"Error checking contract status: {e}")
+            return False
