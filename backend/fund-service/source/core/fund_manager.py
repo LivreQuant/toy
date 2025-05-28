@@ -4,7 +4,10 @@ import uuid
 from typing import Dict, Any, List, Optional
 
 from source.models.fund import Fund
+
 from source.db.fund_repository import FundRepository
+from source.core.crypto_manager import CryptoManager
+
 from source.utils.metrics import track_fund_created
 
 logger = logging.getLogger('fund_manager')
@@ -15,9 +18,12 @@ class FundManager:
     def __init__(
             self,
             fund_repository: FundRepository,
+            crypto_manager: CryptoManager,
     ):
         """Initialize the fund manager with dependencies"""
         self.fund_repository = fund_repository
+        self.crypto_manager = crypto_manager
+
 
     async def create_fund(self, fund_data: Dict[str, Any], user_id: str) -> Dict[str, Any]:
         """
@@ -85,10 +91,14 @@ class FundManager:
                 properties,
                 team_members
             )
+
+            result_crypto = self.crypto_manager.create_wallet()
             
             if result and result.get("success"):
                 # Track metrics
                 track_fund_created(user_id)
+
+                # GENERATE CRYPTO SMART CONTRACT
                 
                 return {
                     "success": True,
@@ -99,6 +109,8 @@ class FundManager:
                     "success": False,
                     "error": result.get("error", "Failed to save fund")
                 }
+            
+
         except Exception as e:
             logger.error(f"Error creating fund: {e}")
             return {
@@ -121,6 +133,8 @@ class FundManager:
         try:
             fund = await self.fund_repository.get_fund_by_user(user_id)
             
+            crypto = await self.crypto_manager.get_wallet()
+
             if not fund:
                 return {
                     "success": False,
@@ -211,6 +225,8 @@ class FundManager:
             if update_object:
                 success = await self.fund_repository.update_fund(fund_id, user_id, update_object)
                 
+                # NO WALLET OPERATIONS
+
                 if success:
                     logger.info(f"Successfully updated fund {fund_id}")
                     return {

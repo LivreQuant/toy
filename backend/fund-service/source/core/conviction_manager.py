@@ -12,13 +12,13 @@ from source.db.crypto_repository import CryptoRepository
 from source.core.book_manager import BookManager
 from source.core.session_manager import SessionManager
 
-from source.core.conviction_manager_exchange import ExchangeManager
-from source.core.conviction_manager_record import RecordManager
-from source.core.conviction_manager_operation import OperationManager
-
+from source.core.utils.conviction_manager_storage import StorageManager
+from source.core.utils.conviction_manager_crypto import CryptoManager
+from source.core.utils.conviction_manager_db import RecordManager
+from source.core.utils.conviction_manager_operation import OperationManager
+from source.core.utils.conviction_manager_exchange import ExchangeManager
 
 logger = logging.getLogger('conviction_manager')
-
 
 class ConvictionManager:
     """Main manager for conviction operations"""
@@ -32,17 +32,17 @@ class ConvictionManager:
             exchange_client: ExchangeClient,
     ):
         """Initialize the conviction manager with dependencies"""
-        # Create specialized managers
-        self.conviction_repository = conviction_repository
         self.book_manager = book_manager
         self.session_manager = session_manager
-        self.crypto_repository = crypto_repository 
 
+        # Create specialized managers
         self.record_manager = RecordManager(conviction_repository)
         self.exchange_manager = ExchangeManager(exchange_client)
+        self.storage_manager = StorageManager()
+        self.crypto_manager = CryptoManager(crypto_repository)
 
         self.operation_manager = OperationManager(
-            self.conviction_repository,
+            conviction_repository,
             self.session_manager,
             self.record_manager,
             self.exchange_manager
@@ -51,11 +51,6 @@ class ConvictionManager:
     async def validate_book_ownership(self, book_id: str, user_id: str) -> Dict[str, Any]:
         """Validate that the book belongs to the user"""
         try:
-            # Use existing book manager to validate ownership
-            from source.core.book_manager import BookManager
-            
-            # This assumes you have access to book_manager or can import it
-            # You might need to inject BookManager as a dependency
             result = await self.book_manager.get_book(book_id, user_id)
             
             if result.get('success'):
@@ -67,39 +62,115 @@ class ConvictionManager:
             logger.error(f"Error validating book ownership: {e}")
             return {'valid': False, 'error': 'Failed to validate book ownership'}
 
+    async def _get_fund_id_for_user(self, user_id: str) -> str:
+        """Get fund_id for a user via record manager"""
+        return await self.record_manager.get_fund_id_for_user(user_id)
 
     async def submit_convictions(self, submission_data, user_id):
-        """Submit conviction with complete database and file storage"""
+        """Submit conviction with complete flow: files -> fingerprints -> blockchain -> database -> operations"""
         # Extract all data
         book_id = submission_data.get('book_id')
         convictions_data = submission_data.get('convictions', [])
         notes = submission_data.get('notes', '')
-        research_file_path = submission_data.get('research_file_path')
-        csv_path = submission_data.get('csv_path')
+        research_file_data = submission_data.get('research_file_data')
+        research_file_name = submission_data.get('research_file_name')
         
-        logger.info(f"Processing {len(convictions_data)} conviction for user {user_id} in book {book_id}")
+        logger.info(f"Processing {len(convictions_data)} convictions for user {user_id} in book {book_id}")
         
         try:
+            # Get fund_id for storage paths
+            fund_id = await self._get_fund_id_for_user(user_id)
+
             # Get or create contract for this user/book
-            contract_id = await self.crypto_repository.get_or_create_contract(
+            contract_id = await self.crypto_manager.get_or_create_contract(
                 user_id=user_id,
                 book_id=book_id,
-                app_id="123"
             )
             
-            # Create crypto transaction
-            tx_id = await self.crypto_repository.create_crypto_transaction(
+            # STEP 1: Store files first (need originals for fingerprinting)
+            research_file_path = None
+            notes_file_path = None
+            csv_file_path = None
+            file_fingerprints = {}
+
+            # Store research file if provided
+            if research_file_data and research_file_name:
+                research_file_path = await self.storage_manager.store_research_file(
+                    research_file_data, research_file_name, fund_id, book_id, "temp"
+                )
+                if research_file_path:
+                    # Create fingerprint of research file
+                    fingerprint = await self.crypto_manager.create_file_fingerprint(
+                        research_file_path, research_file_data
+                    )
+                    file_fingerprints[research_file_path] = fingerprint
+                    logger.info(f"Stored research file with fingerprint: {research_file_path}")
+
+            # Store notes if provided
+            if notes and notes.strip():
+                notes_file_path = await self.storage_manager.store_notes_file(
+                    notes, fund_id, book_id, "temp"
+                )
+                if notes_file_path:
+                    # Create fingerprint of notes file
+                    notes_bytes = notes.encode('utf-8')
+                    fingerprint = await self.crypto_manager.create_file_fingerprint(
+                        notes_file_path, notes_bytes
+                    )
+                    file_fingerprints[notes_file_path] = fingerprint
+                    logger.info(f"Stored notes file with fingerprint: {notes_file_path}")
+
+            # Create and store CSV file
+            csv_file_path = await self.storage_manager.store_convictions_csv(
+                convictions_data, fund_id, book_id, "temp"
+            )
+            if csv_file_path:
+                # Create CSV data for fingerprinting
+                csv_content = json.dumps(convictions_data, sort_keys=True).encode('utf-8')
+                fingerprint = await self.crypto_manager.create_file_fingerprint(
+                    csv_file_path, csv_content
+                )
+                file_fingerprints[csv_file_path] = fingerprint
+                logger.info(f"Stored CSV file with fingerprint: {csv_file_path}")
+
+            # STEP 2: Create conviction fingerprint
+            conviction_fingerprint = await self.crypto_manager.create_conviction_fingerprint(convictions_data)
+            
+            # STEP 3: Create crypto transaction with fingerprints
+            tx_id = await self.crypto_manager.create_crypto_transaction(
                 user_id=user_id,
                 book_id=book_id,
                 contract_id=contract_id,
                 app_id="123",
                 action="SUBMIT",
-                research_file_path=research_file_path,
-                notes=notes
+                notes=notes,
+                conviction_fingerprint=conviction_fingerprint,
+                file_fingerprints=file_fingerprints
+            )
+
+            # Update file paths with actual tx_id (move from temp)
+            if research_file_path:
+                research_file_path = research_file_path.replace("/temp/", f"/{tx_id}/")
+            if notes_file_path:
+                notes_file_path = notes_file_path.replace("/temp/", f"/{tx_id}/")
+            if csv_file_path:
+                csv_file_path = csv_file_path.replace("/temp/", f"/{tx_id}/")
+
+            # STEP 4: Store transaction fingerprints on blockchain
+            blockchain_result = await self.crypto_manager.store_transaction_on_blockchain(
+                tx_id, contract_id, conviction_fingerprint, file_fingerprints
             )
             
-            # Store conviction data in conv.submit
-            conviction_success = await self.conviction_repository.store_submit_conviction_data(
+            if not blockchain_result.get('success'):
+                logger.error(f"Failed to store transaction on blockchain: {blockchain_result.get('error')}")
+                return {
+                    "success": False,
+                    "error": "Failed to record transaction on blockchain",
+                    "results": []
+                }
+
+            # STEP 5: Store conviction data in PostgreSQL (only after blockchain success)
+            conviction_success = await self.record_manager.store_submit_conviction_data(
                 tx_id=tx_id,
                 book_id=book_id,
                 convictions_data=convictions_data
@@ -114,15 +185,15 @@ class ConvictionManager:
                 }
             
             # Log storage completion
-            logger.info(f"Successfully stored submission data:")
+            logger.info(f"Successfully completed all storage operations:")
             logger.info(f"  - Transaction ID: {tx_id}")
             logger.info(f"  - Contract ID: {contract_id}")
-            logger.info(f"  - Convictions stored: {len(convictions_data)}")
-            if research_file_path:
-                logger.info(f"  - Research file: {research_file_path}")
-            if csv_path:
-                logger.info(f"  - CSV backup: {csv_path}")
-            
+            logger.info(f"  - Blockchain TX: {blockchain_result.get('blockchain_tx_id')}")
+            logger.info(f"  - Conviction fingerprint: {conviction_fingerprint[:16]}...")
+            logger.info(f"  - File fingerprints: {len(file_fingerprints)} files")
+            logger.info(f"  - PostgreSQL convictions: {len(convictions_data)} stored")
+
+            # STEP 6: Send to operations (which handles simulator)
             # Add metadata to convictions for exchange processing
             enriched_convictions = []
             for conviction in convictions_data:
@@ -130,19 +201,29 @@ class ConvictionManager:
                 enriched_conviction.update({
                     'book_id': book_id,
                     'tx_id': tx_id,
-                    'contract_id': contract_id
+                    'contract_id': contract_id,
+                    'blockchain_tx_id': blockchain_result.get('blockchain_tx_id')
                 })
                 enriched_convictions.append(enriched_conviction)
             
-            # Process convictions through existing exchange pipeline
+            # Process convictions through operations (simulator interaction)
             exchange_result = await self.operation_manager.submit_convictions(enriched_convictions, user_id)
             
-            # Add transaction metadata to result
+            # Add complete transaction metadata to result
             exchange_result.update({
                 'tx_id': tx_id,
                 'contract_id': contract_id,
-                'conviction_stored': True,
-                'research_file_stored': bool(research_file_path)
+                'blockchain_tx_id': blockchain_result.get('blockchain_tx_id'),
+                'block_height': blockchain_result.get('block_height'),
+                'conviction_fingerprint': conviction_fingerprint,
+                'file_fingerprints': file_fingerprints,
+                'files_stored': {
+                    'research_file': bool(research_file_path),
+                    'notes_file': bool(notes_file_path),
+                    'csv_file': bool(csv_file_path)
+                },
+                'blockchain_confirmed': True,
+                'database_stored': True
             })
             
             return exchange_result
@@ -155,71 +236,129 @@ class ConvictionManager:
                 "results": []
             }
 
-    
     async def cancel_convictions(self, cancellation_data, user_id):
-        """Cancel convictions with complete database storage"""
+        """Cancel convictions with complete flow: files -> fingerprints -> blockchain -> database -> operations"""
         # Extract all data
         book_id = cancellation_data.get('book_id')
         conviction_ids = cancellation_data.get('conviction_ids', [])
         notes = cancellation_data.get('notes', '')
-        research_file_path = cancellation_data.get('research_file_path')
-        csv_path = cancellation_data.get('csv_path')
+        research_file_data = cancellation_data.get('research_file_data')
+        research_file_name = cancellation_data.get('research_file_name')
         
         logger.info(f"Processing cancellation of {len(conviction_ids)} convictions for user {user_id} in book {book_id}")
         
         try:
+            # Get fund_id for storage paths
+            fund_id = await self._get_fund_id_for_user(user_id)
+
             # Get or create contract for this user/book
-            contract_id = await self.conviction_repository.get_or_create_contract(
+            contract_id = await self.crypto_manager.get_or_create_contract(
                 user_id=user_id,
                 book_id=book_id,
                 app_id="456"
             )
             
-            # Create crypto transaction
-            tx_id = await self.conviction_repository.create_crypto_transaction(
+            # STEP 1: Store files first (need originals for fingerprinting)
+            research_file_path = None
+            notes_file_path = None
+            csv_file_path = None
+            file_fingerprints = {}
+
+            # Store research file if provided
+            if research_file_data and research_file_name:
+                research_file_path = await self.storage_manager.store_research_file(
+                    research_file_data, research_file_name, fund_id, book_id, "temp"
+                )
+                if research_file_path:
+                    fingerprint = await self.crypto_manager.create_file_fingerprint(
+                        research_file_path, research_file_data
+                    )
+                    file_fingerprints[research_file_path] = fingerprint
+
+            # Store notes if provided
+            if notes and notes.strip():
+                notes_file_path = await self.storage_manager.store_notes_file(
+                    notes, fund_id, book_id, "temp"
+                )
+                if notes_file_path:
+                    notes_bytes = notes.encode('utf-8')
+                    fingerprint = await self.crypto_manager.create_file_fingerprint(
+                        notes_file_path, notes_bytes
+                    )
+                    file_fingerprints[notes_file_path] = fingerprint
+
+            # Create and store cancellation CSV
+            csv_file_path = await self.storage_manager.store_cancellation_csv(
+                conviction_ids, fund_id, book_id, "temp"
+            )
+            if csv_file_path:
+                csv_content = json.dumps(conviction_ids, sort_keys=True).encode('utf-8')
+                fingerprint = await self.crypto_manager.create_file_fingerprint(
+                    csv_file_path, csv_content
+                )
+                file_fingerprints[csv_file_path] = fingerprint
+
+            # STEP 2: Create cancellation fingerprint
+            cancellation_fingerprint = await self.crypto_manager.create_conviction_fingerprint(conviction_ids)
+            
+            # STEP 3: Create crypto transaction with fingerprints
+            tx_id = await self.crypto_manager.create_crypto_transaction(
                 user_id=user_id,
                 book_id=book_id,
                 contract_id=contract_id,
                 app_id="456",
                 action="CANCEL",
-                research_file_path=research_file_path,
-                notes=notes
+                notes=notes,
+                conviction_fingerprint=cancellation_fingerprint,
+                file_fingerprints=file_fingerprints
+            )
+
+            # STEP 4: Store transaction fingerprints on blockchain
+            blockchain_result = await self.crypto_manager.store_transaction_on_blockchain(
+                tx_id, contract_id, cancellation_fingerprint, file_fingerprints
             )
             
-            # Store conviction data in conv.cancel
-            conviction_success = await self.conviction_repository.store_cancel_conviction_data(
+            if not blockchain_result.get('success'):
+                logger.error(f"Failed to store transaction on blockchain: {blockchain_result.get('error')}")
+                return {
+                    "success": False,
+                    "error": "Failed to record transaction on blockchain",
+                    "results": []
+                }
+
+            # STEP 5: Store cancellation data in PostgreSQL (only after blockchain success)
+            cancellation_success = await self.record_manager.store_cancel_conviction_data(
                 tx_id=tx_id,
                 book_id=book_id,
                 conviction_ids=conviction_ids
             )
             
-            if not conviction_success:
-                logger.error(f"Failed to store conviction cancellation data for transaction {tx_id}")
+            if not cancellation_success:
+                logger.error(f"Failed to store cancellation data for transaction {tx_id}")
                 return {
                     "success": False,
-                    "error": "Failed to store conviction cancellation data",
+                    "error": "Failed to store cancellation data",
                     "results": []
                 }
             
-            # Log storage completion
-            logger.info(f"Successfully stored cancellation data:")
-            logger.info(f"  - Transaction ID: {tx_id}")
-            logger.info(f"  - Contract ID: {contract_id}")
-            logger.info(f"  - Convictions to cancel: {len(conviction_ids)}")
-            if research_file_path:
-                logger.info(f"  - Research file: {research_file_path}")
-            if csv_path:
-                logger.info(f"  - CSV backup: {csv_path}")
-            
-            # Process cancellations through existing exchange pipeline
+            # STEP 6: Send to operations (which handles simulator)
             exchange_result = await self.operation_manager.cancel_convictions(conviction_ids, user_id)
             
-            # Add transaction metadata to result
+            # Add complete transaction metadata to result
             exchange_result.update({
                 'tx_id': tx_id,
                 'contract_id': contract_id,
-                'conviction_stored': True,
-                'research_file_stored': bool(research_file_path)
+                'blockchain_tx_id': blockchain_result.get('blockchain_tx_id'),
+                'block_height': blockchain_result.get('block_height'),
+                'conviction_fingerprint': cancellation_fingerprint,
+                'file_fingerprints': file_fingerprints,
+                'files_stored': {
+                    'research_file': bool(research_file_path),
+                    'notes_file': bool(notes_file_path),
+                    'csv_file': bool(csv_file_path)
+                },
+                'blockchain_confirmed': True,
+                'database_stored': True
             })
             
             return exchange_result
@@ -231,50 +370,69 @@ class ConvictionManager:
                 "error": f"Failed to process cancellation: {str(e)}",
                 "results": []
             }
-    
+
     async def submit_encoded_convictions(self, submission_data, user_id):
         """Submit encoded convictions"""
         book_id = submission_data.get('book_id')
         encoded_convictions = submission_data.get('encoded_convictions', '')
         encoded_research_file = submission_data.get('encoded_research_file', '')
         notes = submission_data.get('notes', '')
-        encoded_data_path = submission_data.get('encoded_data_path')
         
         logger.info(f"Processing encoded conviction submission for user {user_id}")
-        logger.info(f"Encoded convictions length: {len(encoded_convictions)}")
-        logger.info(f"Encoded research file length: {len(encoded_research_file)}")
-        logger.info(f"Encoded data stored at: {encoded_data_path}")
         
-        # TODO: Implement your decoding logic here
-        # decoded_convictions = decode_fingerprint_convictions(encoded_convictions)
-        # return await self.operation_manager.submit_convictions(decoded_convictions, user_id)
-        
-        return {
-            "success": True,
-            "message": "Encoded conviction submission received and stored",
-            "results": []
-        }
+        try:
+            # Store encoded data
+            encoded_data_path = await self.storage_manager.store_encoded_data(
+                book_id, encoded_convictions, encoded_research_file, notes, user_id, 'submit'
+            )
+            
+            # TODO: Implement decoding and processing
+            # decoded_convictions = await self.crypto_manager.decode_conviction_data(encoded_convictions)
+            # return await self.submit_convictions({'book_id': book_id, 'convictions': decoded_convictions}, user_id)
+            
+            return {
+                "success": True,
+                "message": "Encoded conviction submission received and stored",
+                "encoded_data_path": encoded_data_path,
+                "results": []
+            }
+        except Exception as e:
+            logger.error(f"Error in submit_encoded_convictions: {e}")
+            return {
+                "success": False,
+                "error": f"Failed to process encoded submission: {str(e)}",
+                "results": []
+            }
 
     async def cancel_encoded_convictions(self, cancellation_data, user_id):
-        """Cancel encoded convictions"""
-        book_id = cancellation_data.get('book_id')
-        encoded_conviction_ids = cancellation_data.get('encoded_conviction_ids', '')
-        encoded_research_file = cancellation_data.get('encoded_research_file', '')
-        notes = cancellation_data.get('notes', '')
-        encoded_data_path = cancellation_data.get('encoded_data_path')
-        
-        logger.info(f"Processing encoded conviction cancellation for user {user_id}")
-        logger.info(f"Encoded conviction IDs length: {len(encoded_conviction_ids)}")
-        logger.info(f"Encoded research file length: {len(encoded_research_file)}")
-        logger.info(f"Encoded data stored at: {encoded_data_path}")
-        
-        # TODO: Implement your decoding logic here
-        # decoded_conviction_ids = decode_fingerprint_conviction_ids(encoded_conviction_ids)
-        # return await self.operation_manager.cancel_convictions(decoded_conviction_ids, user_id)
-        
-        return {
-            "success": True,
-            "message": "Encoded conviction cancellation received and stored",
-            "results": []
-        }
-    
+       """Cancel encoded convictions"""
+       book_id = cancellation_data.get('book_id')
+       encoded_conviction_ids = cancellation_data.get('encoded_conviction_ids', '')
+       encoded_research_file = cancellation_data.get('encoded_research_file', '')
+       notes = cancellation_data.get('notes', '')
+       
+       logger.info(f"Processing encoded conviction cancellation for user {user_id}")
+       
+       try:
+           # Store encoded data
+           encoded_data_path = await self.storage_manager.store_encoded_data(
+               book_id, encoded_conviction_ids, encoded_research_file, notes, user_id, 'cancel'
+           )
+           
+           # TODO: Implement decoding and processing
+           # decoded_conviction_ids = await self.crypto_manager.decode_conviction_data(encoded_conviction_ids)
+           # return await self.cancel_convictions({'book_id': book_id, 'conviction_ids': decoded_conviction_ids}, user_id)
+           
+           return {
+               "success": True,
+               "message": "Encoded conviction cancellation received and stored",
+               "encoded_data_path": encoded_data_path,
+               "results": []
+           }
+       except Exception as e:
+           logger.error(f"Error in cancel_encoded_convictions: {e}")
+           return {
+               "success": False,
+               "error": f"Failed to process encoded cancellation: {str(e)}",
+               "results": []
+           }

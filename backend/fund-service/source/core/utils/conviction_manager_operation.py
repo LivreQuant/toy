@@ -12,7 +12,7 @@ from source.utils.metrics import track_conviction_submission_latency
 from source.db.conviction_repository import ConvictionRepository
 from source.core.session_manager import SessionManager
 
-from source.core.conviction_manager_record import RecordManager
+from source.core.conviction_manager_db import RecordManager
 from source.core.conviction_manager_exchange import ExchangeManager
 
 logger = logging.getLogger('operation_manager')

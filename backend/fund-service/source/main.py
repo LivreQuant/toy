@@ -24,6 +24,7 @@ from source.core.state_manager import StateManager
 from source.core.session_manager import SessionManager
 from source.core.fund_manager import FundManager
 from source.core.book_manager import BookManager
+from source.core.crypto_manager import CryptoManager
 from source.core.conviction_manager import ConvictionManager
 
 # CLIENTS
@@ -119,17 +120,21 @@ async def main():
         session_manager = SessionManager(session_repository,
                                          auth_client)
 
+        # Initialize crypto manager
+        crypto_manager = CryptoManager(crypto_repository)
+
         # Initialize fund manager
-        fund_manager = FundManager(fund_repository)
+        fund_manager = FundManager(fund_repository, crypto_manager)
 
         # Initialize book manager
-        book_manager = BookManager(book_repository)
+        book_manager = BookManager(book_repository, crypto_manager)
         
         # Initialize conviction manager
         conviction_manager = ConvictionManager(conviction_repository,
                                                crypto_repository,
                                                book_manager, 
                                                session_manager, 
+                                               crypto_manager,
                                                exchange_client)
 
         # Setup and start REST API

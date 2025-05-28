@@ -233,3 +233,66 @@ class RecordManager:
                 "valid": False,
                 "error": f"Validation error: {str(e)}"
             }
+
+
+    async def store_submit_conviction_data(self, tx_id: str, book_id: str, convictions_data: list) -> bool:
+        """Store submission data via repository"""
+        try:
+            return await self.conviction_repository.store_submit_conviction_data(
+                tx_id=tx_id,
+                book_id=book_id,
+                convictions_data=convictions_data
+            )
+        except Exception as e:
+            logger.error(f"Error storing submission data: {e}")
+            return False
+
+    async def store_cancel_conviction_data(self, tx_id: str, book_id: str, conviction_ids: list) -> bool:
+        """Store cancellation data via repository"""
+        try:
+            return await self.conviction_repository.store_cancel_conviction_data(
+                tx_id=tx_id,
+                book_id=book_id,
+                conviction_ids=conviction_ids
+            )
+        except Exception as e:
+            logger.error(f"Error storing cancellation data: {e}")
+            return False
+        
+    async def get_fund_id_for_user(self, user_id: str) -> str:
+        """Get fund_id for a user via repository"""
+        try:
+            pool = await self.conviction_repository.db_pool.get_pool()
+            async with pool.acquire() as conn:
+                fund_id = await conn.fetchval(
+                    "SELECT fund_id FROM fund.funds WHERE user_id = $1 LIMIT 1",
+                    user_id
+                )
+                return str(fund_id) if fund_id else user_id  # fallback to user_id
+        except Exception as e:
+            logger.error(f"Error getting fund_id for user {user_id}: {e}")
+            return user_id  # fallback to user_id
+
+    async def store_submit_conviction_data(self, tx_id: str, book_id: str, convictions_data: list) -> bool:
+        """Store submission data via repository"""
+        try:
+            return await self.conviction_repository.store_submit_conviction_data(
+                tx_id=tx_id,
+                book_id=book_id,
+                convictions_data=convictions_data
+            )
+        except Exception as e:
+            logger.error(f"Error storing submission data: {e}")
+            return False
+
+    async def store_cancel_conviction_data(self, tx_id: str, book_id: str, conviction_ids: list) -> bool:
+        """Store cancellation data via repository"""
+        try:
+            return await self.conviction_repository.store_cancel_conviction_data(
+                tx_id=tx_id,
+                book_id=book_id,
+                conviction_ids=conviction_ids
+            )
+        except Exception as e:
+            logger.error(f"Error storing cancellation data: {e}")
+            return False

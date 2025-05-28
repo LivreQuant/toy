@@ -5,7 +5,10 @@ import json
 from typing import Dict, Any, List
 
 from source.models.book import Book
+
 from source.db.book_repository import BookRepository
+from source.core.crypto_manager import CryptoManager
+
 from source.utils.metrics import track_book_created
 
 logger = logging.getLogger('book_manager')
@@ -13,9 +16,13 @@ logger = logging.getLogger('book_manager')
 class BookManager:
     """Manager for book operations"""
 
-    def __init__(self, book_repository: BookRepository):
+    def __init__(self, 
+                 book_repository: BookRepository,
+                 crypto_manager: CryptoManager
+                 ):
         """Initialize the book manager with dependencies"""
         self.book_repository = book_repository
+        self.crypto_manager = crypto_manager
 
     async def create_book(self, book_data: Dict[str, Any], user_id: str) -> Dict[str, Any]:
         """
@@ -111,6 +118,9 @@ class BookManager:
             # Set parameters in book_dict
             book_dict['parameters'] = parameters
             
+            # CREATE SMART CONTRACT
+            app_id = await self.crypto_manager.get_contract(book_dict)
+
             # Save to database
             logger.info(f"Calling repository to save book {book.book_id}")
             book_id = await self.book_repository.create_book(book_dict)
@@ -237,6 +247,9 @@ class BookManager:
                             else:
                                 logger.warning(f"Unknown Conviction subcategory: '{subcategory}'")
 
+                # GET SMART CONTRACT APP_ID
+                app_id = await self.crypto_manager.get_contract(book_internal['book_id'])
+                
                 # Add conviction schema if any values were found
                 if conviction_schema:
                     logger.info(f"Final conviction_schema before adding to book: {conviction_schema}")
@@ -365,6 +378,9 @@ class BookManager:
                         else:
                             logger.warning(f"Unknown Conviction subcategory: '{subcategory}'")
             
+            # GET SMART CONTRACT APP_ID
+            app_id = await self.crypto_manager.get_contract(book_id)
+
             # Add conviction schema if any values were found
             if conviction_schema:
                 logger.info(f"Final conviction_schema before adding to book: {conviction_schema}")
@@ -484,6 +500,9 @@ class BookManager:
                 'parameters': parameters
             }
             
+            # UPDATE SMART CONTRACT
+            result = await self.crypto_manager.update_contract(update_data)
+
             # Apply updates using temporal pattern
             success = await self.book_repository.update_book(book_id, update_data)
             
