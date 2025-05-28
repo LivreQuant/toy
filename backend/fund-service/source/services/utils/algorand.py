@@ -15,31 +15,6 @@ from dotenv import load_dotenv
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
 logger = logging.getLogger("algorand_utils")
 
-# Load environment variables
-load_dotenv()
-
-# Algorand node connection parameters
-ALGOD_TOKEN = os.getenv(
-    "ALGOD_TOKEN", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-)
-ALGOD_SERVER = os.getenv("ALGOD_SERVER", "http://localhost")
-ALGOD_PORT = os.getenv("ALGOD_PORT", "4001")
-
-# Indexer connection parameters
-INDEXER_TOKEN = os.getenv(
-    "INDEXER_TOKEN", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-)
-INDEXER_SERVER = os.getenv("INDEXER_SERVER", "http://localhost")
-INDEXER_PORT = os.getenv("INDEXER_PORT", "8980")
-
-# Wallet mnemonics
-ADMIN_MNEMONIC = os.getenv("ADMIN_MNEMONIC")
-USER_MNEMONIC = os.getenv("USER_MNEMONIC")
-
-# Contract configuration
-DEFAULT_FUNDING_AMOUNT = 1_000_000  # 1 Algo in microAlgos
-
-
 def get_algod_client() -> algod.AlgodClient:
     """Create and return an algod client."""
     algod_address = f"{ALGOD_SERVER}:{ALGOD_PORT}"
