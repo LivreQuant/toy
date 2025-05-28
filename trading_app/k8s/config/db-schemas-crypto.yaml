@@ -14,6 +14,7 @@ data:
       fund_id UUID NOT NULL REFERENCES fund.funds(fund_id) ON DELETE CASCADE,
       address VARCHAR(255) NOT NULL,
       mnemonic VARCHAR(255) NOT NULL,
+      mnemonic_salt TEXT NOT NULL,
       active_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
       expire_at TIMESTAMP WITH TIME ZONE DEFAULT '2999-01-01',
       PRIMARY KEY (user_id, fund_id),

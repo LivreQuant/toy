@@ -5,7 +5,7 @@ from typing import Dict, Any, Tuple
 
 from algosdk import account, mnemonic
 
-import config
+from source.config import config
 
 from source.services.utils.algorand import (
     get_algod_client,

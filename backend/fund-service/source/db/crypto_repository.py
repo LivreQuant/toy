@@ -37,29 +37,25 @@ class CryptoRepository:
     ######################
 
     async def save_wallet(self, user_id: str, fund_id: str, wallet_data: Dict[str, Any]) -> bool:
-        """
-        Save wallet information for a user/fund combination
-        
-        Args:
-            user_id: User ID
-            fund_id: Fund ID
-            wallet_data: Wallet information (address, mnemonic, etc.)
-            
-        Returns:
-            True if successful, False otherwise
-        """
+        """Save wallet information for a user/fund combination - always encrypted"""
         pool = await self.db_pool.get_pool()
         now = datetime.datetime.now(datetime.timezone.utc)
         
+        # Security validation - ensure we have encrypted data and salt
+        if not wallet_data.get('mnemonic') or not wallet_data.get('mnemonic_salt'):
+            logger.error(f"Missing encrypted mnemonic or salt for user {user_id}")
+            return False
+        
         query = """
         INSERT INTO crypto.wallets (
-            user_id, fund_id, address, mnemonic, active_at, expire_at
+            user_id, fund_id, address, mnemonic, mnemonic_salt, active_at, expire_at
         ) VALUES (
-            $1, $2, $3, $4, $5, $6
+            $1, $2, $3, $4, $5, $6, $7
         ) ON CONFLICT (user_id, fund_id) 
         DO UPDATE SET 
             address = EXCLUDED.address,
             mnemonic = EXCLUDED.mnemonic,
+            mnemonic_salt = EXCLUDED.mnemonic_salt,
             active_at = EXCLUDED.active_at,
             expire_at = EXCLUDED.expire_at
         """
@@ -72,37 +68,29 @@ class CryptoRepository:
                     user_id,
                     fund_id,
                     wallet_data.get('address'),
-                    wallet_data.get('mnemonic'),  # This should be encrypted
+                    wallet_data.get('mnemonic'),  # Always encrypted
+                    wallet_data.get('mnemonic_salt'),  # Salt for decryption
                     now,
                     self.future_date
                 )
                 
                 duration = time.time() - start_time
                 track_db_operation("save_wallet", True, duration)
-                logger.info(f"Wallet saved for user {user_id}, fund {fund_id}")
+                logger.info(f"Encrypted wallet saved for user {user_id}, fund {fund_id}")
                 return True
                 
         except Exception as e:
             duration = time.time() - start_time
             track_db_operation("save_wallet", False, duration)
-            logger.error(f"Error saving wallet: {e}")
+            logger.error(f"Error saving encrypted wallet: {e}")
             return False
 
     async def get_wallet(self, user_id: str, fund_id: str) -> Optional[Dict[str, Any]]:
-        """
-        Get wallet information for a user/fund combination
-        
-        Args:
-            user_id: User ID
-            fund_id: Fund ID
-            
-        Returns:
-            Wallet data if found, None otherwise
-        """
+        """Get wallet information for a user/fund combination - always encrypted"""
         pool = await self.db_pool.get_pool()
         
         query = """
-        SELECT address, mnemonic, active_at, expire_at
+        SELECT address, mnemonic, mnemonic_salt, active_at, expire_at
         FROM crypto.wallets
         WHERE user_id = $1 AND fund_id = $2 AND expire_at > NOW()
         ORDER BY active_at DESC
@@ -116,8 +104,16 @@ class CryptoRepository:
                 
                 duration = time.time() - start_time
                 if row:
+                    wallet_data = ensure_json_serializable(dict(row))
+                    
+                    # Security validation - ensure we have salt (indicates proper encryption)
+                    if not wallet_data.get('mnemonic_salt'):
+                        logger.error(f"Wallet missing encryption salt for user {user_id} - possible corruption")
+                        track_db_operation("get_wallet", False, duration)
+                        return None
+                    
                     track_db_operation("get_wallet", True, duration)
-                    return ensure_json_serializable(dict(row))
+                    return wallet_data
                 else:
                     track_db_operation("get_wallet", False, duration)
                     return None
@@ -127,34 +123,6 @@ class CryptoRepository:
             track_db_operation("get_wallet", False, duration)
             logger.error(f"Error getting wallet: {e}")
             return None
-
-    async def get_user_wallets(self, user_id: str) -> List[Dict[str, Any]]:
-        """
-        Get all wallets for a user
-        
-        Args:
-            user_id: User ID
-            
-        Returns:
-            List of wallet data
-        """
-        pool = await self.db_pool.get_pool()
-        
-        query = """
-        SELECT fund_id, address, mnemonic, active_at, expire_at
-        FROM crypto.wallets
-        WHERE user_id = $1 AND expire_at > NOW()
-        ORDER BY active_at DESC
-        """
-        
-        try:
-            async with pool.acquire() as conn:
-                rows = await conn.fetch(query, user_id)
-                return [ensure_json_serializable(dict(row)) for row in rows]
-                
-        except Exception as e:
-            logger.error(f"Error getting user wallets: {e}")
-            return []
 
     #########################
     # CONTRACT OPERATIONS   #

@@ -1,4 +1,4 @@
-# source/core/record_manager.py
+# source/core/db_manager.py
 import logging
 import time
 import uuid
@@ -9,11 +9,11 @@ from source.models.conviction import ConvictionData
 from source.db.conviction_repository import ConvictionRepository
 from source.utils.metrics import track_conviction_created, track_user_conviction
 
-logger = logging.getLogger('record_manager')
+logger = logging.getLogger('db_manager')
 
 
-class RecordManager:
-    """Manager for recording convictions and tracking request duplicates"""
+class DBManager:
+    """Manager for db convictions and tracking request duplicates"""
 
     def __init__(
             self,

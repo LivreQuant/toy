@@ -30,37 +30,36 @@ class CryptoManager:
     ############################
 
     async def create_wallet(self, user_id: str, fund_id: str) -> Dict[str, Any]:
-        """
-        Create a new wallet for a user/fund combination
-        
-        Args:
-            user_id: User ID
-            fund_id: Fund ID
-            
-        Returns:
-            Result dictionary with success flag and wallet info
-        """
+        """Create a new wallet for a user/fund combination - always encrypted"""
         try:
-            logger.info(f"Creating wallet for user {user_id}, fund {fund_id}")
+            logger.info(f"Creating encrypted wallet for user {user_id}, fund {fund_id}")
             
-            # Generate new wallet
-            wallet_info = generate_algorand_wallet(f"user_{user_id}", config.encrypt_wallets)
+            # Always generate encrypted wallets
+            wallet_info = generate_algorand_wallet(f"user_{user_id}")
             
             # Extract credentials
             private_key, address = get_wallet_credentials(wallet_info)
             
-            # Prepare wallet data for database storage
+            # Prepare wallet data for database storage - always encrypted
             wallet_data = {
                 'address': address,
-                'mnemonic': wallet_info.get('mnemonic'),  # Should be encrypted
-                'encrypted': wallet_info.get('encrypted', False)
+                'mnemonic': wallet_info.get('mnemonic'),  # Always encrypted
+                'mnemonic_salt': wallet_info.get('mnemonic_salt'),  # Required for decryption
             }
+            
+            # Validate that we have encrypted data
+            if not wallet_data['mnemonic'] or not wallet_data['mnemonic_salt']:
+                logger.error("Missing encrypted mnemonic or salt")
+                return {
+                    "success": False,
+                    "error": "Encryption validation failed"
+                }
             
             # Save to database
             success = await self.crypto_repository.save_wallet(user_id, fund_id, wallet_data)
             
             if success:
-                logger.info(f"Wallet created successfully for user {user_id}, fund {fund_id}")
+                logger.info(f"Encrypted wallet created successfully for user {user_id}, fund {fund_id}")
                 
                 # Fund the wallet
                 await self._fund_wallet(user_id, fund_id, wallet_info)
@@ -73,14 +72,14 @@ class CryptoManager:
             else:
                 return {
                     "success": False,
-                    "error": "Failed to save wallet to database"
+                    "error": "Failed to save encrypted wallet to database"
                 }
                 
         except Exception as e:
-            logger.error(f"Error creating wallet: {e}")
+            logger.error(f"Error creating encrypted wallet: {e}")
             return {
                 "success": False,
-                "error": f"Error creating wallet: {str(e)}"
+                "error": f"Error creating encrypted wallet: {str(e)}"
             }
 
     async def get_wallet(self, user_id: str, fund_id: str) -> Optional[Dict[str, Any]]:
@@ -419,110 +418,80 @@ class CryptoManager:
     # USER OPERATIONS - USER SUBMIT/CANCEL CONVICTIONS #
     ####################################################
 
-    async def opt_in(self, user_id: str, book_id: str) -> Dict[str, Any]:
-        """
-        User opt-in to contract
+    async def _get_fund_id_for_user(self, user_id: str) -> Optional[str]:
+        """Get fund_id for a user by querying the fund repository"""
+        # This is a helper method - you might need to add fund_repository to crypto_manager
+        # For now, we can make a database query directly or add fund_repository as a dependency
         
-        Args:
-            user_id: User ID
-            book_id: Book ID
-            
-        Returns:
-            Result dictionary with success flag
-        """
+        # Quick solution - query database directly
+        try:
+            pool = await self.crypto_repository.db_pool.get_pool()
+            async with pool.acquire() as conn:
+                fund_id = await conn.fetchval(
+                    "SELECT fund_id FROM fund.funds WHERE user_id = $1 ORDER BY active_at DESC LIMIT 1",
+                    user_id
+                )
+                return str(fund_id) if fund_id else None
+        except Exception as e:
+            logger.error(f"Error getting fund_id for user {user_id}: {e}")
+            return None
+    
+    async def opt_in(self, user_id: str, book_id: str) -> Dict[str, Any]:
+        """User opt-in to contract"""
         try:
             logger.info(f"User {user_id} opting in to contract for book {book_id}")
-                        
-            success = user_opt_in_to_contract(user_id, book_id)
+            
+            success = await user_opt_in_to_contract(user_id, book_id, self)  # Pass self
             
             if success:
                 logger.info(f"User {user_id} opted in successfully to book {book_id}")
                 return {"success": True}
             else:
-                return {
-                    "success": False,
-                    "error": "Failed to opt in to contract"
-                }
+                return {"success": False, "error": "Failed to opt in to contract"}
                 
         except Exception as e:
             logger.error(f"Error in opt-in: {e}")
-            return {
-                "success": False,
-                "error": f"Error in opt-in: {str(e)}"
-            }
-
-    async def opt_out(self, user_id: str, book_id: str) -> Dict[str, Any]:
-        """
-        User opt-out from contract
-        
-        Args:
-            user_id: User ID
-            book_id: Book ID
-            
-        Returns:
-            Result dictionary with success flag
-        """
-        try:
-            logger.info(f"User {user_id} opting out from contract for book {book_id}")
-            
-            success = user_close_out_from_contract(user_id, book_id)
-            
-            if success:
-                logger.info(f"User {user_id} opted out successfully from book {book_id}")
-                return {"success": True}
-            else:
-                return {
-                    "success": False,
-                    "error": "Failed to opt out from contract"
-                }
-                
-        except Exception as e:
-            logger.error(f"Error in opt-out: {e}")
-            return {
-                "success": False,
-                "error": f"Error in opt-out: {str(e)}"
-            }
+            return {"success": False, "error": f"Error in opt-in: {str(e)}"}
 
     async def update_local_state(self, user_id: str, book_id: str, 
                                 book_hash: str = None, research_hash: str = None, 
                                 params_hash: str = None) -> Dict[str, Any]:
-        """
-        Update local state with conviction data
-        
-        Args:
-            user_id: User ID
-            book_id: Book ID
-            book_hash: Book hash
-            research_hash: Research hash
-            params_hash: Parameters hash
-            
-        Returns:
-            Result dictionary with success flag
-        """
+        """Update local state with conviction data"""
         try:
             logger.info(f"Updating local state for user {user_id}, book {book_id}")
-                        
+            
             # Use provided hashes or generate dummy ones
             book_hash = book_hash or f"book_hash_{user_id}_{book_id}"
             research_hash = research_hash or ""
             params_hash = params_hash or f"params_hash_{user_id}_{book_id}"
             
-            success = update_user_local_state(
-                user_id, book_id, book_hash, research_hash, params_hash
+            success = await update_user_local_state(
+                user_id, book_id, book_hash, research_hash, params_hash, self  # Pass self
             )
             
             if success:
                 logger.info(f"Local state updated successfully for user {user_id}, book {book_id}")
                 return {"success": True}
             else:
-                return {
-                    "success": False,
-                    "error": "Failed to update local state"
-                }
+                return {"success": False, "error": "Failed to update local state"}
                 
         except Exception as e:
             logger.error(f"Error updating local state: {e}")
-            return {
-                "success": False,
-                "error": f"Error updating local state: {str(e)}"
-            }
+            return {"success": False, "error": f"Error updating local state: {str(e)}"}
+
+    async def opt_out(self, user_id: str, book_id: str) -> Dict[str, Any]:
+        """User opt-out from contract"""
+        try:
+            logger.info(f"User {user_id} opting out from contract for book {book_id}")
+            
+            success = await user_close_out_from_contract(user_id, book_id, self)  # Pass self
+            
+            if success:
+                logger.info(f"User {user_id} opted out successfully from book {book_id}")
+                return {"success": True}
+            else:
+                return {"success": False, "error": "Failed to opt out from contract"}
+                
+        except Exception as e:
+            logger.error(f"Error in opt-out: {e}")
+            return {"success": False, "error": f"Error in opt-out: {str(e)}"}

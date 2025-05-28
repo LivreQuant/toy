@@ -133,8 +133,8 @@ async def main():
         conviction_manager = ConvictionManager(conviction_repository,
                                                crypto_repository,
                                                book_manager, 
-                                               session_manager, 
                                                crypto_manager,
+                                               session_manager, 
                                                exchange_client)
 
         # Setup and start REST API

@@ -39,8 +39,6 @@ class Config:
     enable_tracing = os.getenv('ENABLE_TRACING', 'true').lower() == 'true'
 
     # Crypto/Blockchain Configuration
-    # Base directories (only for contract artifacts, not data storage)
-    base_dir = Path(__file__).resolve().parent.parent
     
     # Algorand node connection
     algod_token = os.getenv('ALGOD_TOKEN', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')
@@ -59,9 +57,7 @@ class Config:
     encrypt_wallets = True if secret_pass_phrase else False
     encrypt_private_keys = True if secret_pass_phrase else False
 
-    # Smart contract settings - only need the artifact paths
-    contract_approval_path = base_dir / "artifacts" / "BookContract.approval.teal"
-    contract_clear_path = base_dir / "artifacts" / "BookContract.clear.teal"
+    # Smart contract settings
     default_funding_amount = 1_000_000  # 1 Algo in microAlgos
 
     # Default parameters

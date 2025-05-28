@@ -6,13 +6,11 @@ from source.services.utils.algorand import (
     check_if_specific_user_opted_in,
     wait_for_confirmation,
 )
-from source.services.wallet_service import (
-    get_or_create_user_wallet, 
-    get_wallet_credentials
+from source.services.utils.wallet import (
+    get_wallet_credentials,
 )
 from source.services.contract_service import (
     create_method_signature,
-    get_contract_for_user_book,
 )
 
 from algosdk import transaction
@@ -20,26 +18,47 @@ from algosdk import transaction
 logger = logging.getLogger(__name__)
 
 
-def user_opt_in_to_contract(user_id: str, book_id: str) -> bool:
+async def user_opt_in_to_contract(user_id: str, book_id: str, crypto_manager) -> bool:
     """
     Opt user into a contract.
 
     Args:
         user_id: User identifier
         book_id: Book identifier
+        crypto_manager: CryptoManager instance to get wallet info
 
     Returns:
         True if successful, False otherwise
     """
-    # Get contract info
-    contract_info = get_contract_for_user_book(user_id, book_id)
-    if not contract_info:
+    # Get contract info from database
+    contract_data = await crypto_manager.get_contract(user_id, book_id)
+    if not contract_data:
         logger.error(f"No contract found for user {user_id} and book {book_id}")
         return False
 
-    app_id = contract_info["app_id"]
-    user_wallet = get_or_create_user_wallet(user_id)
-    user_private_key, user_address = get_wallet_credentials(user_wallet)
+    app_id = int(contract_data["app_id"])
+    
+    # Get user wallet from database
+    # We need to get fund_id first - let's assume we can get it from contract_data or pass it
+    # For now, let's get the user's fund to find the wallet
+    fund_id = await crypto_manager._get_fund_id_for_user(user_id)  # You'll need to implement this
+    if not fund_id:
+        logger.error(f"No fund found for user {user_id}")
+        return False
+        
+    wallet_data = await crypto_manager.get_wallet(user_id, fund_id)
+    if not wallet_data:
+        logger.error(f"No wallet found for user {user_id}")
+        return False
+
+    # Create wallet_info dict for get_wallet_credentials
+    wallet_info = {
+        'address': wallet_data['address'],
+        'mnemonic': wallet_data['mnemonic'],
+        'mnemonic_salt': wallet_data['mnemonic_salt']
+    }
+    
+    user_private_key, user_address = get_wallet_credentials(wallet_info)
 
     # Check if already opted in
     algod_client = get_algod_client()
@@ -77,8 +96,8 @@ def user_opt_in_to_contract(user_id: str, book_id: str) -> bool:
         return False
 
 
-def update_user_local_state(
-    user_id: str, book_id: str, book_hash: str, research_hash: str, params_str: str
+async def update_user_local_state(
+    user_id: str, book_id: str, book_hash: str, research_hash: str, params_str: str, crypto_manager
 ) -> bool:
     """
     Update the local state for a user in a contract.
@@ -89,19 +108,38 @@ def update_user_local_state(
         book_hash: Book hash value
         research_hash: Research hash value
         params_str: Parameters string
+        crypto_manager: CryptoManager instance
 
     Returns:
         True if successful, False otherwise
     """
-    # Get contract info
-    contract_info = get_contract_for_user_book(user_id, book_id)
-    if not contract_info:
+    # Get contract info from database
+    contract_data = await crypto_manager.get_contract(user_id, book_id)
+    if not contract_data:
         logger.error(f"No contract found for user {user_id} and book {book_id}")
         return False
 
-    app_id = contract_info["app_id"]
-    user_wallet = get_or_create_user_wallet(user_id)
-    user_private_key, user_address = get_wallet_credentials(user_wallet)
+    app_id = int(contract_data["app_id"])
+    
+    # Get user wallet from database
+    fund_id = await crypto_manager._get_fund_id_for_user(user_id)
+    if not fund_id:
+        logger.error(f"No fund found for user {user_id}")
+        return False
+        
+    wallet_data = await crypto_manager.get_wallet(user_id, fund_id)
+    if not wallet_data:
+        logger.error(f"No wallet found for user {user_id}")
+        return False
+
+    # Create wallet_info dict for get_wallet_credentials
+    wallet_info = {
+        'address': wallet_data['address'],
+        'mnemonic': wallet_data['mnemonic'],
+        'mnemonic_salt': wallet_data['mnemonic_salt']
+    }
+    
+    user_private_key, user_address = get_wallet_credentials(wallet_info)
 
     # Check if opted in
     algod_client = get_algod_client()
@@ -154,26 +192,45 @@ def update_user_local_state(
         return False
 
 
-def user_close_out_from_contract(user_id: str, book_id: str) -> bool:
+async def user_close_out_from_contract(user_id: str, book_id: str, crypto_manager) -> bool:
     """
     Close out a user from a contract.
 
     Args:
         user_id: User identifier
         book_id: Book identifier
+        crypto_manager: CryptoManager instance
 
     Returns:
         True if successful, False otherwise
     """
-    # Get contract info
-    contract_info = get_contract_for_user_book(user_id, book_id)
-    if not contract_info:
+    # Get contract info from database
+    contract_data = await crypto_manager.get_contract(user_id, book_id)
+    if not contract_data:
         logger.error(f"No contract found for user {user_id} and book {book_id}")
         return False
 
-    app_id = contract_info["app_id"]
-    user_wallet = get_or_create_user_wallet(user_id)
-    user_private_key, user_address = get_wallet_credentials(user_wallet)
+    app_id = int(contract_data["app_id"])
+    
+    # Get user wallet from database
+    fund_id = await crypto_manager._get_fund_id_for_user(user_id)
+    if not fund_id:
+        logger.error(f"No fund found for user {user_id}")
+        return False
+        
+    wallet_data = await crypto_manager.get_wallet(user_id, fund_id)
+    if not wallet_data:
+        logger.error(f"No wallet found for user {user_id}")
+        return False
+
+    # Create wallet_info dict for get_wallet_credentials
+    wallet_info = {
+        'address': wallet_data['address'],
+        'mnemonic': wallet_data['mnemonic'],
+        'mnemonic_salt': wallet_data['mnemonic_salt']
+    }
+    
+    user_private_key, user_address = get_wallet_credentials(wallet_info)
 
     # Check if opted in
     algod_client = get_algod_client()

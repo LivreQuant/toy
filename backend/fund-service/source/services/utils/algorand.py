@@ -10,21 +10,22 @@ from algosdk import account, mnemonic, encoding, logic
 from algosdk.v2client import algod, indexer
 from algosdk import transaction
 
+from source.config import config
+
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
 logger = logging.getLogger("algorand_utils")
 
+
 def get_algod_client() -> algod.AlgodClient:
     """Create and return an algod client."""
-    algod_address = f"{ALGOD_SERVER}:{ALGOD_PORT}"
-    return algod.AlgodClient(ALGOD_TOKEN, algod_address)
-
+    algod_address = f"{config.algod_server}:{config.algod_port}"
+    return algod.AlgodClient(config.algod_token, algod_address)
 
 def get_indexer_client() -> indexer.IndexerClient:
     """Create and return an indexer client."""
-    indexer_address = f"{INDEXER_SERVER}:{INDEXER_PORT}"
-    return indexer.IndexerClient(INDEXER_TOKEN, indexer_address)
-
+    indexer_address = f"{config.indexer_server}:{config.indexer_port}"
+    return indexer.IndexerClient(config.indexer_token, indexer_address)
 
 def get_account_from_mnemonic(mnemonic_phrase: str) -> Tuple[str, str]:
     """

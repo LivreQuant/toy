@@ -7,14 +7,13 @@ from typing import Dict, Any
 from source.clients.exchange_client import ExchangeClient
 
 from source.db.conviction_repository import ConvictionRepository
-from source.db.crypto_repository import CryptoRepository
 
 from source.core.book_manager import BookManager
+from source.core.crypto_manager import CryptoManager
 from source.core.session_manager import SessionManager
 
 from source.core.utils.conviction_manager_storage import StorageManager
-from source.core.utils.conviction_manager_crypto import CryptoManager
-from source.core.utils.conviction_manager_db import RecordManager
+from source.core.utils.conviction_manager_db import DBManager
 from source.core.utils.conviction_manager_operation import OperationManager
 from source.core.utils.conviction_manager_exchange import ExchangeManager
 
@@ -26,8 +25,8 @@ class ConvictionManager:
     def __init__(
             self,
             conviction_repository: ConvictionRepository,
-            crypto_repository: CryptoRepository,
             book_manager: BookManager,
+            crypto_manager: CryptoManager,
             session_manager: SessionManager,
             exchange_client: ExchangeClient,
     ):
@@ -36,15 +35,14 @@ class ConvictionManager:
         self.session_manager = session_manager
 
         # Create specialized managers
-        self.record_manager = RecordManager(conviction_repository)
+        self.db_manager = DBManager(conviction_repository)
         self.exchange_manager = ExchangeManager(exchange_client)
         self.storage_manager = StorageManager()
-        self.crypto_manager = CryptoManager(crypto_repository)
 
         self.operation_manager = OperationManager(
             conviction_repository,
             self.session_manager,
-            self.record_manager,
+            self.db_manager,
             self.exchange_manager
         )
         
@@ -64,7 +62,7 @@ class ConvictionManager:
 
     async def _get_fund_id_for_user(self, user_id: str) -> str:
         """Get fund_id for a user via record manager"""
-        return await self.record_manager.get_fund_id_for_user(user_id)
+        return await self.db_manager.get_fund_id_for_user(user_id)
 
     async def submit_convictions(self, submission_data, user_id):
         """Submit conviction with complete flow: files -> fingerprints -> blockchain -> database -> operations"""
@@ -170,7 +168,7 @@ class ConvictionManager:
                 }
 
             # STEP 5: Store conviction data in PostgreSQL (only after blockchain success)
-            conviction_success = await self.record_manager.store_submit_conviction_data(
+            conviction_success = await self.db_manager.store_submit_conviction_data(
                 tx_id=tx_id,
                 book_id=book_id,
                 convictions_data=convictions_data
@@ -327,7 +325,7 @@ class ConvictionManager:
                 }
 
             # STEP 5: Store cancellation data in PostgreSQL (only after blockchain success)
-            cancellation_success = await self.record_manager.store_cancel_conviction_data(
+            cancellation_success = await self.db_manager.store_cancel_conviction_data(
                 tx_id=tx_id,
                 book_id=book_id,
                 conviction_ids=conviction_ids
