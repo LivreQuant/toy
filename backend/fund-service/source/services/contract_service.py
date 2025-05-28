@@ -6,18 +6,18 @@ import base64
 from typing import Dict, Any, Optional
 
 import config
-from utils.algorand import (
+from source.services.utils.algorand import (
     get_algod_client,
     wait_for_confirmation,
     get_app_address,
     check_application_exists,
 )
-from utils.contract import (
+from source.services.utils.contract import (
     admin_update_contract_global,
     admin_update_contract_status,
     admin_delete_contract,
 )
-from services.wallet_service import (
+from source.services.wallet_service import (
     get_admin_wallet,
     get_or_create_user_wallet,
     get_wallet_credentials,

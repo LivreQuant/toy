@@ -9,8 +9,8 @@ from typing import Dict, Any, Tuple
 from dotenv import load_dotenv
 from algosdk import account, mnemonic
 
-from utils.encryption import encrypt_string, decrypt_string
-from utils.algorand import get_algod_client, check_balance, fund_account
+from source.services.utils.encryption import encrypt_string, decrypt_string
+from source.services.utils.algorand import get_algod_client, check_balance, fund_account
 
 # Load environment variables
 load_dotenv()

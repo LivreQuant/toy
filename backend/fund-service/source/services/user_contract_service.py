@@ -1,13 +1,13 @@
 # services/user_contract_service.py
 import logging
 
-from utils.algorand import (
+from source.services.utils.algorand import (
     get_algod_client,
     check_if_specific_user_opted_in,
     wait_for_confirmation,
 )
-from services.wallet_service import get_or_create_user_wallet, get_wallet_credentials
-from services.contract_service import (
+from source.services.wallet_service import get_or_create_user_wallet, get_wallet_credentials
+from source.services.contract_service import (
     create_method_signature,
     get_contract_for_user_book,
 )

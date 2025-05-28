@@ -5,8 +5,8 @@ from pathlib import Path
 from typing import Dict, Optional, Union
 
 import config
-from utils.hash_file_utils import calculate_file_hash
-from services.user_contract_service import update_user_local_state
+from source.services.utils.hash_file_utils import calculate_file_hash
+from source.services.user_contract_service import update_user_local_state
 from utils.algorand import get_user_local_state
 
 logger = logging.getLogger(__name__)
