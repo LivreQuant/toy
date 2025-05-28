@@ -3,7 +3,7 @@ SECTION=$1
 
 if [ -z "$SECTION" ]; then
     echo "Usage: $0 <section>"
-    echo "Sections: storage databases pgbouncer db-init minio auth session fund simulator market jaeger ingress monitor all"
+    echo "Sections: storage databases pgbouncer db-init minio auth session fund simulator market jaeger ingress monitor algorand all"
     exit 1
 fi
 
@@ -81,6 +81,11 @@ case $SECTION in
         kubectl delete deployment prometheus grafana
         kubectl delete service prometheus grafana
         kubectl delete configmap prometheus-config grafana-datasources auth-service-dashboard --ignore-not-found=true
+        ;;
+    algorand)
+        echo "Resetting algorand services..."
+        kubectl delete service algorand-localnet
+        # kubectl delete endpoints algorand-localnet
         ;;
     all)
         echo "Resetting everything..."

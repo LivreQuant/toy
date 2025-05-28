@@ -38,3 +38,45 @@ kubectl exec storage-service-5fc444d47b-xhr5l -- cat /tmp/notes_data.txt > ./not
 
 # Stream the PDF file
 kubectl exec storage-service-5fc444d47b-xhr5l -- cat /tmp/research_data.pdf > ./research.pdf
+
+
+# Truncate postgresql 
+
+-- 1. First truncate tables that reference others
+TRUNCATE TABLE crypto.wallets CASCADE;
+TRUNCATE TABLE crypto.contracts CASCADE;
+TRUNCATE TABLE crypto.txs CASCADE;
+
+-- 2. Then truncate book-related tables
+TRUNCATE TABLE fund.book_properties CASCADE;
+TRUNCATE TABLE fund.books CASCADE;
+
+-- 3. Then fund-related tables
+TRUNCATE TABLE fund.team_member_properties CASCADE;
+TRUNCATE TABLE fund.team_members CASCADE;
+TRUNCATE TABLE fund.fund_properties CASCADE;
+TRUNCATE TABLE fund.funds CASCADE;
+
+# SETUP LOCALNET
+
+# Start the local network (this will pull Docker images first time)
+algokit localnet start
+
+# Check status
+algokit localnet status
+
+# Access the LocalNet console
+algokit localnet console
+
+# List all accounts (these are pre-funded with ~1000 Algos each)
+goal account list
+
+# Get details of a specific account
+goal account list -d /opt/data
+
+# For each account, export the mnemonic
+goal account export -a GEUTICFTRBG73IMHB74IPJLDF2C7PO6BR5LBDNV3IJ5EQ7QJAFJGVROE2Q
+
+goal account export -a NCAHO35YJ4VVPJWRNFES5R5MAVY5RCFKBC2PPP45ER3OGZO2Y6AY7LJUEY
+
+goal account export -a 73Q7KAVFUVOPDZS6DVTZVRQ775B7IMU7WLFPTVOGSIZJ4H35VVA7H64JKY

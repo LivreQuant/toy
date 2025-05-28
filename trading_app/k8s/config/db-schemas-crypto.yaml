@@ -12,14 +12,15 @@ data:
     CREATE TABLE crypto.wallets (
       user_id UUID NOT NULL REFERENCES auth.users(user_id) ON DELETE CASCADE,
       fund_id UUID NOT NULL REFERENCES fund.funds(fund_id) ON DELETE CASCADE,
-      address VARCHAR(255) NOT NULL,
-      mnemonic VARCHAR(255) NOT NULL,
+      address TEXT NOT NULL,
+      mnemonic TEXT NOT NULL,
       mnemonic_salt TEXT NOT NULL,
       active_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
       expire_at TIMESTAMP WITH TIME ZONE DEFAULT '2999-01-01',
       PRIMARY KEY (user_id, fund_id),
       UNIQUE(address)
     );
+
   
     CREATE INDEX IF NOT EXISTS idx_crypto_wallets_user_id ON crypto.wallets(user_id);
     CREATE INDEX IF NOT EXISTS idx_crypto_wallets_fund_id ON crypto.wallets(fund_id);
@@ -29,8 +30,8 @@ data:
       contract_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
       user_id UUID NOT NULL REFERENCES auth.users(user_id) ON DELETE CASCADE,
       book_id UUID NOT NULL REFERENCES fund.books(book_id) ON DELETE CASCADE,
-      app_id VARCHAR(255) NOT NULL,
-      app_address VARCHAR(255) NOT NULL,
+      app_id TEXT NOT NULL,
+      app_address TEXT NOT NULL,
       parameters TEXT,
       status VARCHAR(50) NOT NULL DEFAULT 'ACTIVE',
       blockchain_status VARCHAR(50) NOT NULL DEFAULT 'Active',
@@ -50,11 +51,11 @@ data:
       user_id UUID NOT NULL REFERENCES auth.users(user_id),
       book_id UUID NOT NULL REFERENCES fund.books(book_id),
       contract_id UUID NOT NULL REFERENCES crypto.contracts(contract_id) ON DELETE CASCADE,
-      app_id VARCHAR(255) NOT NULL,
-      transaction_id VARCHAR(255) NOT NULL,
+      app_id TEXT NOT NULL,
+      transaction_id TEXT NOT NULL,
       date TIMESTAMP WITH TIME ZONE NOT NULL,
 
-      sender VARCHAR(255) NOT NULL,
+      sender TEXT NOT NULL,
       action VARCHAR(50) NOT NULL,
       
       g_user_id VARCHAR(255),
@@ -75,8 +76,8 @@ data:
       user_id UUID NOT NULL REFERENCES auth.users(user_id),
       fund_id UUID NOT NULL REFERENCES fund.funds(fund_id),
       contract_id UUID NOT NULL REFERENCES crypto.contracts(contract_id) ON DELETE CASCADE,
-      app_id VARCHAR(255) NOT NULL,
-      transaction_id VARCHAR(255) NOT NULL,
+      app_id TEXT NOT NULL,
+      transaction_id TEXT NOT NULL,
       date TIMESTAMP WITH TIME ZONE NOT NULL,
 
       conviction_file_path TEXT,

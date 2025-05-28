@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: algorand-localnet
+  namespace: default
+spec:
+  clusterIP: None  # Headless service
+  ports:
+  - name: algod
+    port: 4001
+    protocol: TCP
+  - name: indexer
+    port: 8980
+    protocol: TCP
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: algorand-localnet
+  namespace: default
+subsets:
+- addresses:
+  - ip: 10.0.0.48
+  ports:
+  - name: algod
+    port: 4001
+    protocol: TCP
+  - name: indexer
+    port: 8980
+    protocol: TCP
