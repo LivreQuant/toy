@@ -1,4 +1,4 @@
-# source/core/conviction_manager_crypto.py
+# backend/fund-service/source/core/crypto_manager.py
 import logging
 import hashlib
 import json
@@ -6,38 +6,17 @@ import time
 from typing import Dict, Any, Optional, List
 
 from source.db.crypto_repository import CryptoRepository
+from source.config import config
 
-from source.services.wallet_service import wallet_service
-from source.services.contract_service import contract_service
-from source.services.user_contract_service import user_contract_service
-from source.services.file_integrity_service import FileIntegrityService
+from source.services.utils.wallet import generate_algorand_wallet, get_wallet_credentials
+
+from source.services.utils.algorand import get_algod_client, fund_account, check_balance, get_account_from_mnemonic
+
+from source.services.contract_service import deploy_contract_for_user_book, update_global_state, remove_contract
+
+from source.services.user_contract_service import user_opt_in_to_contract, user_close_out_from_contract, update_user_local_state
 
 logger = logging.getLogger('crypto_manager')
-
-def calculate_file_hash(file_path):
-    """Calculate SHA-256 hash of a file for debugging."""
-    hash_obj = hashlib.sha256()
-    with open(file_path, "rb") as f:
-        for chunk in iter(lambda: f.read(4096), b""):
-            hash_obj.update(chunk)
-    return hash_obj.hexdigest()
-
-def save_debug_info(file_path, hash_value):
-    """Save debugging information about a file."""
-    debug_info = {
-        "file_path": str(file_path),
-        "file_name": file_path.name,
-        "file_size": file_path.stat().st_size,
-        "hash_value": hash_value,
-        "timestamp": time.time(),
-    }
-
-    # Save to debug file
-    debug_path = Path(f"file_debug_{file_path.name}.json")
-    with open(debug_path, "w") as f:
-        json.dump(debug_info, f, indent=2)
-
-    logger.info(f"Debug information saved to {debug_path}")
 
 class CryptoManager:
     """Manager for blockchain and cryptographic operations"""
@@ -46,193 +25,504 @@ class CryptoManager:
         """Initialize the crypto manager with dependencies"""
         self.crypto_repository = crypto_repository
 
-        self.wallet_service = wallet_service
-        self.contract_service = contract_service
-        self.user_contract_service = user_contract_service
-
     ############################
     # WALLET OPERATIONS - FUND #
     ############################
 
-    async def create_wallet(self, user_id: str):
-
-        logger.info("STEP 1: Get or create user wallet")
-        step1_start = time.time()
-        user_wallet = await self.wallet_service.get_or_create_user_wallet(user_id)
-        logger.info(f"User wallet address: {user_wallet['address']}")
-        logger.info(f"Step 1 completed in {time.time() - step1_start:.2f} seconds")
-
-        success = await self.crypto_repository.save_wallet(user_wallet)
-
-        return success
-
-
-    async def get_wallet(self, user_id: str):
-
-        result = await self.crypto_repository.get_wallet(user_id)
-
-        return result
-    
-
-    async def check_wallet_fund(self, user_id: str, funding_amount: int = 10):
-
-        user_wallet = self.get_wallet(user_id)
-
-        logger.info("STEP 2: Ensure user wallet is funded")
-        step2_start = time.time()
-        if await self.wallet_service.ensure_user_wallet_funded(user_id, funding_amount):
-            logger.info("User wallet funding successful or already sufficient")
-        else:
-            logger.error(
-                f"Failed to fund user wallet with {funding_amount} Algos, aborting workflow"
-            )
-            logger.info(
-                "You may need to manually fund the admin account or reduce the funding amount"
-            )
-            logger.info(
-                f"Try running: 'goal clerk send -a {int(funding_amount * 1000000)} -f ADMIN_ADDRESS -t {user_wallet['address']}'"
-            )
-            return
-        logger.info(f"Step 2 completed in {time.time() - step2_start:.2f} seconds")
-
+    async def create_wallet(self, user_id: str, fund_id: str) -> Dict[str, Any]:
+        """
+        Create a new wallet for a user/fund combination
         
+        Args:
+            user_id: User ID
+            fund_id: Fund ID
+            
+        Returns:
+            Result dictionary with success flag and wallet info
+        """
+        try:
+            logger.info(f"Creating wallet for user {user_id}, fund {fund_id}")
+            
+            # Generate new wallet
+            wallet_info = generate_algorand_wallet(f"user_{user_id}", config.encrypt_wallets)
+            
+            # Extract credentials
+            private_key, address = get_wallet_credentials(wallet_info)
+            
+            # Prepare wallet data for database storage
+            wallet_data = {
+                'address': address,
+                'mnemonic': wallet_info.get('mnemonic'),  # Should be encrypted
+                'encrypted': wallet_info.get('encrypted', False)
+            }
+            
+            # Save to database
+            success = await self.crypto_repository.save_wallet(user_id, fund_id, wallet_data)
+            
+            if success:
+                logger.info(f"Wallet created successfully for user {user_id}, fund {fund_id}")
+                
+                # Fund the wallet
+                await self._fund_wallet(user_id, fund_id, wallet_info)
+                
+                return {
+                    "success": True,
+                    "address": address,
+                    "wallet_info": wallet_info
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": "Failed to save wallet to database"
+                }
+                
+        except Exception as e:
+            logger.error(f"Error creating wallet: {e}")
+            return {
+                "success": False,
+                "error": f"Error creating wallet: {str(e)}"
+            }
+
+    async def get_wallet(self, user_id: str, fund_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Get wallet information for a user/fund combination
+        
+        Args:
+            user_id: User ID
+            fund_id: Fund ID
+            
+        Returns:
+            Wallet data if found, None otherwise
+        """
+        try:
+            wallet_data = await self.crypto_repository.get_wallet(user_id, fund_id)
+            
+            if wallet_data:
+                logger.info(f"Retrieved wallet for user {user_id}, fund {fund_id}")
+                return wallet_data
+            else:
+                logger.info(f"No wallet found for user {user_id}, fund {fund_id}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error getting wallet: {e}")
+            return None
+
+    async def _fund_wallet(self, user_id: str, fund_id: str, wallet_info: Dict[str, Any], funding_amount: float = 5.0):
+        """
+        Fund a wallet with Algos
+        
+        Args:
+            user_id: User ID
+            fund_id: Fund ID
+            wallet_info: Wallet information
+            funding_amount: Amount in Algos to fund
+        """
+        try:
+            logger.info(f"Funding wallet for user {user_id}, fund {fund_id} with {funding_amount} Algos")
+                        
+            # Get user wallet credentials
+            user_private_key, user_address = get_wallet_credentials(wallet_info)
+            
+            # Check current balance
+            algod_client = get_algod_client()
+            current_balance = check_balance(algod_client, user_address)
+            
+            if current_balance >= funding_amount:
+                logger.info(f"Wallet already has sufficient funds ({current_balance} Algos)")
+                return True
+            
+            # Get admin wallet for funding
+            if not config.admin_mnemonic:
+                logger.warning("No admin mnemonic configured, cannot fund wallet")
+                return False
+                
+            admin_private_key, admin_address = get_account_from_mnemonic(config.admin_mnemonic)
+            
+            # Check admin balance
+            admin_balance = check_balance(algod_client, admin_address)
+            
+            if admin_balance < funding_amount + 1:  # Extra for fees
+                logger.warning(f"Admin wallet has insufficient funds ({admin_balance} Algos)")
+                return False
+            
+            # Fund the user wallet
+            result = fund_account(
+                algod_client,
+                admin_private_key,
+                admin_address,
+                user_address,
+                funding_amount
+            )
+            
+            if result:
+                logger.info(f"Successfully funded wallet for user {user_id}")
+                return True
+            else:
+                logger.error(f"Failed to fund wallet for user {user_id}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error funding wallet: {e}")
+            return False
+
     ##############################
     # CONTRACT OPERATIONS - BOOK #
     ##############################
     
-    async def create_contract(self, user_id: str, book_id: str):
-
-        logger.info("STEP 3: Deploy contract or get existing contract")
-        step3_start = time.time()
-        contract_info = self.contract_service.get_contract_for_user_book(user_id, book_id)
-        if contract_info:
-            app_id = contract_info["app_id"]
-            logger.info(f"Using existing contract: {app_id}")
-        else:
-            logger.info("Deploying new contract")
-            contract_info = self.contract_service.deploy_contract_for_user_book(user_id, book_id)
-            if contract_info:
-                app_id = contract_info["app_id"]
-                logger.info(f"Contract deployed with app ID: {app_id}")
+    async def create_contract(self, user_id: str, book_id: str, book_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Create a new contract for a user/book combination
+        
+        Args:
+            user_id: User ID
+            book_id: Book ID
+            book_data: Book data for contract parameters
+            
+        Returns:
+            Result dictionary with success flag and contract info
+        """
+        try:
+            logger.info(f"Creating contract for user {user_id}, book {book_id}")
+            
+            # Check if contract already exists
+            existing_contract = await self.crypto_repository.get_contract(user_id, book_id)
+            if existing_contract:
+                logger.info(f"Contract already exists for user {user_id}, book {book_id}")
+                return {
+                    "success": True,
+                    "app_id": existing_contract['app_id'],
+                    "contract_info": existing_contract
+                }
+                        
+            # Convert book parameters to params string
+            params_str = self._convert_book_data_to_params(book_data)
+            
+            # Deploy contract
+            contract_info = deploy_contract_for_user_book(user_id, book_id, params_str)
+            
+            if contract_info and contract_info.get('app_id'):
+                # Save to database
+                contract_data = {
+                    'app_id': str(contract_info['app_id']),
+                    'app_address': contract_info['app_address'],
+                    'parameters': params_str,
+                    'status': 'ACTIVE',
+                    'blockchain_status': 'Active'
+                }
+                
+                success = await self.crypto_repository.save_contract(user_id, book_id, contract_data)
+                
+                if success:
+                    logger.info(f"Contract created successfully for user {user_id}, book {book_id}")
+                    return {
+                        "success": True,
+                        "app_id": contract_info['app_id'],
+                        "contract_info": contract_info
+                    }
+                else:
+                    logger.error("Failed to save contract to database")
+                    return {
+                        "success": False,
+                        "error": "Failed to save contract to database"
+                    }
             else:
-                logger.error("Contract deployment failed, aborting workflow")
-                return
-        logger.info(f"Step 3 completed in {time.time() - step3_start:.2f} seconds")
+                logger.error("Failed to deploy contract")
+                return {
+                    "success": False,
+                    "error": "Failed to deploy contract"
+                }
+                
+        except Exception as e:
+            logger.error(f"Error creating contract: {e}")
+            return {
+                "success": False,
+                "error": f"Error creating contract: {str(e)}"
+            }
 
-    async def get_contract(self, user_id: str, book_id: str):
+    async def get_contract(self, user_id: str, book_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Get contract information for a user/book combination
+        
+        Args:
+            user_id: User ID
+            book_id: Book ID
+            
+        Returns:
+            Contract data if found, None otherwise
+        """
+        try:
+            contract_data = await self.crypto_repository.get_contract(user_id, book_id)
+            
+            if contract_data:
+                logger.info(f"Retrieved contract for user {user_id}, book {book_id}")
+                return contract_data
+            else:
+                logger.info(f"No contract found for user {user_id}, book {book_id}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error getting contract: {e}")
+            return None
 
-        result = await self.crypto_repository.get_contract(user_id, book_id)
+    async def get_contracts(self, user_id: str) -> List[Dict[str, Any]]:
+        """
+        Get all contracts for a user
+        
+        Args:
+            user_id: User ID
+            
+        Returns:
+            List of contract data
+        """
+        try:
+            contracts = await self.crypto_repository.get_user_contracts(user_id)
+            logger.info(f"Retrieved {len(contracts)} contracts for user {user_id}")
+            return contracts
+            
+        except Exception as e:
+            logger.error(f"Error getting contracts: {e}")
+            return []
 
-        return result
+    async def update_contract(self, user_id: str, book_id: str, book_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Update contract parameters
+        
+        Args:
+            user_id: User ID
+            book_id: Book ID
+            book_data: Updated book data
+            
+        Returns:
+            Result dictionary with success flag
+        """
+        try:
+            logger.info(f"Updating contract for user {user_id}, book {book_id}")
+            
+            # Get existing contract
+            contract_data = await self.crypto_repository.get_contract(user_id, book_id)
+            if not contract_data:
+                return {
+                    "success": False,
+                    "error": "Contract not found"
+                }
+                        
+            # Convert book parameters to params string
+            params_str = self._convert_book_data_to_params(book_data)
+            
+            # Update contract global state
+            app_id = int(contract_data['app_id'])
+            
+            # Get user wallet info for the address
+            fund_id = book_data.get('fund_id')  # We'll need to pass this or derive it
+            wallet_data = await self.get_wallet(user_id, fund_id) if fund_id else None
+            user_address = wallet_data['address'] if wallet_data else None
+            
+            if not user_address:
+                logger.error("User address not found for contract update")
+                return {
+                    "success": False,
+                    "error": "User address not found"
+                }
+            
+            success = update_global_state(app_id, user_id, book_id, user_address, params_str)
+            
+            if success:
+                # Update database record
+                await self.crypto_repository.update_contract_status(
+                    user_id, book_id, 'ACTIVE', 'Active'
+                )
+                
+                logger.info(f"Contract updated successfully for user {user_id}, book {book_id}")
+                return {"success": True}
+            else:
+                return {
+                    "success": False,
+                    "error": "Failed to update contract global state"
+                }
+               
+        except Exception as e:
+            logger.error(f"Error updating contract: {e}")
+            return {
+                "success": False,
+                "error": f"Error updating contract: {str(e)}"
+            }
 
-    async def get_contracts(self, user_id: str):
+    async def delete_contract(self, user_id: str, book_id: str, force: bool = False) -> Dict[str, Any]:
+        """
+        Delete/expire a contract
+        
+        Args:
+            user_id: User ID
+            book_id: Book ID
+            force: Force deletion even if user is still opted in
+            
+        Returns:
+            Result dictionary with success flag
+        """
+        try:
+            logger.info(f"Deleting contract for user {user_id}, book {book_id}")
+                        
+            # Remove contract from blockchain
+            success = remove_contract(user_id, book_id, force)
+            
+            if success:
+                # Expire contract in database
+                await self.crypto_repository.expire_contract(
+                    user_id, book_id, "Contract deleted from blockchain"
+                )
+                
+                logger.info(f"Contract deleted successfully for user {user_id}, book {book_id}")
+                return {"success": True}
+            else:
+                return {
+                    "success": False,
+                    "error": "Failed to delete contract from blockchain"
+                }
+                
+        except Exception as e:
+            logger.error(f"Error deleting contract: {e}")
+            return {
+                "success": False,
+                "error": f"Error deleting contract: {str(e)}"
+            }
 
-        result = await self.crypto_repository.get_contracts(user_id)
-
-        return result
-
-    async def update_contract(self, user_id: str, book_id: str, params_str: str):
-
-        result = await self.contract_service.update_global_state(user_id, book_id, params_str)
-
-        return result
-
-    async def delete_contract(self, user_id: str, book_id: str):
-
-        result = await self.contract_service.remove_contract(user_id, book_id)
-
-        return result
+    def _convert_book_data_to_params(self, book_data: Dict[str, Any]) -> str:
+        """
+        Convert book data to parameters string format
+        
+        Args:
+            book_data: Book data dictionary
+            
+        Returns:
+            Parameters string
+        """
+        params = []
+        
+        # Extract parameters from book_data
+        if 'parameters' in book_data and isinstance(book_data['parameters'], list):
+            for param in book_data['parameters']:
+                if len(param) >= 3:
+                    category, subcategory, value = param[0], param[1], param[2]
+                    if subcategory:
+                        params.append(f"{category}_{subcategory}:{value}")
+                    else:
+                        params.append(f"{category}:{value}")
+        
+        # If no parameters, use default
+        if not params:
+            return config.default_params_str
+            
+        return "|".join(params)
 
     ####################################################
     # USER OPERATIONS - USER SUBMIT/CANCEL CONVICTIONS #
     ####################################################
 
-    async def opt_in(self, user_id: str, book_id: str):
-
-        # Step 4: User opt-in to contract
-        logger.info("STEP 4: User opt-in to contract")
-        step4_start = time.time()
-        if await self.user_contract_service.user_opt_in_to_contract(user_id, book_id):
-            logger.info("User opt-in successful")
-        else:
-            logger.error("User opt-in failed, aborting workflow")
-            return
-        logger.info(f"Step 4 completed in {time.time() - step4_start:.2f} seconds")
-
-
-    async def opt_out(self, user_id: str, book_id: str):
-        # Step 7: User closes out from contract
-        logger.info("STEP 7: User closes out from contract")
-        step7_start = time.time()
-        if await self.user_contract_service.user_close_out_from_contract(user_id, book_id):
-            logger.info("User close-out successful")
-        else:
-            logger.error(
-                "User close-out failed, admin may need to force-delete the contract"
-            )
-        logger.info(f"Step 7 completed in {time.time() - step7_start:.2f} seconds")
-
-
-    async def update_local_state(self, user_id: str, book_id: str, use_encrypt: bool):
-
-        # Step 5: Update local state with only book hash
-        logger.info("STEP 5: Update local state with book hash only")
-        step5_start = time.time()
-
-        # Initialize the file integrity service
-        file_service = FileIntegrityService()
-
-        # Define path to your book file
-        book_file = Path("files/market_stream_20250505T195600.csv")
-
-        # Check if file exists
-        if book_file.exists():
-            # Calculate and log hash for debugging
-            file_hash = calculate_file_hash(book_file)
-            logger.info(f"WORKFLOW DEBUG - Book file hash: {file_hash}")
-            logger.info(
-                f"WORKFLOW DEBUG - Book file size: {book_file.stat().st_size} bytes"
-            )
-
-            # Choose the appropriate update method based on use_encrypt flag
-            if use_encrypt:
-                # Use secure cryptographic signing
-                logger.info("Using secure cryptographic signing for book file")
-
-                success = file_service.update_contract_with_signed_hashes(
-                    user_id=user_id,
-                    book_id=book_id,
-                    book_file_path=book_file,
-                    passphrase=config.SECRET_PASS_PHRASE,
-                )
-
-            else:
-                # Update contract with book file hash only (no research file, no params)
-                logger.info("Using regular hash for book file")
-
-                success = file_service.update_contract_with_file_hashes(
-                    user_id=user_id,
-                    book_id=book_id,
-                    book_file_path=book_file,
-                )
-
-                # Save debug info
-                save_debug_info(book_file, file_hash)
-
+    async def opt_in(self, user_id: str, book_id: str) -> Dict[str, Any]:
+        """
+        User opt-in to contract
+        
+        Args:
+            user_id: User ID
+            book_id: Book ID
+            
+        Returns:
+            Result dictionary with success flag
+        """
+        try:
+            logger.info(f"User {user_id} opting in to contract for book {book_id}")
+                        
+            success = user_opt_in_to_contract(user_id, book_id)
+            
             if success:
-                logger.info("Local state update with book hash successful")
+                logger.info(f"User {user_id} opted in successfully to book {book_id}")
+                return {"success": True}
             else:
-                logger.error("Local state update with book hash failed")
-        else:
-            # Fallback to dummy values if files don't exist
-            logger.warning("Book file not found, using dummy hash")
-            book_hash = f"book_hash_{user_id}_{book_id}"
+                return {
+                    "success": False,
+                    "error": "Failed to opt in to contract"
+                }
+                
+        except Exception as e:
+            logger.error(f"Error in opt-in: {e}")
+            return {
+                "success": False,
+                "error": f"Error in opt-in: {str(e)}"
+            }
 
-            if update_user_local_state(user_id, book_id, book_hash, "", ""):
-                logger.info("Local state update with dummy book hash successful")
+    async def opt_out(self, user_id: str, book_id: str) -> Dict[str, Any]:
+        """
+        User opt-out from contract
+        
+        Args:
+            user_id: User ID
+            book_id: Book ID
+            
+        Returns:
+            Result dictionary with success flag
+        """
+        try:
+            logger.info(f"User {user_id} opting out from contract for book {book_id}")
+            
+            success = user_close_out_from_contract(user_id, book_id)
+            
+            if success:
+                logger.info(f"User {user_id} opted out successfully from book {book_id}")
+                return {"success": True}
             else:
-                logger.error("Local state update with dummy book hash failed")
+                return {
+                    "success": False,
+                    "error": "Failed to opt out from contract"
+                }
+                
+        except Exception as e:
+            logger.error(f"Error in opt-out: {e}")
+            return {
+                "success": False,
+                "error": f"Error in opt-out: {str(e)}"
+            }
 
-        logger.info(f"Step 5 completed in {time.time() - step5_start:.2f} seconds")
-
-
+    async def update_local_state(self, user_id: str, book_id: str, 
+                                book_hash: str = None, research_hash: str = None, 
+                                params_hash: str = None) -> Dict[str, Any]:
+        """
+        Update local state with conviction data
+        
+        Args:
+            user_id: User ID
+            book_id: Book ID
+            book_hash: Book hash
+            research_hash: Research hash
+            params_hash: Parameters hash
+            
+        Returns:
+            Result dictionary with success flag
+        """
+        try:
+            logger.info(f"Updating local state for user {user_id}, book {book_id}")
+                        
+            # Use provided hashes or generate dummy ones
+            book_hash = book_hash or f"book_hash_{user_id}_{book_id}"
+            research_hash = research_hash or ""
+            params_hash = params_hash or f"params_hash_{user_id}_{book_id}"
+            
+            success = update_user_local_state(
+                user_id, book_id, book_hash, research_hash, params_hash
+            )
+            
+            if success:
+                logger.info(f"Local state updated successfully for user {user_id}, book {book_id}")
+                return {"success": True}
+            else:
+                return {
+                    "success": False,
+                    "error": "Failed to update local state"
+                }
+                
+        except Exception as e:
+            logger.error(f"Error updating local state: {e}")
+            return {
+                "success": False,
+                "error": f"Error updating local state: {str(e)}"
+            }

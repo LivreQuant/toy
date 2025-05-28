@@ -6,6 +6,7 @@ import base64
 from typing import Dict, Any, Optional
 
 import config
+
 from source.services.utils.algorand import (
     get_algod_client,
     wait_for_confirmation,
@@ -26,59 +27,6 @@ from source.services.wallet_service import (
 from algosdk import encoding, logic, transaction
 
 logger = logging.getLogger(__name__)
-
-
-def get_contract_for_user_book(user_id: str, book_id: str) -> Optional[Dict[str, Any]]:
-    """
-    Get contract info for a specific user and book ID if it exists.
-
-    Args:
-        user_id: User identifier
-        book_id: Book identifier
-
-    Returns:
-        Contract info dictionary or None if not found
-    """
-
-    # If standard path doesn't exist or contract is no longer valid,
-    # try to find any other contracts for this user/book
-    pattern = f"{user_id}_{book_id}_*_contract.json"
-    contract_files = list(config.CONTRACTS_DIR.glob(pattern))
-
-    # Sort by modification time (newest first)
-    if contract_files:
-        contract_files.sort(key=lambda x: x.stat().st_mtime, reverse=True)
-
-        # Try each file until we find a valid contract
-        for file_path in contract_files:
-            try:
-                with open(file_path, "r") as f:
-                    contract_info = json.load(f)
-
-                app_id = contract_info["app_id"]
-                if check_application_exists(app_id):
-                    logger.info(
-                        f"Found existing contract for user {user_id} and book {book_id} with app ID {app_id}"
-                    )
-
-                    return contract_info
-                else:
-                    logger.warning(
-                        f"Contract {app_id} no longer exists on blockchain, but preserving record"
-                    )
-                    # Mark as deleted instead of removing
-                    contract_info["blockchain_status"] = "Deleted"
-                    contract_info["deletion_note"] = (
-                        "Contract no longer exists on blockchain"
-                    )
-
-                    # Save the updated contract info back to this file
-                    with open(file_path, "w") as f:
-                        json.dump(contract_info, f, indent=2)
-            except Exception as e:
-                logger.error(f"Error loading contract from {file_path}: {e}")
-
-    return None
 
 
 def create_method_signature(method_signature: str) -> bytes:

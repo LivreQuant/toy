@@ -1,13 +1,19 @@
 # services/file_integrity_service.py
 import hashlib
 import logging
+import traceback
 from pathlib import Path
 from typing import Dict, Optional, Union
 
 import config
+
 from source.services.utils.hash_file_utils import calculate_file_hash
+from source.services.utils.algorand import get_user_local_state
+from source.services.utils.algorand import get_user_local_state
+
+from source.services.contract_service import get_contract_for_user_book
+from source.services.crypto_service import sign_hash_deterministic
 from source.services.user_contract_service import update_user_local_state
-from utils.algorand import get_user_local_state
 
 logger = logging.getLogger(__name__)
 
@@ -28,8 +34,6 @@ class FileIntegrityService:
         Returns:
             Hash of the parameters string
         """
-        import hashlib
-
         return hashlib.sha256(params_str.encode()).hexdigest()
 
     def calculate_and_store_hashes(
@@ -101,9 +105,6 @@ class FileIntegrityService:
             # Get file hashes
             book_hash = hashes["book_hash"]
             research_hash = hashes.get("research_hash", "")
-
-            # Sign the book hash deterministically using the passphrase
-            from services.crypto_service import sign_hash_deterministic
 
             signed_book_hash = sign_hash_deterministic(book_hash, passphrase)
             logger.info(f"CRYPTO TRACE - Book File: {Path(book_file_path).name}")
@@ -177,7 +178,6 @@ class FileIntegrityService:
 
         except Exception as e:
             logger.error(f"Error updating contract with signed hashes: {e}")
-            import traceback
 
             traceback.print_exc()
             return False
@@ -263,7 +263,6 @@ class FileIntegrityService:
         Returns:
             True if the file matches the stored hash, False otherwise
         """
-        from services.contract_service import get_contract_for_user_book
 
         try:
             # Get contract info
@@ -349,7 +348,6 @@ class FileIntegrityService:
             # If no hash provided, get from blockchain
             if not params_hash:
                 # Get contract info
-                from services.contract_service import get_contract_for_user_book
 
                 contract_info = get_contract_for_user_book(user_id, book_id)
                 if not contract_info:
@@ -360,9 +358,6 @@ class FileIntegrityService:
 
                 app_id = contract_info["app_id"]
                 user_address = contract_info["user_address"]
-
-                # Get the local state
-                from utils.algorand import get_user_local_state
 
                 local_state = get_user_local_state(app_id, user_address)
 

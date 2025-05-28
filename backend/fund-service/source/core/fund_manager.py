@@ -1,4 +1,4 @@
-# source/core/fund_manager.py
+# backend/fund-service/source/core/fund_manager.py
 import logging
 import uuid
 from typing import Dict, Any, List, Optional
@@ -24,10 +24,9 @@ class FundManager:
         self.fund_repository = fund_repository
         self.crypto_manager = crypto_manager
 
-
     async def create_fund(self, fund_data: Dict[str, Any], user_id: str) -> Dict[str, Any]:
         """
-        Create a new fund for a user
+        Create a new fund for a user with blockchain wallet integration
         
         Args:
             fund_data: Fund data dictionary
@@ -45,7 +44,6 @@ class FundManager:
                 "success": False,
                 "error": "User already has a fund profile"
             }
-        
         
         # Create fund model
         try:
@@ -92,17 +90,30 @@ class FundManager:
                 team_members
             )
 
-            result_crypto = self.crypto_manager.create_wallet()
-            
             if result and result.get("success"):
+                fund_id = result['fund_id']
+                
+                # STEP 1: Create blockchain wallet for the fund
+                logger.info(f"Creating blockchain wallet for fund {fund_id}")
+                wallet_result = await self.crypto_manager.create_wallet(user_id, fund_id)
+                
+                if not wallet_result.get("success"):
+                    logger.error(f"Failed to create wallet for fund {fund_id}: {wallet_result.get('error')}")
+                    # Note: We could rollback the fund creation here if desired
+                    return {
+                        "success": False,
+                        "error": f"Fund created but wallet creation failed: {wallet_result.get('error')}"
+                    }
+                
+                logger.info(f"Blockchain wallet created successfully for fund {fund_id}")
+                
                 # Track metrics
                 track_fund_created(user_id)
-
-                # GENERATE CRYPTO SMART CONTRACT
                 
                 return {
                     "success": True,
-                    "fund_id": result['fund_id']
+                    "fund_id": fund_id,
+                    "wallet_address": wallet_result.get("address")
                 }
             else:
                 return {
@@ -110,7 +121,6 @@ class FundManager:
                     "error": result.get("error", "Failed to save fund")
                 }
             
-
         except Exception as e:
             logger.error(f"Error creating fund: {e}")
             return {
@@ -120,7 +130,7 @@ class FundManager:
     
     async def get_fund(self, user_id: str) -> Dict[str, Any]:
         """
-        Get a fund for a user
+        Get a fund for a user with blockchain wallet information
         
         Args:
             user_id: User ID
@@ -132,8 +142,6 @@ class FundManager:
         
         try:
             fund = await self.fund_repository.get_fund_by_user(user_id)
-            
-            crypto = await self.crypto_manager.get_wallet()
 
             if not fund:
                 return {
@@ -142,10 +150,27 @@ class FundManager:
                     "fund": None
                 }
             
+            fund_id = fund['fund_id']
+            
+            # Get blockchain wallet information
+            wallet_data = await self.crypto_manager.get_wallet(user_id, fund_id)
+            
+            if wallet_data:
+                # Add wallet information to fund data
+                fund['wallet'] = {
+                    'address': wallet_data.get('address'),
+                    'active_at': wallet_data.get('active_at')
+                }
+                logger.info(f"Retrieved fund with wallet for user {user_id}")
+            else:
+                logger.warning(f"Fund found but no wallet data for user {user_id}")
+                fund['wallet'] = None
+            
             return {
                 "success": True,
                 "fund": fund
             }
+            
         except Exception as e:
             logger.error(f"Error getting fund for user {user_id}: {e}")
             return {
@@ -156,7 +181,7 @@ class FundManager:
     
     async def update_fund(self, fund_data: Dict[str, Any], user_id: str) -> Dict[str, Any]:
         """
-        Update a fund for a user
+        Update a fund for a user (blockchain wallet remains unchanged)
         
         Args:
             fund_data: Fund data dictionary with updates
@@ -225,8 +250,9 @@ class FundManager:
             if update_object:
                 success = await self.fund_repository.update_fund(fund_id, user_id, update_object)
                 
-                # NO WALLET OPERATIONS
-
+                # Note: Wallet operations are not needed for fund updates
+                # The blockchain wallet remains the same throughout the fund's lifecycle
+                
                 if success:
                     logger.info(f"Successfully updated fund {fund_id}")
                     return {
@@ -244,9 +270,53 @@ class FundManager:
                     "success": True,
                     "message": "No valid updates provided"
                 }
+                
         except Exception as e:
             logger.error(f"Error updating fund for user {user_id}: {e}")
             return {
                 "success": False,
                 "error": f"Error updating fund: {str(e)}"
+            }
+
+    async def get_fund_wallet_info(self, user_id: str) -> Dict[str, Any]:
+        """
+        Get wallet information for a user's fund
+        
+        Args:
+            user_id: User ID
+            
+        Returns:
+            Result dictionary with wallet information
+        """
+        try:
+            # First get the fund to get the fund_id
+            fund = await self.fund_repository.get_fund_by_user(user_id)
+            
+            if not fund:
+                return {
+                    "success": False,
+                    "error": "Fund not found"
+                }
+            
+            fund_id = fund['fund_id']
+            
+            # Get wallet information
+            wallet_data = await self.crypto_manager.get_wallet(user_id, fund_id)
+            
+            if wallet_data:
+                return {
+                    "success": True,
+                    "wallet": wallet_data
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": "Wallet not found"
+                }
+                
+        except Exception as e:
+            logger.error(f"Error getting wallet info for user {user_id}: {e}")
+            return {
+                "success": False,
+                "error": f"Error getting wallet info: {str(e)}"
             }

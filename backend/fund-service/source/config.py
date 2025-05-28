@@ -1,5 +1,10 @@
+# backend/fund-service/source/config.py
 import os
+from pathlib import Path
+from dotenv import load_dotenv
 
+# Load environment variables
+load_dotenv()
 
 class Config:
     """Application configuration."""
@@ -32,6 +37,35 @@ class Config:
     # Feature flags
     enable_metrics = os.getenv('ENABLE_METRICS', 'true').lower() == 'true'
     enable_tracing = os.getenv('ENABLE_TRACING', 'true').lower() == 'true'
+
+    # Crypto/Blockchain Configuration
+    # Base directories (only for contract artifacts, not data storage)
+    base_dir = Path(__file__).resolve().parent.parent
+    
+    # Algorand node connection
+    algod_token = os.getenv('ALGOD_TOKEN', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')
+    algod_server = os.getenv('ALGOD_SERVER', 'http://localhost')
+    algod_port = os.getenv('ALGOD_PORT', '4001')
+
+    indexer_token = os.getenv('INDEXER_TOKEN', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')
+    indexer_server = os.getenv('INDEXER_SERVER', 'http://localhost')
+    indexer_port = os.getenv('INDEXER_PORT', '8980')
+
+    # Admin wallet (deployer)
+    admin_mnemonic = os.getenv('ADMIN_MNEMONIC')
+
+    # Security settings
+    secret_pass_phrase = os.getenv('SECRET_PASS_PHRASE')
+    encrypt_wallets = True if secret_pass_phrase else False
+    encrypt_private_keys = True if secret_pass_phrase else False
+
+    # Smart contract settings - only need the artifact paths
+    contract_approval_path = base_dir / "artifacts" / "BookContract.approval.teal"
+    contract_clear_path = base_dir / "artifacts" / "BookContract.clear.teal"
+    default_funding_amount = 1_000_000  # 1 Algo in microAlgos
+
+    # Default parameters
+    default_params_str = "region:NA|asset_class:EQUITIES|instrument_class:STOCKS"
 
     @property
     def db_connection_string(self) -> str:

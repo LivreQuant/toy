@@ -8,14 +8,17 @@ from typing import Dict, Any, Tuple
 import base64
 from pathlib import Path
 
-from utils.algorand import (
+from source.services.utils.wallet import (
+    get_admin_credentials, 
+    get_wallet_credentials
+)
+
+from source.services.utils.algorand import (
     get_algod_client,
     wait_for_confirmation,
     create_method_signature,
     get_account_from_mnemonic,
     check_if_user_opted_in,
-    ADMIN_MNEMONIC,
-    USER_MNEMONIC,
 )
 
 from algosdk import logic, transaction
@@ -35,6 +38,7 @@ def deploy_contract(
     user_id: str = "user123",
     book_id: str = "book456",
     params_str: str = "region:NA|asset_class:EQUITIES|instrument_class:STOCKS",
+    user_address: str = "",
 ) -> Tuple[int, Dict[str, Any]]:
     """
     Deploy a contract to the Algorand network.
@@ -57,27 +61,8 @@ def deploy_contract(
     # Initialize Algorand client
     algod_client = get_algod_client()
 
-    # Get account information using encrypted credentials
-    from utils.wallet import get_admin_credentials, get_wallet_credentials
-
-    try:
-        # For admin wallet
-        admin_private_key, admin_address = get_admin_credentials()
-
-        # For user wallet
-        wallets_dir = Path("wallets")
-        user_wallets = list(wallets_dir.glob("user_*_wallet.json"))
-        if not user_wallets:
-            raise FileNotFoundError("No user wallet files found")
-
-        # Use the first user wallet found
-        with open(user_wallets[0], "r") as f:
-            user_wallet = json.load(f)
-
-        user_private_key, user_address = get_wallet_credentials(user_wallet)
-    except Exception as e:
-        logger.error(f"Error getting wallet credentials: {e}")
-        raise
+    # For admin wallet
+    admin_private_key, admin_address = get_admin_credentials()
 
     logger.info(f"Admin address: {admin_address}")
     logger.info(f"User address: {user_address}")

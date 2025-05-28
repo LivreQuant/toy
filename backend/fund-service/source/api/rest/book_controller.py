@@ -95,6 +95,25 @@ class BookController(BaseController):
             # Always release the lock, even if there's an error
             await self.state_manager.release()
 
+
+    async def get_book_contract(self, request: web.Request) -> web.Response:
+        """
+        Handle book contract details retrieval endpoint
+        """
+        # Try to acquire the lock first
+        acquired = await self.state_manager.acquire()
+        if not acquired:
+            return self.create_error_response("Service is currently busy. Please try again later.", 503)
+
+        try:
+            return await self._get_book_contract(request)
+        except Exception as e:
+            logger.error(f"Error handling book contract retrieval: {e}")
+            return self.create_error_response("Server error processing book contract request")
+        finally:
+            # Always release the lock, even if there's an error
+            await self.state_manager.release()
+
     async def _create_book(self, request: web.Request) -> web.Response:
         """Handle book creation endpoint with new data format"""
         # Authenticate request
@@ -231,3 +250,28 @@ class BookController(BaseController):
             return self.create_error_response(result.get("error", "Failed to update book"), 500)
 
         return self.create_success_response({"message": "Book updated successfully"})
+    
+    async def _get_book_contract(self, request: web.Request) -> web.Response:
+        """Handle book contract details retrieval endpoint"""
+        # Authenticate request
+        auth_success, auth_result = await self.authenticate(request)
+        if not auth_success:
+            return self.create_error_response(auth_result["error"], auth_result["status"])
+
+        user_id = auth_result["user_id"]
+
+        # Get book ID from URL
+        book_id = request.match_info.get('id')
+        if not book_id:
+            return self.create_error_response("Book ID is required", 400)
+
+        logger.info(f"Getting contract details for book {book_id}, user {user_id}")
+
+        # Retrieve contract details
+        result = await self.book_manager.get_book_contract_details(book_id, user_id)
+
+        if not result["success"]:
+            return self.create_error_response(result.get("error", "Contract not found"), 404)
+
+        # Return contract details
+        return self.create_success_response({"contract": result["contract"]})

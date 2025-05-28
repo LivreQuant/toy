@@ -6,13 +6,17 @@ from typing import Dict, Any, Tuple
 from algosdk import account, mnemonic
 
 import config
+
 from source.services.utils.algorand import (
     get_algod_client,
     fund_account,
     check_balance,
     get_account_from_mnemonic,
 )
-from source.services.utils.encryption import encrypt_string, decrypt_string
+from source.services.utils.encryption import (
+    encrypt_string, 
+    decrypt_string
+)
 
 logger = logging.getLogger(__name__)
 
@@ -109,36 +113,6 @@ def decrypt_admin_mnemonic() -> str:
         return admin_mnemonic_env
 
 
-def get_or_create_user_wallet(user_id: str) -> Dict[str, Any]:
-    """
-    Get a user wallet from database or create if it doesn't exist.
-
-    Args:
-        user_id: Unique identifier for the user
-
-    Returns:
-        Dictionary with wallet information
-    """
-    wallet_path = config.WALLETS_DIR / f"{user_id}_wallet.json"
-
-    # Check if wallet already exists
-    if wallet_path.exists():
-        with open(wallet_path, "r") as f:
-            wallet_info = json.load(f)
-        logger.info(f"Retrieved existing wallet for user {user_id}")
-        return wallet_info
-
-    # Create a new wallet if it doesn't exist
-    wallet_info = generate_algorand_wallet(f"user_{user_id}", config.ENCRYPT_WALLETS)
-
-    # Save the wallet info
-    with open(wallet_path, "w") as f:
-        json.dump(wallet_info, f, indent=2)
-
-    logger.info(f"Created new wallet for user {user_id}")
-    return wallet_info
-
-
 def get_wallet_credentials(
     wallet_info: Dict[str, Any], passphrase: str = None
 ) -> Tuple[str, str]:
@@ -197,55 +171,68 @@ def get_wallet_credentials(
             raise ValueError("No private key or mnemonic found in wallet info")
 
 
-def ensure_user_wallet_funded(user_id: str, min_balance: float = 1.0) -> bool:
+def get_admin_credentials() -> Tuple[str, str]:
     """
-    Ensure user wallet has sufficient funds, fund if necessary.
+    Get admin wallet private key and address from environment.
+    
+    Returns:
+        Tuple of (private_key, address)
+    """
+    if not config.admin_mnemonic:
+        raise ValueError("ADMIN_MNEMONIC not found in environment variables")
+    
+    return get_account_from_mnemonic(config.admin_mnemonic)
 
+
+def ensure_wallet_funded(address: str, min_balance: float = 1.0) -> bool:
+    """
+    Ensure wallet has sufficient funds, fund if necessary.
+    
     Args:
-        user_id: User identifier
+        address: Wallet address to check/fund
         min_balance: Minimum balance in Algos
-
+        
     Returns:
         True if wallet is funded, False if funding failed
     """
     # Get the algod client
     algod_client = get_algod_client()
 
-    # Get user wallet
-    user_wallet = get_or_create_user_wallet(user_id)
-    user_private_key, user_address = get_wallet_credentials(user_wallet)
+    # Check current balance
+    current_balance = check_balance(algod_client, address)
 
-    # Check user balance
-    user_balance = check_balance(algod_client, user_address)
-
-    # If user has sufficient balance, return True
-    if user_balance >= min_balance:
-        logger.info(
-            f"User {user_id} wallet already has sufficient funds ({user_balance} Algos)"
-        )
+    # If wallet has sufficient balance, return True
+    if current_balance >= min_balance:
+        logger.info(f"Wallet {address} already has sufficient funds ({current_balance} Algos)")
         return True
 
-    # Get admin wallet to fund user
-    admin_private_key, admin_address = get_admin_wallet()
+    # Get admin credentials for funding
+    try:
+        admin_private_key, admin_address = get_admin_credentials()
+    except Exception as e:
+        logger.error(f"Cannot get admin credentials for funding: {e}")
+        return False
 
     # Check admin balance
     admin_balance = check_balance(algod_client, admin_address)
 
-    # Fund user wallet if admin has sufficient balance
+    # Fund wallet if admin has sufficient balance
     if admin_balance < min_balance + 1:
-        logger.warning(
-            f"Admin wallet doesn't have enough funds to transfer ({admin_balance} Algos)"
-        )
+        logger.warning(f"Admin wallet doesn't have enough funds to transfer ({admin_balance} Algos)")
         return False
 
-    # Fund user wallet
+    # Fund the wallet
     amount_to_fund = min_balance + 1  # Add extra for transaction fees
     try:
-        fund_account(
-            algod_client, admin_private_key, admin_address, user_address, amount_to_fund
+        result = fund_account(
+            algod_client, admin_private_key, admin_address, address, amount_to_fund
         )
-        logger.info(f"Funded user {user_id} wallet with {amount_to_fund} Algos")
-        return True
+        if result:
+            logger.info(f"Funded wallet {address} with {amount_to_fund} Algos")
+            return True
+        else:
+            logger.error(f"Failed to fund wallet {address}")
+            return False
     except Exception as e:
-        logger.error(f"Error funding user wallet: {e}")
+        logger.error(f"Error funding wallet: {e}")
         return False

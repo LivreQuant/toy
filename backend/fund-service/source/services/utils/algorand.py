@@ -2,14 +2,13 @@
 
 import base64
 import logging
-import os
+import json
 from pathlib import Path
 from typing import Dict, Any, Tuple, Optional
 
 from algosdk import account, mnemonic, encoding, logic
 from algosdk.v2client import algod, indexer
 from algosdk import transaction
-from dotenv import load_dotenv
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
@@ -467,26 +466,3 @@ def get_user_local_state(app_id: int, user_address: str) -> Dict[str, str]:
         return {}
 
     return format_local_state(local_state)
-
-
-def get_latest_contract_id() -> int:
-    """
-    Get the latest contract ID from the most recent contract info file.
-
-    Returns:
-        The latest contract ID
-    """
-    contract_files = list(Path("..").glob("contract_*_info.json"))
-    if not contract_files:
-        raise FileNotFoundError("No contract info files found")
-
-    # Sort by modification time (newest first)
-    latest_file = max(contract_files, key=lambda f: f.stat().st_mtime)
-
-    # Load the file
-    import json
-
-    with open(latest_file, "r") as f:
-        contract_info = json.load(f)
-
-    return contract_info["app_id"]

@@ -6,7 +6,10 @@ from source.services.utils.algorand import (
     check_if_specific_user_opted_in,
     wait_for_confirmation,
 )
-from source.services.wallet_service import get_or_create_user_wallet, get_wallet_credentials
+from source.services.wallet_service import (
+    get_or_create_user_wallet, 
+    get_wallet_credentials
+)
 from source.services.contract_service import (
     create_method_signature,
     get_contract_for_user_book,

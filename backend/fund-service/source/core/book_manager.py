@@ -26,7 +26,7 @@ class BookManager:
 
     async def create_book(self, book_data: Dict[str, Any], user_id: str) -> Dict[str, Any]:
         """
-        Create a new book for a user with the new data format
+        Create a new book for a user with blockchain contract integration
         """
         logger.info(f"Creating book for user {user_id}")
         logger.debug(f"Book data: {book_data}")
@@ -118,38 +118,51 @@ class BookManager:
             # Set parameters in book_dict
             book_dict['parameters'] = parameters
             
-            # CREATE SMART CONTRACT
-            app_id = await self.crypto_manager.get_contract(book_dict)
-
-            # Save to database
+            # STEP 1: Save to database first
             logger.info(f"Calling repository to save book {book.book_id}")
-            book_id = await self.book_repository.create_book(book_dict)
+            db_book_id = await self.book_repository.create_book(book_dict)
             
-            if book_id:
-                # Track metrics
-                logger.info(f"Book {book_id} successfully created, tracking metrics")
-                track_book_created(user_id)
-                
-                return {
-                    "success": True,
-                    "book_id": book_id
-                }
-            else:
+            if not db_book_id:
                 logger.error(f"Repository failed to save book {book.book_id}")
                 return {
                     "success": False,
-                    "error": "Failed to save book"
+                    "error": "Failed to save book to database"
                 }
+            
+            # STEP 2: Create smart contract
+            logger.info(f"Creating smart contract for book {book.book_id}")
+            contract_result = await self.crypto_manager.create_contract(user_id, book.book_id, book_dict)
+            
+            if not contract_result.get("success"):
+                logger.error(f"Failed to create contract for book {book.book_id}: {contract_result.get('error')}")
+                # Note: We could rollback the book creation here if desired
+                return {
+                    "success": False,
+                    "error": f"Book created but contract creation failed: {contract_result.get('error')}"
+                }
+            
+            logger.info(f"Smart contract created successfully for book {book.book_id}")
+            
+            # Track metrics
+            logger.info(f"Book {db_book_id} successfully created, tracking metrics")
+            track_book_created(user_id)
+            
+            return {
+                "success": True,
+                "book_id": db_book_id,
+                "app_id": contract_result.get("app_id")
+            }
+            
         except Exception as e:
             logger.error(f"Error creating book: {e}")
             return {
                 "success": False,
                 "error": f"Error creating book: {str(e)}"
             }
-            
+    
     async def get_books(self, user_id: str) -> Dict[str, Any]:
         """
-        Get all books for a user and convert to new format
+        Get all books for a user and convert to new format with contract information
         """
         logger.info(f"Getting books for user {user_id}")
         
@@ -247,8 +260,27 @@ class BookManager:
                             else:
                                 logger.warning(f"Unknown Conviction subcategory: '{subcategory}'")
 
-                # GET SMART CONTRACT APP_ID
-                app_id = await self.crypto_manager.get_contract(book_internal['book_id'])
+                # GET SMART CONTRACT INFORMATION
+                book_id = book_internal['book_id']
+                logger.info(f"Getting contract information for book {book_id}")
+                
+                contract_data = await self.crypto_manager.get_contract(user_id, book_id)
+                
+                if contract_data:
+                    # Add contract information to the book
+                    book['contract'] = {
+                        'appId': contract_data.get('app_id'),
+                        'appAddress': contract_data.get('app_address'),
+                        'status': contract_data.get('status'),
+                        'blockchainStatus': contract_data.get('blockchain_status'),
+                        'parameters': contract_data.get('parameters'),
+                        'activeAt': contract_data.get('active_at'),
+                        'contractId': contract_data.get('contract_id')
+                    }
+                    logger.info(f"Added contract info for book {book_id}: app_id={contract_data.get('app_id')}")
+                else:
+                    logger.warning(f"No contract found for book {book_id}")
+                    book['contract'] = None
                 
                 # Add conviction schema if any values were found
                 if conviction_schema:
@@ -272,7 +304,7 @@ class BookManager:
             
     async def get_book(self, book_id: str, user_id: str) -> Dict[str, Any]:
         """
-        Get a single book by ID and convert to new format
+        Get a single book by ID and convert to new format with contract information
         """
         logger.info(f"Getting book {book_id} for user {user_id}")
         
@@ -378,8 +410,26 @@ class BookManager:
                         else:
                             logger.warning(f"Unknown Conviction subcategory: '{subcategory}'")
             
-            # GET SMART CONTRACT APP_ID
-            app_id = await self.crypto_manager.get_contract(book_id)
+            # GET SMART CONTRACT INFORMATION
+            logger.info(f"Getting contract information for book {book_id}")
+            
+            contract_data = await self.crypto_manager.get_contract(user_id, book_id)
+            
+            if contract_data:
+                # Add contract information to the book
+                book['contract'] = {
+                    'appId': contract_data.get('app_id'),
+                    'appAddress': contract_data.get('app_address'),
+                    'status': contract_data.get('status'),
+                    'blockchainStatus': contract_data.get('blockchain_status'),
+                    'parameters': contract_data.get('parameters'),
+                    'activeAt': contract_data.get('active_at'),
+                    'contractId': contract_data.get('contract_id')
+                }
+                logger.info(f"Added contract info for book {book_id}: app_id={contract_data.get('app_id')}")
+            else:
+                logger.warning(f"No contract found for book {book_id}")
+                book['contract'] = None
 
             # Add conviction schema if any values were found
             if conviction_schema:
@@ -401,7 +451,7 @@ class BookManager:
         
     async def update_book(self, book_id: str, book_data: Dict[str, Any], user_id: str) -> Dict[str, Any]:
         """
-        Update a book's properties using new format
+        Update a book's properties with blockchain contract update
         """
         logger.info(f"Updating book {book_id} for user {user_id}")
         
@@ -500,21 +550,35 @@ class BookManager:
                 'parameters': parameters
             }
             
-            # UPDATE SMART CONTRACT
-            result = await self.crypto_manager.update_contract(update_data)
-
-            # Apply updates using temporal pattern
+            # Add fund_id to update_data for crypto_manager
+            update_data['fund_id'] = book_data.get('fund_id')  # This should be passed from the controller
+            
+            # STEP 1: Update smart contract first
+            logger.info(f"Updating smart contract for book {book_id}")
+            contract_result = await self.crypto_manager.update_contract(user_id, book_id, update_data)
+            
+            if not contract_result.get("success"):
+                logger.error(f"Failed to update contract for book {book_id}: {contract_result.get('error')}")
+                return {
+                    "success": False,
+                    "error": f"Failed to update contract: {contract_result.get('error')}"
+                }
+            
+            # STEP 2: Apply updates to database using temporal pattern
             success = await self.book_repository.update_book(book_id, update_data)
             
             if success:
+                logger.info(f"Book {book_id} and contract updated successfully")
                 return {
                     "success": True
                 }
             else:
+                logger.error(f"Failed to update book {book_id} in database")
                 return {
                     "success": False,
-                    "error": "Failed to update book"
+                    "error": "Failed to update book in database"
                 }
+                
         except Exception as e:
             logger.error(f"Error updating book {book_id}: {e}")
             return {
@@ -522,3 +586,65 @@ class BookManager:
                 "error": f"Error updating book: {str(e)}"
             }
         
+    async def get_book_contract_details(self, book_id: str, user_id: str) -> Dict[str, Any]:
+        """
+        Get detailed contract information for a book
+        
+        Args:
+            book_id: Book ID
+            user_id: User ID
+            
+        Returns:
+            Result dictionary with contract details
+        """
+        logger.info(f"Getting contract details for book {book_id}, user {user_id}")
+        
+        try:
+            # First verify the book exists and belongs to the user
+            book = await self.book_repository.get_book(book_id)
+            
+            if not book:
+                return {
+                    "success": False,
+                    "error": "Book not found"
+                }
+            
+            if book['user_id'] != user_id:
+                return {
+                    "success": False,
+                    "error": "Book does not belong to this user"
+                }
+            
+            # Get contract information
+            contract_data = await self.crypto_manager.get_contract(user_id, book_id)
+            
+            if not contract_data:
+                return {
+                    "success": False,
+                    "error": "No contract found for this book"
+                }
+            
+            # Get additional contract details if needed
+            # You could also fetch transaction history, local state, etc.
+            
+            return {
+                "success": True,
+                "contract": {
+                    'appId': contract_data.get('app_id'),
+                    'appAddress': contract_data.get('app_address'),
+                    'status': contract_data.get('status'),
+                    'blockchainStatus': contract_data.get('blockchain_status'),
+                    'parameters': contract_data.get('parameters'),
+                    'activeAt': contract_data.get('active_at'),
+                    'contractId': contract_data.get('contract_id'),
+                    'bookId': book_id,
+                    'userId': user_id
+                }
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting contract details for book {book_id}: {e}")
+            return {
+                "success": False,
+                "error": f"Error getting contract details: {str(e)}"
+            }
