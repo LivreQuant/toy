@@ -55,10 +55,12 @@ data:
 
       sender VARCHAR(255) NOT NULL,
       action VARCHAR(50) NOT NULL,
+      
       g_user_id VARCHAR(255),
       g_book_id VARCHAR(255),
       g_status VARCHAR(50),
       g_params VARCHAR(255),
+
       l_book_hash VARCHAR(255),
       l_research_hash VARCHAR(255),
       l_params VARCHAR(255),
