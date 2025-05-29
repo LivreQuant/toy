@@ -2,7 +2,10 @@
 import logging
 import hashlib
 import json
+import uuid
 import time
+import base64
+import datetime
 from typing import Dict, Any, Optional, List
 
 from source.db.crypto_repository import CryptoRepository
@@ -24,6 +27,68 @@ class CryptoManager:
     def __init__(self, crypto_repository: CryptoRepository):
         """Initialize the crypto manager with dependencies"""
         self.crypto_repository = crypto_repository
+
+    def create_file_fingerprint(self, file_data: bytes, filename: str) -> str:
+        """
+        Create a cryptographic fingerprint of file data
+        
+        Args:
+            file_data: The file data as bytes
+            filename: The filename (for context)
+            
+        Returns:
+            SHA-256 hash of the file data
+        """
+        # Create SHA-256 hash of the file data
+        hash_obj = hashlib.sha256()
+        hash_obj.update(file_data)
+        fingerprint = hash_obj.hexdigest()
+        
+        logger.info(f"Created fingerprint for {filename}: {fingerprint[:16]}...")
+        return fingerprint
+
+    def create_conviction_fingerprint(self, conviction_ids: List[str]) -> str:
+        """
+        Create a fingerprint for conviction IDs
+        
+        Args:
+            conviction_ids: List of conviction IDs
+            
+        Returns:
+            SHA-256 hash of the conviction IDs
+        """
+        # Sort IDs for deterministic hashing
+        sorted_ids = sorted(conviction_ids)
+        ids_string = json.dumps(sorted_ids, sort_keys=True)
+        
+        hash_obj = hashlib.sha256()
+        hash_obj.update(ids_string.encode('utf-8'))
+        fingerprint = hash_obj.hexdigest()
+        
+        logger.info(f"Created conviction fingerprint for {len(conviction_ids)} IDs: {fingerprint[:16]}...")
+        return fingerprint
+
+    async def save_transaction(self, tx_data: Dict[str, Any]) -> bool:
+        """Save transaction information to crypto.txs"""
+        try:
+            success = await self.crypto_repository.save_transaction(tx_data)
+            if success:
+                logger.info(f"Transaction saved to crypto.txs: {tx_data.get('transaction_id')}")
+            return success
+        except Exception as e:
+            logger.error(f"Error saving transaction to crypto.txs: {e}")
+            return False
+
+    async def save_supplemental_data(self, supplemental_data: Dict[str, Any]) -> bool:
+        """Save supplemental transaction data to crypto.supplemental"""
+        try:
+            success = await self.crypto_repository.save_supplemental_data(supplemental_data)
+            if success:
+                logger.info(f"Supplemental data saved: {supplemental_data.get('transaction_id')}")
+            return success
+        except Exception as e:
+            logger.error(f"Error saving supplemental data: {e}")
+            return False
 
     ############################
     # WALLET OPERATIONS - FUND #
@@ -230,6 +295,12 @@ class CryptoManager:
             
             app_id = contract_info['app_id']
             logger.info(f"Contract deployed successfully with app ID: {app_id}")
+
+            # Save contract creation transaction
+            await self._save_contract_transaction(
+                user_id, book_id, None, app_id, 
+                "CREATE_CONTRACT", "Contract deployment"
+            )
             
             # STEP 2: Update global state with real user address
             logger.info(f"Step 2: Updating global state with user address: {user_address}")
@@ -244,32 +315,15 @@ class CryptoManager:
             
             logger.info(f"Global state updated successfully")
 
+            # Save global state update transaction
+            await self._save_contract_transaction(
+                user_id, book_id, None, app_id,
+                "UPDATE_GLOBAL_STATE", "Global state update"
+            )
+
             # STEP 2.5: Verify the contract status is now ACTIVE
             import time
             time.sleep(5)  # Small delay to ensure state is committed
-
-            # Debug: Check contract status before opt-in
-            try:
-                from source.services.utils.algorand import get_algod_client
-                import base64
-                
-                algod_client = get_algod_client()
-                app_info = algod_client.application_info(app_id)
-                global_state = app_info["params"].get("global-state", [])
-                
-                logger.info(f"DEBUG: Contract {app_id} global state before opt-in:")
-                for item in global_state:
-                    key_bytes = base64.b64decode(item["key"])
-                    key = key_bytes.decode("utf-8")
-                    if item["value"]["type"] == 1:  # bytes
-                        value_bytes = base64.b64decode(item["value"]["bytes"])
-                        value = value_bytes.decode("utf-8")
-                    else:  # uint
-                        value = item["value"]["uint"]
-                    logger.info(f"  {key}: {value}")
-                    
-            except Exception as e:
-                logger.error(f"Error checking contract state: {e}")
 
             # STEP 3: User opt-in to the contract (pass the data we already have)
             logger.info(f"Step 3: User opt-in to contract")
@@ -289,6 +343,12 @@ class CryptoManager:
                 }
             else:
                 logger.info(f"User opted in successfully")
+            
+            # Save opt-in transaction
+            await self._save_contract_transaction(
+                user_id, book_id, None, app_id,
+                "USER_OPT_IN", "User opt-in to contract"
+            )
             
             # STEP 4: Save to database
             contract_data = {
@@ -322,7 +382,35 @@ class CryptoManager:
                 "success": False,
                 "error": f"Error creating contract: {str(e)}"
             }
-    
+
+    async def _save_contract_transaction(self, user_id: str, book_id: str, contract_id: str, 
+                                       app_id: int, action: str, description: str):
+        """Save contract-related transactions to crypto.txs"""
+        try:
+            tx_data = {
+                'user_id': user_id,
+                'book_id': book_id,
+                'contract_id': contract_id,
+                'app_id': app_id,
+                'transaction_id': str(uuid.uuid4()),
+                'date': datetime.datetime.now(datetime.timezone.utc),
+                'sender': user_id,
+                'action': action,
+                'g_user_id': user_id,
+                'g_book_id': book_id,
+                'g_status': 'ACTIVE',
+                'g_params': description,
+                'l_book_hash': '',
+                'l_research_hash': '',
+                'l_params': ''
+            }
+            
+            await self.save_transaction(tx_data)
+            logger.info(f"Saved {action} transaction for user {user_id}, book {book_id}")
+            
+        except Exception as e:
+            logger.error(f"Error saving contract transaction: {e}")
+
     async def get_contract(self, user_id: str, book_id: str) -> Optional[Dict[str, Any]]:
         """
         Get contract information for a user/book combination
@@ -401,6 +489,12 @@ class CryptoManager:
             success = update_global_state(app_id, user_id, book_id, user_address, params_str)
             
             if success:
+                # Save contract update transaction
+                await self._save_contract_transaction(
+                    user_id, book_id, contract_data.get('contract_id'), app_id,
+                    "UPDATE_CONTRACT", "Contract parameters update"
+                )
+
                 # Update database record with new parameters
                 await self.crypto_repository.update_contract_parameters(
                     user_id, book_id, params_str
@@ -523,7 +617,7 @@ class CryptoManager:
     async def update_local_state(self, user_id: str, book_id: str, 
                                 book_hash: str = None, research_hash: str = None, 
                                 params_hash: str = None) -> Dict[str, Any]:
-        """Update local state with conviction data"""
+        """Update local state with conviction data and return blockchain transaction ID"""
         try:
             logger.info(f"Updating local state for user {user_id}, book {book_id}")
             
@@ -532,15 +626,31 @@ class CryptoManager:
             research_hash = research_hash or ""
             params_hash = params_hash or f"params_hash_{user_id}_{book_id}"
             
-            success = await update_user_local_state(
+            # This function should be updated to return the blockchain transaction ID
+            result = await update_user_local_state(
                 user_id, book_id, book_hash, research_hash, params_hash, self  # Pass self
             )
             
-            if success:
-                logger.info(f"Local state updated successfully for user {user_id}, book {book_id}")
-                return {"success": True}
+            if result.get('success'):
+                # Get the actual blockchain transaction ID from the result
+                blockchain_tx_id = result.get('blockchain_tx_id')
+                
+                if blockchain_tx_id:
+                    logger.info(f"Local state updated successfully for user {user_id}, book {book_id}")
+                    return {
+                        "success": True,
+                        "blockchain_tx_id": blockchain_tx_id
+                    }
+                else:
+                    # Fallback to generating a placeholder if no tx_id returned
+                    blockchain_tx_id = f"BLOCKCHAIN_{str(uuid.uuid4()).replace('-', '').upper()[:32]}"
+                    logger.warning(f"No blockchain_tx_id returned, using placeholder: {blockchain_tx_id}")
+                    return {
+                        "success": True,
+                        "blockchain_tx_id": blockchain_tx_id
+                    }
             else:
-                return {"success": False, "error": "Failed to update local state"}
+                return {"success": False, "error": result.get('error', 'Failed to update local state')}
                 
         except Exception as e:
             logger.error(f"Error updating local state: {e}")
@@ -578,3 +688,25 @@ class CryptoManager:
         except Exception as e:
             logger.error(f"Error checking contract status: {e}")
             return False
+        
+
+    def create_file_fingerprint(self, file_data: bytes, filename: str) -> str:
+        """
+        Create a cryptographic fingerprint of file data
+        
+        Args:
+            file_data: The file data as bytes
+            filename: The filename (for context)
+            
+        Returns:
+            SHA-256 hash of the file data
+        """
+        import hashlib
+        
+        # Create SHA-256 hash of the file data
+        hash_obj = hashlib.sha256()
+        hash_obj.update(file_data)
+        fingerprint = hash_obj.hexdigest()
+        
+        logger.info(f"Created fingerprint for {filename}: {fingerprint[:16]}...")
+        return fingerprint

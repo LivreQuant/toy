@@ -1,5 +1,7 @@
-# services/user_contract_service.py
+# source/services/user_contract_service.py
 import logging
+
+from typing import Dict, Any
 
 from source.services.utils.algorand import (
     get_algod_client,
@@ -111,9 +113,9 @@ async def user_opt_in_to_contract(user_id: str, book_id: str, crypto_manager, ap
 
 async def update_user_local_state(
     user_id: str, book_id: str, book_hash: str, research_hash: str, params_str: str, crypto_manager
-) -> bool:
+) -> Dict[str, Any]:
     """
-    Update the local state for a user in a contract.
+    Update the local state for a user in a contract and return transaction ID.
 
     Args:
         user_id: User identifier
@@ -124,13 +126,13 @@ async def update_user_local_state(
         crypto_manager: CryptoManager instance
 
     Returns:
-        True if successful, False otherwise
+        Dictionary with success flag and blockchain_tx_id
     """
     # Get contract info from database
     contract_data = await crypto_manager.get_contract(user_id, book_id)
     if not contract_data:
         logger.error(f"No contract found for user {user_id} and book {book_id}")
-        return False
+        return {"success": False, "error": "Contract not found"}
 
     app_id = int(contract_data["app_id"])
     
@@ -138,12 +140,12 @@ async def update_user_local_state(
     fund_id = await crypto_manager._get_fund_id_for_user(user_id)
     if not fund_id:
         logger.error(f"No fund found for user {user_id}")
-        return False
+        return {"success": False, "error": "Fund not found"}
         
     wallet_data = await crypto_manager.get_wallet(user_id, fund_id)
     if not wallet_data:
         logger.error(f"No wallet found for user {user_id}")
-        return False
+        return {"success": False, "error": "Wallet not found"}
 
     # Create wallet_info dict for get_wallet_credentials
     wallet_info = {
@@ -158,7 +160,7 @@ async def update_user_local_state(
     algod_client = get_algod_client()
     if not check_if_specific_user_opted_in(app_id, user_address):
         logger.error(f"User {user_id} is not opted in to contract for book {book_id}")
-        return False
+        return {"success": False, "error": "User not opted in to contract"}
 
     logger.info(f"Updating local state for user {user_id} in contract {app_id}")
 
@@ -199,10 +201,13 @@ async def update_user_local_state(
         logger.info(
             f"Local state updated successfully for user {user_id} in contract for book {book_id}"
         )
-        return True
+        return {
+            "success": True,
+            "blockchain_tx_id": update_txid
+        }
     except Exception as e:
         logger.error(f"Error updating local state: {e}")
-        return False
+        return {"success": False, "error": f"Error updating local state: {str(e)}"}
 
 
 async def user_close_out_from_contract(user_id: str, book_id: str, crypto_manager) -> bool:

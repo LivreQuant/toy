@@ -413,55 +413,60 @@ class CryptoRepository:
     #########################
     # TRANSACTION OPERATIONS #
     #########################
-
+        
     async def save_transaction(self, tx_data: Dict[str, Any]) -> bool:
-        """
-        Save transaction information
-        
-        Args:
-            tx_data: Transaction data
-            
-        Returns:
-            True if successful, False otherwise
-        """
-        pool = await self.db_pool.get_pool()
-        
-        query = """
-        INSERT INTO crypto.txs (
-            user_id, book_id, contract_id, app_id, transaction_id, date,
-            sender, action, g_user_id, g_book_id, g_status, g_params,
-            l_book_hash, l_research_hash, l_params
-        ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
-        ) ON CONFLICT (transaction_id) DO NOTHING
-        """
-        
+        """Save transaction to crypto.txs table"""
         try:
+            pool = await self.db_pool.get_pool()
             async with pool.acquire() as conn:
-                await conn.execute(
-                    query,
-                    tx_data.get('user_id'),
-                    tx_data.get('book_id'),
-                    tx_data.get('contract_id'),
-                    tx_data.get('app_id'),
-                    tx_data.get('transaction_id'),
-                    tx_data.get('date'),
-                    tx_data.get('sender'),
-                    tx_data.get('action'),
-                    tx_data.get('g_user_id'),
-                    tx_data.get('g_book_id'),
-                    tx_data.get('g_status'),
-                    tx_data.get('g_params'),
-                    tx_data.get('l_book_hash'),
-                    tx_data.get('l_research_hash'),
-                    tx_data.get('l_params')
+                await conn.execute("""
+                    INSERT INTO crypto.txs (
+                        user_id, book_id, contract_id, app_id, transaction_id, 
+                        date, sender, action, g_user_id, g_book_id, g_status, 
+                        g_params, l_book_hash, l_research_hash, l_params
+                    )
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+                """, 
+                tx_data['user_id'], tx_data['book_id'], tx_data['contract_id'],
+                tx_data['app_id'], tx_data['transaction_id'], tx_data['date'],
+                tx_data['sender'], tx_data['action'], tx_data['g_user_id'],
+                tx_data['g_book_id'], tx_data['g_status'], tx_data['g_params'],
+                tx_data['l_book_hash'], tx_data['l_research_hash'], tx_data['l_params']
                 )
                 
-                logger.info(f"Transaction saved: {tx_data.get('transaction_id')}")
+                logger.info(f"Saved transaction to crypto.txs: {tx_data['transaction_id']}")
                 return True
                 
         except Exception as e:
-            logger.error(f"Error saving transaction: {e}")
+            logger.error(f"Error saving transaction to crypto.txs: {e}")
+            return False
+
+    async def save_supplemental_data(self, supplemental_data: Dict[str, Any]) -> bool:
+        """Save supplemental data to crypto.supplemental table"""
+        try:
+            pool = await self.db_pool.get_pool()
+            async with pool.acquire() as conn:
+                await conn.execute("""
+                    INSERT INTO crypto.supplemental (
+                        user_id, fund_id, contract_id, app_id, transaction_id, date,
+                        conviction_file_path, conviction_file_encoded, research_file_path, 
+                        research_file_encoded, notes, notes_encoded
+                    )
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+                """, 
+                supplemental_data['user_id'], supplemental_data['fund_id'], 
+                supplemental_data['contract_id'], supplemental_data['app_id'],
+                supplemental_data['transaction_id'], supplemental_data['date'],
+                supplemental_data['conviction_file_path'], supplemental_data['conviction_file_encoded'],
+                supplemental_data['research_file_path'], supplemental_data['research_file_encoded'],
+                supplemental_data['notes'], supplemental_data['notes_encoded']
+                )
+                
+                logger.info(f"Saved supplemental data: {supplemental_data['transaction_id']}")
+                return True
+                
+        except Exception as e:
+            logger.error(f"Error saving supplemental data: {e}")
             return False
 
     async def get_user_transactions(self, user_id: str, book_id: str = None) -> List[Dict[str, Any]]:

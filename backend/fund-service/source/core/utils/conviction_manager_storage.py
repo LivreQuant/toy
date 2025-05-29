@@ -1,4 +1,4 @@
-# source/core/conviction_manager_storage.py
+# source/core/utils/conviction_manager_storage.py
 import logging
 import os
 import csv
@@ -55,6 +55,82 @@ class StorageManager:
                 logger.info(f"Created bucket: {self.bucket_name}")
         except Exception as e:
             logger.error(f"Error ensuring bucket exists: {e}")
+
+    async def move_files_to_final_location(self, fund_id: str, book_id: str, 
+                                         temp_tx_id: str, final_tx_id: str) -> bool:
+        """Move files from temporary location to final location"""
+        if not self.minio_client:
+            logger.warning("MinIO client not available, cannot move files")
+            return False
+            
+        try:
+            # Define source and destination prefixes
+            temp_prefix = f"{fund_id}/{book_id}/{temp_tx_id}/"
+            final_prefix = f"{fund_id}/{book_id}/{final_tx_id}/"
+            
+            logger.info(f"Moving files from {temp_prefix} to {final_prefix}")
+            
+            # List all objects with the temporary prefix
+            objects = self.minio_client.list_objects(self.bucket_name, prefix=temp_prefix)
+            
+            moved_count = 0
+            for obj in objects:
+                # Calculate new object name
+                relative_path = obj.object_name[len(temp_prefix):]
+                new_object_name = final_prefix + relative_path
+                
+                # Copy object to new location
+                copy_source = {
+                    "Bucket": self.bucket_name,
+                    "Key": obj.object_name
+                }
+                
+                self.minio_client.copy_object(
+                    self.bucket_name,
+                    new_object_name,
+                    f"{self.bucket_name}/{obj.object_name}"
+                )
+                
+                # Remove original object
+                self.minio_client.remove_object(self.bucket_name, obj.object_name)
+                
+                logger.info(f"Moved: {obj.object_name} -> {new_object_name}")
+                moved_count += 1
+            
+            logger.info(f"Successfully moved {moved_count} files from temporary to final location")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error moving files from temporary to final location: {e}")
+            return False
+
+    async def cleanup_temp_files(self, fund_id: str, book_id: str, temp_tx_id: str) -> bool:
+        """Clean up temporary files"""
+        if not self.minio_client:
+            logger.warning("MinIO client not available, cannot cleanup temp files")
+            return False
+            
+        try:
+            # Define temporary prefix
+            temp_prefix = f"{fund_id}/{book_id}/{temp_tx_id}/"
+            
+            logger.info(f"Cleaning up temporary files with prefix: {temp_prefix}")
+            
+            # List all objects with the temporary prefix
+            objects = self.minio_client.list_objects(self.bucket_name, prefix=temp_prefix)
+            
+            removed_count = 0
+            for obj in objects:
+                self.minio_client.remove_object(self.bucket_name, obj.object_name)
+                logger.info(f"Removed temporary file: {obj.object_name}")
+                removed_count += 1
+            
+            logger.info(f"Successfully cleaned up {removed_count} temporary files")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error cleaning up temporary files: {e}")
+            return False
 
     async def store_research_file(self, file_data: bytes, filename: str, 
                                   fund_id: str, book_id: str, tx_id: str) -> Optional[str]:
@@ -167,51 +243,51 @@ class StorageManager:
             return None
 
     async def store_cancellation_csv(self, conviction_ids: list, fund_id: str, 
-                                   book_id: str, tx_id: str) -> Optional[str]:
-        """Store cancellation data as CSV file in MinIO with proper structure"""
-        if not self.minio_client:
-            logger.warning("MinIO client not available, skipping CSV storage")
-            return None
-            
-        try:
-            # Generate file path: fund_id/book_id/tx_id/cancellations.csv
-            file_path = f"{fund_id}/{book_id}/{tx_id}/cancellations.csv"
-            
-            # Generate CSV content
-            csv_content = io.StringIO()
-            writer = csv.writer(csv_content)
-            
-            # Write header and data
-            writer.writerow(['conviction_id'])
-            for conviction_id in conviction_ids:
-                writer.writerow([conviction_id])
-            
-            # Convert to bytes
-            csv_bytes = csv_content.getvalue().encode('utf-8')
-            csv_stream = io.BytesIO(csv_bytes)
-            
-            # Upload to MinIO
-            self.minio_client.put_object(
-                self.bucket_name,
-                file_path,
-                csv_stream,
-                length=len(csv_bytes),
-                content_type='text/csv'
-            )
-            
-            logger.info(f"Stored cancellation CSV with {len(conviction_ids)} conviction IDs: {file_path}")
-            return file_path
-            
-        except S3Error as e:
-            logger.error(f"Error storing cancellation CSV in MinIO: {e}")
-            return None
-        except Exception as e:
-            logger.error(f"Unexpected error storing cancellation CSV: {e}")
-            return None
+                                  book_id: str, tx_id: str) -> Optional[str]:
+       """Store cancellation data as CSV file in MinIO with proper structure"""
+       if not self.minio_client:
+           logger.warning("MinIO client not available, skipping CSV storage")
+           return None
+           
+       try:
+           # Generate file path: fund_id/book_id/tx_id/cancellations.csv
+           file_path = f"{fund_id}/{book_id}/{tx_id}/cancellations.csv"
+           
+           # Generate CSV content
+           csv_content = io.StringIO()
+           writer = csv.writer(csv_content)
+           
+           # Write header and data
+           writer.writerow(['conviction_id'])
+           for conviction_id in conviction_ids:
+               writer.writerow([conviction_id])
+           
+           # Convert to bytes
+           csv_bytes = csv_content.getvalue().encode('utf-8')
+           csv_stream = io.BytesIO(csv_bytes)
+           
+           # Upload to MinIO
+           self.minio_client.put_object(
+               self.bucket_name,
+               file_path,
+               csv_stream,
+               length=len(csv_bytes),
+               content_type='text/csv'
+           )
+           
+           logger.info(f"Stored cancellation CSV with {len(conviction_ids)} conviction IDs: {file_path}")
+           return file_path
+           
+       except S3Error as e:
+           logger.error(f"Error storing cancellation CSV in MinIO: {e}")
+           return None
+       except Exception as e:
+           logger.error(f"Unexpected error storing cancellation CSV: {e}")
+           return None
 
     async def store_encoded_data(self, book_id: str, encoded_convictions: str, 
-                               encoded_research: str, notes: str, user_id: str, 
-                               operation: str) -> Optional[str]:
+                                encoded_research: str, notes: str, user_id: str, 
+                                operation: str) -> Optional[str]:
         """Store encoded data as JSON file in MinIO"""
         if not self.minio_client:
             logger.warning("MinIO client not available, skipping encoded data storage")
