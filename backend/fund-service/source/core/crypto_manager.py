@@ -348,25 +348,6 @@ class CryptoManager:
             logger.error(f"Error getting contract: {e}")
             return None
 
-    async def get_contracts(self, user_id: str) -> List[Dict[str, Any]]:
-        """
-        Get all contracts for a user
-        
-        Args:
-            user_id: User ID
-            
-        Returns:
-            List of contract data
-        """
-        try:
-            contracts = await self.crypto_repository.get_user_contracts(user_id)
-            logger.info(f"Retrieved {len(contracts)} contracts for user {user_id}")
-            return contracts
-            
-        except Exception as e:
-            logger.error(f"Error getting contracts: {e}")
-            return []
-
     async def update_contract(self, user_id: str, book_id: str, book_data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Update contract parameters
@@ -393,27 +374,36 @@ class CryptoManager:
             # Convert book parameters to params string
             params_str = self._convert_book_data_to_params(book_data)
             
-            # Update contract global state
-            app_id = int(contract_data['app_id'])
-            
-            # Get user wallet info for the address
-            fund_id = book_data.get('fund_id')  # We'll need to pass this or derive it
-            wallet_data = await self.get_wallet(user_id, fund_id) if fund_id else None
-            user_address = wallet_data['address'] if wallet_data else None
-            
-            if not user_address:
-                logger.error("User address not found for contract update")
+            # Get user's fund ID (same pattern as create_contract)
+            fund_id = await self._get_fund_id_for_user(user_id)
+            if not fund_id:
+                logger.error(f"No fund found for user {user_id}")
                 return {
                     "success": False,
-                    "error": "User address not found"
+                    "error": "User fund not found - cannot update contract"
                 }
+                
+            # Get user wallet info
+            wallet_data = await self.get_wallet(user_id, fund_id)
+            if not wallet_data:
+                logger.error(f"No wallet found for user {user_id}")
+                return {
+                    "success": False,
+                    "error": "User wallet not found - cannot update contract"
+                }
+            
+            user_address = wallet_data['address']
+            logger.info(f"Found user wallet address: {user_address}")
+            
+            # Update contract global state
+            app_id = int(contract_data['app_id'])
             
             success = update_global_state(app_id, user_id, book_id, user_address, params_str)
             
             if success:
-                # Update database record
-                await self.crypto_repository.update_contract_status(
-                    user_id, book_id, 'ACTIVE', 'Active'
+                # Update database record with new parameters
+                await self.crypto_repository.update_contract_parameters(
+                    user_id, book_id, params_str
                 )
                 
                 logger.info(f"Contract updated successfully for user {user_id}, book {book_id}")
@@ -423,7 +413,7 @@ class CryptoManager:
                     "success": False,
                     "error": "Failed to update contract global state"
                 }
-               
+            
         except Exception as e:
             logger.error(f"Error updating contract: {e}")
             return {
