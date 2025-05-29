@@ -550,9 +550,6 @@ class BookManager:
                 'parameters': parameters
             }
             
-            # Add fund_id to update_data for crypto_manager
-            update_data['fund_id'] = book_data.get('fund_id')  # This should be passed from the controller
-            
             # STEP 1: Update smart contract first
             logger.info(f"Updating smart contract for book {book_id}")
             contract_result = await self.crypto_manager.update_contract(user_id, book_id, update_data)

@@ -295,7 +295,84 @@ class CryptoRepository:
         except Exception as e:
             logger.error(f"Error updating contract status: {e}")
             return False
-
+        
+    async def update_contract_parameters(self, user_id: str, book_id: str, parameters: str) -> bool:
+        """
+        Update contract parameters using temporal data pattern (expire old, create new)
+        
+        Args:
+            user_id: User ID
+            book_id: Book ID
+            parameters: New parameters string
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        pool = await self.db_pool.get_pool()
+        now = datetime.datetime.now(datetime.timezone.utc)
+        
+        start_time = time.time()
+        try:
+            async with pool.acquire() as conn:
+                async with conn.transaction():
+                    # 1. Get the current active contract
+                    current_contract_query = """
+                    SELECT contract_id, app_id, app_address, status, blockchain_status
+                    FROM crypto.contracts
+                    WHERE user_id = $1 AND book_id = $2 AND expire_at > NOW()
+                    ORDER BY active_at DESC
+                    LIMIT 1
+                    """
+                    
+                    current_contract = await conn.fetchrow(current_contract_query, user_id, book_id)
+                    
+                    if not current_contract:
+                        logger.warning(f"No active contract found to update for user {user_id}, book {book_id}")
+                        return False
+                    
+                    # 2. Expire the current contract
+                    expire_query = """
+                    UPDATE crypto.contracts
+                    SET expire_at = $2
+                    WHERE contract_id = $1 AND expire_at > NOW()
+                    """
+                    
+                    await conn.execute(expire_query, current_contract['contract_id'], now)
+                    
+                    # 3. Create new contract row with updated parameters
+                    insert_query = """
+                    INSERT INTO crypto.contracts (
+                        user_id, book_id, app_id, app_address, parameters, status, 
+                        blockchain_status, active_at, expire_at
+                    ) VALUES (
+                        $1, $2, $3, $4, $5, $6, $7, $8, $9
+                    ) RETURNING contract_id
+                    """
+                    
+                    new_contract_id = await conn.fetchval(
+                        insert_query,
+                        user_id,
+                        book_id,
+                        current_contract['app_id'],
+                        current_contract['app_address'],
+                        parameters,  # New parameters
+                        current_contract['status'],
+                        current_contract['blockchain_status'],
+                        now,
+                        self.future_date
+                    )
+                    
+                    duration = time.time() - start_time
+                    track_db_operation("update_contract_parameters", True, duration)
+                    logger.info(f"Contract parameters updated with temporal pattern for user {user_id}, book {book_id}, new contract_id: {new_contract_id}")
+                    return True
+                    
+        except Exception as e:
+            duration = time.time() - start_time
+            track_db_operation("update_contract_parameters", False, duration)
+            logger.error(f"Error updating contract parameters with temporal pattern: {e}")
+            return False
+        
     async def expire_contract(self, user_id: str, book_id: str, deletion_note: str = None) -> bool:
         """
         Expire a contract (soft delete)
