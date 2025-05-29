@@ -379,7 +379,7 @@ class CryptoRepository:
             if app_id is not None:
                 app_id = str(app_id)
                 
-            tx_id = tx_data.get('tx_id') or tx_data.get('transaction_id')
+            tx_id = tx_data.get('tx_id') or tx_data.get('tx_id')
             
             pool = await self.db_pool.get_pool()
             async with pool.acquire() as conn:
@@ -428,7 +428,7 @@ class CryptoRepository:
             if app_id is not None:
                 app_id = str(app_id)
                 
-            tx_id = supplemental_data.get('tx_id') or supplemental_data.get('transaction_id')
+            tx_id = supplemental_data.get('tx_id') or supplemental_data.get('tx_id')
             
             pool = await self.db_pool.get_pool()
             async with pool.acquire() as conn:

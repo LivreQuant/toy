@@ -205,14 +205,14 @@ class ConvictionManager:
                 'book_id': book_id,
                 'contract_id': contract_id,
                 'app_id': app_id,
-                'transaction_id': blockchain_tx_id,
+                'tx_id': blockchain_tx_id,
                 'date': datetime.datetime.now(datetime.timezone.utc),
                 'sender': user_id,
                 'action': 'SUBMIT_CONVICTIONS',
                 'g_user_id': user_id,
                 'g_book_id': book_id,
                 'g_status': 'ACTIVE',
-                'g_params': f"convictions:{len(convictions_data)}",
+                'g_params': f"SEE PREVIOUS TX",
                 'l_book_hash': book_hash,      # From blockchain operation
                 'l_research_hash': research_hash,  # From blockchain operation  
                 'l_params': params_hash        # From blockchain operation
@@ -237,7 +237,7 @@ class ConvictionManager:
                 'fund_id': fund_id,
                 'contract_id': contract_id,
                 'app_id': app_id,
-                'transaction_id': blockchain_tx_id,
+                'tx_id': blockchain_tx_id,
                 'date': datetime.datetime.now(datetime.timezone.utc),
                 'conviction_file_path': conviction_file_path,
                 'conviction_file_encoded': book_hash,      # The conviction fingerprint
@@ -256,7 +256,7 @@ class ConvictionManager:
             # 3C: Store conviction data in conv.submit 
             logger.info("3C: Storing conviction data in conv.submit")
             db_success = await self.db_manager.store_submit_conviction_data(
-                tx_id=blockchain_tx_id,  # This should match crypto.txs.transaction_id
+                tx_id=blockchain_tx_id,  # This should match crypto.txs
                 book_id=book_id,
                 convictions_data=convictions_data
             )

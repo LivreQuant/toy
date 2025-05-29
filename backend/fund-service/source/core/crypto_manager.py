@@ -73,7 +73,7 @@ class CryptoManager:
         try:
             success = await self.crypto_repository.save_transaction(tx_data)
             if success:
-                logger.info(f"Transaction saved to crypto.txs: {tx_data.get('transaction_id')}")
+                logger.info(f"Transaction saved to crypto.txs: {tx_data.get('tx_id')}")
             return success
         except Exception as e:
             logger.error(f"Error saving transaction to crypto.txs: {e}")
@@ -84,7 +84,7 @@ class CryptoManager:
         try:
             success = await self.crypto_repository.save_supplemental_data(supplemental_data)
             if success:
-                logger.info(f"Supplemental data saved: {supplemental_data.get('transaction_id')}")
+                logger.info(f"Supplemental data saved: {supplemental_data.get('tx_id')}")
             return success
         except Exception as e:
             logger.error(f"Error saving supplemental data: {e}")
@@ -237,6 +237,7 @@ class CryptoManager:
     async def create_contract(self, user_id: str, book_id: str, book_data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Create a new contract for a user/book combination with complete setup
+        FIXED: Save contract to database IMMEDIATELY after blockchain deployment
         
         Args:
             user_id: User ID
@@ -282,8 +283,10 @@ class CryptoManager:
             # Convert book parameters to fingerprint
             params_fingerprint = self._convert_book_data_to_params(book_data)
             
-            # STEP 1: Deploy contract with placeholder values
-            logger.info(f"Step 1: Deploying contract for user {user_id}, book {book_id}")
+            # =============================================================================
+            # STEP 1: Deploy contract to blockchain
+            # =============================================================================
+            logger.info(f"STEP 1: Deploying contract for user {user_id}, book {book_id}")
             contract_info = deploy_contract_for_user_book(user_id, book_id, params_fingerprint)
             
             if not contract_info or not contract_info.get('app_id'):
@@ -296,120 +299,151 @@ class CryptoManager:
             app_id = contract_info['app_id']
             logger.info(f"Contract deployed successfully with app ID: {app_id}")
 
-            # Save contract creation transaction
-            await self._save_contract_transaction(
-                user_id, book_id, None, app_id, 
-                "CREATE_CONTRACT", "Contract deployment"
-            )
-            
-            # STEP 2: Update global state with real user address
-            logger.info(f"Step 2: Updating global state with user address: {user_address}")
-            global_update_success = update_global_state(app_id, user_id, book_id, user_address, params_fingerprint)
-            
-            if not global_update_success:
-                logger.error("Failed to update contract global state")
-                return {
-                    "success": False,
-                    "error": "Contract created but failed to update global state"
-                }
-            
-            logger.info(f"Global state updated successfully")
-
-            # Save global state update transaction
-            await self._save_contract_transaction(
-                user_id, book_id, None, app_id,
-                "UPDATE_GLOBAL_STATE", "Global state update"
-            )
-
-            # STEP 2.5: Verify the contract status is now ACTIVE
-            import time
-            time.sleep(5)  # Small delay to ensure state is committed
-
-            # STEP 3: User opt-in to the contract (pass the data we already have)
-            logger.info(f"Step 3: User opt-in to contract")
-            opt_in_success = await user_opt_in_to_contract(
-                user_id, 
-                book_id, 
-                self,  # crypto_manager
-                app_id=app_id,  # Pass the app_id we just created
-                wallet_data=wallet_data  # Pass the wallet_data we already have
-            )
-            
-            if not opt_in_success:
-                logger.warning(f"Failed to opt user into contract")
-                return {
-                    "success": False,
-                    "error": "Contract created and global state updated, but user opt-in failed"
-                }
-            else:
-                logger.info(f"User opted in successfully")
-            
-            # Save opt-in transaction
-            await self._save_contract_transaction(
-                user_id, book_id, None, app_id,
-                "USER_OPT_IN", "User opt-in to contract"
-            )
-            
-            # STEP 4: Save to database
+            # =============================================================================
+            # STEP 2: CRITICAL FIX - Save contract to database IMMEDIATELY
+            # This must happen BEFORE any transaction records are saved to avoid foreign key errors
+            # =============================================================================
+            logger.info(f"STEP 2: Saving contract to database IMMEDIATELY after blockchain deployment")
             contract_data = {
                 'app_id': str(app_id),
                 'app_address': contract_info['app_address'],
                 'parameters': params_fingerprint,
-                'status': 'ACTIVE',
-                'blockchain_status': 'Active'
+                'status': 'CREATING',  # Temporary status during setup
+                'blockchain_status': 'Deployed'
             }
             
             success = await self.crypto_repository.save_contract(user_id, book_id, contract_data)
-            
-            if success:
-                logger.info(f"Complete contract setup finished successfully for user {user_id}, book {book_id}")
-                return {
-                    "success": True,
-                    "app_id": app_id,
-                    "contract_info": contract_info,
-                    "user_opted_in": True
-                }
-            else:
+            if not success:
                 logger.error("Failed to save contract to database")
                 return {
                     "success": False,
-                    "error": "Contract deployed and user opted in, but failed to save to database"
+                    "error": "Contract deployed but failed to save to database"
                 }
+            
+            logger.info(f"✅ Contract saved to database with app_id: {app_id}")
+
+            # =============================================================================
+            # STEP 3: Now it's SAFE to save transaction records (contract exists in DB)
+            # =============================================================================
+            creation_tx_id = contract_info.get('creation_tx_id')
+            funding_tx_id = contract_info.get('funding_tx_id') 
+            init_tx_id = contract_info.get('init_tx_id')
+            
+            if creation_tx_id:
+                await self._save_contract_transaction(
+                    user_id, book_id, app_id, blockchain_tx_id=creation_tx_id,
+                    action="CREATE_CONTRACT",
+                    g_status="INACTIVE-INIT",
+                    g_params=""
+                )
+            
+            if funding_tx_id:
+                await self._save_contract_transaction(
+                    user_id, book_id, app_id, blockchain_tx_id=funding_tx_id,
+                    action="FUND_CONTRACT",
+                    g_status="INACTIVE-INIT",
+                    g_params=""
+                )
+                
+            if init_tx_id:
+                await self._save_contract_transaction(
+                    user_id, book_id, app_id, blockchain_tx_id=init_tx_id,
+                    action="INIT_CONTRACT",
+                    g_status="INACTIVE-INIT",
+                    g_params=params_fingerprint
+                    
+                )
+            
+            # =============================================================================
+            # STEP 4: Update global state with real user address
+            # =============================================================================
+            logger.info(f"STEP 4: Updating global state with user address: {user_address}")
+            global_result = update_global_state(app_id, user_id, book_id, user_address, params_fingerprint)
+            
+            if global_result.get('success'):
+                global_tx_id = global_result.get('tx_id')
+                params_hash = global_result.get('params_hash')
+                
+                # Save with REAL blockchain transaction ID
+                await self._save_contract_transaction(
+                    user_id, book_id, app_id, blockchain_tx_id=global_tx_id,
+                    action="UPDATE_GLOBAL_STATE",
+                    g_status="ACTIVE",
+                    g_params=params_hash
+                )
+            
+            logger.info(f"Global state updated successfully")
+
+            # =============================================================================
+            # STEP 5: User opt-in to the contract
+            # =============================================================================
+            logger.info(f"STEP 5: User opt-in to contract")
+            opt_in_result = await user_opt_in_to_contract(user_id, book_id, self, app_id, wallet_data)
+            
+            if opt_in_result.get('success'):  # Update user_contract_service.py to return dict
+                opt_in_tx_id = opt_in_result.get('tx_id')
+                
+                await self._save_contract_transaction(
+                    user_id, book_id, app_id, blockchain_tx_id=opt_in_tx_id,
+                    action="USER_OPT_IN",
+                    g_status="ACTIVE",
+                    g_params=params_hash
+                )
+
+            
+            # =============================================================================
+            # STEP 6: Update contract status to ACTIVE (everything completed successfully)
+            # =============================================================================
+            logger.info(f"STEP 6: Updating contract status to ACTIVE")
+            await self.crypto_repository.update_contract_status(user_id, book_id, 'ACTIVE', 'Active')
+            
+            logger.info(f"✅ Complete contract setup finished successfully for user {user_id}, book {book_id}")
+            return {
+                "success": True,
+                "app_id": app_id,
+                "contract_info": contract_info,
+                "user_opted_in": True
+            }
                 
         except Exception as e:
-            logger.error(f"Error in complete contract creation: {e}")
+            logger.error(f"❌ Error in complete contract creation: {e}")
             return {
                 "success": False,
                 "error": f"Error creating contract: {str(e)}"
             }
 
-    async def _save_contract_transaction(self, user_id: str, book_id: str, contract_id: str, 
-                                       app_id: int, action: str, description: str):
-        """Save contract-related transactions to crypto.txs"""
-        try:
+    async def _save_contract_transaction(self, g_user_id: str, g_book_id: str, app_id: int, blockchain_tx_id: str, 
+                                         action: str, g_status: str, g_params: str,
+                                        l_book_hash: str = "", l_research_hash: str = "", l_params: str = ""):
+        """
+        Save contract-related transactions to crypto.txs with REAL blockchain transaction IDs
+        """
+        try:            
             tx_data = {
-                'user_id': user_id,
-                'book_id': book_id,
-                'contract_id': contract_id,
-                'app_id': app_id,
-                'transaction_id': str(uuid.uuid4()),
+                'user_id': g_user_id,
+                'book_id': g_book_id,
+                'app_id': str(app_id),
+                'tx_id': blockchain_tx_id,  # REAL blockchain TX ID
                 'date': datetime.datetime.now(datetime.timezone.utc),
-                'sender': user_id,
+                'sender': g_user_id,
                 'action': action,
-                'g_user_id': user_id,
-                'g_book_id': book_id,
-                'g_status': 'ACTIVE',
-                'g_params': description,
-                'l_book_hash': '',
-                'l_research_hash': '',
-                'l_params': ''
+                'g_user_id': g_user_id,
+                'g_book_id': g_book_id,
+                'g_status': g_status,
+                'g_params': g_params,  # Use params hash if available
+                'l_book_hash': l_book_hash,
+                'l_research_hash': l_research_hash,
+                'l_params': l_params
             }
             
-            await self.save_transaction(tx_data)
-            logger.info(f"Saved {action} transaction for user {user_id}, book {book_id}")
+            success = await self.save_transaction(tx_data)
+            if success:
+                logger.info(f"✅ Saved {action} transaction with blockchain TX ID: {blockchain_tx_id}")
+            else:
+                logger.error(f"❌ Failed to save {action} transaction")
             
         except Exception as e:
-            logger.error(f"Error saving contract transaction: {e}")
+            logger.error(f"❌ Error saving contract transaction: {e}")
 
     async def get_contract(self, user_id: str, book_id: str) -> Optional[Dict[str, Any]]:
         """
@@ -485,14 +519,19 @@ class CryptoManager:
             
             # Update contract global state
             app_id = int(contract_data['app_id'])
+                        
+            global_result = update_global_state(app_id, user_id, book_id, user_address, params_str)
             
-            success = update_global_state(app_id, user_id, book_id, user_address, params_str)
-            
-            if success:
-                # Save contract update transaction
+            if global_result.get('success'):
+                global_tx_id = global_result.get('tx_id')
+                params_hash = global_result.get('params_hash')
+                
+                # Save with REAL blockchain transaction ID
                 await self._save_contract_transaction(
-                    user_id, book_id, contract_data.get('contract_id'), app_id,
-                    "UPDATE_CONTRACT", "Contract parameters update"
+                    user_id, book_id, app_id, blockchain_tx_id=global_tx_id,
+                    action="UPDATE_GLOBAL_STATE",
+                    g_status="ACTIVE",
+                    g_params=params_hash
                 )
 
                 # Update database record with new parameters

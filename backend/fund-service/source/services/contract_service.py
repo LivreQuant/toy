@@ -171,7 +171,11 @@ def deploy_contract_for_user_book(
         "parameters": params_str,
         "creation_timestamp": time.time(),
         "status": "ACTIVE",
-        "blockchain_status": "Active"
+        "blockchain_status": "Active",
+        # ADD THESE TRANSACTION IDs
+        "creation_tx_id": txid,           # Contract creation
+        "funding_tx_id": fund_txid,       # Contract funding  
+        "init_tx_id": initialize_txid,    # Contract initialization
     }
 
     logger.info(
@@ -253,10 +257,15 @@ def update_global_state(
         wait_for_confirmation(algod_client, update_txid)
         logger.info(f"Contract global parameters updated successfully")
         
-        return True
+        # RETURN THE TRANSACTION ID
+        return {
+            "success": True,
+            "tx_id": update_txid,
+            "params_hash": params_str
+        }
     except Exception as e:
         logger.error(f"Error updating global state: {e}")
-        return False
+        return {"success": False, "error": str(e)}
 
 
 def update_contract_status(app_id: int, status: str) -> bool:

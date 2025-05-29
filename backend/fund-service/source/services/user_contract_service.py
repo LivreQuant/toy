@@ -102,13 +102,19 @@ async def user_opt_in_to_contract(user_id: str, book_id: str, crypto_manager, ap
     # Wait for confirmation
     try:
         wait_for_confirmation(algod_client, opt_in_txid)
-        logger.info(
-            f"User {user_id} successfully opted in to contract for book {book_id}"
-        )
-        return True
+        logger.info(f"User {user_id} successfully opted in to contract for book {book_id}")
+        
+        # RETURN SUCCESS WITH TRANSACTION ID
+        return {
+            "success": True,
+            "tx_id": opt_in_txid
+        }
     except Exception as e:
         logger.error(f"Error opting in to contract: {e}")
-        return False
+        return {
+            "success": False,
+            "error": str(e)
+        }
 
 
 async def update_user_local_state(
