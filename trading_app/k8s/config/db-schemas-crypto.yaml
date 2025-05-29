@@ -21,13 +21,11 @@ data:
       UNIQUE(address)
     );
 
-  
     CREATE INDEX IF NOT EXISTS idx_crypto_wallets_user_id ON crypto.wallets(user_id);
     CREATE INDEX IF NOT EXISTS idx_crypto_wallets_fund_id ON crypto.wallets(fund_id);
 
-    -- Create the new table with UUID primary key and unique constraint
+    -- Contracts table
     CREATE TABLE crypto.contracts (
-      contract_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
       user_id UUID NOT NULL REFERENCES auth.users(user_id) ON DELETE CASCADE,
       book_id UUID NOT NULL REFERENCES fund.books(book_id) ON DELETE CASCADE,
       app_id TEXT NOT NULL,
@@ -39,24 +37,22 @@ data:
       expire_at TIMESTAMP WITH TIME ZONE DEFAULT '2999-01-01',
       deleted_at TIMESTAMP WITH TIME ZONE,
       deletion_note TEXT,
-      UNIQUE(app_address, active_at)
+      PRIMARY KEY (app_id), -- Make app_id the primary key
+      UNIQUE(user_id, book_id, expire_at) -- Only one active contract per user/book
     );
 
-    -- Create indexes (without immutable function issues)
     CREATE INDEX IF NOT EXISTS idx_crypto_contracts_user_id ON crypto.contracts(user_id);
     CREATE INDEX IF NOT EXISTS idx_crypto_contracts_book_id ON crypto.contracts(book_id);
-    CREATE INDEX IF NOT EXISTS idx_crypto_contracts_app_id ON crypto.contracts(app_id);
     CREATE INDEX IF NOT EXISTS idx_crypto_contracts_app_address ON crypto.contracts(app_address);
     CREATE INDEX IF NOT EXISTS idx_crypto_contracts_expire_at ON crypto.contracts(expire_at);
     CREATE INDEX IF NOT EXISTS idx_crypto_contracts_active ON crypto.contracts(user_id, book_id, expire_at);
 
+    -- Transactions table
     CREATE TABLE crypto.txs (
-      tx_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
       user_id UUID NOT NULL REFERENCES auth.users(user_id),
       book_id UUID NOT NULL REFERENCES fund.books(book_id),
-      contract_id UUID NOT NULL REFERENCES crypto.contracts(contract_id) ON DELETE CASCADE,
-      app_id TEXT NOT NULL,
-      transaction_id TEXT NOT NULL,
+      app_id TEXT NOT NULL REFERENCES crypto.contracts(app_id) ON DELETE CASCADE, -- Fixed: TEXT not UUID
+      tx_id TEXT NOT NULL, -- Your nomenclature: tx_id not transaction_id
       date TIMESTAMP WITH TIME ZONE NOT NULL,
       sender TEXT NOT NULL,
       action VARCHAR(50) NOT NULL,
@@ -68,37 +64,34 @@ data:
       l_research_hash VARCHAR(255),
       l_params VARCHAR(255),
       created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-      UNIQUE(transaction_id)
+      PRIMARY KEY (tx_id) -- tx_id is the primary key
     );
 
+    -- Supplemental table
     CREATE TABLE crypto.supplemental (
-      tx_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
       user_id UUID NOT NULL REFERENCES auth.users(user_id),
       fund_id UUID NOT NULL REFERENCES fund.funds(fund_id),
-      contract_id UUID NOT NULL REFERENCES crypto.contracts(contract_id) ON DELETE CASCADE,
-      app_id TEXT NOT NULL,
-      transaction_id TEXT NOT NULL,
-      date TIMESTAMP WITH TIME ZONE NOT NULL,
+      app_id TEXT NOT NULL REFERENCES crypto.contracts(app_id) ON DELETE CASCADE, -- Fixed: TEXT not UUID
+      tx_id TEXT NOT NULL REFERENCES crypto.txs(tx_id) ON DELETE CASCADE, -- Fixed: TEXT not UUID
+      date TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(), -- Added missing date field
       conviction_file_path TEXT,
       conviction_file_encoded TEXT,
       research_file_path TEXT,
       research_file_encoded TEXT,
       notes TEXT,
       notes_encoded TEXT,
-      UNIQUE(transaction_id)
+      PRIMARY KEY (tx_id) -- tx_id is the primary key
     );
 
     -- Indexes for crypto.txs
     CREATE INDEX IF NOT EXISTS idx_crypto_txs_user_id ON crypto.txs(user_id);
-    CREATE INDEX IF NOT EXISTS idx_crypto_txs_book_id ON crypto.txs(book_id);  -- Fixed: book_id not fund_id
-    CREATE INDEX IF NOT EXISTS idx_crypto_txs_contract_id ON crypto.txs(contract_id);
+    CREATE INDEX IF NOT EXISTS idx_crypto_txs_book_id ON crypto.txs(book_id);
     CREATE INDEX IF NOT EXISTS idx_crypto_txs_app_id ON crypto.txs(app_id);
     CREATE INDEX IF NOT EXISTS idx_crypto_txs_date ON crypto.txs(date);
 
     -- Indexes for crypto.supplemental
     CREATE INDEX IF NOT EXISTS idx_crypto_supplemental_user_id ON crypto.supplemental(user_id);
     CREATE INDEX IF NOT EXISTS idx_crypto_supplemental_fund_id ON crypto.supplemental(fund_id);
-    CREATE INDEX IF NOT EXISTS idx_crypto_supplemental_contract_id ON crypto.supplemental(contract_id);
     CREATE INDEX IF NOT EXISTS idx_crypto_supplemental_app_id ON crypto.supplemental(app_id);
     CREATE INDEX IF NOT EXISTS idx_crypto_supplemental_date ON crypto.supplemental(date);
         

@@ -8,58 +8,36 @@ data:
     -- Conviction Schema
     CREATE SCHEMA IF NOT EXISTS conv;
 
-    -- User (RAW DATA) table
-    CREATE TABLE conv.data (
-        book_id UUID NOT NULL REFERENCES fund.books(book_id) ON DELETE CASCADE,
-        tx_id UUID NOT NULL REFERENCES crypto.txs(tx_id) ON DELETE CASCADE,
-
-        -- RAW DATA
-        conviction_filename TEXT NOT NULL, -- UNIQUE NAME FOR CONVICTION CSV FILE
-        research_filename TEXT NOT NULL, -- UNIQUE NAME FOR RESEARCH FILE
-        reason TEXT NOT NULL, 
-        
-        PRIMARY KEY (book_id, tx_id)
-    );
-
     -- User (SUBMIT) table
     CREATE TABLE conv.submit (
-        book_id UUID NOT NULL REFERENCES fund.books(book_id) ON DELETE CASCADE,
-        tx_id UUID NOT NULL REFERENCES crypto.txs(tx_id) ON DELETE CASCADE,
-        ix INTEGER NOT NULL, -- ROW NUMBER IN CSV FILE
-
-        -- REQUIRED INFORMATION
-        instrument_id TEXT NOT NULL,
-        participation_rate TEXT NOT NULL,
-        tag TEXT NOT NULL,
-        conviction_id TEXT NOT NULL,
-
-        -- OPTIONAL INFORMATION
-        side TEXT,
-        score FLOAT,
-        quantity FLOAT,
-        zscore FLOAT,
-        target_percentage FLOAT,
-        target_notional FLOAT,
-        horizon_zscore TEXT,
-
-        PRIMARY KEY (book_id, tx_id, ix)
+      book_id UUID NOT NULL REFERENCES fund.books(book_id) ON DELETE CASCADE,
+      tx_id TEXT NOT NULL REFERENCES crypto.txs(tx_id) ON DELETE CASCADE,
+      row INTEGER NOT NULL, -- ROW NUMBER IN CSV FILE
+      -- REQUIRED INFORMATION
+      instrument_id TEXT NOT NULL,
+      participation_rate TEXT NOT NULL,
+      tag TEXT NOT NULL,
+      conviction_id TEXT NOT NULL,
+      -- OPTIONAL INFORMATION
+      side TEXT,
+      score FLOAT,
+      quantity FLOAT,
+      zscore FLOAT,
+      target_percentage FLOAT,
+      target_notional FLOAT,
+      horizon_zscore TEXT,
+      PRIMARY KEY (book_id, tx_id, row)
     );
 
     -- User (CANCEL) table
     CREATE TABLE conv.cancel (
-        book_id UUID NOT NULL REFERENCES fund.books(book_id) ON DELETE CASCADE,
-        tx_id UUID NOT NULL REFERENCES crypto.txs(tx_id) ON DELETE CASCADE,
-        ix INTEGER NOT NULL, -- ROW NUMBER IN CSV FILE
-
-        -- REQUIRED INFORMATION
-        conviction_id TEXT,
-
-        PRIMARY KEY (book_id, tx_id, ix)
+      book_id UUID NOT NULL REFERENCES fund.books(book_id) ON DELETE CASCADE,
+      tx_id TEXT NOT NULL REFERENCES crypto.txs(tx_id) ON DELETE CASCADE,
+      row INTEGER NOT NULL, -- ROW NUMBER IN CSV FILE
+      -- REQUIRED INFORMATION
+      conviction_id TEXT,
+      PRIMARY KEY (book_id, tx_id, row)
     );
-
-    -- Performance Indexes for conv.data
-    CREATE INDEX idx_data_book_id ON conv.data(book_id);
-    CREATE INDEX idx_data_tx_id ON conv.data(tx_id);
 
     -- Performance Indexes for conv.submit
     CREATE INDEX idx_submit_book_id ON conv.submit(book_id);

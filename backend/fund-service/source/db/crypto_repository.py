@@ -1,4 +1,4 @@
-# backend/fund-service/source/db/crypto_repository.py
+# source/db/crypto_repository.py
 import logging
 import time
 import uuid
@@ -68,8 +68,8 @@ class CryptoRepository:
                     user_id,
                     fund_id,
                     wallet_data.get('address'),
-                    wallet_data.get('mnemonic'),  # Always encrypted
-                    wallet_data.get('mnemonic_salt'),  # Salt for decryption
+                    wallet_data.get('mnemonic'),
+                    wallet_data.get('mnemonic_salt'),
                     now,
                     self.future_date
                 )
@@ -129,19 +129,14 @@ class CryptoRepository:
     #########################
 
     async def save_contract(self, user_id: str, book_id: str, contract_data: Dict[str, Any]) -> bool:
-        """
-        Save contract information for a user/book combination
-        
-        Args:
-            user_id: User ID
-            book_id: Book ID
-            contract_data: Contract information
-            
-        Returns:
-            True if successful, False otherwise
-        """
+        """Save contract information for a user/book combination"""
         pool = await self.db_pool.get_pool()
         now = datetime.datetime.now(datetime.timezone.utc)
+        
+        # Convert app_id to string for database storage
+        app_id = contract_data.get('app_id') or contract_data.get('contract_id')
+        if app_id is not None:
+            app_id = str(app_id)
         
         query = """
         INSERT INTO crypto.contracts (
@@ -149,17 +144,17 @@ class CryptoRepository:
             blockchain_status, active_at, expire_at
         ) VALUES (
             $1, $2, $3, $4, $5, $6, $7, $8, $9
-        ) RETURNING contract_id
+        )
         """
         
         start_time = time.time()
         try:
             async with pool.acquire() as conn:
-                contract_id = await conn.fetchval(
+                await conn.execute(
                     query,
                     user_id,
                     book_id,
-                    contract_data.get('app_id'),
+                    app_id,  # Now properly converted to string
                     contract_data.get('app_address'),
                     contract_data.get('parameters'),
                     contract_data.get('status', 'ACTIVE'),
@@ -180,20 +175,11 @@ class CryptoRepository:
             return False
 
     async def get_contract(self, user_id: str, book_id: str) -> Optional[Dict[str, Any]]:
-        """
-        Get contract information for a user/book combination
-        
-        Args:
-            user_id: User ID
-            book_id: Book ID
-            
-        Returns:
-            Contract data if found, None otherwise
-        """
+        """Get contract information for a user/book combination"""
         pool = await self.db_pool.get_pool()
         
         query = """
-        SELECT contract_id, app_id, app_address, parameters, status, 
+        SELECT app_id, app_address, parameters, status, 
                blockchain_status, active_at, expire_at
         FROM crypto.contracts
         WHERE user_id = $1 AND book_id = $2 AND expire_at > NOW()
@@ -208,8 +194,11 @@ class CryptoRepository:
                 
                 duration = time.time() - start_time
                 if row:
+                    contract_data = ensure_json_serializable(dict(row))
+                    # Add a synthetic contract_id for backward compatibility if needed
+                    contract_data['contract_id'] = contract_data['app_id']
                     track_db_operation("get_contract", True, duration)
-                    return ensure_json_serializable(dict(row))
+                    return contract_data
                 else:
                     track_db_operation("get_contract", False, duration)
                     return None
@@ -221,19 +210,11 @@ class CryptoRepository:
             return None
 
     async def get_user_contracts(self, user_id: str) -> List[Dict[str, Any]]:
-        """
-        Get all contracts for a user
-        
-        Args:
-            user_id: User ID
-            
-        Returns:
-            List of contract data
-        """
+        """Get all contracts for a user"""
         pool = await self.db_pool.get_pool()
         
         query = """
-        SELECT contract_id, book_id, app_id, app_address, parameters, 
+        SELECT app_id, book_id, app_address, parameters, 
                status, blockchain_status, active_at, expire_at
         FROM crypto.contracts
         WHERE user_id = $1 AND expire_at > NOW()
@@ -243,25 +224,20 @@ class CryptoRepository:
         try:
             async with pool.acquire() as conn:
                 rows = await conn.fetch(query, user_id)
-                return [ensure_json_serializable(dict(row)) for row in rows]
+                contracts = []
+                for row in rows:
+                    contract_data = ensure_json_serializable(dict(row))
+                    # Add synthetic contract_id for backward compatibility
+                    contract_data['contract_id'] = contract_data['app_id']
+                    contracts.append(contract_data)
+                return contracts
                 
         except Exception as e:
             logger.error(f"Error getting user contracts: {e}")
             return []
 
     async def update_contract_status(self, user_id: str, book_id: str, status: str, blockchain_status: str = None) -> bool:
-        """
-        Update contract status
-        
-        Args:
-            user_id: User ID
-            book_id: Book ID
-            status: New status
-            blockchain_status: New blockchain status
-            
-        Returns:
-            True if successful, False otherwise
-        """
+        """Update contract status"""
         pool = await self.db_pool.get_pool()
         now = datetime.datetime.now(datetime.timezone.utc)
         
@@ -297,17 +273,7 @@ class CryptoRepository:
             return False
         
     async def update_contract_parameters(self, user_id: str, book_id: str, parameters: str) -> bool:
-        """
-        Update contract parameters using temporal data pattern (expire old, create new)
-        
-        Args:
-            user_id: User ID
-            book_id: Book ID
-            parameters: New parameters string
-            
-        Returns:
-            True if successful, False otherwise
-        """
+        """Update contract parameters using temporal data pattern"""
         pool = await self.db_pool.get_pool()
         now = datetime.datetime.now(datetime.timezone.utc)
         
@@ -317,7 +283,7 @@ class CryptoRepository:
                 async with conn.transaction():
                     # 1. Get the current active contract
                     current_contract_query = """
-                    SELECT contract_id, app_id, app_address, status, blockchain_status
+                    SELECT app_id, app_address, status, blockchain_status
                     FROM crypto.contracts
                     WHERE user_id = $1 AND book_id = $2 AND expire_at > NOW()
                     ORDER BY active_at DESC
@@ -333,11 +299,11 @@ class CryptoRepository:
                     # 2. Expire the current contract
                     expire_query = """
                     UPDATE crypto.contracts
-                    SET expire_at = $2
-                    WHERE contract_id = $1 AND expire_at > NOW()
+                    SET expire_at = $3
+                    WHERE user_id = $1 AND book_id = $2 AND expire_at > NOW()
                     """
                     
-                    await conn.execute(expire_query, current_contract['contract_id'], now)
+                    await conn.execute(expire_query, user_id, book_id, now)
                     
                     # 3. Create new contract row with updated parameters
                     insert_query = """
@@ -346,14 +312,14 @@ class CryptoRepository:
                         blockchain_status, active_at, expire_at
                     ) VALUES (
                         $1, $2, $3, $4, $5, $6, $7, $8, $9
-                    ) RETURNING contract_id
+                    )
                     """
                     
-                    new_contract_id = await conn.fetchval(
+                    await conn.execute(
                         insert_query,
                         user_id,
                         book_id,
-                        current_contract['app_id'],
+                        current_contract['app_id'],  # Already a string from DB
                         current_contract['app_address'],
                         parameters,  # New parameters
                         current_contract['status'],
@@ -364,7 +330,7 @@ class CryptoRepository:
                     
                     duration = time.time() - start_time
                     track_db_operation("update_contract_parameters", True, duration)
-                    logger.info(f"Contract parameters updated with temporal pattern for user {user_id}, book {book_id}, new contract_id: {new_contract_id}")
+                    logger.info(f"Contract parameters updated with temporal pattern for user {user_id}, book {book_id}")
                     return True
                     
         except Exception as e:
@@ -374,17 +340,7 @@ class CryptoRepository:
             return False
         
     async def expire_contract(self, user_id: str, book_id: str, deletion_note: str = None) -> bool:
-        """
-        Expire a contract (soft delete)
-        
-        Args:
-            user_id: User ID
-            book_id: Book ID
-            deletion_note: Optional note about deletion
-            
-        Returns:
-            True if successful, False otherwise
-        """
+        """Expire a contract (soft delete)"""
         pool = await self.db_pool.get_pool()
         now = datetime.datetime.now(datetime.timezone.utc)
         
@@ -416,70 +372,101 @@ class CryptoRepository:
         
     async def save_transaction(self, tx_data: Dict[str, Any]) -> bool:
         """Save transaction to crypto.txs table"""
+        start_time = time.time()
         try:
+            # Convert app_id to string and handle both old/new field names
+            app_id = tx_data.get('app_id') or tx_data.get('contract_id')
+            if app_id is not None:
+                app_id = str(app_id)
+                
+            tx_id = tx_data.get('tx_id') or tx_data.get('transaction_id')
+            
             pool = await self.db_pool.get_pool()
             async with pool.acquire() as conn:
                 await conn.execute("""
                     INSERT INTO crypto.txs (
-                        user_id, book_id, contract_id, app_id, transaction_id, 
+                        user_id, book_id, app_id, tx_id, 
                         date, sender, action, g_user_id, g_book_id, g_status, 
                         g_params, l_book_hash, l_research_hash, l_params
                     )
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
                 """, 
-                tx_data['user_id'], tx_data['book_id'], tx_data['contract_id'],
-                tx_data['app_id'], tx_data['transaction_id'], tx_data['date'],
-                tx_data['sender'], tx_data['action'], tx_data['g_user_id'],
-                tx_data['g_book_id'], tx_data['g_status'], tx_data['g_params'],
-                tx_data['l_book_hash'], tx_data['l_research_hash'], tx_data['l_params']
+                tx_data.get('user_id'), 
+                tx_data.get('book_id'), 
+                app_id,  # Converted to string
+                tx_id,   # Handle both field names
+                tx_data.get('date'), 
+                tx_data.get('sender'), 
+                tx_data.get('action'), 
+                tx_data.get('g_user_id'), 
+                tx_data.get('g_book_id'), 
+                tx_data.get('g_status'), 
+                tx_data.get('g_params'), 
+                tx_data.get('l_book_hash'), 
+                tx_data.get('l_research_hash'), 
+                tx_data.get('l_params')
                 )
                 
-                logger.info(f"Saved transaction to crypto.txs: {tx_data['transaction_id']}")
+                duration = time.time() - start_time
+                track_db_operation("save_transaction", True, duration)
+                logger.info(f"Saved transaction to crypto.txs: {tx_id or 'UNKNOWN'}")
                 return True
                 
         except Exception as e:
+            duration = time.time() - start_time
+            track_db_operation("save_transaction", False, duration)
             logger.error(f"Error saving transaction to crypto.txs: {e}")
+            logger.error(f"Transaction data keys: {list(tx_data.keys()) if tx_data else 'None'}")
             return False
 
     async def save_supplemental_data(self, supplemental_data: Dict[str, Any]) -> bool:
         """Save supplemental data to crypto.supplemental table"""
+        start_time = time.time()
         try:
+            # Convert app_id to string and handle both old/new field names
+            app_id = supplemental_data.get('app_id') or supplemental_data.get('contract_id')
+            if app_id is not None:
+                app_id = str(app_id)
+                
+            tx_id = supplemental_data.get('tx_id') or supplemental_data.get('transaction_id')
+            
             pool = await self.db_pool.get_pool()
             async with pool.acquire() as conn:
                 await conn.execute("""
                     INSERT INTO crypto.supplemental (
-                        user_id, fund_id, contract_id, app_id, transaction_id, date,
+                        user_id, fund_id, app_id, tx_id, date,
                         conviction_file_path, conviction_file_encoded, research_file_path, 
                         research_file_encoded, notes, notes_encoded
                     )
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
                 """, 
-                supplemental_data['user_id'], supplemental_data['fund_id'], 
-                supplemental_data['contract_id'], supplemental_data['app_id'],
-                supplemental_data['transaction_id'], supplemental_data['date'],
-                supplemental_data['conviction_file_path'], supplemental_data['conviction_file_encoded'],
-                supplemental_data['research_file_path'], supplemental_data['research_file_encoded'],
-                supplemental_data['notes'], supplemental_data['notes_encoded']
+                supplemental_data.get('user_id'), 
+                supplemental_data.get('fund_id'), 
+                app_id,  # Converted to string
+                tx_id,   # Handle both field names
+                supplemental_data.get('date'), 
+                supplemental_data.get('conviction_file_path'), 
+                supplemental_data.get('conviction_file_encoded'), 
+                supplemental_data.get('research_file_path'), 
+                supplemental_data.get('research_file_encoded'), 
+                supplemental_data.get('notes'), 
+                supplemental_data.get('notes_encoded')
                 )
                 
-                logger.info(f"Saved supplemental data: {supplemental_data['transaction_id']}")
+                duration = time.time() - start_time
+                track_db_operation("save_supplemental_data", True, duration)
+                logger.info(f"Saved supplemental data: {tx_id or 'UNKNOWN'}")
                 return True
                 
         except Exception as e:
+            duration = time.time() - start_time
+            track_db_operation("save_supplemental_data", False, duration)
             logger.error(f"Error saving supplemental data: {e}")
+            logger.error(f"Supplemental data keys: {list(supplemental_data.keys()) if supplemental_data else 'None'}")
             return False
 
     async def get_user_transactions(self, user_id: str, book_id: str = None) -> List[Dict[str, Any]]:
-        """
-        Get transactions for a user, optionally filtered by book
-        
-        Args:
-            user_id: User ID
-            book_id: Optional book ID filter
-            
-        Returns:
-            List of transaction data
-        """
+        """Get transactions for a user, optionally filtered by book"""
         pool = await self.db_pool.get_pool()
         
         if book_id:
@@ -504,4 +491,44 @@ class CryptoRepository:
                 
         except Exception as e:
             logger.error(f"Error getting user transactions: {e}")
+            return []
+
+    async def get_supplemental_data(self, user_id: str = None, fund_id: str = None, tx_id: str = None) -> List[Dict[str, Any]]:
+        """Get supplemental data with optional filters"""
+        pool = await self.db_pool.get_pool()
+        
+        conditions = []
+        params = []
+        param_counter = 1
+        
+        if user_id:
+            conditions.append(f"user_id = ${param_counter}")
+            params.append(user_id)
+            param_counter += 1
+            
+        if fund_id:
+            conditions.append(f"fund_id = ${param_counter}")
+            params.append(fund_id)
+            param_counter += 1
+            
+        if tx_id:
+            conditions.append(f"tx_id = ${param_counter}")
+            params.append(tx_id)
+            param_counter += 1
+        
+        where_clause = "WHERE " + " AND ".join(conditions) if conditions else ""
+        
+        query = f"""
+        SELECT * FROM crypto.supplemental
+        {where_clause}
+        ORDER BY date DESC
+        """
+        
+        try:
+            async with pool.acquire() as conn:
+                rows = await conn.fetch(query, *params)
+                return [ensure_json_serializable(dict(row)) for row in rows]
+                
+        except Exception as e:
+            logger.error(f"Error getting supplemental data: {e}")
             return []
