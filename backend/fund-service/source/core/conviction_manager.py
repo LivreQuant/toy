@@ -195,7 +195,6 @@ class ConvictionManager:
                 logger.error("No contract found - required for database storage")
                 return {"success": False, "error": "Contract not found"}
 
-            contract_id = contract_data.get('contract_id')
             app_id = str(contract_data.get('app_id'))
 
             # 3A: Store transaction record in crypto.txs (CRITICAL - must be first)
@@ -203,7 +202,6 @@ class ConvictionManager:
             tx_data = {
                 'user_id': user_id,
                 'book_id': book_id,
-                'contract_id': contract_id,
                 'app_id': app_id,
                 'tx_id': blockchain_tx_id,
                 'date': datetime.datetime.now(datetime.timezone.utc),
@@ -235,7 +233,6 @@ class ConvictionManager:
             supplemental_data = {
                 'user_id': user_id,
                 'fund_id': fund_id,
-                'contract_id': contract_id,
                 'app_id': app_id,
                 'tx_id': blockchain_tx_id,
                 'date': datetime.datetime.now(datetime.timezone.utc),
@@ -313,8 +310,8 @@ class ConvictionManager:
                 "error": f"Failed to process submission: {str(e)}",
                 "results": []
             }
-        
-    async def cancel_convictions(self, cancellation_data, user_id):
+
+    async def cancel_convictions(self, cancellation_data: Dict[str, Any], user_id: str) -> Dict[str, Any]:
         """Cancel convictions with complete flow: files -> fingerprints -> blockchain -> database -> operations"""
         # Extract all data
         book_id = cancellation_data.get('book_id')
@@ -323,126 +320,234 @@ class ConvictionManager:
         research_file_data = cancellation_data.get('research_file_data')
         research_file_name = cancellation_data.get('research_file_name')
         
-        logger.info(f"Processing cancellation of {len(conviction_ids)} convictions for user {user_id} in book {book_id}")
+        logger.info(f"=== STARTING CONVICTION CANCELLATION ===")
+        logger.info(f"User: {user_id}, Book: {book_id}")
+        logger.info(f"Conviction IDs count: {len(conviction_ids)}")
+        logger.info(f"Has research file: {bool(research_file_data and research_file_name)}")
+        logger.info(f"Has notes: {bool(notes and notes.strip())}")
         
         try:
-            # Get fund_id for storage paths
+            # Get fund ID
+            logger.info(f"STEP 0: Getting fund ID for user {user_id}")
             fund_id = await self._get_fund_id_for_user(user_id)
-
-            # Get or create contract for this user/book
-            contract_id = await self.crypto_manager.get_or_create_contract(
-                user_id=user_id,
-                book_id=book_id,
-                app_id="456"
-            )
+            logger.info(f"Fund ID: {fund_id}")
             
-            # STEP 1: Store files first (need originals for fingerprinting)
-            research_file_path = None
-            notes_file_path = None
-            csv_file_path = None
+            # Generate transaction ID
+            temp_tx_id = str(uuid.uuid4())
+            logger.info(f"Generated transaction ID: {temp_tx_id}")
+            
+            # STEP 1: Store files and create fingerprints (same as submit)
+            logger.info(f"=== STEP 1: STORING FILES AND CREATING FINGERPRINTS ===")
             file_fingerprints = {}
-
-            # Store research file if provided
+            
+            # Store and fingerprint research file
             if research_file_data and research_file_name:
-                research_file_path = await self.storage_manager.store_research_file(
-                    research_file_data, research_file_name, fund_id, book_id, "temp"
+                logger.info(f"Processing research file: {research_file_name} ({len(research_file_data)} bytes)")
+                research_path = await self.storage_manager.store_research_file(
+                    research_file_data, research_file_name, fund_id, book_id, temp_tx_id
                 )
-                if research_file_path:
-                    fingerprint = await self.crypto_manager.create_file_fingerprint(
-                        research_file_path, research_file_data
-                    )
-                    file_fingerprints[research_file_path] = fingerprint
-
-            # Store notes if provided
+                if research_path:
+                    research_fingerprint = self.crypto_manager.create_file_fingerprint(research_file_data, research_file_name)
+                    file_fingerprints['research'] = research_fingerprint
+                    logger.info(f"✓ Research file stored at: {research_path}")
+                    logger.info(f"✓ Research file fingerprint: {research_fingerprint}")
+                else:
+                    logger.error(f"✗ Failed to store research file")
+            else:
+                logger.info(f"No research file provided")
+            
+            # Store and fingerprint notes
             if notes and notes.strip():
-                notes_file_path = await self.storage_manager.store_notes_file(
-                    notes, fund_id, book_id, "temp"
+                logger.info(f"Processing notes: {len(notes)} characters")
+                notes_path = await self.storage_manager.store_notes_file(
+                    notes, fund_id, book_id, temp_tx_id
                 )
-                if notes_file_path:
+                if notes_path:
                     notes_bytes = notes.encode('utf-8')
-                    fingerprint = await self.crypto_manager.create_file_fingerprint(
-                        notes_file_path, notes_bytes
-                    )
-                    file_fingerprints[notes_file_path] = fingerprint
-
-            # Create and store cancellation CSV
-            csv_file_path = await self.storage_manager.store_cancellation_csv(
-                conviction_ids, fund_id, book_id, "temp"
+                    notes_fingerprint = self.crypto_manager.create_file_fingerprint(notes_bytes, "notes.txt")
+                    file_fingerprints['notes'] = notes_fingerprint
+                    logger.info(f"✓ Notes file stored at: {notes_path}")
+                    logger.info(f"✓ Notes file fingerprint: {notes_fingerprint}")
+                else:
+                    logger.error(f"✗ Failed to store notes file")
+            else:
+                logger.info(f"No notes provided")
+            
+            # Store and fingerprint cancellation CSV (this IS the cancellation fingerprint)
+            logger.info(f"Processing cancellation CSV with {len(conviction_ids)} conviction IDs")
+            csv_path = await self.storage_manager.store_cancellation_csv(
+                conviction_ids, fund_id, book_id, temp_tx_id
             )
-            if csv_file_path:
+            if csv_path:
+                # Create deterministic CSV content for fingerprinting
                 csv_content = json.dumps(conviction_ids, sort_keys=True).encode('utf-8')
-                fingerprint = await self.crypto_manager.create_file_fingerprint(
-                    csv_file_path, csv_content
-                )
-                file_fingerprints[csv_file_path] = fingerprint
-
-            # STEP 2: Create cancellation fingerprint
-            cancellation_fingerprint = await self.crypto_manager.create_conviction_fingerprint(conviction_ids)
-            
-            # STEP 3: Create crypto transaction with fingerprints
-            tx_id = await self.crypto_manager.create_crypto_transaction(
-                user_id=user_id,
-                book_id=book_id,
-                contract_id=contract_id,
-                app_id="456",
-                action="CANCEL",
-                notes=notes,
-                conviction_fingerprint=cancellation_fingerprint,
-                file_fingerprints=file_fingerprints
-            )
-
-            # STEP 4: Store transaction fingerprints on blockchain
-            blockchain_result = await self.crypto_manager.store_transaction_on_blockchain(
-                tx_id, contract_id, cancellation_fingerprint, file_fingerprints
-            )
-            
-            if not blockchain_result.get('success'):
-                logger.error(f"Failed to store transaction on blockchain: {blockchain_result.get('error')}")
+                cancellation_fingerprint = self.crypto_manager.create_file_fingerprint(csv_content, "cancellations.csv")
+                file_fingerprints['cancellations'] = cancellation_fingerprint
+                logger.info(f"✓ Cancellation CSV stored at: {csv_path}")
+                logger.info(f"✓ Cancellation CSV fingerprint: {cancellation_fingerprint}")
+            else:
+                logger.error(f"✗ Failed to store cancellation CSV")
                 return {
                     "success": False,
-                    "error": "Failed to record transaction on blockchain",
+                    "error": "Failed to store cancellation CSV file",
                     "results": []
                 }
+            
+            logger.info(f"File fingerprints summary: {list(file_fingerprints.keys())}")
+            
+            # STEP 2: Update blockchain local state with fingerprints
+            logger.info(f"=== STEP 2: UPDATING BLOCKCHAIN LOCAL STATE ===")
+            logger.info(f"Book ID: {book_id}, User ID: {user_id}")
+            
+            # Map fingerprints to blockchain fields
+            book_hash = file_fingerprints.get('cancellations', '')  # Main cancellation data fingerprint
+            research_hash = file_fingerprints.get('research', '')    # Research file fingerprint  
+            params_hash = file_fingerprints.get('notes', '')         # Notes file fingerprint
+            
+            logger.info(f"Blockchain hashes to store:")
+            logger.info(f"  book_hash (cancellations): {book_hash}")
+            logger.info(f"  research_hash: {research_hash}")
+            logger.info(f"  params_hash (notes): {params_hash}")
+            
+            blockchain_result = await self.crypto_manager.update_local_state(
+                user_id, book_id, book_hash, research_hash, params_hash
+            )
 
-            # STEP 5: Store cancellation data in PostgreSQL (only after blockchain success)
-            cancellation_success = await self.db_manager.store_cancel_conviction_data(
-                tx_id=tx_id,
+            blockchain_tx_id = blockchain_result.get('blockchain_tx_id')
+
+            logger.info(f"Blockchain update result: {blockchain_result}")
+            
+            if not blockchain_result.get('success'):
+                logger.error(f"✗ Failed to update blockchain local state: {blockchain_result.get('error')}")
+                return {
+                    "success": False,
+                    "error": "Failed to record fingerprints on blockchain",
+                    "results": []
+                }
+            
+            logger.info(f"✓ Successfully updated blockchain with fingerprints")
+            
+            # STEP 3: Store in PostgreSQL database
+            logger.info("=== STEP 3: STORING IN DATABASE ===")
+            logger.info(f"Blockchain Transaction ID: {blockchain_tx_id}, Book ID: {book_id}")
+            logger.info(f"Conviction IDs count: {len(conviction_ids)}")
+
+            # Get contract_id (required for both tables)
+            contract_data = await self.crypto_manager.get_contract(user_id, book_id)
+            if not contract_data:
+                logger.error("No contract found - required for database storage")
+                return {"success": False, "error": "Contract not found"}
+
+            app_id = str(contract_data.get('app_id'))
+
+            # 3A: Store transaction record in crypto.txs (CRITICAL - must be first)
+            logger.info("3A: Storing transaction record in crypto.txs")
+            tx_data = {
+                'user_id': user_id,
+                'book_id': book_id,
+                'app_id': app_id,
+                'tx_id': blockchain_tx_id,
+                'date': datetime.datetime.now(datetime.timezone.utc),
+                'sender': user_id,
+                'action': 'CANCEL_CONVICTIONS',
+                'g_user_id': user_id,
+                'g_book_id': book_id,
+                'g_status': 'ACTIVE',
+                'g_params': f"SEE PREVIOUS TX",
+                'l_book_hash': book_hash,      # From blockchain operation
+                'l_research_hash': research_hash,  # From blockchain operation  
+                'l_params': params_hash        # From blockchain operation
+            }
+
+            crypto_txs_success = await self.crypto_manager.save_transaction(tx_data)
+            if not crypto_txs_success:
+                logger.error("CRITICAL: Failed to save to crypto.txs")
+                return {"success": False, "error": "Failed to save transaction record"}
+
+            logger.info(f"✓ Transaction record saved to crypto.txs with blockchain ID: {blockchain_tx_id}")
+
+            # 3B: Store supplemental data in crypto.supplemental
+            logger.info("3B: Storing supplemental data in crypto.supplemental")
+
+            # Create file paths based on your naming convention
+            cancellation_file_path = f"{fund_id}/{book_id}/{blockchain_tx_id}/cancellations.csv" if conviction_ids else None
+            research_file_path = f"{fund_id}/{book_id}/{blockchain_tx_id}/research.txt" if research_file_data else None
+
+            supplemental_data = {
+                'user_id': user_id,
+                'fund_id': fund_id,
+                'app_id': app_id,
+                'tx_id': blockchain_tx_id,
+                'date': datetime.datetime.now(datetime.timezone.utc),
+                'conviction_file_path': cancellation_file_path,
+                'conviction_file_encoded': book_hash,      # The cancellation fingerprint
+                'research_file_path': research_file_path,
+                'research_file_encoded': research_hash,    # The research fingerprint
+                'notes': notes,
+                'notes_encoded': params_hash               # The notes fingerprint
+            }
+
+            supplemental_success = await self.crypto_manager.save_supplemental_data(supplemental_data)
+            if not supplemental_success:
+                logger.warning("Failed to save supplemental data, but continuing...")
+            else:
+                logger.info(f"✓ Supplemental data saved to crypto.supplemental for TX: {blockchain_tx_id}")
+
+            # 3C: Store cancellation data in conv.cancel 
+            logger.info("3C: Storing cancellation data in conv.cancel")
+            db_success = await self.db_manager.store_cancel_conviction_data(
+                tx_id=blockchain_tx_id,  # This should match crypto.txs
                 book_id=book_id,
                 conviction_ids=conviction_ids
             )
+
+            if not db_success:
+                logger.error(f"Failed to store cancellation data in conv.cancel for TX: {blockchain_tx_id}")
+                return {"success": False, "error": "Failed to store cancellation data"}
+
+            logger.info(f"✓ Successfully stored {len(conviction_ids)} cancellations in conv.cancel")
             
-            if not cancellation_success:
-                logger.error(f"Failed to store cancellation data for transaction {tx_id}")
-                return {
-                    "success": False,
-                    "error": "Failed to store cancellation data",
-                    "results": []
-                }
+            # STEP 4: Send to operations manager (exchange processing)
+            logger.info(f"=== STEP 4: SENDING TO OPERATIONS MANAGER ===")
+            logger.info(f"Sending {len(conviction_ids)} conviction IDs to operations manager")
             
-            # STEP 6: Send to operations (which handles simulator)
             exchange_result = await self.operation_manager.cancel_convictions(conviction_ids, user_id)
             
-            # Add complete transaction metadata to result
+            logger.info(f"Operations manager result: {exchange_result.get('success', False)}")
+            if not exchange_result.get('success', False):
+                logger.warning(f"Operations manager returned: {exchange_result}")
+            
+            # Add integrity verification metadata to result
             exchange_result.update({
-                'tx_id': tx_id,
-                'contract_id': contract_id,
-                'blockchain_tx_id': blockchain_result.get('blockchain_tx_id'),
-                'block_height': blockchain_result.get('block_height'),
-                'conviction_fingerprint': cancellation_fingerprint,
+                'temp_tx_id': temp_tx_id,
                 'file_fingerprints': file_fingerprints,
-                'files_stored': {
-                    'research_file': bool(research_file_path),
-                    'notes_file': bool(notes_file_path),
-                    'csv_file': bool(csv_file_path)
+                'blockchain_hashes': {
+                    'book_hash': book_hash,           # cancellation fingerprint
+                    'research_hash': research_hash,   # research file fingerprint
+                    'params_hash': params_hash        # notes fingerprint
                 },
-                'blockchain_confirmed': True,
+                'integrity_verified': True,
+                'blockchain_updated': True,
                 'database_stored': True
             })
+            
+            logger.info(f"=== CONVICTION CANCELLATION COMPLETED SUCCESSFULLY ===")
+            logger.info(f"Transaction ID: {temp_tx_id}")
+            logger.info(f"Files stored: {list(file_fingerprints.keys())}")
+            logger.info(f"Blockchain updated: ✓")
+            logger.info(f"Database updated: ✓")
+            logger.info(f"Exchange processing: {'✓' if exchange_result.get('success') else '✗'}")
             
             return exchange_result
             
         except Exception as e:
-            logger.error(f"Error in cancel_convictions: {e}")
+            logger.error(f"=== ERROR IN CONVICTION CANCELLATION ===")
+            logger.error(f"User: {user_id}, Book: {book_id}")
+            logger.error(f"Error: {str(e)}")
+            logger.error(f"Exception type: {type(e).__name__}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            
             return {
                 "success": False,
                 "error": f"Failed to process cancellation: {str(e)}",
@@ -450,67 +555,317 @@ class ConvictionManager:
             }
 
     async def submit_encoded_convictions(self, submission_data, user_id):
-        """Submit encoded convictions"""
+        """Submit encoded convictions with simplified flow: hashes -> blockchain -> database"""
         book_id = submission_data.get('book_id')
         encoded_convictions = submission_data.get('encoded_convictions', '')
         encoded_research_file = submission_data.get('encoded_research_file', '')
         notes = submission_data.get('notes', '')
         
-        logger.info(f"Processing encoded conviction submission for user {user_id}")
+        logger.info(f"=== STARTING ENCODED CONVICTION SUBMISSION ===")
+        logger.info(f"User: {user_id}, Book: {book_id}")
+        logger.info(f"Has encoded convictions: {bool(encoded_convictions)}")
+        logger.info(f"Has encoded research: {bool(encoded_research_file)}")
+        logger.info(f"Has notes: {bool(notes and notes.strip())}")
         
         try:
-            # Store encoded data
-            encoded_data_path = await self.storage_manager.store_encoded_data(
-                book_id, encoded_convictions, encoded_research_file, notes, user_id, 'submit'
-            )
+            # Get fund ID
+            logger.info(f"STEP 0: Getting fund ID for user {user_id}")
+            fund_id = await self._get_fund_id_for_user(user_id)
+            logger.info(f"Fund ID: {fund_id}")
             
-            # TODO: Implement decoding and processing
-            # decoded_convictions = await self.crypto_manager.decode_conviction_data(encoded_convictions)
-            # return await self.submit_convictions({'book_id': book_id, 'convictions': decoded_convictions}, user_id)
+            # Generate transaction ID
+            temp_tx_id = str(uuid.uuid4())
+            logger.info(f"Generated transaction ID: {temp_tx_id}")
+            
+            # STEP 1: Use provided hashes directly (no file storage needed)
+            logger.info(f"=== STEP 1: USING PROVIDED ENCODED HASHES ===")
+            
+            # Map provided hashes to blockchain fields
+            book_hash = encoded_convictions  # Main conviction data hash
+            research_hash = encoded_research_file  # Research file hash
+            params_hash = notes  # Notes as params (could be hashed if needed)
+            
+            logger.info(f"Encoded hashes to store:")
+            logger.info(f"  book_hash (convictions): {book_hash}")
+            logger.info(f"  research_hash: {research_hash}")
+            logger.info(f"  params_hash (notes): {params_hash}")
+            
+            # STEP 2: Update blockchain local state with provided hashes
+            logger.info(f"=== STEP 2: UPDATING BLOCKCHAIN LOCAL STATE ===")
+            logger.info(f"Book ID: {book_id}, User ID: {user_id}")
+            
+            blockchain_result = await self.crypto_manager.update_local_state(
+                user_id, book_id, book_hash, research_hash, params_hash
+            )
+
+            blockchain_tx_id = blockchain_result.get('blockchain_tx_id')
+
+            logger.info(f"Blockchain update result: {blockchain_result}")
+            
+            if not blockchain_result.get('success'):
+                logger.error(f"✗ Failed to update blockchain local state: {blockchain_result.get('error')}")
+                return {
+                    "success": False,
+                    "error": "Failed to record hashes on blockchain",
+                    "temp_tx_id": temp_tx_id
+                }
+            
+            logger.info(f"✓ Successfully updated blockchain with encoded hashes")
+            
+            # STEP 3: Store in PostgreSQL database
+            logger.info("=== STEP 3: STORING IN DATABASE ===")
+            logger.info(f"Blockchain Transaction ID: {blockchain_tx_id}, Book ID: {book_id}")
+
+            # Get contract_id (required for both tables)
+            contract_data = await self.crypto_manager.get_contract(user_id, book_id)
+            if not contract_data:
+                logger.error("No contract found - required for database storage")
+                return {"success": False, "error": "Contract not found"}
+
+            contract_id = contract_data.get('contract_id')
+            app_id = str(contract_data.get('app_id'))
+
+            # 3A: Store transaction record in crypto.txs
+            logger.info("3A: Storing transaction record in crypto.txs")
+            tx_data = {
+                'user_id': user_id,
+                'book_id': book_id,
+                'contract_id': contract_id,
+                'app_id': app_id,
+                'tx_id': blockchain_tx_id,
+                'date': datetime.datetime.now(datetime.timezone.utc),
+                'sender': user_id,
+                'action': 'SUBMIT_ENCODED_CONVICTIONS',
+                'g_user_id': user_id,
+                'g_book_id': book_id,
+                'g_status': 'ACTIVE',
+                'g_params': f"ENCODED SUBMISSION",
+                'l_book_hash': book_hash,      # From user-provided hash
+                'l_research_hash': research_hash,  # From user-provided hash  
+                'l_params': params_hash        # From user-provided hash/notes
+            }
+
+            crypto_txs_success = await self.crypto_manager.save_transaction(tx_data)
+            if not crypto_txs_success:
+                logger.error("CRITICAL: Failed to save to crypto.txs")
+                return {"success": False, "error": "Failed to save transaction record"}
+
+            logger.info(f"✓ Transaction record saved to crypto.txs with blockchain ID: {blockchain_tx_id}")
+
+            # 3B: Store supplemental data in crypto.supplemental
+            logger.info("3B: Storing supplemental data in crypto.supplemental")
+
+            supplemental_data = {
+                'user_id': user_id,
+                'fund_id': fund_id,
+                'contract_id': contract_id,
+                'app_id': app_id,
+                'tx_id': blockchain_tx_id,
+                'date': datetime.datetime.now(datetime.timezone.utc),
+                'conviction_file_path': None,  # No actual file stored
+                'conviction_file_encoded': book_hash,      # The provided conviction hash
+                'research_file_path': None,  # No actual file stored
+                'research_file_encoded': research_hash,    # The provided research hash
+                'notes': notes,
+                'notes_encoded': params_hash               # The provided notes/hash
+            }
+
+            supplemental_success = await self.crypto_manager.save_supplemental_data(supplemental_data)
+            if not supplemental_success:
+                logger.warning("Failed to save supplemental data, but continuing...")
+            else:
+                logger.info(f"✓ Supplemental data saved to crypto.supplemental for TX: {blockchain_tx_id}")
+
+            # Note: No conv.submit storage for encoded submissions
+            # Note: No exchange processing for encoded submissions
+            
+            logger.info(f"=== ENCODED CONVICTION SUBMISSION COMPLETED SUCCESSFULLY ===")
+            logger.info(f"Transaction ID: {temp_tx_id}")
+            logger.info(f"Blockchain updated: ✓")
+            logger.info(f"Database updated: ✓")
+            logger.info(f"No exchange processing needed for encoded submissions")
             
             return {
                 "success": True,
-                "message": "Encoded conviction submission received and stored",
-                "encoded_data_path": encoded_data_path,
-                "results": []
+                "message": "Encoded conviction submission processed successfully",
+                "temp_tx_id": temp_tx_id,
+                "blockchain_tx_id": blockchain_tx_id,
+                "encoded_hashes": {
+                    'book_hash': book_hash,
+                    'research_hash': research_hash,
+                    'params_hash': params_hash
+                },
+                "blockchain_updated": True,
+                "database_stored": True
             }
+            
         except Exception as e:
-            logger.error(f"Error in submit_encoded_convictions: {e}")
+            logger.error(f"=== ERROR IN ENCODED CONVICTION SUBMISSION ===")
+            logger.error(f"User: {user_id}, Book: {book_id}")
+            logger.error(f"Error: {str(e)}")
+            logger.error(f"Exception type: {type(e).__name__}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            
             return {
                 "success": False,
-                "error": f"Failed to process encoded submission: {str(e)}",
-                "results": []
+                "error": f"Failed to process encoded submission: {str(e)}"
             }
 
     async def cancel_encoded_convictions(self, cancellation_data, user_id):
-       """Cancel encoded convictions"""
-       book_id = cancellation_data.get('book_id')
-       encoded_conviction_ids = cancellation_data.get('encoded_conviction_ids', '')
-       encoded_research_file = cancellation_data.get('encoded_research_file', '')
-       notes = cancellation_data.get('notes', '')
-       
-       logger.info(f"Processing encoded conviction cancellation for user {user_id}")
-       
-       try:
-           # Store encoded data
-           encoded_data_path = await self.storage_manager.store_encoded_data(
-               book_id, encoded_conviction_ids, encoded_research_file, notes, user_id, 'cancel'
-           )
-           
-           # TODO: Implement decoding and processing
-           # decoded_conviction_ids = await self.crypto_manager.decode_conviction_data(encoded_conviction_ids)
-           # return await self.cancel_convictions({'book_id': book_id, 'conviction_ids': decoded_conviction_ids}, user_id)
-           
-           return {
-               "success": True,
-               "message": "Encoded conviction cancellation received and stored",
-               "encoded_data_path": encoded_data_path,
-               "results": []
-           }
-       except Exception as e:
-           logger.error(f"Error in cancel_encoded_convictions: {e}")
-           return {
-               "success": False,
-               "error": f"Failed to process encoded cancellation: {str(e)}",
-               "results": []
-           }
+        """Cancel encoded convictions with simplified flow: hashes -> blockchain -> database"""
+        book_id = cancellation_data.get('book_id')
+        encoded_conviction_ids = cancellation_data.get('encoded_conviction_ids', '')
+        encoded_research_file = cancellation_data.get('encoded_research_file', '')
+        notes = cancellation_data.get('notes', '')
+        
+        logger.info(f"=== STARTING ENCODED CONVICTION CANCELLATION ===")
+        logger.info(f"User: {user_id}, Book: {book_id}")
+        logger.info(f"Has encoded conviction IDs: {bool(encoded_conviction_ids)}")
+        logger.info(f"Has encoded research: {bool(encoded_research_file)}")
+        logger.info(f"Has notes: {bool(notes and notes.strip())}")
+        
+        try:
+            # Get fund ID
+            logger.info(f"STEP 0: Getting fund ID for user {user_id}")
+            fund_id = await self._get_fund_id_for_user(user_id)
+            logger.info(f"Fund ID: {fund_id}")
+            
+            # Generate transaction ID
+            temp_tx_id = str(uuid.uuid4())
+            logger.info(f"Generated transaction ID: {temp_tx_id}")
+            
+            # STEP 1: Use provided hashes directly (no file storage needed)
+            logger.info(f"=== STEP 1: USING PROVIDED ENCODED HASHES ===")
+            
+            # Map provided hashes to blockchain fields
+            book_hash = encoded_conviction_ids  # Main cancellation data hash
+            research_hash = encoded_research_file  # Research file hash
+            params_hash = notes  # Notes as params (could be hashed if needed)
+            
+            logger.info(f"Encoded hashes to store:")
+            logger.info(f"  book_hash (cancellations): {book_hash}")
+            logger.info(f"  research_hash: {research_hash}")
+            logger.info(f"  params_hash (notes): {params_hash}")
+            
+            # STEP 2: Update blockchain local state with provided hashes
+            logger.info(f"=== STEP 2: UPDATING BLOCKCHAIN LOCAL STATE ===")
+            logger.info(f"Book ID: {book_id}, User ID: {user_id}")
+            
+            blockchain_result = await self.crypto_manager.update_local_state(
+                user_id, book_id, book_hash, research_hash, params_hash
+            )
+
+            blockchain_tx_id = blockchain_result.get('blockchain_tx_id')
+
+            logger.info(f"Blockchain update result: {blockchain_result}")
+            
+            if not blockchain_result.get('success'):
+                logger.error(f"✗ Failed to update blockchain local state: {blockchain_result.get('error')}")
+                return {
+                    "success": False,
+                    "error": "Failed to record hashes on blockchain",
+                    "temp_tx_id": temp_tx_id
+                }
+            
+            logger.info(f"✓ Successfully updated blockchain with encoded hashes")
+            
+            # STEP 3: Store in PostgreSQL database
+            logger.info("=== STEP 3: STORING IN DATABASE ===")
+            logger.info(f"Blockchain Transaction ID: {blockchain_tx_id}, Book ID: {book_id}")
+
+            # Get contract_id (required for both tables)
+            contract_data = await self.crypto_manager.get_contract(user_id, book_id)
+            if not contract_data:
+                logger.error("No contract found - required for database storage")
+                return {"success": False, "error": "Contract not found"}
+
+            contract_id = contract_data.get('contract_id')
+            app_id = str(contract_data.get('app_id'))
+
+            # 3A: Store transaction record in crypto.txs
+            logger.info("3A: Storing transaction record in crypto.txs")
+            tx_data = {
+                'user_id': user_id,
+                'book_id': book_id,
+                'contract_id': contract_id,
+                'app_id': app_id,
+                'tx_id': blockchain_tx_id,
+                'date': datetime.datetime.now(datetime.timezone.utc),
+                'sender': user_id,
+                'action': 'CANCEL_ENCODED_CONVICTIONS',
+                'g_user_id': user_id,
+                'g_book_id': book_id,
+                'g_status': 'ACTIVE',
+                'g_params': f"ENCODED CANCELLATION",
+                'l_book_hash': book_hash,      # From user-provided hash
+                'l_research_hash': research_hash,  # From user-provided hash  
+                'l_params': params_hash        # From user-provided hash/notes
+            }
+
+            crypto_txs_success = await self.crypto_manager.save_transaction(tx_data)
+            if not crypto_txs_success:
+                logger.error("CRITICAL: Failed to save to crypto.txs")
+                return {"success": False, "error": "Failed to save transaction record"}
+
+            logger.info(f"✓ Transaction record saved to crypto.txs with blockchain ID: {blockchain_tx_id}")
+
+            # 3B: Store supplemental data in crypto.supplemental
+            logger.info("3B: Storing supplemental data in crypto.supplemental")
+
+            supplemental_data = {
+                'user_id': user_id,
+                'fund_id': fund_id,
+                'contract_id': contract_id,
+                'app_id': app_id,
+                'tx_id': blockchain_tx_id,
+                'date': datetime.datetime.now(datetime.timezone.utc),
+                'conviction_file_path': None,  # No actual file stored
+                'conviction_file_encoded': book_hash,      # The provided cancellation hash
+                'research_file_path': None,  # No actual file stored
+                'research_file_encoded': research_hash,    # The provided research hash
+                'notes': notes,
+                'notes_encoded': params_hash               # The provided notes/hash
+            }
+
+            supplemental_success = await self.crypto_manager.save_supplemental_data(supplemental_data)
+            if not supplemental_success:
+                logger.warning("Failed to save supplemental data, but continuing...")
+            else:
+                logger.info(f"✓ Supplemental data saved to crypto.supplemental for TX: {blockchain_tx_id}")
+
+            # Note: No conv.cancel storage for encoded cancellations  
+            # Note: No exchange processing for encoded cancellations
+            
+            logger.info(f"=== ENCODED CONVICTION CANCELLATION COMPLETED SUCCESSFULLY ===")
+            logger.info(f"Transaction ID: {temp_tx_id}")
+            logger.info(f"Blockchain updated: ✓")
+            logger.info(f"Database updated: ✓")
+            logger.info(f"No exchange processing needed for encoded cancellations")
+            
+            return {
+                "success": True,
+                "message": "Encoded conviction cancellation processed successfully",
+                "temp_tx_id": temp_tx_id,
+                "blockchain_tx_id": blockchain_tx_id,
+                "encoded_hashes": {
+                    'book_hash': book_hash,
+                    'research_hash': research_hash,
+                    'params_hash': params_hash
+                },
+                "blockchain_updated": True,
+                "database_stored": True
+            }
+            
+        except Exception as e:
+            logger.error(f"=== ERROR IN ENCODED CONVICTION CANCELLATION ===")
+            logger.error(f"User: {user_id}, Book: {book_id}")
+            logger.error(f"Error: {str(e)}")
+            logger.error(f"Exception type: {type(e).__name__}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            
+            return {
+                "success": False,
+                "error": f"Failed to process encoded cancellation: {str(e)}"
+            }

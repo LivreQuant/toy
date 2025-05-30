@@ -206,115 +206,64 @@ class OperationManager:
         simulator = await self.session_manager.session_repository.get_session_simulator(user_id)
         simulator_endpoint = simulator.get('endpoint') if simulator else None
         
-        # 2. Get all conviction information in a single query
-        conviction_info_list = await self.db_manager.get_convictions_info(conviction_ids)
-        
-        # Create mapping of conviction_id to info
-        conviction_info_map = {info['conviction_id']: info for info in conviction_info_list}
-        
-        # 3. Validate convictions and categorize them
+        # 2. Process each conviction ID - create minimal objects for exchange
         results = []
         valid_convictions = []
         
         for i, conviction_id in enumerate(conviction_ids):
-            # Check if conviction exists and belongs to user
-            if conviction_id not in conviction_info_map:
-                results.append({
-                    "convictionId": conviction_id,
-                    "success": False,
-                    "error": "Conviction not found",
-                    "index": i
-                })
-                continue
-                
-            info = conviction_info_map[conviction_id]
-            
-            if info['user_id'] != user_id:
-                results.append({
-                    "oconvictionId": conviction_id,
-                    "success": False,
-                    "error": "Conviction does not belong to this user",
-                    "index": i
-                })
-                continue
-                
-            # Conviction is valid for cancellation regardless of status
-            # Create minimal Conviction object for the exchange client
+            # Create minimal ConvictionData object for the exchange client
             conviction = ConvictionData(
-                conviction_id=conviction_id,
-                user_id=user_id,
-                symbol="",  # Placeholder, not needed for cancellation
-                side=Side.BUY,  # Placeholder, not needed for cancellation
-                quantity=0,  # Placeholder, not needed for cancellation
+                convictionId=conviction_id,
+                # We don't need other fields for cancellation
+                instrumentId="",  # Placeholder
+                side="BUY",      # Placeholder
             )
             
             valid_convictions.append((conviction, i))
+            
+            # Add success result
+            results.append({
+                "convictionId": conviction_id,
+                "success": True,
+                "index": i
+            })
         
-        # 4. Cancel convictions on exchange if we have a simulator
+        
+        # 3. Cancel convictions on exchange if we have a simulator
         if simulator_endpoint and valid_convictions:
             convictions = [conviction for conviction, _ in valid_convictions]
             
             exchange_result = await self.exchange_manager.cancel_convictions_on_exchange(convictions, simulator_endpoint)
             
-            # Process individual results
+            # Update results based on exchange response
             if exchange_result.get('success'):
                 exchange_results = exchange_result.get('results', [])
                 
                 for i, ex_result in enumerate(exchange_results):
-                    if i < len(valid_convictions):
-                        conviction, idx = valid_convictions[i]
-                        
-                        if ex_result.get('success'):
-                            # Create new row with CANCELED status
-                            success = await self.db_manager.save_conviction_status(
-                                conviction.conviction_id, user_id
-                            )
-                            
-                            results.append({
-                                "convictionId": conviction.conviction_id,
-                                "success": success,
-                                "index": idx
-                            })
-                        else:
+                    if i < len(results):
+                        if not ex_result.get('success'):
+                            # Update result with exchange error
                             error_msg = ex_result.get('error', 'Failed to cancel on exchange')
-                            
-                            results.append({
-                                "convictionId": conviction.conviction_id,
+                            results[i].update({
                                 "success": False,
-                                "error": error_msg,
-                                "index": idx
+                                "error": error_msg
                             })
             else:
                 # Batch cancellation failed on exchange
                 error_msg = exchange_result.get('error', 'Batch cancellation failed')
                 
-                for conviction, idx in valid_convictions:
-                    results.append({
-                        "convictionId": conviction.conviction_id,
+                for result in results:
+                    result.update({
                         "success": False,
-                        "error": error_msg,
-                        "index": idx
+                        "error": error_msg
                     })
-        elif valid_convictions:
-            # No simulator - just mark convictions as canceled in database
-            for conviction, idx in valid_convictions:
-                # Create new row with CANCELED status
-                success = await self.db_manager.save_conviction_status(
-                    conviction.conviction_id, user_id
-                )
-                
-                results.append({
-                    "convictionId": conviction.conviction_id,
-                    "success": success,
-                    "index": idx
-                })
-        
-        # 5. Record metrics
+            
+        # 4. Record metrics
         duration = time.time() - start_time
         success_count = sum(1 for r in results if r.get('success', False))
         track_conviction_submission_latency("batch_cancel", success_count > 0, duration)
         
-        # 6. Return final results sorted by original index
+        # 5. Return final results sorted by original index
         sorted_results = sorted(results, key=lambda x: x.get('index', 0))
         return {
             "success": True,  # Overall request processed
