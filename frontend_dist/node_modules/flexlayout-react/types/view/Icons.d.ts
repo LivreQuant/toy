@@ -1,0 +1,10 @@
+export declare const CloseIcon: () => import("react/jsx-runtime").JSX.Element;
+export declare const MaximizeIcon: () => import("react/jsx-runtime").JSX.Element;
+export declare const OverflowIcon: () => import("react/jsx-runtime").JSX.Element;
+export declare const EdgeIcon: () => import("react/jsx-runtime").JSX.Element;
+export declare const PopoutIcon: () => import("react/jsx-runtime").JSX.Element;
+export declare const RestoreIcon: () => import("react/jsx-runtime").JSX.Element;
+export declare const AsterickIcon: () => import("react/jsx-runtime").JSX.Element;
+export declare const AddIcon: () => import("react/jsx-runtime").JSX.Element;
+export declare const MenuIcon: () => import("react/jsx-runtime").JSX.Element;
+export declare const SettingsIcon: (props: React.SVGProps<SVGSVGElement>) => import("react/jsx-runtime").JSX.Element;
