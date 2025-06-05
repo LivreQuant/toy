@@ -1,8 +1,0 @@
-{
-    "name": "trading-app-monorepo",
-    "private": true,
-    "workspaces": [
-      "packages/*",
-      "main-app"
-    ]
-  }
