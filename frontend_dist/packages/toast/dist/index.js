@@ -1,6 +1,6 @@
 // src/services/notification/toast-service.ts
-// Import existing interfaces
-import { getLogger } from '../../boot/logging';
+// Import from the correct logging package
+import { getLogger } from '@trading-app/logging';
 export class ToastService {
     // Private constructor for singleton pattern
     constructor() {

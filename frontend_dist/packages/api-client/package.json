@@ -10,7 +10,8 @@
     "dependencies": {
       "@trading-app/types-core": "file:../types-core",
       "@trading-app/logging": "file:../logging",
-      "@trading-app/toast": "file:../toast"
+      "@trading-app/toast": "file:../toast",
+      "@trading-app/config": "file:../config"
     },
     "peerDependencies": {
       "jwt-decode": "^4.0.0"
@@ -18,4 +19,4 @@
     "devDependencies": {
       "typescript": "^5.3.3"
     }
-  }
+}

@@ -1,6 +1,6 @@
 // src/api/conviction.ts
 import { HttpClient } from './http-client';
-import { ConvictionData } from '../types';
+import { ConvictionData } from '@trading-app/types-core';
 
 export interface ConvictionSubmissionRequest {
   bookId: string;

@@ -1,5 +1,24 @@
 // src/types/index.ts
 
+// Define log levels and their priority (lower number = higher priority)
+export enum LogLevel {
+  DEBUG = 0,
+  INFO = 1,
+  WARN = 2,
+  ERROR = 3,
+  NONE = 4 // Special level to disable logging below this
+}
+
+// Configuration interface for the logger
+export interface LoggerConfig {
+  minLevel: LogLevel;      // Minimum level to log
+  structured: boolean;     // Output logs as JSON strings
+  includeTimestamp: boolean; // Include ISO timestamp in logs
+  environment: 'development' | 'production' | 'test'; // Current environment
+  // Optional metadata to include in every log record
+  additionalMetadata?: Record<string, any>;
+}
+
 // You can define shared interfaces and types used across the application here.
 
 export interface UserProfile {

@@ -1,6 +1,6 @@
 // src/api/fund.ts
 import { HttpClient } from './http-client';
-import { FundProfile, CreateFundProfileRequest, UpdateFundProfileRequest } from '../types';
+import { FundProfile, CreateFundProfileRequest, UpdateFundProfileRequest } from '@trading-app/types-core';
 
 export class FundApi {
   private client: HttpClient;

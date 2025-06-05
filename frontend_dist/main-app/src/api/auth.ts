@@ -1,22 +1,6 @@
 // src/api/auth.ts
 import { HttpClient } from './http-client';
-
-export interface LoginRequest {
-  username: string;
-  password: string;
-}
-
-export interface LoginResponse {
-  success: boolean;
-  accessToken?: string;
-  refreshToken?: string;
-  expiresIn?: number;
-  userId?: string | number;
-  userRole?: string;
-  requiresVerification?: boolean;
-  email?: string; // Add the email field
-  error?: string;
-}
+import { AuthApiInterface, LoginRequest, LoginResponse } from '@trading-app/auth';
 
 export interface SignupRequest {
   username: string;

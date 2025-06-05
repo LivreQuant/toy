@@ -1,0 +1,18 @@
+{
+    "name": "@trading-app/state",
+    "version": "1.0.0",
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "scripts": {
+      "build": "tsc",
+      "dev": "tsc --watch"
+    },
+    "dependencies": {
+      "@trading-app/logging": "file:../logging",
+      "@trading-app/types-core": "file:../types-core",
+      "rxjs": "^7.8.2"
+    },
+    "devDependencies": {
+      "typescript": "^5.3.3"
+    }
+  }

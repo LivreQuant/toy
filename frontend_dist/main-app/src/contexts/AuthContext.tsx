@@ -3,7 +3,8 @@ import React, { createContext, useState, useEffect, useCallback, ReactNode, useM
 
 import { getLogger } from '../boot/logging'; // Adjust path as needed
 
-import { LoginRequest, AuthApi } from '../api/auth'; // Adjust path as needed
+import { AuthApi } from '../api/auth'; // Adjust path as needed
+import { LoginRequest, LoginResponse } from '@trading-app/auth';
 
 import LoadingSpinner from '../components/Common/LoadingSpinner'; // Assuming component exists
 
@@ -16,17 +17,6 @@ import { DeviceIdManager } from '../services/auth/device-id-manager';
 
 import { ConnectionManager } from '../services/connection/connection-manager';
 
-// Define our own LoginResponse interface here to avoid import errors
-interface LoginResponse {
-  success: boolean;
-  accessToken?: string;
-  refreshToken?: string;
-  expiresIn?: number;
-  userId?: string | number;
-  userRole?: string;
-  requiresVerification?: boolean;
-  error?: string;
-}
 
 const logger = getLogger('AuthContext'); // Initialize logger for this context
 

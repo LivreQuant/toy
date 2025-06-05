@@ -4,10 +4,14 @@
     "main": "dist/index.js",
     "types": "dist/index.d.ts",
     "scripts": {
-      "build": "tsc",
-      "dev": "tsc --watch"
+        "build": "tsc",
+        "dev": "tsc --watch"
+    },
+    "dependencies": {
+        "@trading-app/types-core": "file:../types-core"
     },
     "devDependencies": {
-      "typescript": "^5.3.3"
+        "@types/node": "^20.17.57",
+        "typescript": "^5.3.3"
     }
-  }
+}

@@ -1,4 +1,4 @@
-import { LogLevel } from '../utils/enhanced-logger';
+import { LogLevel } from '@trading-app/types-core';
 const getConfig = () => {
     const env = process.env.REACT_APP_ENV || 'development';
     const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || '';

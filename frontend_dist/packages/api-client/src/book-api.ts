@@ -1,7 +1,7 @@
 // frontend/src/api/book.ts
 
 import { HttpClient } from './http-client';
-import { Book, BookRequest } from '../types';
+import { Book, BookRequest } from '@trading-app/types-core';
 
 export class BookApi {
   private client: HttpClient;

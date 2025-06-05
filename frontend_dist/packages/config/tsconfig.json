@@ -5,13 +5,22 @@
       "module": "esnext",
       "moduleResolution": "node",
       "declaration": true,
+      "composite": true,
       "outDir": "./dist",
       "rootDir": "./src",
       "strict": true,
       "esModuleInterop": true,
       "skipLibCheck": true,
-      "forceConsistentCasingInFileNames": true
+      "forceConsistentCasingInFileNames": true,
+      "types": ["node"],
+      "baseUrl": ".",
+      "paths": {
+        "@trading-app/types-core": ["../types-core/src"]
+      }
     },
+    "references": [
+      { "path": "../types-core" }
+    ],
     "include": ["src/**/*"],
     "exclude": ["node_modules", "dist"]
-  }
+}

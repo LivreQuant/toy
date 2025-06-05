@@ -3,21 +3,18 @@ import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useNavigate } from 'react-router-dom';
 
-// LOGGING
-import { initializeLogging } from './boot/logging'; // Import logging setup
+// LOGGING - now from package
+import { initializeLogging } from '@trading-app/logging';
 
-// SERVICES
-import { LocalStorageService } from './services/storage/local-storage-service';
-import { SessionStorageService } from './services/storage/session-storage-service';
-import { DeviceIdManager } from './services/auth/device-id-manager';
-import { TokenManager } from './services/auth/token-manager';
+// AUTH SERVICES - now from auth package
+import { AuthFactory, DeviceIdManager, TokenManager } from '@trading-app/auth';
 
-// APIS
+// APIS - keep existing structure
 import { HttpClient } from './api/http-client';
 import { AuthApi } from './api/auth';
 import { ConvictionsApi } from './api/conviction';
 
-// SERVICES
+// SERVICES - keep existing connection services
 import { ConnectionManager } from './services/connection/connection-manager';
 import { ConvictionManager } from './services/convictions/conviction-manager';
 
@@ -35,7 +32,7 @@ import { BookManagerProvider } from './contexts/BookContext';
 import { FundProvider } from './contexts/FundContext';
 
 // COMPONENTS
-import ProtectedRoute from './components/Common/ProtectedRoute'; // Component for protected routes
+import ProtectedRoute from './components/Common/ProtectedRoute';
 
 // LAYOUT 
 import AuthenticatedLayout from './components/Layout/AuthenticatedLayout';
@@ -65,26 +62,20 @@ initializeLogging();
 
 // --- Start Service Instantiation ---
 
-// Instantiate Storage
-const localStorageService = new LocalStorageService();
-const sessionStorageService = new SessionStorageService();
-
-DeviceIdManager.getInstance(sessionStorageService);
-const tokenManager = new TokenManager(
-  localStorageService, 
-  DeviceIdManager.getInstance(sessionStorageService)
-);
+// Create auth services using factory
+const authServices = AuthFactory.createAuthServices();
+const { deviceIdManager, tokenManager, localStorageService, sessionStorageService } = authServices;
 
 // Initialize Rest APIs + Websocket
 const httpClient = new HttpClient(tokenManager);
 const authApi = new AuthApi(httpClient);
 const convictionsApi = new ConvictionsApi(httpClient);
 
+// Set the auth API on token manager (important for token refresh!)
 tokenManager.setAuthApi(authApi);
 
-const connectionManager = new ConnectionManager(
-  tokenManager
-);
+// Initialize connection and conviction managers
+const connectionManager = new ConnectionManager(tokenManager);
 
 const convictionManager = new ConvictionManager(
   convictionsApi, 

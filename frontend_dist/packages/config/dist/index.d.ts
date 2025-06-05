@@ -1,4 +1,4 @@
-import { LogLevel } from '../utils/enhanced-logger';
+import { LogLevel } from '@trading-app/types-core';
 interface AppConfig {
     apiBaseUrl: string;
     wsBaseUrl: string;

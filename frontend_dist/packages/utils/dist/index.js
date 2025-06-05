@@ -1,2 +1,4 @@
-// Just export the observable hook for now - no React components
-export * from './useObservable';
+// Export your actual utility modules
+export * from './disposable';
+export * from './error-handling';
+export * from './events';

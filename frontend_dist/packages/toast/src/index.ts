@@ -1,7 +1,7 @@
 // src/services/notification/toast-service.ts
 
-// Import existing interfaces
-import { getLogger } from '../../boot/logging';
+// Import from the correct logging package
+import { getLogger } from '@trading-app/logging';
 
 // Define the structure for toast messages managed by the service/context
 export interface ToastConfig {

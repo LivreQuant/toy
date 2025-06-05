@@ -1,23 +1,8 @@
 // src/utils/enhanced-logger.ts
+import { LogLevel, LoggerConfig } from '@trading-app/types-core';
 
-// Define log levels and their priority (lower number = higher priority)
-export enum LogLevel {
-    DEBUG = 0,
-    INFO = 1,
-    WARN = 2,
-    ERROR = 3,
-    NONE = 4 // Special level to disable logging below this
-}
-
-// Configuration interface for the logger
-export interface LoggerConfig {
-    minLevel: LogLevel;      // Minimum level to log
-    structured: boolean;     // Output logs as JSON strings
-    includeTimestamp: boolean; // Include ISO timestamp in logs
-    environment: 'development' | 'production' | 'test'; // Current environment
-    // Optional metadata to include in every log record
-    additionalMetadata?: Record<string, any>;
-}
+// Re-export the types from types-core for convenience
+export { LogLevel, LoggerConfig } from '@trading-app/types-core';
 
 // Default configuration, potentially overridden during initialization
 const DEFAULT_CONFIG: LoggerConfig = {
@@ -123,7 +108,7 @@ export class EnhancedLogger {
      * @returns A new EnhancedLogger instance.
      */
     public createChild(childName: string, configOverride?: Partial<LoggerConfig>): EnhancedLogger {
-        const fullName = this.name === 'root' ? childName : `<span class="math-inline">\{this\.name\}\:</span>{childName}`;
+        const fullName = this.name === 'root' ? childName : `${this.name}:${childName}`;
         // Create new instance inheriting parent config, then applying overrides
         const childLogger = new EnhancedLogger(fullName, {
             ...this.config, // Inherit parent config
@@ -218,16 +203,14 @@ export class EnhancedLogger {
             const timePrefix = timestamp ? `[${timestamp.slice(11, 23)}] ` : ''; // Include milliseconds
             const namePrefix = `[${this.name}] `;
             const levelIndicator = `${indicator} `;
-            const formattedMessage = `<span class="math-inline">\{timePrefix\}</span>{levelIndicator}<span class="math-inline">\{namePrefix\}</span>{message}`;
+            const formattedMessage = `${timePrefix}${levelIndicator}${namePrefix}${message}`;
 
             // Log message and context separately if context exists
-            /*
             if (context !== undefined) {
                 console[consoleMethod](formattedMessage, context);
             } else {
                 console[consoleMethod](formattedMessage);
             }
-            */
         }
     }
 
@@ -253,7 +236,7 @@ export class EnhancedLogger {
             const duration = performance.now() - start;
             // Log end only if DEBUG level is enabled
             if (this.config.minLevel <= LogLevel.DEBUG) {
-               this.debug(`Finished operation: <span class="math-inline">\{operationName\} \(</span>{duration.toFixed(2)}ms)`);
+               this.debug(`Finished operation: ${operationName} (${duration.toFixed(2)}ms)`);
             }
         }
     }

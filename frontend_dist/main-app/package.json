@@ -3,7 +3,17 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
-    "@trading-app/auth-module": "file:../packages/auth-module",
+
+    "@trading-app/styles": "file:../packages/styles",
+    "@trading-app/auth": "file:../packages/auth",
+    "@trading-app/state": "file:../packages/state",
+    "@trading-app/storage": "file:../packages/storage",
+    "@trading-app/logging": "file:../packages/logging",
+    "@trading-app/config": "file:../packages/config", 
+    "@trading-app/types-core": "file:../packages/types-core",
+    "@trading-app/utils": "file:../packages/utils",
+    "@trading-app/toast": "file:../packages/toast",
+    
     "@ag-grid-community/client-side-row-model": "^32.3.3",
     "@ag-grid-community/styles": "^33.0.3",
     "@blueprintjs/core": "^5.9.1",

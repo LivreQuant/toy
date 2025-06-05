@@ -1,24 +1,25 @@
 {
-    "compilerOptions": {
-      "target": "es2017",
-      "lib": ["es2017"],
-      "module": "esnext",
-      "moduleResolution": "node",
-      "declaration": true,
-      "outDir": "./dist",
-      "rootDir": "./src",
-      "strict": true,
-      "esModuleInterop": true,
-      "skipLibCheck": true,
-      "forceConsistentCasingInFileNames": true,
-      "baseUrl": ".",
-      "paths": {
-        "@trading-app/logging": ["../logging/src"]
-      }
-    },
-    "references": [
-      { "path": "../logging" }
-    ],
-    "include": ["src/**/*"],
-    "exclude": ["node_modules", "dist"]
-  }
+  "compilerOptions": {
+    "target": "es2017",
+    "lib": ["es2017", "dom"],
+    "module": "esnext",
+    "moduleResolution": "node",
+    "declaration": true,
+    "composite": true,
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "baseUrl": ".",
+    "paths": {
+      "@trading-app/logging": ["../logging/src"]
+    }
+  },
+  "references": [
+    { "path": "../logging" }
+  ],
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}

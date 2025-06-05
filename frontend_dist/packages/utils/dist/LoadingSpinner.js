@@ -1,4 +1,4 @@
-import React from 'react';
+import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
 import './LoadingScreen.css'; // Reuse the loading screen styles if applicable or create new ones
 const LoadingSpinner = ({ message, size = 40, thickness = 4 }) => {
     const spinnerStyle = {
@@ -7,9 +7,6 @@ const LoadingSpinner = ({ message, size = 40, thickness = 4 }) => {
         borderWidth: `${thickness}px`,
         borderTopWidth: `${thickness}px`, // Ensure top border is also set
     };
-    return (<div className="loading-screen"> {/* You might want a more specific container class */}
-      <div className="loading-spinner" style={spinnerStyle}></div>
-      {message && <p className="loading-message">{message}</p>}
-    </div>);
+    return (_jsxs("div", { className: "loading-screen", children: [" ", _jsx("div", { className: "loading-spinner", style: spinnerStyle }), message && _jsx("p", { className: "loading-message", children: message })] }));
 };
 export default LoadingSpinner;

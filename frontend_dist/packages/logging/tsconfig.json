@@ -5,6 +5,7 @@
       "module": "esnext",
       "moduleResolution": "node",
       "declaration": true,
+      "composite": true,
       "outDir": "./dist",
       "rootDir": "./src",
       "strict": true,
@@ -13,12 +14,14 @@
       "forceConsistentCasingInFileNames": true,
       "baseUrl": ".",
       "paths": {
-        "@trading-app/config": ["../config/src"]
+        "@trading-app/config": ["../config/src"],
+        "@trading-app/types-core": ["../types-core/src"]
       }
     },
     "references": [
-      { "path": "../config" }
+      { "path": "../config" },
+      { "path": "../types-core" }
     ],
     "include": ["src/**/*"],
     "exclude": ["node_modules", "dist"]
-  }
+}
