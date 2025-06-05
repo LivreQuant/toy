@@ -1,19 +1,8 @@
 {
-    "name": "digital-trader-monorepo",
-    "version": "1.0.0",
+    "name": "trading-app-monorepo",
     "private": true,
     "workspaces": [
-      "apps/*",
-      "shared/*"
-    ],
-    "scripts": {
-      "install:all": "npm install",
-      "dev:legacy": "cd apps/legacy && npm start",
-      "build:legacy": "cd apps/legacy && npm run build",
-      "test:legacy": "cd apps/legacy && npm test"
-    },
-    "devDependencies": {
-      "lerna": "^8.0.0",
-      "concurrently": "^8.2.0"
-    }
+      "packages/*",
+      "main-app"
+    ]
   }

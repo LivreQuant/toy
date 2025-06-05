@@ -1,0 +1,7 @@
+{
+    "files": [],
+    "references": [
+      { "path": "./packages/types-core" },
+      { "path": "./main-app" }
+    ]
+  }
