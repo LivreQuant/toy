@@ -1,0 +1,103 @@
+/* src/components/Simulator/OrderSubmissionContainer.css */
+.order-submission-container {
+    width: 100%;
+}
+
+.submission-mode-selector {
+    margin-bottom: 20px;
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    padding: 20px;
+}
+
+.mode-selector-header {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.mode-selector-header h3 {
+    margin: 0 0 8px 0;
+    color: #333;
+    font-size: 1.3rem;
+}
+
+.mode-selector-header p {
+    margin: 0;
+    color: #666;
+    font-size: 1rem;
+}
+
+.mode-toggle {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.mode-button {
+    background-color: #f8f9fa;
+    border: 2px solid #e1e4e8;
+    border-radius: 8px;
+    padding: 20px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: center;
+}
+
+.mode-button:hover {
+    border-color: #0366d6;
+    background-color: #f1f8ff;
+}
+
+.mode-button.active {
+    border-color: #0366d6;
+    background-color: #f1f8ff;
+    box-shadow: 0 0 0 2px rgba(3, 102, 214, 0.1);
+}
+
+.mode-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+.mode-icon {
+    font-size: 2rem;
+    margin-bottom: 4px;
+}
+
+.mode-title {
+    font-weight: 600;
+    font-size: 1.1rem;
+    color: #333;
+}
+
+.mode-description {
+    font-size: 0.9rem;
+    color: #666;
+    text-align: center;
+    line-height: 1.4;
+}
+
+.submission-content {
+    width: 100%;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .mode-toggle {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+    
+    .mode-button {
+        padding: 15px;
+    }
+    
+    .mode-icon {
+        font-size: 1.5rem;
+    }
+}

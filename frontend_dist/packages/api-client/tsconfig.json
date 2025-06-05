@@ -1,0 +1,28 @@
+{
+    "compilerOptions": {
+      "target": "es2017",
+      "lib": ["es2017"],
+      "module": "esnext",
+      "moduleResolution": "node",
+      "declaration": true,
+      "outDir": "./dist",
+      "rootDir": "./src",
+      "strict": true,
+      "esModuleInterop": true,
+      "skipLibCheck": true,
+      "forceConsistentCasingInFileNames": true,
+      "baseUrl": ".",
+      "paths": {
+        "@trading-app/types-core": ["../types-core/src"],
+        "@trading-app/logging": ["../logging/src"],
+        "@trading-app/toast": ["../toast/src"]
+      }
+    },
+    "references": [
+      { "path": "../types-core" },
+      { "path": "../logging" },
+      { "path": "../toast" }
+    ],
+    "include": ["src/**/*"],
+    "exclude": ["node_modules", "dist"]
+  }

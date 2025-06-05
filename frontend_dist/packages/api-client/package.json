@@ -1,0 +1,21 @@
+{
+    "name": "@trading-app/api-client",
+    "version": "1.0.0",
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "scripts": {
+      "build": "tsc",
+      "dev": "tsc --watch"
+    },
+    "dependencies": {
+      "@trading-app/types-core": "file:../types-core",
+      "@trading-app/logging": "file:../logging",
+      "@trading-app/toast": "file:../toast"
+    },
+    "peerDependencies": {
+      "jwt-decode": "^4.0.0"
+    },
+    "devDependencies": {
+      "typescript": "^5.3.3"
+    }
+  }
