@@ -1,0 +1,22 @@
+{
+    "name": "@trading-app/websocket",
+    "version": "1.0.0",
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "scripts": {
+      "build": "tsc",
+      "dev": "tsc --watch"
+    },
+    "dependencies": {
+      "@trading-app/auth": "file:../auth",
+      "@trading-app/config": "file:../config",
+      "@trading-app/logging": "file:../logging",
+      "@trading-app/state": "file:../state",
+      "@trading-app/toast": "file:../toast",
+      "@trading-app/utils": "file:../utils",
+      "rxjs": "^7.8.0"
+    },
+    "devDependencies": {
+      "typescript": "^5.3.3"
+    }
+  }

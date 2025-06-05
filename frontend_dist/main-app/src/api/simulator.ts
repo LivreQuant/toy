@@ -1,5 +1,6 @@
 // src/api/simulator.ts
-import { ConnectionManager } from '../services/connection/connection-manager';
+import { ConnectionManager } from '@trading-app/websocket';
+
 
 export interface SimulatorStatusResponse {
   success: boolean;

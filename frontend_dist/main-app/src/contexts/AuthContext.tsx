@@ -15,7 +15,7 @@ import { toastService } from '../services/notification/toast-service';
 import { TokenManager, TokenData } from '../services/auth/token-manager'; // Adjust path
 import { DeviceIdManager } from '../services/auth/device-id-manager';
 
-import { ConnectionManager } from '../services/connection/connection-manager';
+import { ConnectionManager } from '@trading-app/websocket';
 
 
 const logger = getLogger('AuthContext'); // Initialize logger for this context

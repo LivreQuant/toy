@@ -1,0 +1,35 @@
+{
+    "compilerOptions": {
+      "target": "es2020",
+      "lib": ["es2020", "dom"],
+      "module": "esnext",
+      "moduleResolution": "node",
+      "declaration": true,
+      "composite": true,
+      "outDir": "./dist",
+      "rootDir": "./src",
+      "strict": true,
+      "esModuleInterop": true,
+      "skipLibCheck": true,
+      "forceConsistentCasingInFileNames": true,
+      "baseUrl": ".",
+      "paths": {
+        "@trading-app/auth": ["../auth/src"],
+        "@trading-app/config": ["../config/src"],
+        "@trading-app/logging": ["../logging/src"],
+        "@trading-app/state": ["../state/src"],
+        "@trading-app/toast": ["../toast/src"],
+        "@trading-app/utils": ["../utils/src"]
+      }
+    },
+    "references": [
+      { "path": "../auth" },
+      { "path": "../config" },
+      { "path": "../logging" },
+      { "path": "../state" },
+      { "path": "../toast" },
+      { "path": "../utils" }
+    ],
+    "include": ["src/**/*"],
+    "exclude": ["node_modules", "dist"]
+  }

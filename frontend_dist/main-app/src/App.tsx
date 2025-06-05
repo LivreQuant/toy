@@ -4,18 +4,23 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { useNavigate } from 'react-router-dom';
 
 // LOGGING - now from package
-import { initializeLogging } from '@trading-app/logging';
+import { initializeLogging, getLogger } from '@trading-app/logging';
 
 // AUTH SERVICES - now from auth package
 import { AuthFactory, DeviceIdManager, TokenManager } from '@trading-app/auth';
+
+// WEBSOCKET SERVICES - now from websocket package
+import { 
+  ConnectionManager, 
+  createConnectionManagerWithGlobalDeps 
+} from '@trading-app/websocket';
 
 // APIS - keep existing structure
 import { HttpClient } from './api/http-client';
 import { AuthApi } from './api/auth';
 import { ConvictionsApi } from './api/conviction';
 
-// SERVICES - keep existing connection services
-import { ConnectionManager } from './services/connection/connection-manager';
+// SERVICES - keep existing services that aren't websocket related
 import { ConvictionManager } from './services/convictions/conviction-manager';
 
 // HOOKS
@@ -60,27 +65,61 @@ import EditBookPage from './components/Book/EditBookPage';
 // Initialize Logging First
 initializeLogging();
 
+// Create a logger for App.tsx debugging
+const logger = getLogger('App');
+
 // --- Start Service Instantiation ---
+
+logger.info('🚀 Starting service instantiation...');
 
 // Create auth services using factory
 const authServices = AuthFactory.createAuthServices();
 const { deviceIdManager, tokenManager, localStorageService, sessionStorageService } = authServices;
+logger.info('✅ Auth services created', { 
+  hasTokenManager: !!tokenManager,
+  hasDeviceIdManager: !!deviceIdManager 
+});
 
-// Initialize Rest APIs + Websocket
+// Initialize Rest APIs
 const httpClient = new HttpClient(tokenManager);
 const authApi = new AuthApi(httpClient);
 const convictionsApi = new ConvictionsApi(httpClient);
+logger.info('✅ API clients created');
 
 // Set the auth API on token manager (important for token refresh!)
 tokenManager.setAuthApi(authApi);
+logger.info('✅ Auth API set on token manager');
 
-// Initialize connection and conviction managers
-const connectionManager = new ConnectionManager(tokenManager);
+// Initialize connection manager with dependency injection using the new websocket package
+logger.info('🔌 Creating websocket dependencies...');
+const { stateManager, toastService, configService } = createConnectionManagerWithGlobalDeps();
+logger.info('✅ Websocket dependencies created', {
+  hasStateManager: !!stateManager,
+  hasToastService: !!toastService,
+  hasConfigService: !!configService,
+  wsUrl: configService.getWebSocketUrl(),
+  reconnectionConfig: configService.getReconnectionConfig()
+});
 
+logger.info('🔌 Creating ConnectionManager...');
+const connectionManager = new ConnectionManager(
+  tokenManager,
+  stateManager,
+  toastService,
+  configService
+);
+logger.info('✅ ConnectionManager created', { 
+  connectionManager: !!connectionManager 
+});
+
+// Initialize conviction manager (remains the same)
 const convictionManager = new ConvictionManager(
   convictionsApi, 
   tokenManager
 );
+logger.info('✅ ConvictionManager created');
+
+logger.info('🎉 All services instantiated successfully');
 
 // --- End Service Instantiation ---
 
@@ -90,10 +129,15 @@ function DeviceIdInvalidationHandler({ children }: { children: React.ReactNode }
   const { connectionManager } = useConnection();
   
   useEffect(() => {
-    if (!connectionManager) return;
+    if (!connectionManager) {
+      logger.warn('❌ No connectionManager in DeviceIdInvalidationHandler');
+      return;
+    }
+    
+    logger.info('🔌 Setting up device ID invalidation handler');
     
     const subscription = connectionManager.on('device_id_invalidated', (data) => {
-      console.error("🚨 DEVICE ID INVALIDATED - REDIRECTING TO SESSION DEACTIVATED PAGE", {
+      logger.error("🚨 DEVICE ID INVALIDATED - REDIRECTING TO SESSION DEACTIVATED PAGE", {
         data,
         currentPath: window.location.pathname,
         timestamp: new Date().toISOString()
@@ -103,6 +147,7 @@ function DeviceIdInvalidationHandler({ children }: { children: React.ReactNode }
     });
     
     return () => {
+      logger.info('🔌 Cleaning up device ID invalidation handler');
       subscription.unsubscribe();
     };
   }, [connectionManager, navigate]);
@@ -110,97 +155,138 @@ function DeviceIdInvalidationHandler({ children }: { children: React.ReactNode }
   return <>{children}</>;
 }
 
+// Add a debug component to check connection manager
+function ConnectionDebugger() {
+  const { connectionManager } = useConnection();
+  
+  useEffect(() => {
+    logger.info('🔍 ConnectionDebugger: Checking connection manager', {
+      hasConnectionManager: !!connectionManager,
+      connectionManager
+    });
+    
+    if (connectionManager) {
+      // Add event listeners for debugging
+      const subscriptions = [
+        connectionManager.on('connected', () => {
+          logger.info('🟢 CONNECTION DEBUG: Connected!');
+        }),
+        connectionManager.on('disconnected', (reason) => {
+          logger.warn('🔴 CONNECTION DEBUG: Disconnected', { reason });
+        }),
+        connectionManager.on('error', (error) => {
+          logger.error('❌ CONNECTION DEBUG: Error', { error });
+        }),
+        connectionManager.on('reconnecting', (attempt) => {
+          logger.info('🔄 CONNECTION DEBUG: Reconnecting', { attempt });
+        })
+      ];
+      
+      return () => {
+        subscriptions.forEach(sub => sub.unsubscribe());
+      };
+    }
+  }, [connectionManager]);
+  
+  return null;
+}
+
 // Separate routes component for better organization
 const AppRoutes: React.FC = () => {
   return (
-    <Routes>
-      {/* Public routes */}
-      <Route path="/" element={<LandingPage />} />
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/signup" element={<SignupPage />} />
-      <Route path="/verify-email" element={<VerifyEmailPage />} />
-      <Route path="/forgot-username" element={<ForgotUsernamePage />} />
-      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-      <Route path="/reset-password" element={<ResetPasswordPage />} />
-      <Route path="/enterprise-contact" element={<EnterpriseContactPage />} />
-      
-      {/* Session page */}
-      <Route path="/home" element={
-        <ProtectedRoute>
-          <AuthenticatedLayout>
-            <HomePage />
-          </AuthenticatedLayout>
-        </ProtectedRoute>
-      } />
+    <>
+      <ConnectionDebugger />
+      <Routes>
+        {/* Public routes */}
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/signup" element={<SignupPage />} />
+        <Route path="/verify-email" element={<VerifyEmailPage />} />
+        <Route path="/forgot-username" element={<ForgotUsernamePage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route path="/enterprise-contact" element={<EnterpriseContactPage />} />
+        
+        {/* Protected routes with session */}
+        <Route path="/home" element={
+          <ProtectedRoute>
+            <AuthenticatedLayout>
+              <HomePage />
+            </AuthenticatedLayout>
+          </ProtectedRoute>
+        } />
 
-      <Route path="/profile/create" element={
-        <ProtectedRoute>
-          <AuthenticatedLayout>
-            <FundProfileForm />
-          </AuthenticatedLayout>
-        </ProtectedRoute>
-      } />
+        <Route path="/profile/create" element={
+          <ProtectedRoute>
+            <AuthenticatedLayout>
+              <FundProfileForm />
+            </AuthenticatedLayout>
+          </ProtectedRoute>
+        } />
 
-      {/* Add this new route */}
-      <Route path="/profile/edit" element={
-        <ProtectedRoute>
-          <AuthenticatedLayout>
-            <EditFundProfileForm />
-          </AuthenticatedLayout>
-        </ProtectedRoute>
-      } />
+        <Route path="/profile/edit" element={
+          <ProtectedRoute>
+            <AuthenticatedLayout>
+              <EditFundProfileForm />
+            </AuthenticatedLayout>
+          </ProtectedRoute>
+        } />
 
-      {/* Book initialize */}
-      <Route path="/books/new" element={
-        <ProtectedRoute>
-          <AuthenticatedLayout>
-            <BookSetupPage />
-          </AuthenticatedLayout>
-        </ProtectedRoute>
-      } />
+        {/* Book routes */}
+        <Route path="/books/new" element={
+          <ProtectedRoute>
+            <AuthenticatedLayout>
+              <BookSetupPage />
+            </AuthenticatedLayout>
+          </ProtectedRoute>
+        } />
 
-      {/* Book edit route */}
-      <Route path="/books/:bookId/edit" element={
-        <ProtectedRoute>
-          <AuthenticatedLayout>
-            <EditBookPage />
-          </AuthenticatedLayout>
-        </ProtectedRoute>
-      } />
-      
-      <Route path="/books/:bookId" element={
-        <ProtectedRoute>
-          <AuthenticatedLayout>
-            <BookDetailsPage />
-          </AuthenticatedLayout>
-        </ProtectedRoute>
-      } />
+        <Route path="/books/:bookId/edit" element={
+          <ProtectedRoute>
+            <AuthenticatedLayout>
+              <EditBookPage />
+            </AuthenticatedLayout>
+          </ProtectedRoute>
+        } />
+        
+        <Route path="/books/:bookId" element={
+          <ProtectedRoute>
+            <AuthenticatedLayout>
+              <BookDetailsPage />
+            </AuthenticatedLayout>
+          </ProtectedRoute>
+        } />
 
-      {/* Simulator page */}
-      <Route path="/simulator/:simulationId" element={
-        <ProtectedRoute>
-          <AuthenticatedLayout>
-            <SimulatorPage />
-          </AuthenticatedLayout>
-        </ProtectedRoute>
-      } />
+        {/* Simulator page */}
+        <Route path="/simulator/:simulationId" element={
+          <ProtectedRoute>
+            <AuthenticatedLayout>
+              <SimulatorPage />
+            </AuthenticatedLayout>
+          </ProtectedRoute>
+        } />
 
-      {/* Deactivate session */}
-      <Route path="/session-deactivated" element={
-          <AuthenticatedLayout>
-            <SessionDeactivatedPage />
-          </AuthenticatedLayout>
-      } />
+        {/* Session deactivated page - note: not protected since user may be logged out */}
+        <Route path="/session-deactivated" element={
+            <AuthenticatedLayout>
+              <SessionDeactivatedPage />
+            </AuthenticatedLayout>
+        } />
 
-      {/* Default route - Redirect to home */}
-      <Route path="*" element={
-        <Navigate to="/home" replace />
-      } />
-    </Routes>
+        {/* Default route - Redirect to home */}
+        <Route path="*" element={
+          <Navigate to="/home" replace />
+        } />
+      </Routes>
+    </>
   );
 };
 
 function App() {
+  useEffect(() => {
+    logger.info('🎯 App component mounted, services available globally');
+  }, []);
+
   return (
     <ThemeProvider>
       <ToastProvider>

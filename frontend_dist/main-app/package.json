@@ -4,6 +4,7 @@
   "private": true,
   "dependencies": {
 
+    "@trading-app/websocket": "file:../packages/websocket",
     "@trading-app/styles": "file:../packages/styles",
     "@trading-app/auth": "file:../packages/auth",
     "@trading-app/state": "file:../packages/state",

@@ -11,7 +11,7 @@ import { Subscription } from 'rxjs';
 
 import { getLogger } from '../boot/logging';
 
-import { ConnectionManager } from '../services/connection/connection-manager';
+import { ConnectionManager } from '@trading-app/websocket';
 import {
   connectionState as globalConnectionState,
   ConnectionStatus,

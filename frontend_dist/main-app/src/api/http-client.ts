@@ -1,9 +1,9 @@
 // src/api/http-client.ts
-import { TokenManager } from '../services/auth/token-manager';
-import { DeviceIdManager } from '../services/auth/device-id-manager'; 
-import { config } from '../config';
-import { getLogger } from '../boot/logging';
-import { toastService } from '../services/notification/toast-service';
+import { TokenManager } from '@trading-app/auth';
+import { DeviceIdManager } from '@trading-app/auth'; 
+import { config } from '@trading-app/config';
+import { getLogger } from '@trading-app/logging';
+import { toastService } from '@trading-app/toast';
 
 export interface RequestOptions extends RequestInit {
   skipAuth?: boolean;

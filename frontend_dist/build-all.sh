@@ -12,6 +12,7 @@ cd packages/auth && npm run build && cd ../..
 cd packages/state && npm run build && cd ../..
 cd packages/styles && npm run build && cd ../..
 cd packages/toast && npm run build && cd ../..
+cd packages/websocket && npm run build && cd ../..
 
 echo "Building main app..."
 cd main-app && npm install && npm run build
