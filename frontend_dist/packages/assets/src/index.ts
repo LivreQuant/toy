@@ -1,6 +1,6 @@
-// src/index.ts
-
-const IMAGE_BASE_PATH = './images';
+// The base path now points to your local asset server.
+// For production, you would change this one line to your real CDN URL.
+const IMAGE_BASE_PATH = 'http://localhost:8080/images';
 
 export const ENTERPRISE_IMAGES = {
   CANDIDATE: `${IMAGE_BASE_PATH}/enterprise/candidate.png`,
