@@ -4,12 +4,15 @@ import { Link } from 'react-router-dom';
 import { Box, Container, Typography, Button, Grid, Card, CardContent, useTheme } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 
-// Import images for each benefit card
-// You'll need to create these images or use from your assets
-import accessTalentImage from '../../assets/enterprise/candidate.png';
-import moneyballImage from '../../assets/enterprise/moneyball.jpg';
-import needleImage from '../../assets/enterprise/needle.jpeg';
-import dueDiligenceImage from '../../assets/enterprise/vet.jpg';
+// Import the entire group of images you need
+import { ENTERPRISE_IMAGES } from '@trading-app/assets';
+
+// Assign the specific image paths to your component's variables
+const accessTalentImage = ENTERPRISE_IMAGES.CANDIDATE; 
+const moneyballImage = ENTERPRISE_IMAGES.MONEYBALL;
+const needleImage = ENTERPRISE_IMAGES.NEEDLE;
+const dueDiligenceImage = ENTERPRISE_IMAGES.VET; 
+
 
 interface EnterpriseSectionProps {
   className?: string;

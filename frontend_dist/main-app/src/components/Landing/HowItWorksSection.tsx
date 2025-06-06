@@ -2,11 +2,13 @@
 import React from 'react';
 import { Box, Container, Typography, useTheme, useMediaQuery } from '@mui/material';
 
-// Import your images
-import strategyImage from '../../assets/howItWorks/strategy.jpeg';
-import blockchainImage from '../../assets/howItWorks/blockchain.jpeg';
-import tradesImage from '../../assets/howItWorks/trades.png';
-import factsheetImage from '../../assets/howItWorks/factsheet.jpg';
+import { HOW_IT_WORKS_IMAGES } from '@trading-app/assets';
+
+// Assign the specific image paths to your component's variables
+const strategyImage = HOW_IT_WORKS_IMAGES.STRATEGY;     // 'STRATEGY' is the key for 'strategy.jpeg'
+const blockchainImage = HOW_IT_WORKS_IMAGES.BLOCKCHAIN;   // 'BLOCKCHAIN' is the key for 'blockchain.jpeg'
+const tradesImage = HOW_IT_WORKS_IMAGES.TRADES;       // 'TRADES' is the key for 'trades.png'
+const factsheetImage = HOW_IT_WORKS_IMAGES.FACTSHEET;   // 'FACTSHEET' is the key for 'factsheet.jpg'
 
 const steps = [
   {

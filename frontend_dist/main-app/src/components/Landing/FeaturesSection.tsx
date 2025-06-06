@@ -2,14 +2,15 @@
 import React, { forwardRef } from 'react';
 import { Box, Container, Typography, Card, CardContent } from '@mui/material';
 
-// Import your images
-// For example:
-import realTimeImage from '../../assets/features/dashboard.png';
-import marketImage from '../../assets/features/market_simulator.jpeg';
-import qedImage from '../../assets/features/qed.jpg';
-import analyticsImage from '../../assets/features/analytics.jpeg';
-import lockImage from '../../assets/features/lock.jpg';
-import apiImage from '../../assets/features/api.jpeg';
+import { FEATURES_IMAGES } from '@trading-app/assets';
+
+// Assign the specific image paths to your component's variables
+const realTimeImage = FEATURES_IMAGES.DASHBOARD;          // 'DASHBOARD' is the key for 'dashboard.png'
+const marketImage = FEATURES_IMAGES.MARKET_SIMULATOR;   // 'MARKET_SIMULATOR' is the key for 'market_simulator.jpeg'
+const qedImage = FEATURES_IMAGES.QED;                   // 'QED' is the key for 'qed.jpg'
+const analyticsImage = FEATURES_IMAGES.ANALYTICS;             // 'ANALYTICS' is the key for 'analytics.jpeg'
+const lockImage = FEATURES_IMAGES.LOCK;                 // 'LOCK' is the key for 'lock.jpg'
+const apiImage = FEATURES_IMAGES.API;                   // 'API' is the key for 'api.jpeg'
 
 interface FeaturesSectionProps {
   className?: string;

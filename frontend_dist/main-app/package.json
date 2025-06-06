@@ -4,6 +4,7 @@
   "private": true,
   "dependencies": {
     "@trading-app/api": "file:../packages/api",
+    "@trading-app/assets": "file:../packages/assets",
     "@trading-app/auth": "file:../packages/auth",
     "@trading-app/config": "file:../packages/config",
     "@trading-app/logging": "file:../packages/logging",

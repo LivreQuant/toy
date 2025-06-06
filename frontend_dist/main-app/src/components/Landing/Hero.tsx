@@ -15,9 +15,13 @@ import {
   TextField
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
-import backgroundImage from '../../assets/hero/yarn.png';
-import dashImage from '../../assets/hero/dashboard.png';
-import factImage from '../../assets/hero/factsheet.jpg';
+
+import { HERO_IMAGES } from '@trading-app/assets';
+
+// Assign the specific image paths to your component's variables
+const backgroundImage = HERO_IMAGES.YARN;      // 'YARN' is the key for 'yarn.png'
+const dashImage = HERO_IMAGES.DASHBOARD;   // 'DASHBOARD' is the key for 'dashboard.png'
+const factImage = HERO_IMAGES.FACTSHEET;   // 'FACTSHEET' is the key for 'factsheet.jpg'
 
 interface HeroProps {
   className?: string;
