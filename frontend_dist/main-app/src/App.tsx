@@ -15,12 +15,10 @@ import {
   createConnectionManagerWithGlobalDeps 
 } from '@trading-app/websocket';
 
-// APIS - keep existing structure
-import { HttpClient } from './api/http-client';
-import { AuthApi } from './api/auth';
-import { ConvictionsApi } from './api/conviction';
+// API SERVICES - now from api package
+import { ApiFactory } from '@trading-app/api';
 
-// SERVICES - keep existing services that aren't websocket related
+// SERVICES - keep existing services that aren't API related
 import { ConvictionManager } from './services/convictions/conviction-manager';
 
 // HOOKS
@@ -97,14 +95,12 @@ logger.info('✅ Auth services created', {
   hasDeviceIdManager: !!deviceIdManager 
 });
 
-// Initialize Rest APIs
-const httpClient = new HttpClient(tokenManager);
-const authApi = new AuthApi(httpClient);
-const convictionsApi = new ConvictionsApi(httpClient);
+// Create API clients using factory
+const apiClients = ApiFactory.createClients(tokenManager);
 logger.info('✅ API clients created');
 
 // Set the auth API on token manager (important for token refresh!)
-tokenManager.setAuthApi(authApi);
+tokenManager.setAuthApi(apiClients.auth);
 logger.info('✅ Auth API set on token manager');
 
 // Initialize connection manager with dependency injection using the new websocket package
@@ -129,9 +125,9 @@ logger.info('✅ ConnectionManager created', {
   connectionManager: !!connectionManager 
 });
 
-// Initialize conviction manager (remains the same)
+// Initialize conviction manager (now uses new API client)
 const convictionManager = new ConvictionManager(
-  convictionsApi, 
+  apiClients.conviction, 
   tokenManager
 );
 logger.info('✅ ConvictionManager created');
@@ -313,12 +309,12 @@ function App() {
   return (
     <ThemeProvider>
       <ToastProvider>
-        <AuthProvider tokenManager={tokenManager} authApi={authApi} connectionManager={connectionManager}>
+        <AuthProvider tokenManager={tokenManager} authApi={apiClients.auth} connectionManager={connectionManager}>
           <TokenManagerProvider tokenManager={tokenManager}>
-            <BookManagerProvider>
+            <BookManagerProvider bookClient={apiClients.book} tokenManager={tokenManager}>
               <ConvictionProvider convictionManager={convictionManager}>
                 <ConnectionProvider connectionManager={connectionManager}>
-                  <FundProvider>  
+                  <FundProvider fundClient={apiClients.fund} tokenManager={tokenManager}>  
                     <Router>
                       <DeviceIdInvalidationHandler>
                         <AppRoutes />

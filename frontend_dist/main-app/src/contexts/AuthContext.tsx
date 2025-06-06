@@ -3,8 +3,7 @@ import React, { createContext, useState, useEffect, useCallback, ReactNode, useM
 
 import { getLogger } from '../boot/logging';
 
-import { AuthApi } from '../api/auth';
-import { LoginRequest, LoginResponse } from '@trading-app/auth';
+import { AuthClient, LoginRequest, LoginResponse } from '@trading-app/api';
 
 import LoadingSpinner from '../components/Common/LoadingSpinner';
 
@@ -34,7 +33,7 @@ export const AuthContext = createContext<AuthContextProps | undefined>(undefined
 interface AuthProviderProps {
   children: ReactNode;
   tokenManager: TokenManager;
-  authApi: AuthApi;
+  authApi: AuthClient;
   connectionManager: ConnectionManager;
 }
 

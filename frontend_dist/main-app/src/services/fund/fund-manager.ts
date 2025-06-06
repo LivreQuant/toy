@@ -1,16 +1,16 @@
-// src/services/fund/fund-manager.ts
+// frontend_dist/main-app/src/services/fund/fund-manager.ts
 import { getLogger } from '../../boot/logging';
-import { TokenManager } from '../auth/token-manager';
-import { FundApi } from '../../api/fund';
+import { TokenManager } from '@trading-app/auth';
+import { FundClient } from '@trading-app/api';
 import { FundProfile, TeamMember, CreateFundProfileRequest, UpdateFundProfileRequest } from '../../types';
 import { toastService } from '../notification/toast-service';
 
 export class FundManager {
   private logger = getLogger('FundManager');
-  private fundApi: FundApi;
+  private fundApi: FundClient;
   private tokenManager: TokenManager;
 
-  constructor(fundApi: FundApi, tokenManager: TokenManager) {
+  constructor(fundApi: FundClient, tokenManager: TokenManager) {
     this.fundApi = fundApi;
     this.tokenManager = tokenManager;
     this.logger.info('FundManager initialized');

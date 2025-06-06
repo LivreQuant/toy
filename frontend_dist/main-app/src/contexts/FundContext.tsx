@@ -1,8 +1,8 @@
-// src/contexts/FundContext.tsx
+// frontend_dist/main-app/src/contexts/FundContext.tsx
 import React, { createContext, ReactNode } from 'react';
 import { FundManager } from '../services/fund/fund-manager';
-import { fundApi } from '../api/api-client';
-import { tokenManager } from '../api/api-client';
+import { FundClient } from '@trading-app/api';
+import { TokenManager } from '@trading-app/auth';
 
 interface FundContextType {
   createFundProfile: (fundData: any) => Promise<{ success: boolean; fundId?: string; error?: string }>;
@@ -12,8 +12,12 @@ interface FundContextType {
 
 export const FundContext = createContext<FundContextType | null>(null);
 
-export const FundProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const fundManager = new FundManager(fundApi, tokenManager);
+export const FundProvider: React.FC<{ 
+  children: ReactNode; 
+  fundClient: FundClient; 
+  tokenManager: TokenManager;
+}> = ({ children, fundClient, tokenManager }) => {
+  const fundManager = new FundManager(fundClient, tokenManager);
 
   const contextValue: FundContextType = {
     createFundProfile: fundManager.createFundProfile.bind(fundManager),

@@ -1,11 +1,13 @@
+// frontend_dist/main-app/src/pages/Auth/SignupPage.tsx
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import AuthLayout from './AuthLayout';
 import { useToast } from '../../hooks/useToast';
 import './AuthForms.css';
 
-// Import API client
-import { authApi } from '../../api';
+// Import API client from new package
+import { ApiFactory } from '@trading-app/api';
+import { AuthFactory } from '@trading-app/auth';
 
 const SignupPage: React.FC = () => {
   const [formData, setFormData] = useState({
@@ -84,6 +86,10 @@ const SignupPage: React.FC = () => {
     setIsSubmitting(true);
     
     try {
+      // Create a temporary auth client for this request
+      const authServices = AuthFactory.createAuthServices();
+      const authApi = ApiFactory.createAuthClient(authServices.tokenManager);
+      
       const response = await authApi.signup({
         username: formData.username,
         email: formData.email,

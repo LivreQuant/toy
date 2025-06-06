@@ -21,8 +21,6 @@
   },
   "include": [
     "src",
-    "tailwind.config.js",
-    "../tmp/OrderBlotter",
-    "../tmp/OrderBlotter copy"
-, "old"  ]
+    "tailwind.config.js", "old"  
+  ]
 }

@@ -1,18 +1,23 @@
-// src/services/convictions/conviction-manager.ts
+// frontend_dist/main-app/src/services/convictions/conviction-manager.ts
 import { getLogger } from '../../boot/logging';
-import { TokenManager } from '../auth/token-manager';
-import { ConvictionsApi, 
-  ConvictionSubmissionRequest, ConvictionCancellationRequest, 
-  EncodedConvictionSubmissionRequest, EncodedConvictionCancellationRequest,
-  BatchConvictionResponse, BatchCancelResponse } from '../../api/conviction';
+import { TokenManager } from '@trading-app/auth';
+import { 
+  ConvictionClient,
+  ConvictionSubmissionRequest, 
+  ConvictionCancellationRequest, 
+  EncodedConvictionSubmissionRequest, 
+  EncodedConvictionCancellationRequest,
+  BatchConvictionResponse, 
+  BatchCancelResponse 
+} from '@trading-app/api';
 import { toastService } from '../notification/toast-service';
 
 export class ConvictionManager {
   private logger = getLogger('ConvictionManager');
-  private convictionsApi: ConvictionsApi;
+  private convictionsApi: ConvictionClient;
   private tokenManager: TokenManager;
 
-  constructor(convictionsApi: ConvictionsApi, tokenManager: TokenManager) {
+  constructor(convictionsApi: ConvictionClient, tokenManager: TokenManager) {
     this.convictionsApi = convictionsApi;
     this.tokenManager = tokenManager;
     this.logger.info('ConvictionManager initialized');

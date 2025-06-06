@@ -1,9 +1,9 @@
-// src/contexts/BookContext.tsx
+// frontend_dist/main-app/src/contexts/BookContext.tsx
 import React, { createContext, ReactNode } from 'react';
 import { BookManager } from '../services/book/book-manager';
-import { BookApi } from '../api/book'; // Import BookApi explicitly
-import { Book, BookRequest } from '../types'; // Add BookRequest to imports
-import { httpClient, tokenManager } from '../api/api-client'; // Ensure these are exported
+import { BookClient } from '@trading-app/api';
+import { Book, BookRequest } from '../types';
+import { TokenManager } from '@trading-app/auth';
 
 interface BookManagerContextType {
   createBook: (bookData: BookRequest) => Promise<{ success: boolean; bookId?: string; error?: string }>;
@@ -14,9 +14,12 @@ interface BookManagerContextType {
 
 export const BookManagerContext = createContext<BookManagerContextType | null>(null);
 
-export const BookManagerProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const bookApi = new BookApi(httpClient);
-  const bookManager = new BookManager(bookApi, tokenManager);
+export const BookManagerProvider: React.FC<{ 
+  children: ReactNode; 
+  bookClient: BookClient; 
+  tokenManager: TokenManager;
+}> = ({ children, bookClient, tokenManager }) => {
+  const bookManager = new BookManager(bookClient, tokenManager);
 
   const contextValue: BookManagerContextType = {
     createBook: bookManager.createBook.bind(bookManager),

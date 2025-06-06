@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
+    "@trading-app/api": "file:../packages/api",
     "@trading-app/auth": "file:../packages/auth",
     "@trading-app/config": "file:../packages/config",
     "@trading-app/logging": "file:../packages/logging",

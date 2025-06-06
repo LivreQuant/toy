@@ -1,11 +1,13 @@
+// frontend_dist/main-app/src/pages/Auth/ForgotUsernamePage.tsx
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import AuthLayout from './AuthLayout';
 import { useToast } from '../../hooks/useToast';
 import './AuthForms.css';
 
-// Import API client
-import { authApi } from '../../api';
+// Import API client from new package
+import { ApiFactory } from '@trading-app/api';
+import { AuthFactory } from '@trading-app/auth';
 
 const ForgotUsernamePage: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -24,6 +26,10 @@ const ForgotUsernamePage: React.FC = () => {
     setIsSubmitting(true);
     
     try {
+      // Create a temporary auth client for this request
+      const authServices = AuthFactory.createAuthServices();
+      const authApi = ApiFactory.createAuthClient(authServices.tokenManager);
+      
       const response = await authApi.forgotUsername({ email });
       
       // For security reasons, the API always returns success
