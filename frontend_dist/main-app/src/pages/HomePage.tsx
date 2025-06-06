@@ -1,4 +1,4 @@
-// src/pages/HomePage.tsx
+// frontend_dist/main-app/src/pages/HomePage.tsx
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Box, Grid, useMediaQuery, useTheme } from '@mui/material';
@@ -12,6 +12,9 @@ import { Book, FundProfile } from '../types';
 import DashboardHeader from '../components/Layout/DashboardHeader';
 import FundProfileCard from '../components/Dashboard/FundProfileCard';
 import TradingBooksGrid from '../components/Dashboard/TradingBooksGrid';
+
+// Debug Component
+import WebSocketConfigDebug from '../components/Debug/WebSocketConfigDebug';
 
 const HomePage: React.FC = () => {
   const { logout } = useAuth();
@@ -103,6 +106,11 @@ const HomePage: React.FC = () => {
       minHeight: '100vh'
     }}>
       <DashboardHeader onLogout={handleLogout} />
+      
+      {/* Add debug component in development mode */}
+      {process.env.NODE_ENV === 'development' && (
+        <WebSocketConfigDebug />
+      )}
       
       <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 1400, mx: 'auto' }}>
         <Grid container spacing={3}>

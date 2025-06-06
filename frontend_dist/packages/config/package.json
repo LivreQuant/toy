@@ -1,17 +1,22 @@
 {
     "name": "@trading-app/config",
     "version": "1.0.0",
+    "description": "Configuration management for trading app",
     "main": "dist/index.js",
     "types": "dist/index.d.ts",
     "scripts": {
-        "build": "tsc",
-        "dev": "tsc --watch"
+      "build": "tsc",
+      "clean": "rm -rf dist",
+      "rebuild": "npm run clean && npm run build"
     },
     "dependencies": {
-        "@trading-app/types-core": "file:../types-core"
+      "@trading-app/logging": "file:../logging"
     },
     "devDependencies": {
-        "@types/node": "^20.17.57",
-        "typescript": "^5.3.3"
-    }
-}
+      "@types/node": "^16.18.68",
+      "typescript": "^4.9.5"
+    },
+    "files": [
+      "dist/**/*"
+    ]
+  }

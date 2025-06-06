@@ -1,4 +1,4 @@
-// src/App.tsx
+// frontend_dist/main-app/src/App.tsx
 import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useNavigate } from 'react-router-dom';
@@ -72,6 +72,23 @@ const logger = getLogger('App');
 
 logger.info('🚀 Starting service instantiation...');
 
+// Log environment information for debugging
+logger.info('🔍 APP STARTUP: Environment information', {
+  NODE_ENV: process.env.NODE_ENV,
+  REACT_APP_WS_URL: process.env.REACT_APP_WS_URL,
+  REACT_APP_API_BASE_URL: process.env.REACT_APP_API_BASE_URL,
+  REACT_APP_ENV: process.env.REACT_APP_ENV,
+  HOST: process.env.HOST,
+  PORT: process.env.PORT,
+  PUBLIC_URL: process.env.PUBLIC_URL,
+  window_location: typeof window !== 'undefined' ? {
+    hostname: window.location.hostname,
+    port: window.location.port,
+    protocol: window.location.protocol,
+    href: window.location.href
+  } : 'server-side'
+});
+
 // Create auth services using factory
 const authServices = AuthFactory.createAuthServices();
 const { deviceIdManager, tokenManager, localStorageService, sessionStorageService } = authServices;
@@ -120,6 +137,12 @@ const convictionManager = new ConvictionManager(
 logger.info('✅ ConvictionManager created');
 
 logger.info('🎉 All services instantiated successfully');
+
+// Log final WebSocket URL being used
+logger.info('🔗 FINAL WEBSOCKET URL CHECK', {
+  configServiceUrl: configService.getWebSocketUrl(),
+  timestamp: new Date().toISOString()
+});
 
 // --- End Service Instantiation ---
 

@@ -1,21 +1,22 @@
 // src/handlers/exchange-data-handler.ts
 import { getLogger } from '@trading-app/logging';
-export class ExchangeDataHandler {
-    constructor(client, stateManager) {
+var ExchangeDataHandler = /** @class */ (function () {
+    function ExchangeDataHandler(client, stateManager) {
         this.client = client;
         this.stateManager = stateManager;
         this.logger = getLogger('ExchangeDataHandler');
         this.setupListeners();
         this.logger.info('ExchangeDataHandler initialized');
     }
-    setupListeners() {
-        this.client.on('message', (message) => {
+    ExchangeDataHandler.prototype.setupListeners = function () {
+        var _this = this;
+        this.client.on('message', function (message) {
             if (message.type === 'exchange_data') {
-                this.handleExchangeData(message);
+                _this.handleExchangeData(message);
             }
         });
-    }
-    handleExchangeData(message) {
+    };
+    ExchangeDataHandler.prototype.handleExchangeData = function (message) {
         this.logger.debug('Received exchange data', {
             symbolCount: Object.keys(message.symbols || {}).length,
             hasOrderData: !!message.userOrders,
@@ -23,7 +24,8 @@ export class ExchangeDataHandler {
         });
         // Process market data
         if (message.symbols) {
-            const marketData = Object.entries(message.symbols).reduce((acc, [symbol, data]) => {
+            var marketData = Object.entries(message.symbols).reduce(function (acc, _a) {
+                var symbol = _a[0], data = _a[1];
                 acc[symbol] = {
                     price: data.price,
                     open: data.price - (data.change || 0),
@@ -38,11 +40,12 @@ export class ExchangeDataHandler {
         }
         // Process portfolio data
         if (message.userOrders || message.userPositions) {
-            const portfolioUpdate = {};
+            var portfolioUpdate = {};
             if (message.userOrders) {
-                const orders = Object.entries(message.userOrders).reduce((acc, [orderId, data]) => {
+                var orders = Object.entries(message.userOrders).reduce(function (acc, _a) {
+                    var orderId = _a[0], data = _a[1];
                     acc[orderId] = {
-                        orderId,
+                        orderId: orderId,
                         symbol: data.orderId.split('-')[0] || 'UNKNOWN',
                         status: data.status,
                         filledQty: data.filledQty,
@@ -54,9 +57,10 @@ export class ExchangeDataHandler {
                 portfolioUpdate.orders = orders;
             }
             if (message.userPositions) {
-                const positions = Object.entries(message.userPositions).reduce((acc, [symbol, data]) => {
+                var positions = Object.entries(message.userPositions).reduce(function (acc, _a) {
+                    var symbol = _a[0], data = _a[1];
                     acc[symbol] = {
-                        symbol,
+                        symbol: symbol,
                         quantity: data.quantity,
                         avgPrice: data.value / data.quantity,
                         marketValue: data.value
@@ -67,5 +71,7 @@ export class ExchangeDataHandler {
             }
             this.stateManager.updatePortfolioState(portfolioUpdate);
         }
-    }
-}
+    };
+    return ExchangeDataHandler;
+}());
+export { ExchangeDataHandler };

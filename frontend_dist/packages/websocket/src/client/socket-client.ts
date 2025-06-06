@@ -1,4 +1,4 @@
-// src/client/socket-client.ts
+// frontend_dist/packages/websocket/src/client/socket-client.ts
 import { BehaviorSubject, Observable } from 'rxjs';
 import { getLogger } from '@trading-app/logging';
 import { TokenManager, DeviceIdManager } from '@trading-app/auth';
@@ -66,7 +66,7 @@ export class SocketClient implements Disposable {
     }
 
     try {
-      this.logger.info('Initiating WebSocket connection...');
+      this.logger.info('🚀 Initiating WebSocket connection...');
       this.status$.next(ConnectionStatus.CONNECTING);
 
       const token = await this.tokenManager.getAccessToken();
@@ -83,12 +83,42 @@ export class SocketClient implements Disposable {
         csrfToken
       });
 
-      const wsUrl = `${this.configService.getWebSocketUrl()}?${params.toString()}`;
+      // Get the base WebSocket URL from config service
+      const baseWsUrl = this.configService.getWebSocketUrl();
+      
+      // Log the URL construction process
+      this.logger.info('🔍 WEBSOCKET URL DEBUG: Constructing connection URL', {
+        baseWsUrl,
+        hasToken: !!token,
+        hasDeviceId: !!deviceId,
+        hasCsrfToken: !!csrfToken,
+        paramsString: params.toString(),
+        configServiceType: this.configService.constructor.name
+      });
+
+      const wsUrl = `${baseWsUrl}?${params.toString()}`;
+      
+      // Log the final URL (but mask sensitive tokens)
+      const maskedUrl = wsUrl.replace(/token=[^&]+/, 'token=***MASKED***')
+                            .replace(/csrfToken=[^&]+/, 'csrfToken=***MASKED***');
+      
+      this.logger.info('🔗 WEBSOCKET CONNECTION: Final URL constructed', {
+        maskedUrl,
+        urlLength: wsUrl.length,
+        protocol: wsUrl.startsWith('wss:') ? 'secure' : 'insecure',
+        hostname: this.extractHostname(wsUrl),
+        port: this.extractPort(wsUrl)
+      });
+
       this.socket = new WebSocket(wsUrl);
       
       return new Promise<boolean>((resolve) => {
         const timeoutId = setTimeout(() => {
-          this.logger.error('WebSocket connection attempt timed out');
+          this.logger.error('❌ WebSocket connection attempt timed out', {
+            timeoutMs: this.options.connectTimeout,
+            maskedUrl,
+            socketReadyState: this.socket?.readyState
+          });
           if (this.status$.getValue() === ConnectionStatus.CONNECTING) {
             this.cleanup();
             this.status$.next(ConnectionStatus.DISCONNECTED);
@@ -98,19 +128,37 @@ export class SocketClient implements Disposable {
 
         this.socket!.addEventListener('open', () => {
           clearTimeout(timeoutId);
-          this.logger.info('WebSocket connection established');
+          this.logger.info('✅ WebSocket connection established successfully', {
+            maskedUrl,
+            readyState: this.socket?.readyState,
+            extensions: this.socket?.extensions,
+            protocol: this.socket?.protocol
+          });
           this.status$.next(ConnectionStatus.CONNECTED);
           this.events.emit('open', undefined);
           resolve(true);
         });
 
         this.socket!.addEventListener('error', (event) => {
-          this.logger.error('WebSocket connection error', { event });
-          this.events.emit('error', new Error('WebSocket connection error'));
+          this.logger.error('❌ WebSocket connection error', { 
+            event,
+            maskedUrl,
+            readyState: this.socket?.readyState,
+            errorType: event.type,
+            timeStamp: event.timeStamp
+          });
+          this.events.emit('error', new Error(`WebSocket connection error: ${event.type}`));
         });
 
         this.socket!.addEventListener('close', (event) => {
           clearTimeout(timeoutId);
+          this.logger.warn('🔌 WebSocket connection closed during connection attempt', {
+            code: event.code,
+            reason: event.reason,
+            wasClean: event.wasClean,
+            maskedUrl,
+            timeStamp: event.timeStamp
+          });
           this.handleClose(event);
           if (this.status$.getValue() === ConnectionStatus.CONNECTING) {
             resolve(false);
@@ -120,11 +168,32 @@ export class SocketClient implements Disposable {
         this.socket!.addEventListener('message', this.handleMessage);
       });
     } catch (error: any) {
-      this.logger.error('Error initiating WebSocket connection', {
-        error: error instanceof Error ? error.message : String(error)
+      this.logger.error('💥 Error initiating WebSocket connection', {
+        error: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined,
+        errorName: error instanceof Error ? error.name : 'Unknown'
       });
       this.status$.next(ConnectionStatus.DISCONNECTED);
       return false;
+    }
+  }
+
+  // Helper method to extract hostname from URL for logging
+  private extractHostname(url: string): string {
+    try {
+      return new URL(url).hostname;
+    } catch {
+      return 'invalid-url';
+    }
+  }
+
+  // Helper method to extract port from URL for logging
+  private extractPort(url: string): string {
+    try {
+      const urlObj = new URL(url);
+      return urlObj.port || (urlObj.protocol === 'wss:' ? '443' : '80');
+    } catch {
+      return 'unknown';
     }
   }
 
@@ -144,18 +213,39 @@ export class SocketClient implements Disposable {
   // Send a message to the WebSocket server
   public send(data: any): boolean {
     if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
-      this.logger.error('Cannot send message: WebSocket not connected');
+      this.logger.error('Cannot send message: WebSocket not connected', {
+        hasSocket: !!this.socket,
+        readyState: this.socket?.readyState,
+        readyStateText: this.socket ? this.getReadyStateText(this.socket.readyState) : 'no socket'
+      });
       return false;
     }
 
     try {
-      this.socket.send(typeof data === 'string' ? data : JSON.stringify(data));
+      const messageStr = typeof data === 'string' ? data : JSON.stringify(data);
+      this.socket.send(messageStr);
+      this.logger.debug('📤 WebSocket message sent', {
+        messageType: typeof data === 'object' && data.type ? data.type : 'unknown',
+        messageLength: messageStr.length
+      });
       return true;
     } catch (error: any) {
       this.logger.error('Error sending WebSocket message', {
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
+        messageType: typeof data === 'object' && data.type ? data.type : 'unknown'
       });
       return false;
+    }
+  }
+
+  // Helper method to get readable ready state
+  private getReadyStateText(readyState: number): string {
+    switch (readyState) {
+      case WebSocket.CONNECTING: return 'CONNECTING';
+      case WebSocket.OPEN: return 'OPEN';
+      case WebSocket.CLOSING: return 'CLOSING';
+      case WebSocket.CLOSED: return 'CLOSED';
+      default: return `UNKNOWN(${readyState})`;
     }
   }
 
@@ -171,11 +261,18 @@ export class SocketClient implements Disposable {
   private handleMessage = (event: MessageEvent): void => {
     try {
       const message = JSON.parse(event.data) as WebSocketMessage;
+      this.logger.debug('📥 WebSocket message received', {
+        messageType: message.type,
+        timestamp: message.timestamp,
+        hasRequestId: !!message.requestId,
+        dataLength: event.data.length
+      });
       this.events.emit('message', message);
     } catch (error: any) {
       this.logger.error('Error parsing WebSocket message', {
         error: error instanceof Error ? error.message : String(error),
-        data: typeof event.data === 'string' ? event.data.substring(0, 100) : 'non-string data'
+        data: typeof event.data === 'string' ? event.data.substring(0, 100) : 'non-string data',
+        dataType: typeof event.data
       });
       this.events.emit('error', error instanceof Error ? error : new Error(String(error)));
     }
@@ -183,7 +280,12 @@ export class SocketClient implements Disposable {
 
   // Handle connection close
   private handleClose = (event: CloseEvent): void => {
-    this.logger.info(`WebSocket connection closed. Code: ${event.code}, Reason: ${event.reason}, Clean: ${event.wasClean}`);
+    this.logger.info(`WebSocket connection closed. Code: ${event.code}, Reason: ${event.reason}, Clean: ${event.wasClean}`, {
+      code: event.code,
+      reason: event.reason,
+      wasClean: event.wasClean,
+      timeStamp: event.timeStamp
+    });
     this.cleanup();
     this.status$.next(ConnectionStatus.DISCONNECTED);
     this.events.emit('close', {
@@ -196,6 +298,10 @@ export class SocketClient implements Disposable {
   // Clean up WebSocket resources
   private cleanup(): void {
     if (this.socket) {
+      this.logger.debug('🧹 Cleaning up WebSocket resources', {
+        readyState: this.getReadyStateText(this.socket.readyState)
+      });
+      
       this.socket.removeEventListener('message', this.handleMessage);
       this.socket.removeEventListener('close', this.handleClose);
       this.socket.onopen = null;
@@ -207,7 +313,9 @@ export class SocketClient implements Disposable {
         try {
           this.socket.close(1000, 'Client cleanup');
         } catch (e) {
-          this.logger.warn('Error closing WebSocket during cleanup');
+          this.logger.warn('Error closing WebSocket during cleanup', {
+            error: e instanceof Error ? e.message : String(e)
+          });
         }
       }
       
@@ -217,9 +325,9 @@ export class SocketClient implements Disposable {
 
   // Implement Disposable interface
   public dispose(): void {
+    this.logger.info('🗑️ Disposing SocketClient');
     this.disconnect('disposed');
     this.events.clear();
     this.status$.complete();
   }
-
 }

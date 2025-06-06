@@ -3,57 +3,48 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
-
-    "@trading-app/websocket": "file:../packages/websocket",
-    "@trading-app/styles": "file:../packages/styles",
     "@trading-app/auth": "file:../packages/auth",
+    "@trading-app/config": "file:../packages/config",
+    "@trading-app/logging": "file:../packages/logging",
     "@trading-app/state": "file:../packages/state",
     "@trading-app/storage": "file:../packages/storage",
-    "@trading-app/logging": "file:../packages/logging",
-    "@trading-app/config": "file:../packages/config", 
+    "@trading-app/styles": "file:../packages/styles",
+    "@trading-app/toast": "file:../packages/toast",
     "@trading-app/types-core": "file:../packages/types-core",
     "@trading-app/utils": "file:../packages/utils",
-    "@trading-app/toast": "file:../packages/toast",
-    
-    "@ag-grid-community/client-side-row-model": "^32.3.3",
-    "@ag-grid-community/styles": "^33.0.3",
-    "@blueprintjs/core": "^5.9.1",
-    "@blueprintjs/datetime": "^5.3.32",
-    "@blueprintjs/icons": "^5.19.0",
-    "@bufbuild/protobuf": "^2.2.3",
-    "@connectrpc/connect": "^2.0.1",
-    "@connectrpc/connect-web": "^2.0.1",
-    "@emotion/react": "^11.14.0",
-    "@emotion/styled": "^11.14.0",
-    "@mui/icons-material": "^7.1.0",
-    "@mui/material": "^7.1.0",
-    "@types/node": "^20.11.19",
-    "@types/react": "^18.3.20",
-    "@types/react-dom": "^18.2.19",
-    "ag-grid-community": "^33.1.1",
-    "ag-grid-react": "^33.1.1",
-    "ajv": "^8.12.0",
-    "ajv-keywords": "^5.1.0",
-    "flexlayout-react": "^0.8.3",
-    "jwt-decode": "^4.0.0",
-    "papaparse": "^5.5.2",
+    "@trading-app/websocket": "file:../packages/websocket",
+    "@emotion/react": "^11.11.1",
+    "@emotion/styled": "^11.11.0",
+    "@mui/icons-material": "^5.14.19",
+    "@mui/material": "^5.14.20",
+    "@testing-library/jest-dom": "^5.17.0",
+    "@testing-library/react": "^13.4.0",
+    "@testing-library/user-event": "^13.5.0",
+    "@types/jest": "^27.5.2",
+    "@types/node": "^16.18.68",
+    "@types/react": "^18.2.42",
+    "@types/react-dom": "^18.2.17",
     "react": "^18.2.0",
-    "react-country-flag": "^3.1.0",
     "react-dom": "^18.2.0",
-    "react-dropzone": "^14.3.8",
-    "react-query": "^3.39.3",
-    "react-router-dom": "^7.4.0",
-    "rxjs": "^7.8.2",
-    "typescript": "^5.3.3"
+    "react-router-dom": "^6.20.1",
+    "react-scripts": "5.0.1",
+    "rxjs": "^7.8.1",
+    "typescript": "^4.9.5",
+    "web-vitals": "^2.1.4"
   },
   "scripts": {
     "start": "react-scripts start",
+    "start:debug": "REACT_APP_DEBUG=true REACT_APP_LOG_LEVEL=debug react-scripts start",
     "build": "react-scripts build",
+    "build:production": "REACT_APP_ENV=production react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
   },
   "eslintConfig": {
-    "extends": "react-app"
+    "extends": [
+      "react-app",
+      "react-app/jest"
+    ]
   },
   "browserslist": {
     "production": [
@@ -68,10 +59,6 @@
     ]
   },
   "devDependencies": {
-    "@types/papaparse": "^5.3.15",
-    "@types/uuid": "^10.0.0",
-    "autoprefixer": "^10.4.20",
-    "react-scripts": "^5.0.1",
-    "tailwindcss": "^3.3.3"
+    "@types/uuid": "^9.0.7"
   }
 }

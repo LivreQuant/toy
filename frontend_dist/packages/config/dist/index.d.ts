@@ -1,10 +1,7 @@
-import { LogLevel } from '@trading-app/types-core';
-interface AppConfig {
+export interface AppConfig {
     apiBaseUrl: string;
     wsBaseUrl: string;
-    environment: 'development' | 'production' | 'test';
-    logLevel?: LogLevel;
-    secureSockets: boolean;
+    environment: string;
     reconnection: {
         initialDelayMs: number;
         maxDelayMs: number;
@@ -13,4 +10,13 @@ interface AppConfig {
     };
 }
 export declare const config: AppConfig;
-export {};
+export declare const API_BASE_URL: string;
+export declare const WS_BASE_URL: string;
+export declare const ENVIRONMENT: string;
+export declare const RECONNECTION_CONFIG: {
+    initialDelayMs: number;
+    maxDelayMs: number;
+    jitterFactor: number;
+    maxAttempts: number;
+};
+export default config;

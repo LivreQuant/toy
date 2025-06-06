@@ -3,8 +3,8 @@ import { getLogger } from '@trading-app/logging';
 import { DeviceIdManager } from '@trading-app/auth';
 import { ConnectionStatus } from '@trading-app/state';
 import { EventEmitter } from '@trading-app/utils';
-export class HeartbeatHandler {
-    constructor(client, stateManager, options) {
+var HeartbeatHandler = /** @class */ (function () {
+    function HeartbeatHandler(client, stateManager, options) {
         this.client = client;
         this.stateManager = stateManager;
         this.options = options;
@@ -13,22 +13,23 @@ export class HeartbeatHandler {
         this.timeoutId = null;
         this.lastTimestamp = 0;
         this.events = new EventEmitter();
-        this.logger.info('HeartbeatHandler initialized', { options });
+        this.logger.info('HeartbeatHandler initialized', { options: options });
     }
-    start() {
+    HeartbeatHandler.prototype.start = function () {
+        var _this = this;
         this.logger.info('Starting heartbeat monitoring');
         this.stop(); // Clear any existing timers
         // Set up message listener
-        const subscription = this.client.on('message', (message) => {
+        var subscription = this.client.on('message', function (message) {
             if (message.type === 'heartbeat_ack') {
-                this.handleHeartbeatResponse(message);
+                _this.handleHeartbeatResponse(message);
             }
         });
         // Start sending heartbeats
         this.sendHeartbeat();
-        this.intervalId = window.setInterval(() => this.sendHeartbeat(), this.options.interval);
-    }
-    stop() {
+        this.intervalId = window.setInterval(function () { return _this.sendHeartbeat(); }, this.options.interval);
+    };
+    HeartbeatHandler.prototype.stop = function () {
         this.logger.info('Stopping heartbeat monitoring');
         if (this.intervalId !== null) {
             window.clearInterval(this.intervalId);
@@ -38,20 +39,21 @@ export class HeartbeatHandler {
             window.clearTimeout(this.timeoutId);
             this.timeoutId = null;
         }
-    }
-    on(event, callback) {
+    };
+    HeartbeatHandler.prototype.on = function (event, callback) {
         return this.events.on(event, callback);
-    }
-    sendHeartbeat() {
+    };
+    HeartbeatHandler.prototype.sendHeartbeat = function () {
+        var _this = this;
         if (this.client.getCurrentStatus() !== ConnectionStatus.CONNECTED) {
             this.logger.debug('Skipping heartbeat: client not connected');
             return;
         }
-        const timestamp = Date.now();
+        var timestamp = Date.now();
         this.lastTimestamp = timestamp;
-        const message = {
+        var message = {
             type: 'heartbeat',
-            timestamp,
+            timestamp: timestamp,
             deviceId: DeviceIdManager.getInstance().getDeviceId(),
         };
         this.logger.debug('Sending heartbeat');
@@ -62,18 +64,18 @@ export class HeartbeatHandler {
                 window.clearTimeout(this.timeoutId);
                 this.timeoutId = null;
             }
-            this.timeoutId = window.setTimeout(() => this.handleTimeout(), this.options.timeout);
+            this.timeoutId = window.setTimeout(function () { return _this.handleTimeout(); }, this.options.timeout);
         }
         catch (error) {
             this.logger.error('Failed to send heartbeat', {
                 error: error instanceof Error ? error.message : String(error)
             });
         }
-    }
-    handleHeartbeatResponse(message) {
-        const now = Date.now();
-        const latency = message.clientTimestamp ? (now - message.clientTimestamp) : -1;
-        this.logger.debug('Heartbeat acknowledged', { latency });
+    };
+    HeartbeatHandler.prototype.handleHeartbeatResponse = function (message) {
+        var now = Date.now();
+        var latency = message.clientTimestamp ? (now - message.clientTimestamp) : -1;
+        this.logger.debug('Heartbeat acknowledged', { latency: latency });
         // Clear timeout
         if (this.timeoutId !== null) {
             window.clearTimeout(this.timeoutId);
@@ -81,7 +83,7 @@ export class HeartbeatHandler {
         }
         // Check device ID validity
         if (!message.deviceIdValid) {
-            this.logger.warn(`Device ID invalidated in heartbeat. Reason: ${message.reason}`);
+            this.logger.warn("Device ID invalidated in heartbeat. Reason: ".concat(message.reason));
             this.events.emit('deviceIdInvalidated', {
                 deviceId: DeviceIdManager.getInstance().getDeviceId(),
                 reason: message.reason
@@ -89,17 +91,17 @@ export class HeartbeatHandler {
             return;
         }
         // Update connection state
-        const quality = this.calculateConnectionQuality(latency);
+        var quality = this.calculateConnectionQuality(latency);
         this.stateManager.updateConnectionState({
             lastHeartbeatTime: now,
             heartbeatLatency: latency >= 0 ? latency : null,
-            quality,
+            quality: quality,
             simulatorStatus: message.simulatorStatus
         });
         // Emit response event
         this.events.emit('response', message);
-    }
-    calculateConnectionQuality(latency) {
+    };
+    HeartbeatHandler.prototype.calculateConnectionQuality = function (latency) {
         if (latency < 0)
             return 'UNKNOWN';
         if (latency <= 250)
@@ -107,14 +109,16 @@ export class HeartbeatHandler {
         if (latency <= 750)
             return 'DEGRADED';
         return 'POOR';
-    }
-    handleTimeout() {
-        this.logger.error(`Heartbeat timeout after ${this.options.timeout}ms`);
+    };
+    HeartbeatHandler.prototype.handleTimeout = function () {
+        this.logger.error("Heartbeat timeout after ".concat(this.options.timeout, "ms"));
         this.timeoutId = null;
         this.events.emit('timeout', undefined);
-    }
-    dispose() {
+    };
+    HeartbeatHandler.prototype.dispose = function () {
         this.stop();
         this.events.clear();
-    }
-}
+    };
+    return HeartbeatHandler;
+}());
+export { HeartbeatHandler };

@@ -1,10 +1,22 @@
+var __assign = (this && this.__assign) || function () {
+    __assign = Object.assign || function(t) {
+        for (var s, i = 1, n = arguments.length; i < n; i++) {
+            s = arguments[i];
+            for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p))
+                t[p] = s[p];
+        }
+        return t;
+    };
+    return __assign.apply(this, arguments);
+};
 // src/services/heartbeat.ts
 import { getLogger } from '@trading-app/logging';
 import { DeviceIdManager } from '@trading-app/auth';
 import { ConnectionStatus } from '@trading-app/state';
 import { EventEmitter } from '@trading-app/utils';
-export class Heartbeat {
-    constructor(client, stateManager, options) {
+var Heartbeat = /** @class */ (function () {
+    function Heartbeat(client, stateManager, options) {
+        var _this = this;
         this.client = client;
         this.stateManager = stateManager;
         this.logger = getLogger('Heartbeat');
@@ -14,22 +26,22 @@ export class Heartbeat {
         this.isDisposed = false;
         this.lastHeartbeatTimestamp = 0;
         this.events = new EventEmitter();
-        const defaultOptions = {
+        var defaultOptions = {
             interval: 15000,
             timeout: 5000
         };
-        this.options = { ...defaultOptions, ...(options || {}) };
+        this.options = __assign(__assign({}, defaultOptions), (options || {}));
         this.logger.info('Heartbeat initialized', { options: this.options });
-        this.client.on('message', (message) => {
+        this.client.on('message', function (message) {
             if (message.type === 'heartbeat_ack') {
-                this.handleHeartbeatResponse(message);
+                _this.handleHeartbeatResponse(message);
             }
         });
     }
-    isActive() {
+    Heartbeat.prototype.isActive = function () {
         return this.isStarted && !this.isDisposed;
-    }
-    start() {
+    };
+    Heartbeat.prototype.start = function () {
         if (this.isStarted || this.isDisposed) {
             this.logger.debug('Heartbeat start ignored: Already started or disposed');
             return;
@@ -38,8 +50,8 @@ export class Heartbeat {
         this.isStarted = true;
         this.sendHeartbeat();
         this.scheduleNextHeartbeat();
-    }
-    stop() {
+    };
+    Heartbeat.prototype.stop = function () {
         if (!this.isStarted || this.isDisposed) {
             this.logger.debug('Heartbeat stop ignored: Not running or disposed');
             return;
@@ -48,17 +60,19 @@ export class Heartbeat {
         this.isStarted = false;
         this.clearHeartbeatInterval();
         this.clearHeartbeatTimeout();
-    }
-    on(event, callback) {
+    };
+    Heartbeat.prototype.on = function (event, callback) {
         return this.events.on(event, callback);
-    }
-    scheduleNextHeartbeat() {
+    };
+    Heartbeat.prototype.scheduleNextHeartbeat = function () {
+        var _this = this;
         this.clearHeartbeatInterval();
-        this.heartbeatIntervalId = window.setInterval(() => {
-            this.sendHeartbeat();
+        this.heartbeatIntervalId = window.setInterval(function () {
+            _this.sendHeartbeat();
         }, this.options.interval);
-    }
-    sendHeartbeat() {
+    };
+    Heartbeat.prototype.sendHeartbeat = function () {
+        var _this = this;
         if (!this.isStarted || this.isDisposed)
             return;
         if (this.client.getCurrentStatus() !== ConnectionStatus.CONNECTED) {
@@ -66,7 +80,7 @@ export class Heartbeat {
             return;
         }
         this.logger.debug('Sending heartbeat');
-        const heartbeatMsg = {
+        var heartbeatMsg = {
             type: 'heartbeat',
             timestamp: Date.now(),
             deviceId: DeviceIdManager.getInstance().getDeviceId()
@@ -74,8 +88,8 @@ export class Heartbeat {
         try {
             this.client.send(heartbeatMsg);
             this.clearHeartbeatTimeout();
-            this.heartbeatTimeoutId = window.setTimeout(() => {
-                this.handleHeartbeatTimeout();
+            this.heartbeatTimeoutId = window.setTimeout(function () {
+                _this.handleHeartbeatTimeout();
             }, this.options.timeout);
         }
         catch (error) {
@@ -83,8 +97,8 @@ export class Heartbeat {
                 error: error instanceof Error ? error.message : String(error)
             });
         }
-    }
-    handleHeartbeatResponse(message) {
+    };
+    Heartbeat.prototype.handleHeartbeatResponse = function (message) {
         this.lastHeartbeatTimestamp = Date.now();
         this.logger.debug('Heartbeat Response Analysis', {
             deviceIdValid: message.deviceIdValid,
@@ -94,52 +108,54 @@ export class Heartbeat {
             latency: message.clientTimestamp ? (Date.now() - message.clientTimestamp) : -1
         });
         this.clearHeartbeatTimeout();
-        const latency = message.clientTimestamp ? (Date.now() - message.clientTimestamp) : -1;
+        var latency = message.clientTimestamp ? (Date.now() - message.clientTimestamp) : -1;
         // Update state through injected state manager
         if (latency >= 0) {
-            const quality = this.calculateConnectionQuality(latency);
+            var quality = this.calculateConnectionQuality(latency);
             this.stateManager.updateConnectionState({
                 lastHeartbeatTime: Date.now(),
                 heartbeatLatency: latency,
-                quality,
+                quality: quality,
                 simulatorStatus: message.simulatorStatus
             });
         }
         this.events.emit('response', {
-            latency,
+            latency: latency,
             deviceIdValid: message.deviceIdValid,
             simulatorStatus: message.simulatorStatus
         });
-    }
-    calculateConnectionQuality(latency) {
+    };
+    Heartbeat.prototype.calculateConnectionQuality = function (latency) {
         if (latency <= 250)
             return 'GOOD';
         if (latency <= 750)
             return 'DEGRADED';
         return 'POOR';
-    }
-    handleHeartbeatTimeout() {
+    };
+    Heartbeat.prototype.handleHeartbeatTimeout = function () {
         this.logger.error('Heartbeat timeout detected');
         this.events.emit('timeout', undefined);
-    }
-    clearHeartbeatInterval() {
+    };
+    Heartbeat.prototype.clearHeartbeatInterval = function () {
         if (this.heartbeatIntervalId !== null) {
             window.clearInterval(this.heartbeatIntervalId);
             this.heartbeatIntervalId = null;
         }
-    }
-    clearHeartbeatTimeout() {
+    };
+    Heartbeat.prototype.clearHeartbeatTimeout = function () {
         if (this.heartbeatTimeoutId !== null) {
             window.clearTimeout(this.heartbeatTimeoutId);
             this.heartbeatTimeoutId = null;
         }
-    }
-    dispose() {
+    };
+    Heartbeat.prototype.dispose = function () {
         if (this.isDisposed)
             return;
         this.isDisposed = true;
         this.stop();
         this.events.clear();
         this.logger.info('Heartbeat disposed');
-    }
-}
+    };
+    return Heartbeat;
+}());
+export { Heartbeat };

@@ -1,22 +1,28 @@
 {
     "name": "@trading-app/websocket",
     "version": "1.0.0",
+    "description": "WebSocket connection management for trading app",
     "main": "dist/index.js",
     "types": "dist/index.d.ts",
     "scripts": {
       "build": "tsc",
-      "dev": "tsc --watch"
+      "clean": "rm -rf dist",
+      "rebuild": "npm run clean && npm run build"
     },
     "dependencies": {
       "@trading-app/auth": "file:../auth",
-      "@trading-app/config": "file:../config",
       "@trading-app/logging": "file:../logging",
       "@trading-app/state": "file:../state",
-      "@trading-app/toast": "file:../toast",
       "@trading-app/utils": "file:../utils",
-      "rxjs": "^7.8.0"
+      "@trading-app/config": "file:../config",
+      "@trading-app/toast": "file:../toast",
+      "rxjs": "^7.8.1"
     },
     "devDependencies": {
-      "typescript": "^5.3.3"
-    }
+      "@types/node": "^16.18.68",
+      "typescript": "^4.9.5"
+    },
+    "files": [
+      "dist/**/*"
+    ]
   }

@@ -15,8 +15,11 @@ export declare class SocketClient implements Disposable {
     getStatus(): Observable<ConnectionStatus>;
     getCurrentStatus(): ConnectionStatus;
     connect(): Promise<boolean>;
+    private extractHostname;
+    private extractPort;
     disconnect(reason?: string): void;
     send(data: any): boolean;
+    private getReadyStateText;
     on<T extends keyof typeof this.events.events>(event: T, callback: (data: typeof this.events.events[T]) => void): {
         unsubscribe: () => void;
     };

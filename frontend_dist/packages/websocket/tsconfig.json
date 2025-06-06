@@ -1,35 +1,28 @@
 {
-    "compilerOptions": {
-      "target": "es2020",
-      "lib": ["es2020", "dom"],
-      "module": "esnext",
-      "moduleResolution": "node",
-      "declaration": true,
-      "composite": true,
-      "outDir": "./dist",
-      "rootDir": "./src",
-      "strict": true,
-      "esModuleInterop": true,
-      "skipLibCheck": true,
-      "forceConsistentCasingInFileNames": true,
-      "baseUrl": ".",
-      "paths": {
-        "@trading-app/auth": ["../auth/src"],
-        "@trading-app/config": ["../config/src"],
-        "@trading-app/logging": ["../logging/src"],
-        "@trading-app/state": ["../state/src"],
-        "@trading-app/toast": ["../toast/src"],
-        "@trading-app/utils": ["../utils/src"]
-      }
-    },
-    "references": [
-      { "path": "../auth" },
-      { "path": "../config" },
-      { "path": "../logging" },
-      { "path": "../state" },
-      { "path": "../toast" },
-      { "path": "../utils" }
-    ],
-    "include": ["src/**/*"],
-    "exclude": ["node_modules", "dist"]
-  }
+  "compilerOptions": {
+    "target": "es5",
+    "lib": ["dom", "dom.iterable", "es6"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "module": "esnext",
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": false,
+    "declaration": true,
+    "outDir": "dist",
+    "jsx": "react-jsx",
+    "types": ["node"]
+  },
+  "include": [
+    "src/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
+}

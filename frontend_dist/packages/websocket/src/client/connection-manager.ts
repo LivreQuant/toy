@@ -1,4 +1,4 @@
-// src/client/connection-manager.ts
+// frontend_dist/packages/websocket/src/client/connection-manager.ts
 import { getLogger } from '@trading-app/logging';
 import { TokenManager, DeviceIdManager } from '@trading-app/auth';
 import { ConnectionStatus } from '@trading-app/state';
@@ -61,25 +61,19 @@ export class ConnectionManager implements Disposable {
       }
     };
 
-    // Initialize socket client
     this.socketClient = new SocketClient(tokenManager, configService);
-    
-    // Initialize handlers
     this.heartbeat = new Heartbeat(this.socketClient, this.stateManager, {
       interval: options.heartbeatInterval || 15000,
       timeout: options.heartbeatTimeout || 5000
     });
-    
     this.resilience = new Resilience(tokenManager, toastService, options.resilience);
     this.sessionHandler = new SessionHandler(this.socketClient);
     this.simulatorClient = new SimulatorClient(this.socketClient, this.stateManager);
     
-    // Setup event listeners
     this.setupListeners();
   }
 
   private setupListeners(): void {
-    // Listen for socket client status changes
     this.socketClient.getStatus().subscribe(status => {
       if (this.isDisposed) return;
       
@@ -101,27 +95,22 @@ export class ConnectionManager implements Disposable {
       }
     });
     
-    // Listen for heartbeat events
     this.heartbeat.on('timeout', () => {
       if (this.isDisposed) return;
-      
       this.logger.warn('Heartbeat timeout detected. Disconnecting WebSocket.');
       this.socketClient.disconnect('heartbeat_timeout');
     });
     
     this.heartbeat.on('response', (data) => {
       if (this.isDisposed) return;
-      
       if (!data.deviceIdValid) {
         this.logger.warn('Device ID invalidated by heartbeat response');
         this.handleDeviceIdInvalidation('heartbeat_response');
       }
     });
     
-    // Listen for WebSocket messages
     this.socketClient.on('message', (message) => {
       if (this.isDisposed) return;
-      
       if ((message as any).type === 'device_id_invalidated') {
         this.logger.warn(`Device ID invalidated: ${(message as any).deviceId}`);
         this.handleDeviceIdInvalidation('server_message', (message as any).reason);
@@ -133,7 +122,6 @@ export class ConnectionManager implements Disposable {
     if (this.isDisposed) return;
     
     this.logger.info('Resetting connection manager state');
-    
     this.disconnect('reset');
     
     this.desiredState = {
@@ -162,11 +150,12 @@ export class ConnectionManager implements Disposable {
     const oldState = { ...this.desiredState };
     this.desiredState = { ...this.desiredState, ...state };
     
-    this.logger.info('Desired state updated', {
+    this.logger.info('🔌 CONNECTION: Desired state updated', {
       oldState,
       newState: this.desiredState
     });
     
+    // 🚨 CRITICAL FIX: Immediately sync when desired state changes
     this.syncConnectionState();
     
     if (oldState.simulatorRunning !== this.desiredState.simulatorRunning) {
@@ -180,6 +169,15 @@ export class ConnectionManager implements Disposable {
     const connState = this.stateManager.getConnectionState();
     const authState = this.stateManager.getAuthState();
     const resilienceState = this.resilience.getState().state;
+    
+    this.logger.info('🔌 CONNECTION: Syncing connection state', {
+      desiredConnected: this.desiredState.connected,
+      isAuthenticated: authState.isAuthenticated,
+      isAuthLoading: authState.isAuthLoading,
+      currentWebSocketStatus: connState.webSocketStatus,
+      isRecovering: connState.isRecovering,
+      resilienceState
+    });
     
     if (authState.isAuthLoading) {
       this.logger.debug('Sync connection state skipped: Auth loading');
@@ -200,7 +198,7 @@ export class ConnectionManager implements Disposable {
         connState.webSocketStatus !== ConnectionStatus.CONNECTED && 
         connState.webSocketStatus !== ConnectionStatus.CONNECTING && 
         !connState.isRecovering) {
-      this.logger.info('Sync connection state: Initiating connection');
+      this.logger.info('🔌 CONNECTION: Initiating connection (desired=true, not connected)');
       this.connect().catch(err => {
         this.logger.error('Connect promise rejected', {
           error: err instanceof Error ? err.message : String(err)
@@ -211,7 +209,7 @@ export class ConnectionManager implements Disposable {
              (connState.webSocketStatus === ConnectionStatus.CONNECTED || 
               connState.webSocketStatus === ConnectionStatus.CONNECTING || 
               connState.isRecovering)) {
-      this.logger.info('Sync connection state: Disconnecting');
+      this.logger.info('🔌 CONNECTION: Disconnecting (desired=false, currently connected)');
       this.disconnect('desired_state_sync');
     }
   }
@@ -257,7 +255,7 @@ export class ConnectionManager implements Disposable {
       return connState.webSocketStatus === ConnectionStatus.CONNECTED;
     }
     
-    this.logger.info('Initiating connection process');
+    this.logger.info('🔌 CONNECTION: Initiating connection process');
     
     this.stateManager.updateConnectionState({
       webSocketStatus: ConnectionStatus.CONNECTING,
@@ -303,13 +301,13 @@ export class ConnectionManager implements Disposable {
         simulatorStatus: sessionResponse.simulatorStatus || 'NONE'
       });
       
-      this.logger.info('Session validated successfully, starting heartbeats');
+      this.logger.info('🔌 CONNECTION: Session validated successfully, starting heartbeats');
       this.heartbeat.start();
       
       return true;
     } catch (error: any) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      this.logger.error(`Connection process failed: ${errorMessage}`);
+      this.logger.error(`🔌 CONNECTION: Connection process failed: ${errorMessage}`);
       
       this.stateManager.updateConnectionState({
         webSocketStatus: ConnectionStatus.DISCONNECTED,
@@ -535,14 +533,14 @@ export class ConnectionManager implements Disposable {
     
     return this.simulatorClient.stopSimulator();
   }
-
+ 
   public on<T extends keyof typeof this.events.events>(
     event: T,
     callback: (data: typeof this.events.events[T]) => void
   ): { unsubscribe: () => void } {
     return this.events.on(event, callback);
   }
-
+ 
   public dispose(): void {
     if (this.isDisposed) return;
     this.isDisposed = true;
@@ -558,5 +556,4 @@ export class ConnectionManager implements Disposable {
     
     this.logger.info('ConnectionManager disposed');
   }
-
-}
+ }

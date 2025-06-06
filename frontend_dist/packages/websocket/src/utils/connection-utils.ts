@@ -1,4 +1,4 @@
-// src/utils/connection-utils.ts
+// frontend_dist/packages/websocket/src/utils/connection-utils.ts
 import { getLogger } from '@trading-app/logging';
 import { 
   connectionState, 
@@ -11,6 +11,8 @@ import { toastService } from '@trading-app/toast';
 import { config } from '@trading-app/config';
 
 import { StateManager, ToastService, ConfigService } from '../types/connection-types';
+
+const logger = getLogger('ConnectionUtils');
 
 /**
  * Implementation of StateManager that wraps the global state services
@@ -75,7 +77,67 @@ export class GlobalToastService implements ToastService {
  */
 export class GlobalConfigService implements ConfigService {
   getWebSocketUrl(): string {
-    return config.wsBaseUrl;
+    // Add comprehensive logging to debug the URL resolution
+    logger.info('🔍 CONFIG DEBUG: Resolving WebSocket URL');
+    
+    // Log all environment variables related to websockets
+    logger.info('🔍 CONFIG DEBUG: Environment variables', {
+      NODE_ENV: process.env.NODE_ENV,
+      REACT_APP_WS_URL: process.env.REACT_APP_WS_URL,
+      REACT_APP_API_BASE_URL: process.env.REACT_APP_API_BASE_URL,
+      REACT_APP_ENV: process.env.REACT_APP_ENV,
+      location_hostname: typeof window !== 'undefined' ? window.location.hostname : 'server-side',
+      location_port: typeof window !== 'undefined' ? window.location.port : 'server-side',
+      location_protocol: typeof window !== 'undefined' ? window.location.protocol : 'server-side'
+    });
+
+    // Log the config object content
+    logger.info('🔍 CONFIG DEBUG: Global config object', {
+      config,
+      hasWsBaseUrl: !!config?.wsBaseUrl,
+      wsBaseUrl: config?.wsBaseUrl,
+      configKeys: config ? Object.keys(config) : 'config is null/undefined'
+    });
+
+    let wsUrl: string;
+
+    // PRIORITY 1: Environment variable (YOUR BACKEND)
+    if (process.env.REACT_APP_WS_URL) {
+      wsUrl = process.env.REACT_APP_WS_URL;
+      logger.info('🔍 CONFIG DEBUG: Using REACT_APP_WS_URL (YOUR BACKEND)', { wsUrl });
+    }
+    // PRIORITY 2: Global config wsBaseUrl
+    else if (config?.wsBaseUrl) {
+      wsUrl = config.wsBaseUrl;
+      logger.info('🔍 CONFIG DEBUG: Using config.wsBaseUrl', { wsUrl });
+    }
+    // PRIORITY 3: Development default (YOUR BACKEND)
+    else if (process.env.NODE_ENV === 'development') {
+      wsUrl = 'ws://trading.local/ws';
+      logger.info('🔍 CONFIG DEBUG: Development default - YOUR BACKEND', { wsUrl });
+    }
+    // PRIORITY 4: Production fallback
+    else {
+      if (typeof window !== 'undefined') {
+        const hostname = window.location.hostname;
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        wsUrl = `${protocol}//${hostname}/ws`;
+        logger.info('🔍 CONFIG DEBUG: Production fallback', { wsUrl });
+      } else {
+        // Server-side rendering fallback
+        wsUrl = 'ws://trading.local/ws';
+        logger.info('🔍 CONFIG DEBUG: SSR fallback - YOUR BACKEND', { wsUrl });
+      }
+    }
+
+    logger.info('🔍 CONFIG DEBUG: Final WebSocket URL resolved', { 
+      finalUrl: wsUrl,
+      source: 'getWebSocketUrl method'
+    });
+
+    logger.info('🚨 CRITICAL: React runs on localhost:3000, WebSocket connects to', { wsUrl });
+
+    return wsUrl;
   }
 
   getReconnectionConfig(): {
@@ -84,7 +146,16 @@ export class GlobalConfigService implements ConfigService {
     jitterFactor: number;
     maxAttempts: number;
   } {
-    return config.reconnection;
+    const reconnectionConfig = config?.reconnection || {
+      initialDelayMs: 1000,
+      maxDelayMs: 30000,
+      jitterFactor: 0.3,
+      maxAttempts: 10
+    };
+    
+    logger.info('🔍 CONFIG DEBUG: Reconnection config', { reconnectionConfig });
+    
+    return reconnectionConfig;
   }
 }
 
