@@ -1,7 +1,7 @@
 // src/contexts/AuthStateContext.tsx
 import React, { createContext, useContext, ReactNode } from 'react';
 
-import { authState, AuthState, initialAuthState } from '../state/auth-state';
+import { authState, AuthState, initialAuthState } from '@trading-app/state';
 
 import { useObservable } from '../hooks/useObservable';
 

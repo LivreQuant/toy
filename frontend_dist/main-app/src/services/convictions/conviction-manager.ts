@@ -1,5 +1,5 @@
 // frontend_dist/main-app/src/services/convictions/conviction-manager.ts
-import { getLogger } from '../../boot/logging';
+import { getLogger } from '@trading-app/logging';
 import { TokenManager } from '@trading-app/auth';
 import { 
   ConvictionClient,
@@ -10,7 +10,7 @@ import {
   BatchConvictionResponse, 
   BatchCancelResponse 
 } from '@trading-app/api';
-import { toastService } from '../notification/toast-service';
+import { toastService } from '@trading-app/toast';
 
 export class ConvictionManager {
   private logger = getLogger('ConvictionManager');

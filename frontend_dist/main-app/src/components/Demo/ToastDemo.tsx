@@ -46,7 +46,7 @@ function MyComponent() {
 }
 
 // Option 2: Using the toastService directly (in services/utilities)
-import { toastService } from '../services/notification/toast-service';
+import { toastService } from '@trading-app/toast';
 
 function myUtilityFunction() {
   try {

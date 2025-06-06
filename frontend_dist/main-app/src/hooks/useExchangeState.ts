@@ -1,6 +1,6 @@
 // src/hooks/useExchangeState.ts
 import { useExchangeState as useStateContext } from '../contexts/ExchangeStateContext';
-import { exchangeState, MarketData } from '../state/exchange-state';
+import { exchangeState, MarketData } from '@trading-app/state';
 
 export function useExchangeState() {
   const state = useStateContext();

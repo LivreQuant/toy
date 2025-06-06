@@ -1,7 +1,7 @@
 // src/contexts/TokenManagerContext.tsx
 import React, { createContext, ReactNode } from 'react';
 
-import { TokenManager } from '../services/auth/token-manager';
+import { TokenManager } from '@trading-app/auth';
 
 // Create the context with an undefined default value
 export const TokenManagerContext = createContext<TokenManager | undefined>(undefined);

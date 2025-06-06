@@ -14,7 +14,7 @@
     "forceConsistentCasingInFileNames": true,
     "baseUrl": ".",
     "paths": {
-      "@trading-app/logging": ["../logging/src"]
+      "@trading-app/logging": ["../logging/dist"]
     }
   },
   "references": [

@@ -1,27 +1,27 @@
 {
-    "compilerOptions": {
-      "target": "es2017",
-      "lib": ["dom", "es2017"],
-      "module": "esnext",
-      "moduleResolution": "node",
-      "declaration": true,
-      "composite": true,
-      "outDir": "./dist",
-      "rootDir": "./src",
-      "strict": true,
-      "esModuleInterop": true,
-      "skipLibCheck": true,
-      "forceConsistentCasingInFileNames": true,
-      "baseUrl": ".",
-      "paths": {
-        "@trading-app/config": ["../config/src"],
-        "@trading-app/types-core": ["../types-core/src"]
-      }
-    },
-    "references": [
-      { "path": "../config" },
-      { "path": "../types-core" }
-    ],
-    "include": ["src/**/*"],
-    "exclude": ["node_modules", "dist"]
+  "compilerOptions": {
+    "target": "es2017",
+    "lib": ["dom", "es2017"],
+    "module": "esnext",
+    "moduleResolution": "node",
+    "declaration": true,
+    "composite": true,  // ← ADD THIS LINE
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "baseUrl": ".",
+    "paths": {
+      "@trading-app/config": ["../config/dist"],
+      "@trading-app/types-core": ["../types-core/dist"]
+    }
+  },
+  "references": [
+    { "path": "../config" },
+    { "path": "../types-core" }
+  ],
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
 }

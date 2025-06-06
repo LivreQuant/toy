@@ -1,9 +1,9 @@
 // frontend_dist/main-app/src/services/book/book-manager.ts
-import { getLogger } from '../../boot/logging';
+import { getLogger } from '@trading-app/logging';
 import { TokenManager } from '@trading-app/auth';
 import { BookClient } from '@trading-app/api';
 import { Book, BookRequest } from '../../types';
-import { toastService } from '../notification/toast-service';
+import { toastService } from '@trading-app/toast';
 
 export class BookManager {
   private logger = getLogger('BookManager');

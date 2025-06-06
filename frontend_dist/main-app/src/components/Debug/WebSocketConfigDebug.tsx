@@ -1,6 +1,6 @@
 // frontend_dist/main-app/src/components/Debug/WebSocketConfigDebug.tsx
 import React, { useEffect, useState } from 'react';
-import { getLogger } from '../../boot/logging';
+import { getLogger } from '@trading-app/logging';
 import { getWebSocketConfig } from '../../config/websocket-config';
 import { createConnectionManagerWithGlobalDeps } from '@trading-app/websocket';
 

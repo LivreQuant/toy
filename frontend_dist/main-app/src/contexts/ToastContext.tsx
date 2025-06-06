@@ -1,6 +1,6 @@
 // src/contexts/ToastContext.tsx
 import React, { createContext, useState, useCallback, ReactNode, useMemo, useEffect } from 'react';
-import { toastService, ToastConfig } from '../services/notification/toast-service';
+import { toastService, ToastConfig } from '@trading-app/toast';
 import ToastNotificationsContainer from '../components/Common/ToastNotifications';
 
 // Define the toast message structure

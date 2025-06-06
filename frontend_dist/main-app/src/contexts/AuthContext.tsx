@@ -1,18 +1,18 @@
 // frontend_dist/main-app/src/contexts/AuthContext.tsx
 import React, { createContext, useState, useEffect, useCallback, ReactNode, useMemo } from 'react';
 
-import { getLogger } from '../boot/logging';
+import { getLogger } from '@trading-app/logging';
 
 import { AuthClient, LoginRequest, LoginResponse } from '@trading-app/api';
 
 import LoadingSpinner from '../components/Common/LoadingSpinner';
 
-import { authState } from '../state/auth-state';
+import { authState } from '@trading-app/state';
 
-import { toastService } from '../services/notification/toast-service';
+import { toastService } from '@trading-app/toast';
 
-import { TokenManager, TokenData } from '../services/auth/token-manager';
-import { DeviceIdManager } from '../services/auth/device-id-manager';
+import { TokenManager, TokenData } from '@trading-app/auth';
+import { DeviceIdManager } from '@trading-app/auth';
 
 import { ConnectionManager } from '@trading-app/websocket';
 

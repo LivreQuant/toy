@@ -1,6 +1,6 @@
 // src/hooks/useSimulatorState.ts
 import { useSimulatorState as useStateContext } from '../contexts/SimulatorStateContext';
-import { simulatorState } from '../state/simulator-state';
+import { simulatorState } from '@trading-app/state';
 
 export function useSimulatorState() {
   const state = useStateContext();

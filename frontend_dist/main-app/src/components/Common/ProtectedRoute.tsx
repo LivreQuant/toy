@@ -3,7 +3,7 @@ import React, { useEffect } from 'react'; // Add useEffect import
 import { Navigate, useNavigate } from 'react-router-dom'; // Add useNavigate import
 import { useAuth } from '../../hooks/useAuth';
 import { useTokenManager } from '../../hooks/useTokenManager';
-import { DeviceIdManager } from '../../services/auth/device-id-manager'; // Add this import
+import { DeviceIdManager } from '@trading-app/auth';
 import LoadingSpinner from './LoadingSpinner';
 
 interface ProtectedRouteProps {

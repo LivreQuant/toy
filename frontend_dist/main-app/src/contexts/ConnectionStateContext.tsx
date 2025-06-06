@@ -1,7 +1,7 @@
 // src/contexts/ConnectionStateContext.tsx
 import React, { createContext, useContext, ReactNode } from 'react';
 
-import { connectionState, ConnectionState, initialConnectionState } from '../state/connection-state';
+import { connectionState, ConnectionState, initialConnectionState } from '@trading-app/state';
 
 import { useObservable } from '../hooks/useObservable';
 

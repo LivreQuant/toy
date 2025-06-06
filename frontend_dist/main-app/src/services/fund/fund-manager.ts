@@ -1,9 +1,9 @@
 // frontend_dist/main-app/src/services/fund/fund-manager.ts
-import { getLogger } from '../../boot/logging';
+import { getLogger } from '@trading-app/logging';
 import { TokenManager } from '@trading-app/auth';
 import { FundClient } from '@trading-app/api';
 import { FundProfile, TeamMember, CreateFundProfileRequest, UpdateFundProfileRequest } from '../../types';
-import { toastService } from '../notification/toast-service';
+import { toastService } from '@trading-app/toast';
 
 export class FundManager {
   private logger = getLogger('FundManager');

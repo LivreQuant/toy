@@ -29,7 +29,7 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { styled } from '@mui/material/styles';
 import { useToast } from '../../hooks/useToast';
 import { BookRequest } from '../../types';
-import { getLogger } from '../../boot/logging';
+import { getLogger } from '@trading-app/logging'
 import ConvictionModelForm from './ConvictionModelForm';
 import { ConvictionModelConfig } from '../../types';
 import './BaseBookForm.css';

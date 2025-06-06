@@ -1,21 +1,35 @@
 {
   "compilerOptions": {
-    "target": "ES2018",
-    "lib": ["ES2018", "DOM"],
-    "module": "CommonJS",
+    "target": "es2017",
+    "lib": ["es2017", "dom"],
+    "module": "esnext",
     "moduleResolution": "node",
+    "declaration": true,
+    "composite": true,
     "outDir": "./dist",
     "rootDir": "./src",
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
-    "allowSyntheticDefaultImports": true
+    "allowSyntheticDefaultImports": true,
+    "baseUrl": ".",
+    "paths": {
+      "@trading-app/auth": ["../auth/dist"],
+      "@trading-app/config": ["../config/dist"],
+      "@trading-app/logging": ["../logging/dist"],
+      "@trading-app/toast": ["../toast/dist"],
+      "@trading-app/types-core": ["../types-core/dist"]
+    }
   },
+  "references": [
+    { "path": "../auth" },
+    { "path": "../config" },
+    { "path": "../logging" },
+    { "path": "../toast" },
+    { "path": "../types-core" }
+  ],
   "include": ["src/**/*"],
   "exclude": ["dist", "node_modules"]
 }

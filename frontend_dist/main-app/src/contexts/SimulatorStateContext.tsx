@@ -1,7 +1,7 @@
 // src/contexts/SimulatorStateContext.tsx
 import React, { createContext, useContext, ReactNode } from 'react';
 
-import { simulatorState, SimulatorState, initialSimulatorState } from '../state/simulator-state';
+import { simulatorState, SimulatorState, initialSimulatorState } from '@trading-app/state';
 
 import { useObservable } from '../hooks/useObservable';
 

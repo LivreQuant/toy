@@ -1,13 +1,13 @@
 {
-    "name": "@trading-app/types-core",
-    "version": "1.0.0",
-    "main": "dist/index.js",
-    "types": "dist/index.d.ts",
-    "scripts": {
-      "build": "tsc",
-      "dev": "tsc --watch"
-    },
-    "devDependencies": {
-      "typescript": "^5.3.3"
-    }
+  "name": "@trading-app/types-core",
+  "version": "1.0.0",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3"
+  }
 }

@@ -1,6 +1,6 @@
 // src/hooks/useConnectionState.ts
 import { useConnectionState as useStateContext } from '../contexts/ConnectionStateContext';
-import { connectionState, ConnectionStatus, ConnectionQuality } from '../state/connection-state';
+import { connectionState, ConnectionStatus, ConnectionQuality } from '@trading-app/state';
 
 export function useConnectionState() {
   const state = useStateContext();

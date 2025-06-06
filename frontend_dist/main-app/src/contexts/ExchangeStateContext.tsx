@@ -1,7 +1,7 @@
 // src/contexts/ExchangeStateContext.tsx
 import React, { createContext, useContext, ReactNode } from 'react';
 
-import { exchangeState, ExchangeState, initialExchangeState } from '../state/exchange-state';
+import { exchangeState, ExchangeState, initialExchangeState } from '@trading-app/state';
 
 import { useObservable } from '../hooks/useObservable';
 

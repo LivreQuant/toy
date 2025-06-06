@@ -1,6 +1,6 @@
 // src/components/Common/ConnectionStatusBar.tsx
 import React from 'react';
-import { ConnectionStatus, ConnectionQuality } from '../../state/connection-state';
+import { ConnectionStatus, ConnectionQuality } from '@trading-app/state';
 import './ConnectionStatusBar.css';
 
 interface ConnectionStatusBarProps {

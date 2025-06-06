@@ -4,15 +4,15 @@
     "main": "dist/index.js",
     "types": "dist/index.d.ts",
     "scripts": {
-        "build": "tsc",
-        "dev": "tsc --watch"
+      "build": "tsc",
+      "clean": "rm -rf dist"
     },
     "dependencies": {
-        "@trading-app/types-core": "file:../types-core",
-        "@trading-app/config": "file:../config"
+      "@trading-app/types-core": "file:../types-core",
+      "@trading-app/config": "file:../config"
     },
     "devDependencies": {
-        "@types/node": "^22.15.29",
-        "typescript": "^5.3.3"
+      "@types/node": "^22.15.29",
+      "typescript": "^5.3.3"
     }
-}
+  }

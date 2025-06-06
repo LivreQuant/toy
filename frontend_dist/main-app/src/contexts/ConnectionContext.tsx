@@ -9,7 +9,7 @@ import React, {
 } from 'react';
 import { Subscription } from 'rxjs';
 
-import { getLogger } from '../boot/logging';
+import { getLogger } from '@trading-app/logging';
 
 import { ConnectionManager } from '@trading-app/websocket';
 import {
@@ -17,7 +17,7 @@ import {
   ConnectionStatus,
   ConnectionState,
   initialConnectionState
-} from '../state/connection-state';
+} from '@trading-app/state';
 
 import { useAuth } from '../hooks/useAuth';
 

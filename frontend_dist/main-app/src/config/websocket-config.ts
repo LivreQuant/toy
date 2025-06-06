@@ -1,5 +1,5 @@
 // frontend_dist/main-app/src/config/websocket-config.ts
-import { getLogger } from '../boot/logging';
+import { getLogger } from '@trading-app/logging';
 
 const logger = getLogger('WebSocketConfig');
 

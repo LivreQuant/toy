@@ -3,7 +3,7 @@ import React, { createContext, useState, useContext, useEffect, ReactNode } from
 import { ThemeProvider as MuiThemeProvider } from '@mui/material/styles';
 import { createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
-import { createLightTheme, createDarkTheme } from '../styles/theme';
+import { createLightTheme, createDarkTheme } from '@trading-app/styles';
 
 type ThemeMode = 'light' | 'dark';
 

@@ -1,8 +1,8 @@
 // src/pages/SessionDeactivatedPage.tsx
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { authState } from '../state/auth-state';
-import { toastService } from '../services/notification/toast-service';
+import { authState } from '@trading-app/state';
+import { toastService } from '@trading-app/toast';
 import './SessionDeactivatedPage.css';
 
 const SessionDeactivatedPage: React.FC = () => {
