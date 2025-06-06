@@ -27,6 +27,7 @@ export class ConnectionManager implements Disposable {
   private sessionHandler: SessionHandler;
   private simulatorClient: SimulatorClient;
   private isDisposed = false;
+  private hasAuthInitialized = false; // 🚨 NEW: Track if auth has been properly initialized
   
   public desiredState: ConnectionDesiredState = {
     connected: false,
@@ -46,7 +47,7 @@ export class ConnectionManager implements Disposable {
     private configService: ConfigService,
     options: ConnectionManagerOptions = {}
   ) {
-    this.logger.info('Initializing ConnectionManager');
+    this.logger.info('🔌 CONNECTION: Initializing ConnectionManager');
     
     const reconnectionConfig = this.configService.getReconnectionConfig();
     const mergedOptions: ConnectionManagerOptions = {
@@ -71,6 +72,40 @@ export class ConnectionManager implements Disposable {
     this.simulatorClient = new SimulatorClient(this.socketClient, this.stateManager);
     
     this.setupListeners();
+    
+    // 🚨 NEW: Wait for auth to initialize before allowing connections
+    this.waitForAuthInitialization();
+  }
+
+  // 🚨 NEW: Wait for proper auth initialization
+  private waitForAuthInitialization(): void {
+    const checkAuthInit = () => {
+      const authState = this.stateManager.getAuthState();
+      
+      // Auth is considered initialized when isAuthLoading becomes false
+      if (!authState.isAuthLoading) {
+        this.hasAuthInitialized = true;
+        this.logger.info('🔌 CONNECTION: Auth initialization complete, connections now allowed', {
+          isAuthenticated: authState.isAuthenticated,
+          userId: authState.userId
+        });
+        
+        // Now sync the connection state if needed
+        this.syncConnectionState();
+        return;
+      }
+      
+      this.logger.debug('🔌 CONNECTION: Waiting for auth initialization...', {
+        isAuthLoading: authState.isAuthLoading,
+        isAuthenticated: authState.isAuthenticated
+      });
+      
+      // Check again in 100ms
+      setTimeout(checkAuthInit, 100);
+    };
+    
+    // Start checking
+    setTimeout(checkAuthInit, 50);
   }
 
   private setupListeners(): void {
@@ -152,19 +187,30 @@ export class ConnectionManager implements Disposable {
     
     this.logger.info('🔌 CONNECTION: Desired state updated', {
       oldState,
-      newState: this.desiredState
+      newState: this.desiredState,
+      hasAuthInitialized: this.hasAuthInitialized
     });
     
-    // 🚨 CRITICAL FIX: Immediately sync when desired state changes
-    this.syncConnectionState();
-    
-    if (oldState.simulatorRunning !== this.desiredState.simulatorRunning) {
-      this.syncSimulatorState();
+    // 🚨 CRITICAL: Only sync if auth has been initialized
+    if (this.hasAuthInitialized) {
+      this.syncConnectionState();
+      
+      if (oldState.simulatorRunning !== this.desiredState.simulatorRunning) {
+        this.syncSimulatorState();
+      }
+    } else {
+      this.logger.info('🔌 CONNECTION: Deferring connection sync until auth initialization completes');
     }
   }
 
   private syncConnectionState(): void {
     if (this.isDisposed) return;
+    
+    // 🚨 CRITICAL: Block all connections until auth is properly initialized
+    if (!this.hasAuthInitialized) {
+      this.logger.debug('🔌 CONNECTION: Sync blocked - auth not yet initialized');
+      return;
+    }
     
     const connState = this.stateManager.getConnectionState();
     const authState = this.stateManager.getAuthState();
@@ -176,21 +222,22 @@ export class ConnectionManager implements Disposable {
       isAuthLoading: authState.isAuthLoading,
       currentWebSocketStatus: connState.webSocketStatus,
       isRecovering: connState.isRecovering,
-      resilienceState
+      resilienceState,
+      hasAuthInitialized: this.hasAuthInitialized
     });
     
     if (authState.isAuthLoading) {
-      this.logger.debug('Sync connection state skipped: Auth loading');
+      this.logger.debug('🔌 CONNECTION: Sync skipped - auth still loading');
       return;
     }
     
     if (!authState.isAuthenticated) {
-      this.logger.debug('Sync connection state skipped: Not authenticated');
+      this.logger.debug('🔌 CONNECTION: Sync skipped - not authenticated');
       return;
     }
     
     if (resilienceState === ResilienceState.SUSPENDED || resilienceState === ResilienceState.FAILED) {
-      this.logger.debug(`Sync connection state skipped: Resilience state is ${resilienceState}`);
+      this.logger.debug(`🔌 CONNECTION: Sync skipped - resilience state is ${resilienceState}`);
       return;
     }
     
@@ -198,7 +245,7 @@ export class ConnectionManager implements Disposable {
         connState.webSocketStatus !== ConnectionStatus.CONNECTED && 
         connState.webSocketStatus !== ConnectionStatus.CONNECTING && 
         !connState.isRecovering) {
-      this.logger.info('🔌 CONNECTION: Initiating connection (desired=true, not connected)');
+      this.logger.info('🔌 CONNECTION: Initiating connection (desired=true, authenticated, not connected)');
       this.connect().catch(err => {
         this.logger.error('Connect promise rejected', {
           error: err instanceof Error ? err.message : String(err)
@@ -209,7 +256,7 @@ export class ConnectionManager implements Disposable {
              (connState.webSocketStatus === ConnectionStatus.CONNECTED || 
               connState.webSocketStatus === ConnectionStatus.CONNECTING || 
               connState.isRecovering)) {
-      this.logger.info('🔌 CONNECTION: Disconnecting (desired=false, currently connected)');
+      this.logger.info('🔌 CONNECTION: Disconnecting (desired=false)');
       this.disconnect('desired_state_sync');
     }
   }
@@ -241,9 +288,15 @@ export class ConnectionManager implements Disposable {
   public async connect(): Promise<boolean> {
     if (this.isDisposed) return false;
     
+    // 🚨 CRITICAL: Prevent connections until auth is initialized
+    if (!this.hasAuthInitialized) {
+      this.logger.warn('🔌 CONNECTION: Connect blocked - auth not yet initialized');
+      return false;
+    }
+    
     const authState = this.stateManager.getAuthState();
     if (!authState.isAuthenticated) {
-      this.logger.error('Connect failed: Not authenticated');
+      this.logger.error('🔌 CONNECTION: Connect failed - not authenticated');
       return false;
     }
     
@@ -251,7 +304,7 @@ export class ConnectionManager implements Disposable {
     if (connState.webSocketStatus === ConnectionStatus.CONNECTED || 
         connState.webSocketStatus === ConnectionStatus.CONNECTING || 
         connState.isRecovering) {
-      this.logger.warn(`Connect ignored: Status=${connState.webSocketStatus}, Recovering=${connState.isRecovering}`);
+      this.logger.warn(`🔌 CONNECTION: Connect ignored - Status=${connState.webSocketStatus}, Recovering=${connState.isRecovering}`);
       return connState.webSocketStatus === ConnectionStatus.CONNECTED;
     }
     
@@ -269,13 +322,13 @@ export class ConnectionManager implements Disposable {
         throw new Error('WebSocket connection failed');
       }
       
-      this.logger.info('WebSocket connected, now requesting session info');
+      this.logger.info('🔌 CONNECTION: WebSocket connected, requesting session info');
       
       let sessionResponse;
       try {
         sessionResponse = await this.sessionHandler.requestSessionInfo();
         
-        this.logger.info('Session info response received', { 
+        this.logger.info('🔌 CONNECTION: Session info response received', { 
           success: sessionResponse.success,
           type: sessionResponse.type,
           deviceId: sessionResponse.deviceId,
@@ -289,7 +342,7 @@ export class ConnectionManager implements Disposable {
           throw new Error(`Session validation failed: ${sessionResponse.error || 'Unknown error'}`);
         }
       } catch (sessionError) {
-        this.logger.error('Session request failed', { 
+        this.logger.error('🔌 CONNECTION: Session request failed', { 
           error: sessionError instanceof Error ? sessionError.message : String(sessionError)
         });
         throw sessionError;
@@ -328,29 +381,29 @@ export class ConnectionManager implements Disposable {
   public async disconnect(reason: string = 'manual'): Promise<boolean> {
     if (this.isDisposed && reason !== 'dispose') return true;
     
-    this.logger.info(`Disconnecting. Reason: ${reason}`);
+    this.logger.info(`🔌 CONNECTION: Disconnecting. Reason: ${reason}`);
     
     const connState = this.stateManager.getConnectionState();
     if (connState.webSocketStatus === ConnectionStatus.DISCONNECTED && !connState.isRecovering) {
-      this.logger.debug('Disconnect ignored: Already disconnected');
+      this.logger.debug('🔌 CONNECTION: Disconnect ignored - already disconnected');
       return true;
     }
     
     try {
       if (connState.webSocketStatus === ConnectionStatus.CONNECTED) {
-        this.logger.info('Stopping session before disconnecting');
+        this.logger.info('🔌 CONNECTION: Stopping session before disconnecting');
         try {
           const response = await this.sessionHandler.stopSession();
           
           if (response.success) {
-            this.logger.info('Session stop request successful');
+            this.logger.info('🔌 CONNECTION: Session stop request successful');
             this.stateManager.updateConnectionState({ simulatorStatus: 'STOPPED' });
             this.desiredState.simulatorRunning = false;
           } else {
-            this.logger.warn(`Session stop request failed: ${response.error}`);
+            this.logger.warn(`🔌 CONNECTION: Session stop request failed: ${response.error}`);
           }
         } catch (error: any) {
-          this.logger.error('Error stopping session', {
+          this.logger.error('🔌 CONNECTION: Error stopping session', {
             error: error instanceof Error ? error.message : String(error)
           });
         }
@@ -370,7 +423,7 @@ export class ConnectionManager implements Disposable {
       
       return true;
     } catch (error: any) {
-      this.logger.error(`Error during disconnect: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.error(`🔌 CONNECTION: Error during disconnect: ${error instanceof Error ? error.message : String(error)}`);
       return false;
     }
   }
@@ -378,9 +431,15 @@ export class ConnectionManager implements Disposable {
   public async attemptRecovery(reason: string = 'manual'): Promise<boolean> {
     if (this.isDisposed) return false;
     
+    // 🚨 CRITICAL: Block recovery until auth is initialized
+    if (!this.hasAuthInitialized) {
+      this.logger.warn('🔌 CONNECTION: Recovery blocked - auth not yet initialized');
+      return false;
+    }
+    
     const authState = this.stateManager.getAuthState();
     if (!authState.isAuthenticated) {
-      this.logger.warn('Recovery ignored: Not authenticated');
+      this.logger.warn('🔌 CONNECTION: Recovery ignored - not authenticated');
       return false;
     }
     
@@ -390,11 +449,11 @@ export class ConnectionManager implements Disposable {
     if (connState.isRecovering || 
         resilienceState.state === ResilienceState.SUSPENDED || 
         resilienceState.state === ResilienceState.FAILED) {
-      this.logger.warn(`Recovery ignored: Already recovering or resilience prevents (${resilienceState.state})`);
+      this.logger.warn(`🔌 CONNECTION: Recovery ignored - already recovering or resilience prevents (${resilienceState.state})`);
       return false;
     }
     
-    this.logger.info(`Attempting recovery. Reason: ${reason}`);
+    this.logger.info(`🔌 CONNECTION: Attempting recovery. Reason: ${reason}`);
     
     this.stateManager.updateConnectionState({
       isRecovering: true,
@@ -405,11 +464,11 @@ export class ConnectionManager implements Disposable {
       successSubscription.unsubscribe();
       
       try {
-        this.logger.info('Reconnection successful, requesting session info');
+        this.logger.info('🔌 CONNECTION: Reconnection successful, requesting session info');
         const sessionResponse = await this.sessionHandler.requestSessionInfo();
         
         if (sessionResponse.type === 'session_info' && sessionResponse.deviceId) {
-          this.logger.info('Session validated after reconnect, starting heartbeats');
+          this.logger.info('🔌 CONNECTION: Session validated after reconnect, starting heartbeats');
           
           this.stateManager.updateConnectionState({
             webSocketStatus: ConnectionStatus.CONNECTED,
@@ -421,11 +480,11 @@ export class ConnectionManager implements Disposable {
           
           this.heartbeat.start();
         } else {
-          this.logger.error('Session validation failed after reconnect');
+          this.logger.error('🔌 CONNECTION: Session validation failed after reconnect');
           this.disconnect('session_validation_failed');
         }
       } catch (error: any) {
-        this.logger.error('Error validating session after reconnect', {
+        this.logger.error('🔌 CONNECTION: Error validating session after reconnect', {
           error: error instanceof Error ? error.message : String(error)
         });
         this.disconnect('session_validation_error');
@@ -434,13 +493,13 @@ export class ConnectionManager implements Disposable {
     
     const failureSubscription = this.resilience.on('reconnect_failure', () => {
       failureSubscription.unsubscribe();
-      this.logger.warn('Reconnection attempt failed');
+      this.logger.warn('🔌 CONNECTION: Reconnection attempt failed');
     });
     
     const initiated = await this.resilience.attemptReconnection(() => this.connect());
     
     if (!initiated) {
-      this.logger.warn('Recovery could not be initiated');
+      this.logger.warn('🔌 CONNECTION: Recovery could not be initiated');
       this.stateManager.updateConnectionState({
         isRecovering: false,
         recoveryAttempt: 0
@@ -449,14 +508,14 @@ export class ConnectionManager implements Disposable {
       successSubscription.unsubscribe();
       failureSubscription.unsubscribe();
     } else {
-      this.logger.info('Recovery process initiated');
+      this.logger.info('🔌 CONNECTION: Recovery process initiated');
     }
     
     return initiated;
   }
 
   public async manualReconnect(): Promise<boolean> {
-    this.logger.info('Manual reconnect triggered');
+    this.logger.info('🔌 CONNECTION: Manual reconnect triggered');
     
     if (this.isDisposed) return false;
     
@@ -477,7 +536,7 @@ export class ConnectionManager implements Disposable {
   private handleDeviceIdInvalidation(source: string, reason?: string): void {
     if (this.isDisposed) return;
     
-    this.logger.warn(`Device ID invalidated. Source: ${source}, Reason: ${reason || 'Unknown'}`);
+    this.logger.warn(`🔌 CONNECTION: Device ID invalidated. Source: ${source}, Reason: ${reason || 'Unknown'}`);
     
     const deviceId = DeviceIdManager.getInstance().getDeviceId();
     DeviceIdManager.getInstance().clearDeviceId();
@@ -506,7 +565,7 @@ export class ConnectionManager implements Disposable {
     }
     
     if (connState.simulatorStatus === 'RUNNING' || connState.simulatorStatus === 'STARTING') {
-      this.logger.warn(`Start simulator ignored: Status=${connState.simulatorStatus}`);
+      this.logger.warn(`🔌 CONNECTION: Start simulator ignored: Status=${connState.simulatorStatus}`);
       return { success: true, status: connState.simulatorStatus };
     }
     
@@ -527,25 +586,25 @@ export class ConnectionManager implements Disposable {
     }
     
     if (connState.simulatorStatus !== 'RUNNING' && connState.simulatorStatus !== 'STARTING') {
-      this.logger.warn(`Stop simulator ignored: Status=${connState.simulatorStatus}`);
+      this.logger.warn(`🔌 CONNECTION: Stop simulator ignored: Status=${connState.simulatorStatus}`);
       return { success: true, status: connState.simulatorStatus };
     }
     
     return this.simulatorClient.stopSimulator();
   }
- 
+
   public on<T extends keyof typeof this.events.events>(
     event: T,
     callback: (data: typeof this.events.events[T]) => void
   ): { unsubscribe: () => void } {
     return this.events.on(event, callback);
   }
- 
+
   public dispose(): void {
     if (this.isDisposed) return;
     this.isDisposed = true;
     
-    this.logger.info('Disposing ConnectionManager');
+    this.logger.info('🔌 CONNECTION: Disposing ConnectionManager');
     
     this.disconnect('dispose');
     
@@ -554,6 +613,6 @@ export class ConnectionManager implements Disposable {
     
     this.events.clear();
     
-    this.logger.info('ConnectionManager disposed');
+    this.logger.info('🔌 CONNECTION: ConnectionManager disposed');
   }
- }
+}

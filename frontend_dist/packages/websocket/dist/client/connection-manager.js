@@ -65,12 +65,13 @@ var ConnectionManager = /** @class */ (function () {
         this.configService = configService;
         this.logger = getLogger('ConnectionManager');
         this.isDisposed = false;
+        this.hasAuthInitialized = false; // 🚨 NEW: Track if auth has been properly initialized
         this.desiredState = {
             connected: false,
             simulatorRunning: false
         };
         this.events = new EventEmitter();
-        this.logger.info('Initializing ConnectionManager');
+        this.logger.info('🔌 CONNECTION: Initializing ConnectionManager');
         var reconnectionConfig = this.configService.getReconnectionConfig();
         var mergedOptions = {
             heartbeatInterval: options.heartbeatInterval || 15000,
@@ -92,7 +93,35 @@ var ConnectionManager = /** @class */ (function () {
         this.sessionHandler = new SessionHandler(this.socketClient);
         this.simulatorClient = new SimulatorClient(this.socketClient, this.stateManager);
         this.setupListeners();
+        // 🚨 NEW: Wait for auth to initialize before allowing connections
+        this.waitForAuthInitialization();
     }
+    // 🚨 NEW: Wait for proper auth initialization
+    ConnectionManager.prototype.waitForAuthInitialization = function () {
+        var _this = this;
+        var checkAuthInit = function () {
+            var authState = _this.stateManager.getAuthState();
+            // Auth is considered initialized when isAuthLoading becomes false
+            if (!authState.isAuthLoading) {
+                _this.hasAuthInitialized = true;
+                _this.logger.info('🔌 CONNECTION: Auth initialization complete, connections now allowed', {
+                    isAuthenticated: authState.isAuthenticated,
+                    userId: authState.userId
+                });
+                // Now sync the connection state if needed
+                _this.syncConnectionState();
+                return;
+            }
+            _this.logger.debug('🔌 CONNECTION: Waiting for auth initialization...', {
+                isAuthLoading: authState.isAuthLoading,
+                isAuthenticated: authState.isAuthenticated
+            });
+            // Check again in 100ms
+            setTimeout(checkAuthInit, 100);
+        };
+        // Start checking
+        setTimeout(checkAuthInit, 50);
+    };
     ConnectionManager.prototype.setupListeners = function () {
         var _this = this;
         this.socketClient.getStatus().subscribe(function (status) {
@@ -165,18 +194,29 @@ var ConnectionManager = /** @class */ (function () {
         this.desiredState = __assign(__assign({}, this.desiredState), state);
         this.logger.info('🔌 CONNECTION: Desired state updated', {
             oldState: oldState,
-            newState: this.desiredState
+            newState: this.desiredState,
+            hasAuthInitialized: this.hasAuthInitialized
         });
-        // 🚨 CRITICAL FIX: Immediately sync when desired state changes
-        this.syncConnectionState();
-        if (oldState.simulatorRunning !== this.desiredState.simulatorRunning) {
-            this.syncSimulatorState();
+        // 🚨 CRITICAL: Only sync if auth has been initialized
+        if (this.hasAuthInitialized) {
+            this.syncConnectionState();
+            if (oldState.simulatorRunning !== this.desiredState.simulatorRunning) {
+                this.syncSimulatorState();
+            }
+        }
+        else {
+            this.logger.info('🔌 CONNECTION: Deferring connection sync until auth initialization completes');
         }
     };
     ConnectionManager.prototype.syncConnectionState = function () {
         var _this = this;
         if (this.isDisposed)
             return;
+        // 🚨 CRITICAL: Block all connections until auth is properly initialized
+        if (!this.hasAuthInitialized) {
+            this.logger.debug('🔌 CONNECTION: Sync blocked - auth not yet initialized');
+            return;
+        }
         var connState = this.stateManager.getConnectionState();
         var authState = this.stateManager.getAuthState();
         var resilienceState = this.resilience.getState().state;
@@ -186,25 +226,26 @@ var ConnectionManager = /** @class */ (function () {
             isAuthLoading: authState.isAuthLoading,
             currentWebSocketStatus: connState.webSocketStatus,
             isRecovering: connState.isRecovering,
-            resilienceState: resilienceState
+            resilienceState: resilienceState,
+            hasAuthInitialized: this.hasAuthInitialized
         });
         if (authState.isAuthLoading) {
-            this.logger.debug('Sync connection state skipped: Auth loading');
+            this.logger.debug('🔌 CONNECTION: Sync skipped - auth still loading');
             return;
         }
         if (!authState.isAuthenticated) {
-            this.logger.debug('Sync connection state skipped: Not authenticated');
+            this.logger.debug('🔌 CONNECTION: Sync skipped - not authenticated');
             return;
         }
         if (resilienceState === ResilienceState.SUSPENDED || resilienceState === ResilienceState.FAILED) {
-            this.logger.debug("Sync connection state skipped: Resilience state is ".concat(resilienceState));
+            this.logger.debug("\uD83D\uDD0C CONNECTION: Sync skipped - resilience state is ".concat(resilienceState));
             return;
         }
         if (this.desiredState.connected &&
             connState.webSocketStatus !== ConnectionStatus.CONNECTED &&
             connState.webSocketStatus !== ConnectionStatus.CONNECTING &&
             !connState.isRecovering) {
-            this.logger.info('🔌 CONNECTION: Initiating connection (desired=true, not connected)');
+            this.logger.info('🔌 CONNECTION: Initiating connection (desired=true, authenticated, not connected)');
             this.connect().catch(function (err) {
                 _this.logger.error('Connect promise rejected', {
                     error: err instanceof Error ? err.message : String(err)
@@ -215,7 +256,7 @@ var ConnectionManager = /** @class */ (function () {
             (connState.webSocketStatus === ConnectionStatus.CONNECTED ||
                 connState.webSocketStatus === ConnectionStatus.CONNECTING ||
                 connState.isRecovering)) {
-            this.logger.info('🔌 CONNECTION: Disconnecting (desired=false, currently connected)');
+            this.logger.info('🔌 CONNECTION: Disconnecting (desired=false)');
             this.disconnect('desired_state_sync');
         }
     };
@@ -261,16 +302,21 @@ var ConnectionManager = /** @class */ (function () {
                     case 0:
                         if (this.isDisposed)
                             return [2 /*return*/, false];
+                        // 🚨 CRITICAL: Prevent connections until auth is initialized
+                        if (!this.hasAuthInitialized) {
+                            this.logger.warn('🔌 CONNECTION: Connect blocked - auth not yet initialized');
+                            return [2 /*return*/, false];
+                        }
                         authState = this.stateManager.getAuthState();
                         if (!authState.isAuthenticated) {
-                            this.logger.error('Connect failed: Not authenticated');
+                            this.logger.error('🔌 CONNECTION: Connect failed - not authenticated');
                             return [2 /*return*/, false];
                         }
                         connState = this.stateManager.getConnectionState();
                         if (connState.webSocketStatus === ConnectionStatus.CONNECTED ||
                             connState.webSocketStatus === ConnectionStatus.CONNECTING ||
                             connState.isRecovering) {
-                            this.logger.warn("Connect ignored: Status=".concat(connState.webSocketStatus, ", Recovering=").concat(connState.isRecovering));
+                            this.logger.warn("\uD83D\uDD0C CONNECTION: Connect ignored - Status=".concat(connState.webSocketStatus, ", Recovering=").concat(connState.isRecovering));
                             return [2 /*return*/, connState.webSocketStatus === ConnectionStatus.CONNECTED];
                         }
                         this.logger.info('🔌 CONNECTION: Initiating connection process');
@@ -287,7 +333,7 @@ var ConnectionManager = /** @class */ (function () {
                         if (!wsConnected) {
                             throw new Error('WebSocket connection failed');
                         }
-                        this.logger.info('WebSocket connected, now requesting session info');
+                        this.logger.info('🔌 CONNECTION: WebSocket connected, requesting session info');
                         sessionResponse = void 0;
                         _a.label = 3;
                     case 3:
@@ -295,7 +341,7 @@ var ConnectionManager = /** @class */ (function () {
                         return [4 /*yield*/, this.sessionHandler.requestSessionInfo()];
                     case 4:
                         sessionResponse = _a.sent();
-                        this.logger.info('Session info response received', {
+                        this.logger.info('🔌 CONNECTION: Session info response received', {
                             success: sessionResponse.success,
                             type: sessionResponse.type,
                             deviceId: sessionResponse.deviceId,
@@ -309,7 +355,7 @@ var ConnectionManager = /** @class */ (function () {
                         return [3 /*break*/, 6];
                     case 5:
                         sessionError_1 = _a.sent();
-                        this.logger.error('Session request failed', {
+                        this.logger.error('🔌 CONNECTION: Session request failed', {
                             error: sessionError_1 instanceof Error ? sessionError_1.message : String(sessionError_1)
                         });
                         throw sessionError_1;
@@ -347,17 +393,17 @@ var ConnectionManager = /** @class */ (function () {
                     case 0:
                         if (this.isDisposed && reason !== 'dispose')
                             return [2 /*return*/, true];
-                        this.logger.info("Disconnecting. Reason: ".concat(reason));
+                        this.logger.info("\uD83D\uDD0C CONNECTION: Disconnecting. Reason: ".concat(reason));
                         connState = this.stateManager.getConnectionState();
                         if (connState.webSocketStatus === ConnectionStatus.DISCONNECTED && !connState.isRecovering) {
-                            this.logger.debug('Disconnect ignored: Already disconnected');
+                            this.logger.debug('🔌 CONNECTION: Disconnect ignored - already disconnected');
                             return [2 /*return*/, true];
                         }
                         _a.label = 1;
                     case 1:
                         _a.trys.push([1, 6, , 7]);
                         if (!(connState.webSocketStatus === ConnectionStatus.CONNECTED)) return [3 /*break*/, 5];
-                        this.logger.info('Stopping session before disconnecting');
+                        this.logger.info('🔌 CONNECTION: Stopping session before disconnecting');
                         _a.label = 2;
                     case 2:
                         _a.trys.push([2, 4, , 5]);
@@ -365,17 +411,17 @@ var ConnectionManager = /** @class */ (function () {
                     case 3:
                         response = _a.sent();
                         if (response.success) {
-                            this.logger.info('Session stop request successful');
+                            this.logger.info('🔌 CONNECTION: Session stop request successful');
                             this.stateManager.updateConnectionState({ simulatorStatus: 'STOPPED' });
                             this.desiredState.simulatorRunning = false;
                         }
                         else {
-                            this.logger.warn("Session stop request failed: ".concat(response.error));
+                            this.logger.warn("\uD83D\uDD0C CONNECTION: Session stop request failed: ".concat(response.error));
                         }
                         return [3 /*break*/, 5];
                     case 4:
                         error_2 = _a.sent();
-                        this.logger.error('Error stopping session', {
+                        this.logger.error('🔌 CONNECTION: Error stopping session', {
                             error: error_2 instanceof Error ? error_2.message : String(error_2)
                         });
                         return [3 /*break*/, 5];
@@ -392,7 +438,7 @@ var ConnectionManager = /** @class */ (function () {
                         return [2 /*return*/, true];
                     case 6:
                         error_3 = _a.sent();
-                        this.logger.error("Error during disconnect: ".concat(error_3 instanceof Error ? error_3.message : String(error_3)));
+                        this.logger.error("\uD83D\uDD0C CONNECTION: Error during disconnect: ".concat(error_3 instanceof Error ? error_3.message : String(error_3)));
                         return [2 /*return*/, false];
                     case 7: return [2 /*return*/];
                 }
@@ -409,9 +455,14 @@ var ConnectionManager = /** @class */ (function () {
                     case 0:
                         if (this.isDisposed)
                             return [2 /*return*/, false];
+                        // 🚨 CRITICAL: Block recovery until auth is initialized
+                        if (!this.hasAuthInitialized) {
+                            this.logger.warn('🔌 CONNECTION: Recovery blocked - auth not yet initialized');
+                            return [2 /*return*/, false];
+                        }
                         authState = this.stateManager.getAuthState();
                         if (!authState.isAuthenticated) {
-                            this.logger.warn('Recovery ignored: Not authenticated');
+                            this.logger.warn('🔌 CONNECTION: Recovery ignored - not authenticated');
                             return [2 /*return*/, false];
                         }
                         connState = this.stateManager.getConnectionState();
@@ -419,10 +470,10 @@ var ConnectionManager = /** @class */ (function () {
                         if (connState.isRecovering ||
                             resilienceState.state === ResilienceState.SUSPENDED ||
                             resilienceState.state === ResilienceState.FAILED) {
-                            this.logger.warn("Recovery ignored: Already recovering or resilience prevents (".concat(resilienceState.state, ")"));
+                            this.logger.warn("\uD83D\uDD0C CONNECTION: Recovery ignored - already recovering or resilience prevents (".concat(resilienceState.state, ")"));
                             return [2 /*return*/, false];
                         }
-                        this.logger.info("Attempting recovery. Reason: ".concat(reason));
+                        this.logger.info("\uD83D\uDD0C CONNECTION: Attempting recovery. Reason: ".concat(reason));
                         this.stateManager.updateConnectionState({
                             isRecovering: true,
                             recoveryAttempt: resilienceState.attempt + 1
@@ -436,12 +487,12 @@ var ConnectionManager = /** @class */ (function () {
                                         _a.label = 1;
                                     case 1:
                                         _a.trys.push([1, 3, , 4]);
-                                        this.logger.info('Reconnection successful, requesting session info');
+                                        this.logger.info('🔌 CONNECTION: Reconnection successful, requesting session info');
                                         return [4 /*yield*/, this.sessionHandler.requestSessionInfo()];
                                     case 2:
                                         sessionResponse = _a.sent();
                                         if (sessionResponse.type === 'session_info' && sessionResponse.deviceId) {
-                                            this.logger.info('Session validated after reconnect, starting heartbeats');
+                                            this.logger.info('🔌 CONNECTION: Session validated after reconnect, starting heartbeats');
                                             this.stateManager.updateConnectionState({
                                                 webSocketStatus: ConnectionStatus.CONNECTED,
                                                 overallStatus: ConnectionStatus.CONNECTED,
@@ -452,13 +503,13 @@ var ConnectionManager = /** @class */ (function () {
                                             this.heartbeat.start();
                                         }
                                         else {
-                                            this.logger.error('Session validation failed after reconnect');
+                                            this.logger.error('🔌 CONNECTION: Session validation failed after reconnect');
                                             this.disconnect('session_validation_failed');
                                         }
                                         return [3 /*break*/, 4];
                                     case 3:
                                         error_4 = _a.sent();
-                                        this.logger.error('Error validating session after reconnect', {
+                                        this.logger.error('🔌 CONNECTION: Error validating session after reconnect', {
                                             error: error_4 instanceof Error ? error_4.message : String(error_4)
                                         });
                                         this.disconnect('session_validation_error');
@@ -469,13 +520,13 @@ var ConnectionManager = /** @class */ (function () {
                         }); });
                         failureSubscription = this.resilience.on('reconnect_failure', function () {
                             failureSubscription.unsubscribe();
-                            _this.logger.warn('Reconnection attempt failed');
+                            _this.logger.warn('🔌 CONNECTION: Reconnection attempt failed');
                         });
                         return [4 /*yield*/, this.resilience.attemptReconnection(function () { return _this.connect(); })];
                     case 1:
                         initiated = _a.sent();
                         if (!initiated) {
-                            this.logger.warn('Recovery could not be initiated');
+                            this.logger.warn('🔌 CONNECTION: Recovery could not be initiated');
                             this.stateManager.updateConnectionState({
                                 isRecovering: false,
                                 recoveryAttempt: 0
@@ -484,7 +535,7 @@ var ConnectionManager = /** @class */ (function () {
                             failureSubscription.unsubscribe();
                         }
                         else {
-                            this.logger.info('Recovery process initiated');
+                            this.logger.info('🔌 CONNECTION: Recovery process initiated');
                         }
                         return [2 /*return*/, initiated];
                 }
@@ -495,7 +546,7 @@ var ConnectionManager = /** @class */ (function () {
         return __awaiter(this, void 0, void 0, function () {
             var connState;
             return __generator(this, function (_a) {
-                this.logger.info('Manual reconnect triggered');
+                this.logger.info('🔌 CONNECTION: Manual reconnect triggered');
                 if (this.isDisposed)
                     return [2 /*return*/, false];
                 this.setDesiredState({ connected: true });
@@ -515,7 +566,7 @@ var ConnectionManager = /** @class */ (function () {
     ConnectionManager.prototype.handleDeviceIdInvalidation = function (source, reason) {
         if (this.isDisposed)
             return;
-        this.logger.warn("Device ID invalidated. Source: ".concat(source, ", Reason: ").concat(reason || 'Unknown'));
+        this.logger.warn("\uD83D\uDD0C CONNECTION: Device ID invalidated. Source: ".concat(source, ", Reason: ").concat(reason || 'Unknown'));
         var deviceId = DeviceIdManager.getInstance().getDeviceId();
         DeviceIdManager.getInstance().clearDeviceId();
         this.toastService.error("Your session has been deactivated: ".concat(reason || 'Device ID invalidated'), 0);
@@ -538,7 +589,7 @@ var ConnectionManager = /** @class */ (function () {
                     return [2 /*return*/, { success: false, error: 'Not connected' }];
                 }
                 if (connState.simulatorStatus === 'RUNNING' || connState.simulatorStatus === 'STARTING') {
-                    this.logger.warn("Start simulator ignored: Status=".concat(connState.simulatorStatus));
+                    this.logger.warn("\uD83D\uDD0C CONNECTION: Start simulator ignored: Status=".concat(connState.simulatorStatus));
                     return [2 /*return*/, { success: true, status: connState.simulatorStatus }];
                 }
                 return [2 /*return*/, this.simulatorClient.startSimulator()];
@@ -558,7 +609,7 @@ var ConnectionManager = /** @class */ (function () {
                     return [2 /*return*/, { success: false, error: 'Not connected' }];
                 }
                 if (connState.simulatorStatus !== 'RUNNING' && connState.simulatorStatus !== 'STARTING') {
-                    this.logger.warn("Stop simulator ignored: Status=".concat(connState.simulatorStatus));
+                    this.logger.warn("\uD83D\uDD0C CONNECTION: Stop simulator ignored: Status=".concat(connState.simulatorStatus));
                     return [2 /*return*/, { success: true, status: connState.simulatorStatus }];
                 }
                 return [2 /*return*/, this.simulatorClient.stopSimulator()];
@@ -572,12 +623,12 @@ var ConnectionManager = /** @class */ (function () {
         if (this.isDisposed)
             return;
         this.isDisposed = true;
-        this.logger.info('Disposing ConnectionManager');
+        this.logger.info('🔌 CONNECTION: Disposing ConnectionManager');
         this.disconnect('dispose');
         this.heartbeat.dispose();
         this.resilience.dispose();
         this.events.clear();
-        this.logger.info('ConnectionManager disposed');
+        this.logger.info('🔌 CONNECTION: ConnectionManager disposed');
     };
     return ConnectionManager;
 }());

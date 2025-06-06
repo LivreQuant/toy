@@ -13,9 +13,11 @@ export declare class ConnectionManager implements Disposable {
     private sessionHandler;
     private simulatorClient;
     private isDisposed;
+    private hasAuthInitialized;
     desiredState: ConnectionDesiredState;
     private events;
     constructor(tokenManager: TokenManager, stateManager: StateManager, toastService: ToastService, configService: ConfigService, options?: ConnectionManagerOptions);
+    private waitForAuthInitialization;
     private setupListeners;
     resetState(): void;
     setDesiredState(state: Partial<ConnectionDesiredState>): void;
