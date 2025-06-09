@@ -28,7 +28,7 @@ class LandingEnvironmentService {
     }
 
     const requiredFields = [
-      'api.baseUrl',
+      'apiBaseUrl',  // ✅ FIXED: Use top-level apiBaseUrl instead of api.baseUrl
       'landing.baseUrl',
       'main.baseUrl'
     ];
@@ -46,7 +46,7 @@ class LandingEnvironmentService {
         environment: this.config.environment,
         landingUrl: this.config.landing.baseUrl,
         mainAppUrl: this.config.main.baseUrl,
-        apiUrl: this.config.api.baseUrl,
+        apiUrl: this.config.apiBaseUrl,  // ✅ FIXED: Use apiBaseUrl
         autoRedirectValidCredentials: this.config.features.autoRedirectValidCredentials
       });
     }
@@ -73,7 +73,10 @@ class LandingEnvironmentService {
   }
 
   public getApiConfig() {
-    return { ...this.config.api };
+    // ✅ FIXED: Return object with baseUrl property from top-level apiBaseUrl
+    return { 
+      baseUrl: this.config.apiBaseUrl 
+    };
   }
 
   public getWebSocketConfig() {
