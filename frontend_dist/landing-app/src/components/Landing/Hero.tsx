@@ -1,3 +1,4 @@
+// frontend_dist/landing-app/src/components/Landing/Hero.tsx
 import React, { useState, forwardRef } from 'react';
 import { 
   Box, 
@@ -16,6 +17,7 @@ import {
 import { alpha } from '@mui/material/styles';
 
 import { HERO_IMAGES } from '@trading-app/assets';
+import { environmentService } from '../../config';
 
 const backgroundImage = HERO_IMAGES.YARN;
 const dashImage = HERO_IMAGES.DASHBOARD;
@@ -40,6 +42,12 @@ const Hero = forwardRef<HTMLDivElement, HeroProps>(({ className }, ref) => {
   // Handle navigation to signup - STAY ON LANDING APP
   const handleGetStarted = () => {
     window.location.href = '/signup';
+  };
+
+  // Handle login - REDIRECT TO MAIN APP
+  const handleLogin = () => {
+    const mainAppUrl = environmentService.getMainAppUrl();
+    window.location.href = `${mainAppUrl}/login`;
   };
 
   // Handle form input changes

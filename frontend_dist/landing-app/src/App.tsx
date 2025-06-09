@@ -1,3 +1,4 @@
+// frontend_dist/landing-app/src/App.tsx
 import React, { useEffect } from 'react';
 import { BrowserRouter } from 'react-router-dom';
 import { Routes, Route } from 'react-router-dom';
@@ -5,7 +6,7 @@ import { ThemeProvider } from './contexts/ThemeContext';
 import { ToastProvider } from './contexts/ToastContext';
 
 import LandingPage from './pages/LandingPage';
-import LoginPage from './pages/LoginPage';
+// Remove LoginPage import
 import SignupPage from './pages/SignupPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ForgotUsernamePage from './pages/ForgotUsernamePage';
@@ -30,8 +31,8 @@ function App() {
             {/* LANDING APP ROUTES ONLY */}
             <Route path="/" element={<LandingPage />} />
             
-            {/* AUTH ROUTES - HANDLED BY LANDING APP */}
-            <Route path="/login" element={<LoginPage />} />
+            {/* AUTH ROUTES - HANDLED BY LANDING APP (except login) */}
+            {/* Login is now handled by main app */}
             <Route path="/signup" element={<SignupPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/forgot-username" element={<ForgotUsernamePage />} />
@@ -43,7 +44,7 @@ function App() {
             
             {/* 
               ANY OTHER ROUTE = REDIRECT TO MAIN APP
-              This catches /home, /profile, /books, /simulator, etc.
+              This catches /login, /home, /profile, /books, /simulator, etc.
             */}
             <Route path="*" element={<RedirectToMainApp />} />
           </Routes>
@@ -53,7 +54,7 @@ function App() {
   );
 }
 
-// Redirect component for authenticated routes
+// Redirect component for authenticated routes and login
 const RedirectToMainApp: React.FC = () => {
   const currentPath = window.location.pathname;
   const mainAppUrl = environmentService.getMainAppUrl();

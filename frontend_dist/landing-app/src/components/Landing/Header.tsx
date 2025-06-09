@@ -1,12 +1,15 @@
+// frontend_dist/landing-app/src/components/Landing/Header.tsx
 import React from 'react';
 import { Box, Container, Typography, Button, Paper, useTheme } from '@mui/material';
+import { environmentService } from '../../config';
 
 const Header: React.FC = () => {
   const theme = useTheme();
   
   const handleLogin = () => {
-    // Stay on landing app - just navigate to login route
-    window.location.href = '/login';
+    // Redirect to main app login instead of staying on landing app
+    const mainAppUrl = environmentService.getMainAppUrl();
+    window.location.href = `${mainAppUrl}/login`;
   };
   
   const handleSignup = () => {
@@ -191,7 +194,7 @@ const Header: React.FC = () => {
             </Button>
           </Box>
           
-          {/* AUTH BUTTONS - STAY ON LANDING APP */}
+          {/* AUTH BUTTONS - LOGIN GOES TO MAIN APP */}
           <Box sx={{ display: 'flex', gap: 2 }}>
             <Button 
               onClick={handleLogin}

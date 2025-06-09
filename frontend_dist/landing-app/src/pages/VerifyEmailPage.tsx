@@ -1,3 +1,4 @@
+// frontend_dist/landing-app/src/pages/VerifyEmailPage.tsx
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import AuthLayout from './AuthLayout';
@@ -125,12 +126,13 @@ const VerifyEmailPage: React.FC = () => {
       
       if (response.success) {
         addToast('success', 'Email verified successfully!');
-        navigate('/login', { 
-          state: { verified: true } 
-        });
+        
+        // Redirect to main app login instead of landing app login
+        const mainAppUrl = environmentService.getMainAppUrl();
+        window.location.href = `${mainAppUrl}/login?verified=true`;
         
         if (environmentService.shouldLog()) {
-          console.log('🔧 Email verification successful');
+          console.log('🔧 Email verification successful, redirecting to main app login');
         }
       } else {
         addToast('error', response.error || 'Invalid verification code');
@@ -183,6 +185,12 @@ const VerifyEmailPage: React.FC = () => {
     } finally {
       setIsResending(false);
     }
+  };
+
+  // Function to get main app login URL
+  const getMainAppLoginUrl = () => {
+    const mainAppUrl = environmentService.getMainAppUrl();
+    return `${mainAppUrl}/login`;
   };
 
   // Show loading state if API is not initialized
@@ -250,6 +258,7 @@ const VerifyEmailPage: React.FC = () => {
         
         <div className="auth-links">
           <p>Need to use a different email? <Link to="/signup">Sign up again</Link></p>
+          <p>Already verified? <a href={getMainAppLoginUrl()}>Log in</a></p>
         </div>
       </form>
     </AuthLayout>

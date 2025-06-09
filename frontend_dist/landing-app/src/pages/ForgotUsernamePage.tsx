@@ -1,3 +1,4 @@
+// frontend_dist/landing-app/src/pages/ForgotUsernamePage.tsx
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import AuthLayout from './AuthLayout';
@@ -81,6 +82,12 @@ const ForgotUsernamePage: React.FC = () => {
     }
   };
 
+  // Function to get main app login URL
+  const getMainAppLoginUrl = () => {
+    const mainAppUrl = environmentService.getMainAppUrl();
+    return `${mainAppUrl}/login`;
+  };
+
   // Show loading state if API is not initialized
   if (!apiInitialized && !error) {
     return (
@@ -104,7 +111,7 @@ const ForgotUsernamePage: React.FC = () => {
         <div className="auth-success-message">
           <p>Please check your inbox for an email containing your username.</p>
           <div className="auth-links">
-            <Link to="/login" className="auth-button">Return to Login</Link>
+            <a href={getMainAppLoginUrl()} className="auth-button">Return to Login</a>
           </div>
         </div>
       </AuthLayout>
@@ -141,7 +148,7 @@ const ForgotUsernamePage: React.FC = () => {
         </button>
         
         <div className="auth-links">
-          <p>Remember your username? <Link to="/login">Log in</Link></p>
+          <p>Remember your username? <a href={getMainAppLoginUrl()}>Log in</a></p>
           <p>Don't have an account? <Link to="/signup">Sign up</Link></p>
         </div>
       </form>
