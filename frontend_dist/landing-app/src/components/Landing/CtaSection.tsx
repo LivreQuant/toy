@@ -1,10 +1,15 @@
 import React from 'react';
 import { Box, Container, Typography, Button, Grid, useTheme } from '@mui/material';
 import { alpha } from '@mui/material/styles';
-import { mainAppRoutes } from '../../config/app-urls';
+import { appUrlService } from '../../config';
 
 const CtaSection: React.FC = () => {
   const theme = useTheme();
+  
+  const handleGetStarted = () => {
+    const signupUrl = appUrlService.getMainAppRoute('signup');
+    window.location.href = signupUrl;
+  };
   
   return (
     <Box 
@@ -27,7 +32,7 @@ const CtaSection: React.FC = () => {
             </Typography>
             
             <Button
-              onClick={() => window.location.href = mainAppRoutes.signup}
+              onClick={handleGetStarted}
               variant="contained"
               color="primary"
               size="large"
@@ -37,11 +42,11 @@ const CtaSection: React.FC = () => {
                 borderRadius: 2,
                 fontWeight: 600,
                 transition: 'all 0.3s ease',
-                border: '2px solid',             // Add border with current color
-                borderColor: 'primary.main',     // Set border color to match button color
+                border: '2px solid',
+                borderColor: 'primary.main',
                 '&:hover': {
                   backgroundColor: alpha(theme.palette.background.default, 0.75),
-                  borderColor: theme.palette.primary.main,  // Keep border visible on hover
+                  borderColor: theme.palette.primary.main,
                 }
               }}
             >

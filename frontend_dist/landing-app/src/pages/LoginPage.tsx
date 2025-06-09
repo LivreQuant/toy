@@ -1,12 +1,11 @@
-// src/pages/Auth/LoginPage.tsx
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../hooks/useAuth';
 import { useToast } from '../hooks/useToast';
 import AuthLayout from './AuthLayout';
+import { authApi } from '../api';
+import { appUrlService, environmentService } from '../config';
 import './AuthForms.css';
 
-// Define the location state interface
 interface LocationState {
   verified?: boolean;
   from?: string;
@@ -20,7 +19,6 @@ const LoginPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  const { login, isAuthenticated } = useAuth();
   const { addToast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
@@ -33,42 +31,45 @@ const LoginPage: React.FC = () => {
       addToast('success', 'Email verified successfully! You can now log in.');
     }
   }, [location, addToast]);
-  
-  // Redirect if already authenticated
-  useEffect(() => {
-    if (isAuthenticated) {
-      navigate('/home');
-    }
-  }, [isAuthenticated, navigate]);
-
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    console.log("🔍 LOGIN: Submit button clicked");
+    if (environmentService.shouldLog()) {
+      console.log("🔍 LOGIN: Submit button clicked");
+    }
     
     if (!username.trim() || !password) {
       setError('Please enter both username and password');
-      console.log("🔍 LOGIN: Missing username or password");
+      if (environmentService.shouldLog()) {
+        console.log("🔍 LOGIN: Missing username or password");
+      }
       return;
     }
     
     setError(null);
     setIsSubmitting(true);
-    console.log("🔍 LOGIN: Starting login process for user:", username);
+    
+    if (environmentService.shouldLog()) {
+      console.log("🔍 LOGIN: Starting login process for user:", username);
+    }
     
     try {
-      console.log("🔍 LOGIN: Calling login API");
-      const response = await login({ 
-        username, 
-        password,
-      });
+      if (environmentService.shouldLog()) {
+        console.log("🔍 LOGIN: Calling login API");
+      }
       
-      console.log("🔍 LOGIN: Got response from login API:", JSON.stringify(response));
+      const response = await authApi.login(username, password);
+      
+      if (environmentService.shouldLog()) {
+        console.log("🔍 LOGIN: Got response from login API:", JSON.stringify(response));
+      }
       
       // Check for verification required case
       if (response.requiresVerification && response.userId) {
-        console.log("🔍 LOGIN: Email verification required, userId:", response.userId);
+        if (environmentService.shouldLog()) {
+          console.log("🔍 LOGIN: Email verification required, userId:", response.userId);
+        }
         
         // Create an object with verified properties
         const verificationState = { 
@@ -78,11 +79,13 @@ const LoginPage: React.FC = () => {
         
         // Add email if it exists in the response
         if ('email' in response) {
-          // This approach avoids TypeScript errors by using dynamic property access
           (verificationState as any).email = response.email;
         }
         
-        console.log("🔍 LOGIN: Navigating to verification page");
+        if (environmentService.shouldLog()) {
+          console.log("🔍 LOGIN: Navigating to verification page");
+        }
+        
         navigate(`/verify-email?userId=${response.userId}`, {
           state: verificationState
         });
@@ -92,12 +95,20 @@ const LoginPage: React.FC = () => {
       }
       
       if (response.success) {
-        console.log("🔍 LOGIN: Login successful, redirecting");
+        if (environmentService.shouldLog()) {
+          console.log("🔍 LOGIN: Login successful, redirecting to main app");
+        }
+        
+        // Get the redirect path from state or default to home
         const state = location.state as LocationState;
-        const redirectTo = state?.from || '/home';
-        navigate(redirectTo);
+        const redirectPath = state?.from || '/home';
+        
+        // Redirect to main app
+        appUrlService.redirectToMainApp(redirectPath);
       } else {
-        console.log("🔍 LOGIN: Login failed:", response.error);
+        if (environmentService.shouldLog()) {
+          console.log("🔍 LOGIN: Login failed:", response.error);
+        }
         setError(response.error || 'Invalid username or password');
       }
     } catch (error: any) {
@@ -111,7 +122,7 @@ const LoginPage: React.FC = () => {
   return (
     <AuthLayout 
       title="Log In" 
-      subtitle="Welcome back to the DigitalTrader"
+      subtitle="Welcome back to DigitalTrader"
     >
       <form className="auth-form" onSubmit={handleSubmit}>
         {error && <div className="form-error">{error}</div>}

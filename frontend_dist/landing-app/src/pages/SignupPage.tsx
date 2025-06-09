@@ -1,13 +1,11 @@
-// frontend_dist/main-app/src/pages/Auth/SignupPage.tsx
+// frontend_dist/landing-app/src/pages/SignupPage.tsx
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import AuthLayout from './AuthLayout';
 import { useToast } from '../hooks/useToast';
+import { authApi } from '../api';
+import { environmentService } from '../config/environment';
 import './AuthForms.css';
-
-// Import API client from new package
-import { ApiFactory } from '@trading-app/api';
-import { AuthFactory } from '@trading-app/auth';
 
 const SignupPage: React.FC = () => {
   const [formData, setFormData] = useState({
@@ -86,10 +84,6 @@ const SignupPage: React.FC = () => {
     setIsSubmitting(true);
     
     try {
-      // Create a temporary auth client for this request
-      const authServices = AuthFactory.createAuthServices();
-      const authApi = ApiFactory.createAuthClient(authServices.tokenManager);
-      
       const response = await authApi.signup({
         username: formData.username,
         email: formData.email,
@@ -114,6 +108,9 @@ const SignupPage: React.FC = () => {
         addToast('error', response.error || 'Failed to create account');
       }
     } catch (error: any) {
+      if (environmentService.shouldLog()) {
+        console.error('Signup error:', error);
+      }
       setErrors({ 
         form: error.message || 'An error occurred during signup. Please try again.' 
       });

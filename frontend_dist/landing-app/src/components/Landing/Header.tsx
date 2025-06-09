@@ -1,10 +1,19 @@
 import React from 'react';
 import { Box, Container, Typography, Button, Paper, useTheme } from '@mui/material';
-import { mainAppRoutes } from '../../config/app-urls';
+import { appUrlService } from '../../config';
 
-// Define the component
 const Header: React.FC = () => {
   const theme = useTheme();
+  
+  const handleLogin = () => {
+    const loginUrl = appUrlService.getMainAppRoute('login');
+    window.location.href = loginUrl;
+  };
+  
+  const handleSignup = () => {
+    const signupUrl = appUrlService.getMainAppRoute('signup');
+    window.location.href = signupUrl;
+  };
   
   return (
     <Paper 
@@ -37,16 +46,17 @@ const Header: React.FC = () => {
                 WebkitBackgroundClip: 'text',
                 WebkitTextFillColor: 'transparent',
                 fontWeight: 'bold',
-                margin: 0,      // Set all margins to 0
-                padding: 0,     // Set all padding to 0
+                margin: 0,
+                padding: 0,
                 paddingTop: 1,
-                lineHeight: 1   // Adjust line height to be tighter
+                lineHeight: 1
               }}
             >
               DigitalTrader
             </Typography>
           </Box>
           
+          {/* Navigation Links */}
           <Box sx={{ 
             display: { xs: 'none', md: 'flex' }, 
             gap: 4,
@@ -60,24 +70,24 @@ const Header: React.FC = () => {
                 margin: 0,
                 minHeight: 0,
                 lineHeight: 1,
-                borderRadius: 0, // Remove border radius
+                borderRadius: 0,
                 textTransform: 'none',
-                position: 'relative', // For the underline positioning
+                position: 'relative',
                 '&::after': {
                   content: '""',
                   position: 'absolute',
                   bottom: 0,
                   left: 0,
-                  width: 0, // Start with 0 width
+                  width: 0,
                   height: '2px',
                   backgroundColor: 'primary.main',
                   transition: 'width 0.3s ease'
                 },
                 '&:hover': {
                   boxShadow: 'none',
-                  backgroundColor: 'transparent', // Remove background hover
+                  backgroundColor: 'transparent',
                   '&::after': {
-                    width: '100%' // Expand to full width on hover
+                    width: '100%'
                   }
                 }
               }}
@@ -118,7 +128,7 @@ const Header: React.FC = () => {
             </Button>
             <Button 
               color="inherit" 
-              href="#faq" // Add this href
+              href="#faq"
               sx={{
                 padding: "8px 16px",
                 margin: 0,
@@ -182,9 +192,10 @@ const Header: React.FC = () => {
             </Button>
           </Box>
           
+          {/* Auth Buttons */}
           <Box sx={{ display: 'flex', gap: 2 }}>
             <Button 
-              onClick={() => window.location.href = mainAppRoutes.login}
+              onClick={handleLogin}
               variant="outlined" 
               color="primary"
               sx={{
@@ -192,17 +203,16 @@ const Header: React.FC = () => {
                 padding: '8px 16px',
                 fontWeight: 500,
                 textTransform: 'none',
-                // No transform hover effect
                 '&:hover': {
-                  backgroundColor: 'rgba(33, 150, 243, 0.08)', // Subtle background change on hover
-                  transform: 'none' // Remove any transform animation
+                  backgroundColor: 'rgba(33, 150, 243, 0.08)',
+                  transform: 'none'
                 }
               }}
             >
               Log In
             </Button>
             <Button 
-              onClick={() => window.location.href = mainAppRoutes.signup}
+              onClick={handleSignup}
               variant="contained" 
               color="primary"
               sx={{
@@ -211,14 +221,14 @@ const Header: React.FC = () => {
                 fontWeight: 500,
                 textTransform: 'none',
                 boxShadow: 'none',
-                border: '2px solid',             // Add border with current color
-                borderColor: theme.palette.primary.main,  // Keep border visible on hover
+                border: '2px solid',
+                borderColor: theme.palette.primary.main,
                 '&:hover': {
                   border: '2px solid',
-                  borderColor: theme.palette.primary.main,  // Keep border visible on hover
+                  borderColor: theme.palette.primary.main,
                   backgroundColor: theme.palette.background.default,
-                  boxShadow: '0 4px 8px rgba(33, 150, 243, 0.25)', // Blue shadow with offset and blur
-                  transform: 'none', // Remove any transform animation
+                  boxShadow: '0 4px 8px rgba(33, 150, 243, 0.25)',
+                  transform: 'none',
                 }
               }}
             >
