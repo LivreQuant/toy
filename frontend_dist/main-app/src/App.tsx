@@ -3,6 +3,8 @@ import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useNavigate } from 'react-router-dom';
 
+import { environmentService } from './config/environment';
+
 // LOGGING - now from package
 import { initializeLogging, getLogger } from '@trading-app/logging';
 
@@ -217,15 +219,17 @@ const AppRoutes: React.FC = () => {
       <ConnectionDebugger />
       <Routes>
         {/* Public routes */}
-        <Route path="/" element={<LandingPage />} />
+        <Route path="/" element={<Navigate to="/home" replace />} />
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/signup" element={<SignupPage />} />
-        <Route path="/verify-email" element={<VerifyEmailPage />} />
-        <Route path="/forgot-username" element={<ForgotUsernamePage />} />
-        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-        <Route path="/reset-password" element={<ResetPasswordPage />} />
-        <Route path="/enterprise-contact" element={<EnterpriseContactPage />} />
-        
+
+        {/* Redirect auth routes to landing app */}
+        <Route path="/signup" element={<RedirectToLanding />} />
+        <Route path="/verify-email" element={<RedirectToLanding />} />
+        <Route path="/forgot-username" element={<RedirectToLanding />} />
+        <Route path="/forgot-password" element={<RedirectToLanding />} />
+        <Route path="/reset-password" element={<RedirectToLanding />} />
+        <Route path="/enterprise-contact" element={<RedirectToLanding />} />
+
         {/* Protected routes with session */}
         <Route path="/home" element={
           <ProtectedRoute>
@@ -330,5 +334,23 @@ function App() {
     </ThemeProvider>
   );
 }
+
+// Add redirect component
+const RedirectToLanding: React.FC = () => {
+  const currentPath = window.location.pathname + window.location.search;
+  const landingUrl = environmentService.getLandingAppUrl();
+  
+  React.useEffect(() => {
+    console.log(`🔗 Redirecting ${currentPath} to landing app: ${landingUrl}${currentPath}`);
+    window.location.href = `${landingUrl}${currentPath}`;
+  }, [currentPath, landingUrl]);
+  
+  return (
+    <div style={{ textAlign: 'center', padding: '50px' }}>
+      <h2>Redirecting...</h2>
+      <p>Taking you to {landingUrl}{currentPath}</p>
+    </div>
+  );
+};
 
 export default App;
