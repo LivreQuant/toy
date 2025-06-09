@@ -44,18 +44,11 @@ import ProtectedRoute from './components/Common/ProtectedRoute';
 import AuthenticatedLayout from './components/Layout/AuthenticatedLayout';
 
 // PAGES
-import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/Auth/LoginPage';
-import SignupPage from './pages/Auth/SignupPage';
-import VerifyEmailPage from './pages/Auth/VerifyEmailPage';
-import ForgotUsernamePage from './pages/Auth/ForgotUsernamePage';
-import ForgotPasswordPage from './pages/Auth/ForgotPasswordPage';
-import ResetPasswordPage from './pages/Auth/ResetPasswordPage';
 import HomePage from './pages/HomePage';
 import SimulatorPage from './pages/SimulatorPage';
 import BookDetailsPage from './pages/BookDetailsPage';
 import SessionDeactivatedPage from './pages/SessionDeactivatedPage';
-import EnterpriseContactPage from './pages/EnterpriseContactPage';
 
 import FundProfileForm from './components/Profile/FundProfileForm';
 import EditFundProfileForm from './components/Profile/EditFundProfileForm';
@@ -232,14 +225,6 @@ const AppRoutes: React.FC = () => {
         <Route path="/" element={<Navigate to="/home" replace />} />
         <Route path="/login" element={<LoginPage />} />
 
-        {/* Redirect auth routes to landing app */}
-        <Route path="/signup" element={<RedirectToLanding />} />
-        <Route path="/verify-email" element={<RedirectToLanding />} />
-        <Route path="/forgot-username" element={<RedirectToLanding />} />
-        <Route path="/forgot-password" element={<RedirectToLanding />} />
-        <Route path="/reset-password" element={<RedirectToLanding />} />
-        <Route path="/enterprise-contact" element={<RedirectToLanding />} />
-
         {/* Protected routes with session */}
         <Route path="/home" element={
           <ProtectedRoute>
@@ -346,6 +331,7 @@ function App() {
 }
 
 // Add redirect component
+/*
 const RedirectToLanding: React.FC = () => {
   const currentPath = window.location.pathname + window.location.search;
   const landingUrl = config.landing.baseUrl;
@@ -362,5 +348,6 @@ const RedirectToLanding: React.FC = () => {
     </div>
   );
 };
+*/
 
 export default App;
