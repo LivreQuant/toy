@@ -1,8 +1,9 @@
+// landing-app/src/pages/LoginPage.tsx
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useToast } from '../hooks/useToast';
 import AuthLayout from './AuthLayout';
-import { getAuthApi } from '../api';
+import { landingApiService } from '../api';
 import { environmentService } from '../config';
 import './AuthForms.css';
 
@@ -19,7 +20,7 @@ const LoginPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [apiInitialized, setApiInitialized] = useState(false);
-  const [authApiRef, setAuthApiRef] = useState<any>(null);
+  const [loginStage, setLoginStage] = useState<'idle' | 'authenticating' | 'storing_tokens' | 'redirecting'>('idle');
   
   const { addToast } = useToast();
   const navigate = useNavigate();
@@ -29,13 +30,12 @@ const LoginPage: React.FC = () => {
   useEffect(() => {
     const checkApiInitialization = async () => {
       try {
-        const authApi = await getAuthApi();
+        const isHealthy = await landingApiService.healthCheck();
         
-        if (!authApi || typeof authApi.login !== 'function') {
-          throw new Error('Auth API missing required methods');
+        if (!isHealthy) {
+          throw new Error('API health check failed');
         }
         
-        setAuthApiRef(authApi);
         setApiInitialized(true);
         
         if (environmentService.shouldLog()) {
@@ -63,7 +63,7 @@ const LoginPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!apiInitialized || !authApiRef) {
+    if (!apiInitialized) {
       setError('Authentication service not ready. Please refresh the page.');
       return;
     }
@@ -82,20 +82,27 @@ const LoginPage: React.FC = () => {
     
     setError(null);
     setIsSubmitting(true);
+    setLoginStage('authenticating');
     
     if (environmentService.shouldLog()) {
       console.log("🔍 LOGIN: Starting login process for user:", username);
     }
     
     try {
+      setLoginStage('authenticating');
+      
       if (environmentService.shouldLog()) {
-        console.log("🔍 LOGIN: Calling login API");
+        console.log("🔍 LOGIN: Calling login API with token storage");
       }
       
-      const response = await authApiRef.login(username, password);
+      const response = await landingApiService.loginAndStoreTokens(username, password);
       
       if (environmentService.shouldLog()) {
-        console.log("🔍 LOGIN: Got response from login API:", JSON.stringify(response));
+        console.log("🔍 LOGIN: Got response from login API:", {
+          success: response.success,
+          requiresVerification: response.requiresVerification,
+          tokensStored: response.tokensStored
+        });
       }
       
       // Check for verification required case
@@ -125,23 +132,34 @@ const LoginPage: React.FC = () => {
         return;
       }
       
-      if (response.success) {
-        if (environmentService.shouldLog()) {
-          console.log("🔍 LOGIN: Login successful, redirecting to main app");
-        }
-        
-        // REDIRECT TO MAIN APP AFTER SUCCESSFUL LOGIN
-        const mainAppUrl = environmentService.getMainAppUrl();
-        const redirectPath = '/home'; // Main app landing page
-        const fullUrl = `${mainAppUrl}${redirectPath}`;
+      if (response.success && response.tokensStored) {
+        setLoginStage('redirecting');
         
         if (environmentService.shouldLog()) {
-          console.log(`🔗 Redirecting to main app: ${fullUrl}`);
+          console.log("🔍 LOGIN: Login successful and tokens stored, redirecting to main app");
         }
         
-        // Force redirect to main app
-        window.location.href = fullUrl;
+        // Add a small delay to ensure all state is settled
+        setTimeout(() => {
+          // REDIRECT TO MAIN APP AFTER SUCCESSFUL LOGIN AND TOKEN STORAGE
+          const mainAppUrl = environmentService.getMainAppUrl();
+          const redirectPath = '/home'; // Main app landing page
+          const fullUrl = `${mainAppUrl}${redirectPath}`;
+          
+          if (environmentService.shouldLog()) {
+            console.log(`🔗 Tokens secured and verified, redirecting to main app: ${fullUrl}`);
+          }
+          
+          // Force redirect to main app
+          window.location.href = fullUrl;
+        }, 200);
         
+      } else if (response.success && !response.tokensStored) {
+        // This shouldn't happen, but handle it gracefully
+        setError('Login successful but failed to store credentials. Please try again.');
+        if (environmentService.shouldLog()) {
+          console.error("🔍 LOGIN: Login succeeded but tokens not stored");
+        }
       } else {
         if (environmentService.shouldLog()) {
           console.log("🔍 LOGIN: Login failed:", response.error);
@@ -151,6 +169,7 @@ const LoginPage: React.FC = () => {
     } catch (error: any) {
       console.error("🔍 LOGIN: Exception during login:", error);
       setError(error.message || 'Login failed. Please try again.');
+      setLoginStage('idle');
     } finally {
       setIsSubmitting(false);
     }
@@ -170,10 +189,24 @@ const LoginPage: React.FC = () => {
     );
   }
 
+  // Dynamic subtitle based on login stage
+  const getSubtitle = () => {
+    switch (loginStage) {
+      case 'authenticating':
+        return 'Authenticating credentials...';
+      case 'storing_tokens':
+        return 'Securing your session...';
+      case 'redirecting':
+        return 'Redirecting to application...';
+      default:
+        return 'Welcome back to DigitalTrader';
+    }
+  };
+
   return (
     <AuthLayout 
       title="Log In" 
-      subtitle="Welcome back to DigitalTrader"
+      subtitle={getSubtitle()}
     >
       <form className="auth-form" onSubmit={handleSubmit}>
         {error && <div className="form-error">{error}</div>}
@@ -208,7 +241,7 @@ const LoginPage: React.FC = () => {
           className="auth-button" 
           disabled={isSubmitting || !apiInitialized}
         >
-          {isSubmitting ? 'Logging in...' : 'Log In'}
+          {isSubmitting ? getButtonText() : 'Log In'}
         </button>
         
         <div className="auth-links">
@@ -219,6 +252,19 @@ const LoginPage: React.FC = () => {
       </form>
     </AuthLayout>
   );
+
+  function getButtonText() {
+    switch (loginStage) {
+      case 'authenticating':
+        return 'Authenticating...';
+      case 'storing_tokens':
+        return 'Securing Session...';
+      case 'redirecting':
+        return 'Redirecting...';
+      default:
+        return 'Logging in...';
+    }
+  }
 };
 
 export default LoginPage;

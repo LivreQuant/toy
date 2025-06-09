@@ -1,8 +1,9 @@
+// landing-app/src/pages/SignupPage.tsx
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import AuthLayout from './AuthLayout';
 import { useToast } from '../hooks/useToast';
-import { getAuthApi } from '../api';
+import { landingApiService } from '../api';
 import { environmentService } from '../config/environment';
 import './AuthForms.css';
 
@@ -16,7 +17,6 @@ const SignupPage: React.FC = () => {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [apiInitialized, setApiInitialized] = useState(false);
-  const [authApiRef, setAuthApiRef] = useState<any>(null);
   const navigate = useNavigate();
   const { addToast } = useToast();
 
@@ -24,13 +24,12 @@ const SignupPage: React.FC = () => {
   useEffect(() => {
     const checkApiInitialization = async () => {
       try {
-        const authApi = await getAuthApi();
+        const isHealthy = await landingApiService.healthCheck();
         
-        if (!authApi || typeof authApi.signup !== 'function') {
-          throw new Error('Auth API missing required methods');
+        if (!isHealthy) {
+          throw new Error('API health check failed');
         }
         
-        setAuthApiRef(authApi);
         setApiInitialized(true);
         
         if (environmentService.shouldLog()) {
@@ -106,7 +105,7 @@ const SignupPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!apiInitialized || !authApiRef) {
+    if (!apiInitialized) {
       setErrors({ 
         form: 'Authentication service not ready. Please refresh the page.' 
       });
@@ -120,7 +119,9 @@ const SignupPage: React.FC = () => {
     setIsSubmitting(true);
     
     try {
-      const response = await authApiRef.signup({
+      const authApi = await landingApiService.getAuthApi();
+      
+      const response = await authApi.signup({
         username: formData.username,
         email: formData.email,
         password: formData.password

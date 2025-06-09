@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import AuthLayout from './AuthLayout';
 import { useToast } from '../hooks/useToast';
-import { getAuthApi } from '../api';
+import { landingApiService } from '../api';
 import { environmentService } from '../config/environment';
 import './AuthForms.css';
 
@@ -19,12 +19,13 @@ const ForgotUsernamePage: React.FC = () => {
   useEffect(() => {
     const checkApiInitialization = async () => {
       try {
-        const authApi = await getAuthApi();
+        const isHealthy = await landingApiService.healthCheck();
         
-        if (!authApi || typeof authApi.forgotUsername !== 'function') {
-          throw new Error('Auth API missing required methods');
+        if (!isHealthy) {
+          throw new Error('API health check failed');
         }
         
+        const authApi = await landingApiService.getAuthApi();
         setAuthApiRef(authApi);
         setApiInitialized(true);
         
