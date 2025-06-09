@@ -4,7 +4,7 @@ import { useParams } from 'react-router-dom';
 import { useToast } from '../../hooks/useToast';
 import { useConvictionManager } from '../../contexts/ConvictionContext';
 import { useBookManager } from '../../hooks/useBookManager';
-import { ConvictionModelConfig } from '../../types';
+import { ConvictionModelConfig } from '@trading-app/types-core';
 import ConvictionFileProcessor from './ConvictionFileProcessor';
 import './FingerprintUpload.css';
 

@@ -2,7 +2,7 @@
 import { getLogger } from '@trading-app/logging';
 import { TokenManager } from '@trading-app/auth';
 import { FundClient } from '@trading-app/api';
-import { FundProfile, TeamMember, CreateFundProfileRequest, UpdateFundProfileRequest } from '../../types';
+import { FundProfile, TeamMember, CreateFundProfileRequest, UpdateFundProfileRequest } from '@trading-app/types-core';
 import { toastService } from '@trading-app/toast';
 
 export class FundManager {

@@ -2,7 +2,7 @@
 import React, { createContext, ReactNode } from 'react';
 import { BookManager } from '../services/book/book-manager';
 import { BookClient } from '@trading-app/api';
-import { Book, BookRequest } from '../types';
+import { Book, BookRequest } from '@trading-app/types-core';
 import { TokenManager } from '@trading-app/auth';
 
 interface BookManagerContextType {

@@ -6,7 +6,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useConnection } from '../hooks/useConnection';
 import { useBookManager } from '../hooks/useBookManager';
 import { useFundManager } from '../hooks/useFundManager';
-import { Book, FundProfile } from '../types';
+import { Book, FundProfile } from '@trading-app/types-core';
 
 // Dashboard Components
 import DashboardHeader from '../components/Layout/DashboardHeader';

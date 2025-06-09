@@ -5,7 +5,7 @@ import { CircularProgress, Box, Typography } from '@mui/material';
 import { useFundManager } from '../../hooks/useFundManager';
 import { useToast } from '../../hooks/useToast';
 import BaseFundProfileForm from './BaseFundProfileForm';
-import { FundProfile } from '../../types';
+import { FundProfile } from '@trading-app/types-core';
 
 const EditFundProfileForm: React.FC = () => {
   const { getFundProfile, updateFundProfile } = useFundManager();

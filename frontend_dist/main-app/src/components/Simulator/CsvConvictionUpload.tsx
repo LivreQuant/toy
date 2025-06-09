@@ -4,7 +4,7 @@ import { useParams } from 'react-router-dom';
 import { useToast } from '../../hooks/useToast';
 import { useConvictionManager } from '../../contexts/ConvictionContext';
 import { useBookManager } from '../../hooks/useBookManager';
-import { ConvictionModelConfig, ConvictionData } from '../../types'; // Add ConvictionData import
+import { ConvictionModelConfig, ConvictionData } from '@trading-app/types-core';
 import FileUploadZone from './FileUploadZone';
 import NotesInput from './NotesInput';
 import ConvictionFileProcessor from './ConvictionFileProcessor';

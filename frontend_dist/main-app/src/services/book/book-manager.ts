@@ -2,7 +2,7 @@
 import { getLogger } from '@trading-app/logging';
 import { TokenManager } from '@trading-app/auth';
 import { BookClient } from '@trading-app/api';
-import { Book, BookRequest } from '../../types';
+import { Book, BookRequest } from '@trading-app/types-core';
 import { toastService } from '@trading-app/toast';
 
 export class BookManager {

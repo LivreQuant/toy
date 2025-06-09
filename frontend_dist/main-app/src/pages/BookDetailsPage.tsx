@@ -5,7 +5,7 @@ import { useRequireAuth } from '../hooks/useRequireAuth';
 import { useConnection } from '../hooks/useConnection';
 import { useToast } from '../hooks/useToast';
 import { useBookManager } from '../hooks/useBookManager';
-import { Book } from '../types';
+import { Book } from '@trading-app/types-core';
 import ConvictionSubmissionContainer from '../components/Simulator/ConvictionSubmissionContainer';
 
 import { Tabs, Tab } from '@mui/material';

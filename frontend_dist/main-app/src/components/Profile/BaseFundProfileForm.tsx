@@ -29,7 +29,7 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { useToast } from '../../hooks/useToast';
 import { useNavigate } from 'react-router-dom';
 import { useFundManager } from '../../hooks/useFundManager';
-import { FundProfile, TeamMember, CreateFundProfileRequest, UpdateFundProfileRequest } from '../../types';
+import { FundProfile, TeamMember, CreateFundProfileRequest, UpdateFundProfileRequest } from '@trading-app/types-core';
 import './BaseFundProfileForm.css';
 
 const LEGAL_STRUCTURES = [

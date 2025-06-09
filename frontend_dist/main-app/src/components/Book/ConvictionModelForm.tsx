@@ -18,7 +18,7 @@ import {
   Slider,
   InputAdornment
 } from '@mui/material';
-import { ConvictionModelConfig } from '../../types';
+import { ConvictionModelConfig } from '@trading-app/types-core';
 
 interface ConvictionModelFormProps {
   value: ConvictionModelConfig;

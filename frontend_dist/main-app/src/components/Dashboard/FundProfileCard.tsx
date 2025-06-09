@@ -25,7 +25,7 @@ import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import StrategyIcon from '@mui/icons-material/Psychology';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import PeopleIcon from '@mui/icons-material/People';
-import { FundProfile } from '../../types';
+import { FundProfile } from '@trading-app/types-core';
 
 interface FundProfileCardProps {
   onEditProfile: () => void;

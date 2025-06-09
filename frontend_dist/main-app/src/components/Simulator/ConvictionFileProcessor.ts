@@ -1,6 +1,5 @@
 // src/components/Simulator/ConvictionFileProcessor.ts
-import { ConvictionModelConfig, ConvictionData } from '../../types';
-
+import { ConvictionModelConfig, ConvictionData } from '@trading-app/types-core';
 
 export class ConvictionFileProcessor {
   constructor(
