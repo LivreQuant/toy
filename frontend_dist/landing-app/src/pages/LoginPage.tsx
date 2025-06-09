@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useToast } from '../hooks/useToast';
 import AuthLayout from './AuthLayout';
-import { authApi } from '../api';
-import { appUrlService, environmentService } from '../config';
+import { getAuthApi } from '../api';
+import { environmentService } from '../config';
 import './AuthForms.css';
 
 interface LocationState {
@@ -18,10 +18,38 @@ const LoginPage: React.FC = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [apiInitialized, setApiInitialized] = useState(false);
+  const [authApiRef, setAuthApiRef] = useState<any>(null);
   
   const { addToast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
+  
+  // Check API initialization on component mount
+  useEffect(() => {
+    const checkApiInitialization = async () => {
+      try {
+        const authApi = await getAuthApi();
+        
+        if (!authApi || typeof authApi.login !== 'function') {
+          throw new Error('Auth API missing required methods');
+        }
+        
+        setAuthApiRef(authApi);
+        setApiInitialized(true);
+        
+        if (environmentService.shouldLog()) {
+          console.log('🔧 Login API successfully initialized');
+        }
+      } catch (error) {
+        console.error('❌ API initialization check failed:', error);
+        setError('Failed to initialize authentication service. Please refresh the page.');
+        addToast('error', 'Authentication service unavailable. Please refresh the page.');
+      }
+    };
+    
+    checkApiInitialization();
+  }, [addToast]);
   
   // Check for redirect state
   useEffect(() => {
@@ -34,6 +62,11 @@ const LoginPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!apiInitialized || !authApiRef) {
+      setError('Authentication service not ready. Please refresh the page.');
+      return;
+    }
     
     if (environmentService.shouldLog()) {
       console.log("🔍 LOGIN: Submit button clicked");
@@ -59,7 +92,7 @@ const LoginPage: React.FC = () => {
         console.log("🔍 LOGIN: Calling login API");
       }
       
-      const response = await authApi.login(username, password);
+      const response = await authApiRef.login(username, password);
       
       if (environmentService.shouldLog()) {
         console.log("🔍 LOGIN: Got response from login API:", JSON.stringify(response));
@@ -71,13 +104,11 @@ const LoginPage: React.FC = () => {
           console.log("🔍 LOGIN: Email verification required, userId:", response.userId);
         }
         
-        // Create an object with verified properties
         const verificationState = { 
           userId: response.userId,
           needsVerification: true
         };
         
-        // Add email if it exists in the response
         if ('email' in response) {
           (verificationState as any).email = response.email;
         }
@@ -99,12 +130,18 @@ const LoginPage: React.FC = () => {
           console.log("🔍 LOGIN: Login successful, redirecting to main app");
         }
         
-        // Get the redirect path from state or default to home
-        const state = location.state as LocationState;
-        const redirectPath = state?.from || '/home';
+        // REDIRECT TO MAIN APP AFTER SUCCESSFUL LOGIN
+        const mainAppUrl = environmentService.getMainAppUrl();
+        const redirectPath = '/home'; // Main app landing page
+        const fullUrl = `${mainAppUrl}${redirectPath}`;
         
-        // Redirect to main app
-        appUrlService.redirectToMainApp(redirectPath);
+        if (environmentService.shouldLog()) {
+          console.log(`🔗 Redirecting to main app: ${fullUrl}`);
+        }
+        
+        // Force redirect to main app
+        window.location.href = fullUrl;
+        
       } else {
         if (environmentService.shouldLog()) {
           console.log("🔍 LOGIN: Login failed:", response.error);
@@ -118,6 +155,20 @@ const LoginPage: React.FC = () => {
       setIsSubmitting(false);
     }
   };
+
+  // Show loading state if API is not initialized
+  if (!apiInitialized && !error) {
+    return (
+      <AuthLayout 
+        title="Loading..." 
+        subtitle="Initializing authentication service"
+      >
+        <div style={{ textAlign: 'center', padding: '20px' }}>
+          <div style={{ marginBottom: '10px' }}>Please wait...</div>
+        </div>
+      </AuthLayout>
+    );
+  }
 
   return (
     <AuthLayout 
@@ -134,7 +185,7 @@ const LoginPage: React.FC = () => {
             type="text"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
-            disabled={isSubmitting}
+            disabled={isSubmitting || !apiInitialized}
             placeholder="Enter your username"
             autoFocus
           />
@@ -147,7 +198,7 @@ const LoginPage: React.FC = () => {
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            disabled={isSubmitting}
+            disabled={isSubmitting || !apiInitialized}
             placeholder="Enter your password"
           />
         </div>
@@ -155,7 +206,7 @@ const LoginPage: React.FC = () => {
         <button 
           type="submit" 
           className="auth-button" 
-          disabled={isSubmitting}
+          disabled={isSubmitting || !apiInitialized}
         >
           {isSubmitting ? 'Logging in...' : 'Log In'}
         </button>

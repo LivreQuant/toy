@@ -14,7 +14,6 @@ import {
   TextField
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
-import { appUrlService } from '../../config';
 
 import { HERO_IMAGES } from '@trading-app/assets';
 
@@ -38,10 +37,9 @@ const Hero = forwardRef<HTMLDivElement, HeroProps>(({ className }, ref) => {
     message: ''
   });
 
-  // Handle navigation to main app
+  // Handle navigation to signup - STAY ON LANDING APP
   const handleGetStarted = () => {
-    const signupUrl = appUrlService.getMainAppRoute('signup');
-    window.location.href = signupUrl;
+    window.location.href = '/signup';
   };
 
   // Handle form input changes
@@ -83,8 +81,6 @@ const Hero = forwardRef<HTMLDivElement, HeroProps>(({ className }, ref) => {
         overflow: 'hidden'
       }}
     >
-      {/* Background elements remain the same... */}
-      
       {/* Main Content */}
       <Container maxWidth="lg" sx={{ position: 'relative', zIndex: 1, mb: 0 }}>
         <Grid container spacing={4} alignItems="center">

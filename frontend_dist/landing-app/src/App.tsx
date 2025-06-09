@@ -13,24 +13,12 @@ import ResetPasswordPage from './pages/ResetPasswordPage';
 import VerifyEmailPage from './pages/VerifyEmailPage';
 import EnterpriseContactPage from './pages/EnterpriseContactPage';
 
-import { environmentService, appUrlService } from './config';
+import { environmentService } from './config';
 
 function App() {
-  // Initialize and validate environment on app start
   useEffect(() => {
     if (environmentService.shouldLog()) {
-      console.log('🚀 Landing App initialized with environment:', {
-        ...environmentService.getConfig(),
-        domainInfo: appUrlService.getCurrentDomainInfo(),
-      });
-    }
-
-    // Optional: Perform API health check on startup
-    if (environmentService.shouldDebug()) {
-      import('./api').then(({ getApiInfo }) => {
-        const apiInfo = getApiInfo();
-        console.log('🔧 API Info:', apiInfo);
-      });
+      console.log('🚀 Landing App initialized');
     }
   }, []);
 
@@ -39,10 +27,10 @@ function App() {
       <ThemeProvider>
         <ToastProvider>
           <Routes>
-            {/* Landing/Marketing Page */}
+            {/* LANDING APP ROUTES ONLY */}
             <Route path="/" element={<LandingPage />} />
             
-            {/* Authentication Pages - Keep in landing app */}
+            {/* AUTH ROUTES - HANDLED BY LANDING APP */}
             <Route path="/login" element={<LoginPage />} />
             <Route path="/signup" element={<SignupPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
@@ -50,18 +38,14 @@ function App() {
             <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/verify-email" element={<VerifyEmailPage />} />
             
-            {/* Public Pages */}
+            {/* PUBLIC PAGES */}
             <Route path="/enterprise-contact" element={<EnterpriseContactPage />} />
             
-            {/* Redirect authenticated routes to main app */}
-            <Route path="/home" element={<RedirectToMainApp path="/home" />} />
-            <Route path="/app/*" element={<RedirectToMainApp path="/app" />} />
-            <Route path="/profile/*" element={<RedirectToMainApp path="/profile" />} />
-            <Route path="/books/*" element={<RedirectToMainApp path="/books" />} />
-            <Route path="/simulator/*" element={<RedirectToMainApp path="/simulator" />} />
-            
-            {/* Catch all - redirect to landing */}
-            <Route path="*" element={<LandingPage />} />
+            {/* 
+              ANY OTHER ROUTE = REDIRECT TO MAIN APP
+              This catches /home, /profile, /books, /simulator, etc.
+            */}
+            <Route path="*" element={<RedirectToMainApp />} />
           </Routes>
         </ToastProvider>
       </ThemeProvider>
@@ -69,13 +53,15 @@ function App() {
   );
 }
 
-// Component to redirect to main app
-const RedirectToMainApp: React.FC<{ path: string }> = ({ path }) => {
+// Redirect component for authenticated routes
+const RedirectToMainApp: React.FC = () => {
+  const currentPath = window.location.pathname;
   const mainAppUrl = environmentService.getMainAppUrl();
   
   React.useEffect(() => {
-    appUrlService.redirectToMainApp(path);
-  }, [path]);
+    console.log(`🔗 Redirecting ${currentPath} to main app`);
+    window.location.href = `${mainAppUrl}${currentPath}`;
+  }, [currentPath, mainAppUrl]);
   
   return (
     <div style={{ 
@@ -85,13 +71,7 @@ const RedirectToMainApp: React.FC<{ path: string }> = ({ path }) => {
       margin: '0 auto',
     }}>
       <h2>Redirecting to Application...</h2>
-      <p>
-        If you are not redirected automatically,{' '}
-        <a href={`${mainAppUrl}${path}`} style={{ color: '#3498db' }}>
-          click here
-        </a>
-        .
-      </p>
+      <p>Taking you to the main application...</p>
       <div style={{ 
         marginTop: '20px', 
         padding: '10px', 
@@ -100,8 +80,7 @@ const RedirectToMainApp: React.FC<{ path: string }> = ({ path }) => {
         fontSize: '0.9rem',
         color: '#666'
       }}>
-        Environment: {environmentService.getAppConfig().environment}<br />
-        Target: {mainAppUrl}{path}
+        Target: {mainAppUrl}{currentPath}
       </div>
     </div>
   );

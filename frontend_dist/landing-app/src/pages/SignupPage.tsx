@@ -1,9 +1,8 @@
-// frontend_dist/landing-app/src/pages/SignupPage.tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import AuthLayout from './AuthLayout';
 import { useToast } from '../hooks/useToast';
-import { authApi } from '../api';
+import { getAuthApi } from '../api';
 import { environmentService } from '../config/environment';
 import './AuthForms.css';
 
@@ -16,8 +15,38 @@ const SignupPage: React.FC = () => {
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [apiInitialized, setApiInitialized] = useState(false);
+  const [authApiRef, setAuthApiRef] = useState<any>(null);
   const navigate = useNavigate();
   const { addToast } = useToast();
+
+  // Check API initialization on component mount
+  useEffect(() => {
+    const checkApiInitialization = async () => {
+      try {
+        const authApi = await getAuthApi();
+        
+        if (!authApi || typeof authApi.signup !== 'function') {
+          throw new Error('Auth API missing required methods');
+        }
+        
+        setAuthApiRef(authApi);
+        setApiInitialized(true);
+        
+        if (environmentService.shouldLog()) {
+          console.log('🔧 Signup API successfully initialized');
+        }
+      } catch (error) {
+        console.error('❌ API initialization check failed:', error);
+        setErrors({ 
+          form: 'Failed to initialize authentication service. Please refresh the page.' 
+        });
+        addToast('error', 'Authentication service unavailable. Please refresh the page.');
+      }
+    };
+    
+    checkApiInitialization();
+  }, [addToast]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -77,6 +106,13 @@ const SignupPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (!apiInitialized || !authApiRef) {
+      setErrors({ 
+        form: 'Authentication service not ready. Please refresh the page.' 
+      });
+      return;
+    }
+    
     if (!validateForm()) {
       return;
     }
@@ -84,7 +120,7 @@ const SignupPage: React.FC = () => {
     setIsSubmitting(true);
     
     try {
-      const response = await authApi.signup({
+      const response = await authApiRef.signup({
         username: formData.username,
         email: formData.email,
         password: formData.password
@@ -93,7 +129,7 @@ const SignupPage: React.FC = () => {
       if (response.success) {
         addToast('success', 'Account created successfully! Please check your email to verify your account.');
         
-        // Navigate to verify-email with both state and URL parameters (belt and suspenders approach)
+        // Navigate to verify-email with both state and URL parameters
         navigate(`/verify-email?userId=${response.userId}&email=${encodeURIComponent(formData.email)}`, { 
           state: { 
             userId: response.userId,
@@ -120,6 +156,20 @@ const SignupPage: React.FC = () => {
     }
   };
 
+  // Show loading state if API is not initialized
+  if (!apiInitialized && !errors.form) {
+    return (
+      <AuthLayout 
+        title="Loading..." 
+        subtitle="Initializing authentication service"
+      >
+        <div style={{ textAlign: 'center', padding: '20px' }}>
+          <div style={{ marginBottom: '10px' }}>Please wait...</div>
+        </div>
+      </AuthLayout>
+    );
+  }
+
   return (
     <AuthLayout 
       title="Create an Account" 
@@ -136,7 +186,7 @@ const SignupPage: React.FC = () => {
             name="username"
             value={formData.username}
             onChange={handleChange}
-            disabled={isSubmitting}
+            disabled={isSubmitting || !apiInitialized}
             placeholder="Choose a username"
             className={errors.username ? 'error' : ''}
           />
@@ -151,7 +201,7 @@ const SignupPage: React.FC = () => {
             name="email"
             value={formData.email}
             onChange={handleChange}
-            disabled={isSubmitting}
+            disabled={isSubmitting || !apiInitialized}
             placeholder="Your email address"
             className={errors.email ? 'error' : ''}
           />
@@ -166,7 +216,7 @@ const SignupPage: React.FC = () => {
             name="password"
             value={formData.password}
             onChange={handleChange}
-            disabled={isSubmitting}
+            disabled={isSubmitting || !apiInitialized}
             placeholder="Create a secure password"
             className={errors.password ? 'error' : ''}
           />
@@ -181,7 +231,7 @@ const SignupPage: React.FC = () => {
             name="confirmPassword"
             value={formData.confirmPassword}
             onChange={handleChange}
-            disabled={isSubmitting}
+            disabled={isSubmitting || !apiInitialized}
             placeholder="Confirm your password"
             className={errors.confirmPassword ? 'error' : ''}
           />
@@ -191,7 +241,7 @@ const SignupPage: React.FC = () => {
         <button 
           type="submit" 
           className="auth-button" 
-          disabled={isSubmitting}
+          disabled={isSubmitting || !apiInitialized}
         >
           {isSubmitting ? 'Creating Account...' : 'Create Account'}
         </button>

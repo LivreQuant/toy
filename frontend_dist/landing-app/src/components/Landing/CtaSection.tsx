@@ -1,14 +1,13 @@
 import React from 'react';
 import { Box, Container, Typography, Button, Grid, useTheme } from '@mui/material';
 import { alpha } from '@mui/material/styles';
-import { appUrlService } from '../../config';
 
 const CtaSection: React.FC = () => {
   const theme = useTheme();
   
   const handleGetStarted = () => {
-    const signupUrl = appUrlService.getMainAppRoute('signup');
-    window.location.href = signupUrl;
+    // Stay on landing app - navigate to signup
+    window.location.href = '/signup';
   };
   
   return (

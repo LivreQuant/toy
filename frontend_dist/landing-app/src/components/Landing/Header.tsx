@@ -1,18 +1,17 @@
 import React from 'react';
 import { Box, Container, Typography, Button, Paper, useTheme } from '@mui/material';
-import { appUrlService } from '../../config';
 
 const Header: React.FC = () => {
   const theme = useTheme();
   
   const handleLogin = () => {
-    const loginUrl = appUrlService.getMainAppRoute('login');
-    window.location.href = loginUrl;
+    // Stay on landing app - just navigate to login route
+    window.location.href = '/login';
   };
   
   const handleSignup = () => {
-    const signupUrl = appUrlService.getMainAppRoute('signup');
-    window.location.href = signupUrl;
+    // Stay on landing app - just navigate to signup route
+    window.location.href = '/signup';
   };
   
   return (
@@ -56,7 +55,7 @@ const Header: React.FC = () => {
             </Typography>
           </Box>
           
-          {/* Navigation Links */}
+          {/* ONLY MARKETING NAVIGATION - NO APP ROUTES */}
           <Box sx={{ 
             display: { xs: 'none', md: 'flex' }, 
             gap: 4,
@@ -192,7 +191,7 @@ const Header: React.FC = () => {
             </Button>
           </Box>
           
-          {/* Auth Buttons */}
+          {/* AUTH BUTTONS - STAY ON LANDING APP */}
           <Box sx={{ display: 'flex', gap: 2 }}>
             <Button 
               onClick={handleLogin}

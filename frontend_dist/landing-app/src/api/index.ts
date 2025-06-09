@@ -5,15 +5,16 @@ import { LocalStorageService } from '@trading-app/storage';
 import { environmentService } from '../config/environment';
 
 /**
- * API service for landing app - simplified and environment-aware
+ * API service for landing app - lazy initialization approach
  */
 class LandingApiService {
   private static instance: LandingApiService;
-  private authApi: AuthClient;
+  private authApi: AuthClient | null = null;
   private envService = environmentService;
+  private initializationPromise: Promise<AuthClient> | null = null;
 
   private constructor() {
-    this.authApi = this.createAuthClient();
+    // Don't initialize immediately, do it lazily
   }
 
   public static getInstance(): LandingApiService {
@@ -23,48 +24,62 @@ class LandingApiService {
     return LandingApiService.instance;
   }
 
-  private createAuthClient(): AuthClient {
+  private async createAuthClient(): Promise<AuthClient> {
     try {
-      // Create storage service
+      // Create storage service first
       const storageService = new LocalStorageService();
 
-      // Create device ID manager
-      const deviceIdManager = DeviceIdManager.getInstance();
+      // Create device ID manager with storage service
+      const deviceIdManager = DeviceIdManager.getInstance(storageService);
 
-      // Create token manager with environment-aware configuration
+      // Create token manager
       const tokenManager = new TokenManager(storageService, deviceIdManager);
 
-      // Create HTTP client with API base URL from environment
-      // Note: HttpClient might not accept configuration object as second parameter
-      // Let's check what the actual HttpClient constructor expects
-      const httpClient = new HttpClient(tokenManager);
+      // Try different HttpClient constructor patterns
+      let httpClient: HttpClient;
+      
+      try {
+        // Most likely pattern - just TokenManager
+        httpClient = new HttpClient(tokenManager);
+      } catch (error) {
+        throw new Error(`HttpClient initialization failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
 
       if (this.envService.shouldLog()) {
-        console.log('🔧 Landing API initialized:', {
-          apiUrl: this.envService.getApiConfig().baseUrl,
-          environment: this.envService.getAppConfig().environment,
-        });
+        console.log('🔧 Landing API initialized successfully');
       }
 
       return new AuthClient(httpClient, tokenManager);
     } catch (error) {
       console.error('❌ Failed to initialize landing API:', error);
-      throw new Error('Failed to initialize API service');
+      throw new Error(`Failed to initialize API service: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
-  public getAuthApi(): AuthClient {
-    return this.authApi;
+  public async getAuthApi(): Promise<AuthClient> {
+    if (this.authApi) {
+      return this.authApi;
+    }
+
+    if (this.initializationPromise) {
+      return this.initializationPromise;
+    }
+
+    this.initializationPromise = this.createAuthClient();
+    
+    try {
+      this.authApi = await this.initializationPromise;
+      return this.authApi;
+    } catch (error) {
+      this.initializationPromise = null; // Reset so we can try again
+      throw error;
+    }
   }
 
-  /**
-   * Health check for API connectivity
-   */
   public async healthCheck(): Promise<boolean> {
     try {
-      // Implement a simple health check if your API supports it
-      // For now, just return true if the client was created successfully
-      return !!this.authApi;
+      const authApi = await this.getAuthApi();
+      return !!(authApi && typeof authApi.login === 'function');
     } catch (error) {
       if (this.envService.shouldLog()) {
         console.error('❌ API health check failed:', error);
@@ -73,14 +88,11 @@ class LandingApiService {
     }
   }
 
-  /**
-   * Get API configuration info for debugging
-   */
   public getApiInfo() {
     return {
       baseUrl: this.envService.getApiConfig().baseUrl,
       environment: this.envService.getAppConfig().environment,
-      isHealthy: this.healthCheck(), // This returns a Promise<boolean>
+      isHealthy: this.healthCheck(),
     };
   }
 }
@@ -88,8 +100,8 @@ class LandingApiService {
 // Export singleton instance
 export const landingApiService = LandingApiService.getInstance();
 
-// Export auth API for convenience
-export const authApi = landingApiService.getAuthApi();
+// Export auth API getter (now async)
+export const getAuthApi = () => landingApiService.getAuthApi();
 
 // Export for debugging/health checks
 export const getApiInfo = () => landingApiService.getApiInfo();

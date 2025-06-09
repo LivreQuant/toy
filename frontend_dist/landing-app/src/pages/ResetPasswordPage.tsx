@@ -2,11 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import AuthLayout from './AuthLayout';
 import { useToast } from '../hooks/useToast';
+import { getAuthApi } from '../api';
+import { environmentService } from '../config/environment';
 import './AuthForms.css';
-
-// Import API client
-import { authApi } from '../api';
-
 
 const ResetPasswordPage: React.FC = () => {
   const [password, setPassword] = useState('');
@@ -15,9 +13,39 @@ const ResetPasswordPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [token, setToken] = useState<string | null>(null);
+  const [apiInitialized, setApiInitialized] = useState(false);
+  const [authApiRef, setAuthApiRef] = useState<any>(null);
   const { addToast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Check API initialization on component mount
+  useEffect(() => {
+    const checkApiInitialization = async () => {
+      try {
+        const authApi = await getAuthApi();
+        
+        if (!authApi || typeof authApi.resetPassword !== 'function') {
+          throw new Error('Auth API missing required methods');
+        }
+        
+        setAuthApiRef(authApi);
+        setApiInitialized(true);
+        
+        if (environmentService.shouldLog()) {
+          console.log('🔧 Reset Password API successfully initialized');
+        }
+      } catch (error) {
+        console.error('❌ API initialization check failed:', error);
+        setErrors({ 
+          form: 'Failed to initialize authentication service. Please refresh the page.' 
+        });
+        addToast('error', 'Authentication service unavailable. Please refresh the page.');
+      }
+    };
+    
+    checkApiInitialization();
+  }, [addToast]);
 
   // Extract token from URL query parameters
   useEffect(() => {
@@ -29,6 +57,9 @@ const ResetPasswordPage: React.FC = () => {
       navigate('/forgot-password', { replace: true });
     } else {
       setToken(token);
+      if (environmentService.shouldLog()) {
+        console.log('🔧 Reset token extracted from URL');
+      }
     }
   }, [location, addToast, navigate]);
 
@@ -62,6 +93,20 @@ const ResetPasswordPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (!apiInitialized || !authApiRef) {
+      setErrors({ 
+        form: 'Authentication service not ready. Please refresh the page.' 
+      });
+      return;
+    }
+
+    if (!token) {
+      setErrors({ 
+        form: 'Missing reset token. Please request a new password reset link.' 
+      });
+      return;
+    }
+    
     if (!validateForm()) {
       return;
     }
@@ -69,14 +114,18 @@ const ResetPasswordPage: React.FC = () => {
     setIsSubmitting(true);
     
     try {
-      const response = await authApi.resetPassword({
-        token: token!,
+      const response = await authApiRef.resetPassword({
+        token: token,
         newPassword: password
       });
       
       if (response.success) {
         setIsSuccess(true);
         addToast('success', 'Password has been reset successfully');
+        
+        if (environmentService.shouldLog()) {
+          console.log('🔧 Password reset successful');
+        }
       } else {
         setErrors({ 
           form: response.error || 'Failed to reset password. The link may have expired.' 
@@ -84,6 +133,7 @@ const ResetPasswordPage: React.FC = () => {
         addToast('error', response.error || 'Failed to reset password');
       }
     } catch (error: any) {
+      console.error('Reset password error:', error);
       setErrors({ 
         form: error.message || 'An error occurred during password reset. Please try again.' 
       });
@@ -92,6 +142,20 @@ const ResetPasswordPage: React.FC = () => {
       setIsSubmitting(false);
     }
   };
+
+  // Show loading state if API is not initialized
+  if (!apiInitialized && !errors.form) {
+    return (
+      <AuthLayout 
+        title="Loading..." 
+        subtitle="Initializing authentication service"
+      >
+        <div style={{ textAlign: 'center', padding: '20px' }}>
+          <div style={{ marginBottom: '10px' }}>Please wait...</div>
+        </div>
+      </AuthLayout>
+    );
+  }
 
   if (isSuccess) {
     return (
@@ -124,7 +188,7 @@ const ResetPasswordPage: React.FC = () => {
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            disabled={isSubmitting}
+            disabled={isSubmitting || !apiInitialized}
             placeholder="Create a new password"
             className={errors.password ? 'error' : ''}
           />
@@ -138,7 +202,7 @@ const ResetPasswordPage: React.FC = () => {
             type="password"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
-            disabled={isSubmitting}
+            disabled={isSubmitting || !apiInitialized}
             placeholder="Confirm your new password"
             className={errors.confirmPassword ? 'error' : ''}
           />
@@ -148,10 +212,14 @@ const ResetPasswordPage: React.FC = () => {
         <button 
           type="submit" 
           className="auth-button" 
-          disabled={isSubmitting}
+          disabled={isSubmitting || !apiInitialized}
         >
           {isSubmitting ? 'Resetting Password...' : 'Reset Password'}
         </button>
+        
+        <div className="auth-links">
+          <p>Remember your password? <Link to="/login">Log in</Link></p>
+        </div>
       </form>
     </AuthLayout>
   );
