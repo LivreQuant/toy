@@ -3,7 +3,8 @@ import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useNavigate } from 'react-router-dom';
 
-import { environmentService } from './config/environment';
+// Use unified config instead of local environment service
+import { config, isMainApp, shouldLog } from '@trading-app/config';
 
 // LOGGING - now from package
 import { initializeLogging, getLogger } from '@trading-app/logging';
@@ -72,15 +73,23 @@ const logger = getLogger('App');
 
 logger.info('🚀 Starting service instantiation...');
 
-// Log environment information for debugging
+// Validate we're running the right app
+if (!isMainApp()) {
+  logger.warn('⚠️ Main app detected non-main app configuration!');
+}
+
+// Log environment information for debugging using unified config
 logger.info('🔍 APP STARTUP: Environment information', {
+  appType: config.appType,
+  environment: config.environment,
+  apiBaseUrl: config.api.baseUrl,
+  wsUrl: config.websocket.url,
+  mainAppUrl: config.main.baseUrl,
+  landingUrl: config.landing.baseUrl,
   NODE_ENV: process.env.NODE_ENV,
-  REACT_APP_WS_URL: process.env.REACT_APP_WS_URL,
   REACT_APP_API_BASE_URL: process.env.REACT_APP_API_BASE_URL,
+  REACT_APP_WS_URL: process.env.REACT_APP_WS_URL,
   REACT_APP_ENV: process.env.REACT_APP_ENV,
-  HOST: process.env.HOST,
-  PORT: process.env.PORT,
-  PUBLIC_URL: process.env.PUBLIC_URL,
   window_location: typeof window !== 'undefined' ? {
     hostname: window.location.hostname,
     port: window.location.port,
@@ -99,7 +108,7 @@ logger.info('✅ Auth services created', {
 
 // Create API clients using factory
 const apiClients = ApiFactory.createClients(tokenManager);
-logger.info('✅ API clients created');
+logger.info('✅ API clients created with base URL:', config.api.baseUrl);
 
 // Set the auth API on token manager (important for token refresh!)
 tokenManager.setAuthApi(apiClients.auth);
@@ -136,9 +145,10 @@ logger.info('✅ ConvictionManager created');
 
 logger.info('🎉 All services instantiated successfully');
 
-// Log final WebSocket URL being used
-logger.info('🔗 FINAL WEBSOCKET URL CHECK', {
-  configServiceUrl: configService.getWebSocketUrl(),
+// Log final API URL being used
+logger.info('🔗 FINAL API URL CHECK', {
+  configApiUrl: config.api.baseUrl,
+  envApiUrl: process.env.REACT_APP_API_BASE_URL,
   timestamp: new Date().toISOString()
 });
 
@@ -338,7 +348,7 @@ function App() {
 // Add redirect component
 const RedirectToLanding: React.FC = () => {
   const currentPath = window.location.pathname + window.location.search;
-  const landingUrl = environmentService.getLandingAppUrl();
+  const landingUrl = config.landing.baseUrl;
   
   React.useEffect(() => {
     console.log(`🔗 Redirecting ${currentPath} to landing app: ${landingUrl}${currentPath}`);

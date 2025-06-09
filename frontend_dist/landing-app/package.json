@@ -20,6 +20,7 @@
     "@trading-app/logging": "file:../packages/logging",
     "@trading-app/state": "file:../packages/state",
     "@trading-app/websocket": "file:../packages/websocket",
+    "@trading-app/config": "file:../packages/config",
     "@types/jest": "^27.5.2",
     "@types/node": "^16.18.126",
     "@types/react": "^19.1.6",

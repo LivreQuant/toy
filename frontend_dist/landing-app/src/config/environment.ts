@@ -1,142 +1,36 @@
-// landing-app/src/config/environment.ts
+// frontend_dist/landing-app/src/config/environment.ts
+import { config, AppConfig } from '@trading-app/config';
 
-interface EnvironmentConfig {
-  mainApp: {
-    baseUrl: string;
-    routes: {
-      login: string;
-      signup: string;
-      home: string;
-      app: string;
-      profile: string;
-      books: string;
-      simulator: string;
-    };
-  };
-  api: {
-    baseUrl: string;
-  };
-  websocket: {
-    url: string;
-  };
-  landing: {
-    baseUrl: string;
-  };
-  app: {
-    environment: 'development' | 'production' | 'staging';
-    enableLogs: boolean;
-    enableDebug: boolean;
-  };
+interface LandingEnvironmentConfig extends AppConfig {
+  // Landing-specific additions can go here if needed
 }
 
-class EnvironmentService {
-  private static instance: EnvironmentService;
-  private config: EnvironmentConfig;
+class LandingEnvironmentService {
+  private static instance: LandingEnvironmentService;
+  private config: LandingEnvironmentConfig;
 
   private constructor() {
-    this.config = this.loadConfig();
-    this.validateConfig();
+    // Use the unified config
+    this.config = config as LandingEnvironmentConfig;
+    this.validateLandingConfig();
   }
 
-  public static getInstance(): EnvironmentService {
-    if (!EnvironmentService.instance) {
-      EnvironmentService.instance = new EnvironmentService();
+  public static getInstance(): LandingEnvironmentService {
+    if (!LandingEnvironmentService.instance) {
+      LandingEnvironmentService.instance = new LandingEnvironmentService();
     }
-    return EnvironmentService.instance;
+    return LandingEnvironmentService.instance;
   }
 
-  private loadConfig(): EnvironmentConfig {
-    const env = process.env.REACT_APP_ENV || process.env.NODE_ENV || 'development';
-    
-    // Determine URLs based on environment
-    const mainAppUrl = this.determineMainAppUrl();
-    const apiBaseUrl = this.determineApiBaseUrl();
-    const wsUrl = this.determineWebSocketUrl();
-    const landingUrl = this.determineLandingUrl();
-
-    return {
-      mainApp: {
-        baseUrl: mainAppUrl,
-        routes: {
-          login: `${mainAppUrl}/login`,
-          signup: `${mainAppUrl}/signup`,
-          home: `${mainAppUrl}/home`,
-          app: `${mainAppUrl}/app`,
-          profile: `${mainAppUrl}/profile`,
-          books: `${mainAppUrl}/books`,
-          simulator: `${mainAppUrl}/simulator`,
-        },
-      },
-      api: {
-        baseUrl: apiBaseUrl,
-      },
-      websocket: {
-        url: wsUrl,
-      },
-      landing: {
-        baseUrl: landingUrl,
-      },
-      app: {
-        environment: env as 'development' | 'production' | 'staging',
-        enableLogs: process.env.REACT_APP_ENABLE_CONSOLE_LOGS === 'true',
-        enableDebug: process.env.REACT_APP_ENABLE_DEBUG_MODE === 'true',
-      },
-    };
-  }
-
-  private determineMainAppUrl(): string {
-    if (process.env.REACT_APP_MAIN_APP_URL) {
-      return process.env.REACT_APP_MAIN_APP_URL;
+  private validateLandingConfig(): void {
+    if (this.config.appType !== 'landing') {
+      console.warn('⚠️ Config indicates this is not a landing app, but LandingEnvironmentService is being used');
     }
 
-    if (process.env.NODE_ENV === 'production' && process.env.REACT_APP_MAIN_APP_PRODUCTION_URL) {
-      return process.env.REACT_APP_MAIN_APP_PRODUCTION_URL;
-    }
-
-    return 'http://localhost:3000';
-  }
-
-  private determineApiBaseUrl(): string {
-    if (process.env.REACT_APP_API_BASE_URL) {
-      return process.env.REACT_APP_API_BASE_URL;
-    }
-
-    if (process.env.NODE_ENV === 'production' && process.env.REACT_APP_API_PRODUCTION_URL) {
-      return process.env.REACT_APP_API_PRODUCTION_URL;
-    }
-
-    return 'http://localhost:8080/api';
-  }
-
-  private determineWebSocketUrl(): string {
-    if (process.env.REACT_APP_WS_URL) {
-      return process.env.REACT_APP_WS_URL;
-    }
-
-    if (process.env.NODE_ENV === 'production' && process.env.REACT_APP_WS_PRODUCTION_URL) {
-      return process.env.REACT_APP_WS_PRODUCTION_URL;
-    }
-
-    return 'ws://localhost:8080/ws';
-  }
-
-  private determineLandingUrl(): string {
-    if (process.env.REACT_APP_LANDING_URL) {
-      return process.env.REACT_APP_LANDING_URL;
-    }
-
-    if (process.env.NODE_ENV === 'production' && process.env.REACT_APP_LANDING_PRODUCTION_URL) {
-      return process.env.REACT_APP_LANDING_PRODUCTION_URL;
-    }
-
-    return 'http://localhost:3001';
-  }
-
-  private validateConfig(): void {
     const requiredFields = [
-      'mainApp.baseUrl',
       'api.baseUrl',
-      'landing.baseUrl'
+      'landing.baseUrl',
+      'main.baseUrl'
     ];
 
     for (const field of requiredFields) {
@@ -146,12 +40,14 @@ class EnvironmentService {
       }
     }
 
-    if (this.config.app.enableLogs) {
-      console.log('🔧 Environment Configuration Loaded:', {
-        environment: this.config.app.environment,
-        mainAppUrl: this.config.mainApp.baseUrl,
-        apiUrl: this.config.api.baseUrl,
+    if (this.shouldLog()) {
+      console.log('🔧 Landing Environment Configuration Loaded:', {
+        appType: this.config.appType,
+        environment: this.config.environment,
         landingUrl: this.config.landing.baseUrl,
+        mainAppUrl: this.config.main.baseUrl,
+        apiUrl: this.config.api.baseUrl,
+        autoRedirectValidCredentials: this.config.features.autoRedirectValidCredentials
       });
     }
   }
@@ -160,16 +56,20 @@ class EnvironmentService {
     return path.split('.').reduce((current, key) => current?.[key], obj);
   }
 
-  public getConfig(): EnvironmentConfig {
+  public getConfig(): LandingEnvironmentConfig {
     return { ...this.config };
   }
 
   public getMainAppUrl(): string {
-    return this.config.mainApp.baseUrl;
+    return this.config.main.baseUrl;
   }
 
   public getMainAppRoutes() {
-    return { ...this.config.mainApp.routes };
+    return { ...this.config.main.routes };
+  }
+
+  public getLandingConfig() {
+    return { ...this.config.landing };
   }
 
   public getApiConfig() {
@@ -180,36 +80,45 @@ class EnvironmentService {
     return { ...this.config.websocket };
   }
 
-  public getLandingConfig() {
-    return { ...this.config.landing };
+  public getAppConfig() {
+    return {
+      appType: this.config.appType,
+      environment: this.config.environment,
+      enableLogs: this.config.features.enableLogs,
+      enableDebug: this.config.features.enableDebug
+    };
   }
 
-  public getAppConfig() {
-    return { ...this.config.app };
+  public getFeatures() {
+    return { ...this.config.features };
   }
 
   public isProduction(): boolean {
-    return this.config.app.environment === 'production';
+    return this.config.environment === 'production';
   }
 
   public isDevelopment(): boolean {
-    return this.config.app.environment === 'development';
+    return this.config.environment === 'development';
   }
 
   public shouldLog(): boolean {
-    return this.config.app.enableLogs;
+    return this.config.features.enableLogs;
   }
 
   public shouldDebug(): boolean {
-    return this.config.app.enableDebug;
+    return this.config.features.enableDebug;
+  }
+
+  public shouldAutoRedirectValidCredentials(): boolean {
+    return this.config.features.autoRedirectValidCredentials;
   }
 }
 
 // Export singleton instance
-export const environmentService = EnvironmentService.getInstance();
+export const environmentService = LandingEnvironmentService.getInstance();
 
 // Export configuration object for direct access
-export const config = environmentService.getConfig();
+export const landingConfig = environmentService.getConfig();
 
 // Export commonly used values
 export const mainAppRoutes = environmentService.getMainAppRoutes();

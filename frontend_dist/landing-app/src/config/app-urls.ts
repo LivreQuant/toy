@@ -18,9 +18,19 @@ export class AppUrlService {
     return this.envService.getMainAppRoutes();
   }
 
+  // Updated to include 'signup' in the type, even though main app doesn't have it
   public getMainAppRoute(route: 'login' | 'signup' | 'home' | 'app' | 'profile' | 'books' | 'simulator'): string {
     const routes = this.envService.getMainAppRoutes();
-    return routes[route];
+    
+    // Handle the fact that main app routes don't include 'signup'
+    if (route === 'signup') {
+      // Main app doesn't have signup, redirect to login instead
+      return routes.login;
+    }
+    
+    // Now we can safely access the route since we've filtered out 'signup'
+    type ValidMainAppRoute = Exclude<typeof route, 'signup'>;
+    return routes[route as ValidMainAppRoute];
   }
 
   public redirectToMainApp(path: string = '/home', replace: boolean = false): void {
@@ -85,7 +95,7 @@ export class AppUrlService {
 // Export singleton instance
 export const appUrlService = AppUrlService.getInstance();
 
-// Export commonly used methods for convenience - REMOVED mainAppRoutes to avoid conflict
+// Export commonly used methods for convenience
 export const redirectToMainApp = appUrlService.redirectToMainApp.bind(appUrlService);
 export const redirectToLanding = appUrlService.redirectToLanding.bind(appUrlService);
 export const getMainAppRoute = appUrlService.getMainAppRoute.bind(appUrlService);

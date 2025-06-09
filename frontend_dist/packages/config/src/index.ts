@@ -1,9 +1,55 @@
 // frontend_dist/packages/config/src/index.ts
 
 export interface AppConfig {
-  apiBaseUrl: string;
-  wsBaseUrl: string;
-  environment: string;
+  // App identification
+  appType: 'landing' | 'main';
+  environment: 'development' | 'production' | 'staging';
+  
+  // API Configuration
+  api: {
+    baseUrl: string;
+  };
+  
+  // WebSocket Configuration  
+  websocket: {
+    url: string;
+  };
+  
+  // App URLs
+  landing: {
+    baseUrl: string;
+    routes: {
+      home: string;
+      signup: string;
+      login: string;
+      verifyEmail: string;
+      forgotPassword: string;
+      forgotUsername: string;
+      resetPassword: string;
+      enterpriseContact: string;
+    };
+  };
+  
+  main: {
+    baseUrl: string;
+    routes: {
+      login: string;
+      home: string;
+      app: string;
+      profile: string;
+      books: string;
+      simulator: string;
+    };
+  };
+  
+  // Feature flags
+  features: {
+    enableLogs: boolean;
+    enableDebug: boolean;
+    autoRedirectValidCredentials: boolean;
+  };
+  
+  // Reconnection config
   reconnection: {
     initialDelayMs: number;
     maxDelayMs: number;
@@ -12,59 +58,121 @@ export interface AppConfig {
   };
 }
 
+function determineAppType(): 'landing' | 'main' {
+  // Check if we're in landing app by looking at package.json name or environment
+  if (process.env.REACT_APP_TYPE === 'landing') return 'landing';
+  if (process.env.REACT_APP_TYPE === 'main') return 'main';
+  
+  // Fallback: check current URL or default
+  if (typeof window !== 'undefined') {
+    const currentPort = window.location.port;
+    if (currentPort === '3001') return 'landing';
+    if (currentPort === '3000') return 'main';
+  }
+  
+  // Default based on process.env assumption
+  return 'main';
+}
+
 function getConfig(): AppConfig {
-  // Simple console logging instead of logger to avoid circular dependency
-  console.log('🔍 CONFIG: Loading configuration');
+  console.log('🔍 CONFIG: Loading unified configuration - START');
+  console.log('🔍 CONFIG: process.env.REACT_APP_API_BASE_URL =', process.env.REACT_APP_API_BASE_URL);
+  console.log('🔍 CONFIG: process.env.NODE_ENV =', process.env.NODE_ENV);
+  console.log('🔍 CONFIG: process.env.REACT_APP_ENV =', process.env.REACT_APP_ENV);
+  console.log('🔍 CONFIG: process.env.REACT_APP_TYPE =', process.env.REACT_APP_TYPE);
 
-  // Log all environment variables for debugging
-  const envVars = {
-    NODE_ENV: process.env.NODE_ENV,
-    REACT_APP_API_BASE_URL: process.env.REACT_APP_API_BASE_URL,
-    REACT_APP_WS_URL: process.env.REACT_APP_WS_URL,
-    REACT_APP_ENV: process.env.REACT_APP_ENV,
-    location: typeof window !== 'undefined' ? {
-      hostname: window.location.hostname,
-      port: window.location.port,
-      protocol: window.location.protocol
-    } : 'server-side'
-  };
+  const appType = determineAppType();
+  const environment = (process.env.REACT_APP_ENV || process.env.NODE_ENV || 'development') as 'development' | 'production' | 'staging';
 
-  console.log('🔍 CONFIG: Environment variables', envVars);
+  console.log('🔍 CONFIG: appType =', appType);
+  console.log('🔍 CONFIG: environment =', environment);
 
   // Determine API base URL
   let apiBaseUrl: string;
   if (process.env.REACT_APP_API_BASE_URL) {
     apiBaseUrl = process.env.REACT_APP_API_BASE_URL;
-    console.log('🔍 CONFIG: Using REACT_APP_API_BASE_URL', { apiBaseUrl });
-  } else if (process.env.NODE_ENV === 'development') {
-    apiBaseUrl = 'http://trading.local';
-    console.log('🔍 CONFIG: Development default API URL', { apiBaseUrl });
+    console.log('✅ CONFIG: Using REACT_APP_API_BASE_URL:', apiBaseUrl);
+  } else if (environment === 'development') {
+    apiBaseUrl = 'http://trading.local/api';
+    console.log('✅ CONFIG: Using development default:', apiBaseUrl);
   } else {
-    // Production fallback
-    if (typeof window !== 'undefined') {
-      apiBaseUrl = `${window.location.protocol}//${window.location.hostname}`;
-      console.log('🔍 CONFIG: Production API URL from window.location', { apiBaseUrl });
-    } else {
-      apiBaseUrl = 'http://trading.local';
-      console.log('🔍 CONFIG: SSR fallback API URL', { apiBaseUrl });
-    }
+    apiBaseUrl = `${window?.location?.protocol || 'https:'}//${window?.location?.hostname || 'api.digitaltrader.com'}/api`;
+    console.log('✅ CONFIG: Using fallback URL:', apiBaseUrl);
   }
 
-  // Determine WebSocket base URL
-  let wsBaseUrl: string;
+  // Determine WebSocket URL
+  let wsUrl: string;
   if (process.env.REACT_APP_WS_URL) {
-    wsBaseUrl = process.env.REACT_APP_WS_URL;
-    console.log('🔍 CONFIG: Using REACT_APP_WS_URL', { wsBaseUrl });
+    wsUrl = process.env.REACT_APP_WS_URL;
   } else {
-    // Convert API URL to WebSocket URL
-    wsBaseUrl = apiBaseUrl.replace(/^https?:/, apiBaseUrl.includes('https') ? 'wss:' : 'ws:') + '/ws';
-    console.log('🔍 CONFIG: Derived WebSocket URL from API URL', { wsBaseUrl });
+    const wsProtocol = apiBaseUrl.includes('https') ? 'wss:' : 'ws:';
+    wsUrl = apiBaseUrl.replace(/^https?:/, wsProtocol).replace('/api', '/ws');
+  }
+
+  // Determine landing app URL
+  let landingUrl: string;
+  if (process.env.REACT_APP_LANDING_URL) {
+    landingUrl = process.env.REACT_APP_LANDING_URL;
+  } else if (environment === 'development') {
+    landingUrl = 'http://localhost:3001';
+  } else {
+    landingUrl = 'https://digitaltrader.com';
+  }
+
+  // Determine main app URL  
+  let mainAppUrl: string;
+  if (process.env.REACT_APP_MAIN_APP_URL) {
+    mainAppUrl = process.env.REACT_APP_MAIN_APP_URL;
+  } else if (environment === 'development') {
+    mainAppUrl = 'http://localhost:3000';
+  } else {
+    mainAppUrl = 'https://app.digitaltrader.com';
   }
 
   const config: AppConfig = {
-    apiBaseUrl,
-    wsBaseUrl,
-    environment: process.env.NODE_ENV || 'development',
+    appType,
+    environment,
+    
+    api: {
+      baseUrl: apiBaseUrl
+    },
+    
+    websocket: {
+      url: wsUrl
+    },
+    
+    landing: {
+      baseUrl: landingUrl,
+      routes: {
+        home: `${landingUrl}/`,
+        signup: `${landingUrl}/signup`,
+        login: `${mainAppUrl}/login`, // Landing login redirects to main app
+        verifyEmail: `${landingUrl}/verify-email`,
+        forgotPassword: `${landingUrl}/forgot-password`,
+        forgotUsername: `${landingUrl}/forgot-username`,
+        resetPassword: `${landingUrl}/reset-password`,
+        enterpriseContact: `${landingUrl}/enterprise-contact`
+      }
+    },
+    
+    main: {
+      baseUrl: mainAppUrl,
+      routes: {
+        login: `${mainAppUrl}/login`,
+        home: `${mainAppUrl}/home`,
+        app: `${mainAppUrl}/app`,
+        profile: `${mainAppUrl}/profile`,
+        books: `${mainAppUrl}/books`,
+        simulator: `${mainAppUrl}/simulator`
+      }
+    },
+    
+    features: {
+      enableLogs: process.env.REACT_APP_ENABLE_CONSOLE_LOGS === 'true' || environment === 'development',
+      enableDebug: process.env.REACT_APP_ENABLE_DEBUG_MODE === 'true' || environment === 'development',
+      autoRedirectValidCredentials: process.env.REACT_APP_AUTO_REDIRECT_VALID_CREDS !== 'false' // Default true
+    },
+    
     reconnection: {
       initialDelayMs: 1000,
       maxDelayMs: 30000,
@@ -73,7 +181,9 @@ function getConfig(): AppConfig {
     }
   };
 
-  console.log('🔍 CONFIG: Final configuration', config);
+  console.log('🔍 CONFIG: Final API baseUrl:', config.api.baseUrl);
+  console.log('🔍 CONFIG: Full config object:', config);
+  console.log('🔍 CONFIG: Loading unified configuration - END');
   
   return config;
 }
@@ -81,11 +191,21 @@ function getConfig(): AppConfig {
 // Export the config instance
 export const config = getConfig();
 
-// Export individual values for convenience
-export const API_BASE_URL = config.apiBaseUrl;
-export const WS_BASE_URL = config.wsBaseUrl;
+// Export individual values for convenience  
+export const APP_TYPE = config.appType;
+export const API_BASE_URL = config.api.baseUrl;
+export const WS_BASE_URL = config.websocket.url;
 export const ENVIRONMENT = config.environment;
-export const RECONNECTION_CONFIG = config.reconnection;
+export const LANDING_URL = config.landing.baseUrl;
+export const MAIN_APP_URL = config.main.baseUrl;
+
+// Helper functions
+export const isLandingApp = () => config.appType === 'landing';
+export const isMainApp = () => config.appType === 'main';
+export const isDevelopment = () => config.environment === 'development';
+export const isProduction = () => config.environment === 'production';
+export const shouldLog = () => config.features.enableLogs;
+export const shouldDebug = () => config.features.enableDebug;
 
 // Default export
 export default config;

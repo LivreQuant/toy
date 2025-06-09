@@ -1,69 +1,77 @@
 // frontend_dist/main-app/src/config/environment.ts
+import { config, AppConfig } from '@trading-app/config';
 import { getLogger } from '@trading-app/logging';
 
 const logger = getLogger('Environment');
 
-class EnvironmentService {
-  private landingAppUrl: string;
-  private mainAppUrl: string;
-  private apiBaseUrl: string;
-  private wsUrl: string;
-  private environment: string;
+interface MainEnvironmentConfig extends AppConfig {
+  // Main-specific additions can go here if needed
+}
 
-  constructor() {
-    this.environment = process.env.REACT_APP_ENV || 'development';
-    
-    // Landing app URL
-    this.landingAppUrl = process.env.REACT_APP_LANDING_URL || 'http://localhost:3001';
-    
-    // Main app URL  
-    this.mainAppUrl = process.env.REACT_APP_MAIN_APP_URL || 'http://localhost:3000';
-    
-    // API URLs
-    this.apiBaseUrl = process.env.REACT_APP_API_BASE_URL || 'http://trading.local/api';
-    this.wsUrl = process.env.REACT_APP_WS_URL || 'ws://trading.local/ws';
+class MainEnvironmentService {
+  private static instance: MainEnvironmentService;
+  private config: MainEnvironmentConfig;
+
+  private constructor() {
+    // Use the unified config
+    this.config = config as MainEnvironmentConfig;
+    this.validateMainConfig();
+  }
+
+  public static getInstance(): MainEnvironmentService {
+    if (!MainEnvironmentService.instance) {
+      MainEnvironmentService.instance = new MainEnvironmentService();
+    }
+    return MainEnvironmentService.instance;
+  }
+
+  private validateMainConfig(): void {
+    if (this.config.appType !== 'main') {
+      console.warn('⚠️ Config indicates this is not a main app, but MainEnvironmentService is being used');
+    }
 
     logger.info('🔧 Main App Environment initialized', {
-      environment: this.environment,
-      landingAppUrl: this.landingAppUrl,
-      mainAppUrl: this.mainAppUrl,
-      apiBaseUrl: this.apiBaseUrl,
-      wsUrl: this.wsUrl
+      appType: this.config.appType,
+      environment: this.config.environment,
+      landingAppUrl: this.config.landing.baseUrl,
+      mainAppUrl: this.config.main.baseUrl,
+      apiBaseUrl: this.config.api.baseUrl,
+      wsUrl: this.config.websocket.url
     });
   }
 
   getLandingAppUrl(): string {
-    return this.landingAppUrl;
+    return this.config.landing.baseUrl;
   }
 
   getMainAppUrl(): string {
-    return this.mainAppUrl;
+    return this.config.main.baseUrl;
   }
 
   getApiBaseUrl(): string {
-    return this.apiBaseUrl;
+    return this.config.api.baseUrl;
   }
 
   getWebSocketUrl(): string {
-    return this.wsUrl;
+    return this.config.websocket.url;
   }
 
   getEnvironment(): string {
-    return this.environment;
+    return this.config.environment;
   }
 
   isDevelopment(): boolean {
-    return this.environment === 'development';
+    return this.config.environment === 'development';
   }
 
   isProduction(): boolean {
-    return this.environment === 'production';
+    return this.config.environment === 'production';
   }
 
   shouldLog(): boolean {
-    return this.isDevelopment();
+    return this.config.features.enableLogs;
   }
 }
 
-// Export singleton instance
-export const environmentService = new EnvironmentService();
+// Export singleton instance - fix the constructor access
+export const environmentService = MainEnvironmentService.getInstance();
