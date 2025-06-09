@@ -82,7 +82,7 @@ if (!isMainApp()) {
 logger.info('🔍 APP STARTUP: Environment information', {
   appType: config.appType,
   environment: config.environment,
-  apiBaseUrl: config.api.baseUrl,
+  apiBaseUrl: config.apiBaseUrl,
   wsUrl: config.websocket.url,
   mainAppUrl: config.main.baseUrl,
   landingUrl: config.landing.baseUrl,
@@ -108,7 +108,7 @@ logger.info('✅ Auth services created', {
 
 // Create API clients using factory
 const apiClients = ApiFactory.createClients(tokenManager);
-logger.info('✅ API clients created with base URL:', config.api.baseUrl);
+logger.info('✅ API clients created with base URL:', config.apiBaseUrl);
 
 // Set the auth API on token manager (important for token refresh!)
 tokenManager.setAuthApi(apiClients.auth);
@@ -147,7 +147,7 @@ logger.info('🎉 All services instantiated successfully');
 
 // Log final API URL being used
 logger.info('🔗 FINAL API URL CHECK', {
-  configApiUrl: config.api.baseUrl,
+  configApiUrl: config.apiBaseUrl,
   envApiUrl: process.env.REACT_APP_API_BASE_URL,
   timestamp: new Date().toISOString()
 });

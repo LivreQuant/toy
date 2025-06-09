@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Link } from 'react-router-dom';
 import { Box, Typography, Button, } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import { config } from '@trading-app/config'; // 🚨 NEW: Import config
 import './AuthLayout.css';
 
 interface AuthLayoutProps {
@@ -14,28 +15,33 @@ interface AuthLayoutProps {
 const AuthLayout: React.FC<AuthLayoutProps> = ({ children, title, subtitle }) => {
   const navigate = useNavigate();
 
+  // 🚨 NEW: Handle back to landing app
+  const handleBackToHome = () => {
+    const landingUrl = config.landing.baseUrl;
+    console.log(`🔗 Redirecting to landing app: ${landingUrl}`);
+    window.location.href = landingUrl;
+  };
+
   return (
     <div className="auth-layout">
-      
-
       <div className="auth-logo">
         <Button
           startIcon={<ArrowBackIcon />}
-          onClick={() => navigate('/')}
+          onClick={handleBackToHome} // 🚨 CHANGED: Use new handler
           variant="contained" 
           color="secondary" 
           size="medium"
           sx={{
-            py: 1,         // Increased vertical padding
-            px: 2,           // Increased horizontal padding
+            py: 1,
+            px: 2,
             fontWeight: 600,
             marginBottom: 2,
             borderRadius: 2,
             textTransform: 'none',
-            display: 'flex',  // Added display flex
-            alignItems: 'center', // Added to center text vertically
-            justifyContent: 'center', // Added to center text horizontally
-            height: '48px'    // Set a fixed height
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            height: '48px'
           }}
         >
           Back to Home
@@ -51,7 +57,6 @@ const AuthLayout: React.FC<AuthLayoutProps> = ({ children, title, subtitle }) =>
           {children}
         </div>
       </div>
-
     </div>
   );
 };

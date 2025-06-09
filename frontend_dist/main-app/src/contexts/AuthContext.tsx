@@ -14,6 +14,8 @@ import { toastService } from '@trading-app/toast';
 import { TokenManager, TokenData } from '@trading-app/auth';
 import { DeviceIdManager } from '@trading-app/auth';
 
+import { config } from '@trading-app/config'; // 🚨 ADD THIS IMPORT
+
 import { ConnectionManager } from '@trading-app/websocket';
 
 const logger = getLogger('AuthContext');
@@ -238,7 +240,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, tokenManag
     logger.info('🔌 AUTH: Attempting logout...');
     setIsAuthLoading(true);
     authState.updateState({ isAuthLoading: true });
-
+  
     try {
       // 🚨 CRITICAL: Disconnect WebSocket FIRST before logout
       if (connectionManager) {
@@ -261,23 +263,28 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, tokenManag
       } catch (apiError) {
         logger.error("Backend logout API call failed:", { error: apiError });
       }
-
+  
       tokenManager.clearTokens();
       logger.info('Tokens cleared');
-
+  
       authState.updateState({
         isAuthenticated: false,
         isAuthLoading: false,
         userId: null,
         lastAuthError: null,
       });
-
+  
       setIsAuthenticated(false);
       setUserId(null);
       setIsAuthLoading(false);
       logger.info('Logout process completed');
-
+  
       toastService.success('You have been successfully logged out');
+      
+      // 🚨 NEW: Redirect to landing app after logout
+      const landingUrl = config.landing.baseUrl;
+      logger.info('🔗 AUTH: Redirecting to landing app after logout', { landingUrl });
+      window.location.href = landingUrl;
       
     } catch (error) {
       logger.error("Unexpected error during logout process:", { error });
@@ -295,6 +302,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, tokenManag
       setIsAuthenticated(false);
       setUserId(null);
       setIsAuthLoading(false);
+  
+      // 🚨 NEW: Even on error, redirect to landing app
+      const landingUrl = config.landing.baseUrl;
+      logger.info('🔗 AUTH: Redirecting to landing app after logout error', { landingUrl });
+      window.location.href = landingUrl;
     }
   }, [authApi, tokenManager, connectionManager]);
 

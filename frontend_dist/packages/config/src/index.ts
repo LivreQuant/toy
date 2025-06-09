@@ -5,10 +5,8 @@ export interface AppConfig {
   appType: 'landing' | 'main';
   environment: 'development' | 'production' | 'staging';
   
-  // API Configuration
-  api: {
-    baseUrl: string;
-  };
+  // API Configuration - KEEP OLD STRUCTURE
+  apiBaseUrl: string;  // ✅ RESTORED - HTTP client expects this
   
   // WebSocket Configuration  
   websocket: {
@@ -87,8 +85,9 @@ function getConfig(): AppConfig {
   console.log('🔍 CONFIG: appType =', appType);
   console.log('🔍 CONFIG: environment =', environment);
 
-  // Determine API base URL
+  // Determine API base URL - FIXED TO MATCH HTTP CLIENT EXPECTATIONS
   let apiBaseUrl: string;
+  
   if (process.env.REACT_APP_API_BASE_URL) {
     apiBaseUrl = process.env.REACT_APP_API_BASE_URL;
     console.log('✅ CONFIG: Using REACT_APP_API_BASE_URL:', apiBaseUrl);
@@ -133,9 +132,8 @@ function getConfig(): AppConfig {
     appType,
     environment,
     
-    api: {
-      baseUrl: apiBaseUrl
-    },
+    // ✅ RESTORED - HTTP client expects this exact property name
+    apiBaseUrl: apiBaseUrl,
     
     websocket: {
       url: wsUrl
@@ -181,7 +179,7 @@ function getConfig(): AppConfig {
     }
   };
 
-  console.log('🔍 CONFIG: Final API baseUrl:', config.api.baseUrl);
+  console.log('🔍 CONFIG: Final API baseUrl:', config.apiBaseUrl);
   console.log('🔍 CONFIG: Full config object:', config);
   console.log('🔍 CONFIG: Loading unified configuration - END');
   
@@ -191,9 +189,9 @@ function getConfig(): AppConfig {
 // Export the config instance
 export const config = getConfig();
 
-// Export individual values for convenience  
+// Export individual values for convenience - FIXED EXPORTS
 export const APP_TYPE = config.appType;
-export const API_BASE_URL = config.api.baseUrl;
+export const API_BASE_URL = config.apiBaseUrl;  // ✅ RESTORED
 export const WS_BASE_URL = config.websocket.url;
 export const ENVIRONMENT = config.environment;
 export const LANDING_URL = config.landing.baseUrl;
