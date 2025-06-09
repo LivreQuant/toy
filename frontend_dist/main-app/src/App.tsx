@@ -179,47 +179,10 @@ function DeviceIdInvalidationHandler({ children }: { children: React.ReactNode }
   return <>{children}</>;
 }
 
-// Add a debug component to check connection manager
-function ConnectionDebugger() {
-  const { connectionManager } = useConnection();
-  
-  useEffect(() => {
-    logger.info('🔍 ConnectionDebugger: Checking connection manager', {
-      hasConnectionManager: !!connectionManager,
-      connectionManager
-    });
-    
-    if (connectionManager) {
-      // Add event listeners for debugging
-      const subscriptions = [
-        connectionManager.on('connected', () => {
-          logger.info('🟢 CONNECTION DEBUG: Connected!');
-        }),
-        connectionManager.on('disconnected', (reason) => {
-          logger.warn('🔴 CONNECTION DEBUG: Disconnected', { reason });
-        }),
-        connectionManager.on('error', (error) => {
-          logger.error('❌ CONNECTION DEBUG: Error', { error });
-        }),
-        connectionManager.on('reconnecting', (attempt) => {
-          logger.info('🔄 CONNECTION DEBUG: Reconnecting', { attempt });
-        })
-      ];
-      
-      return () => {
-        subscriptions.forEach(sub => sub.unsubscribe());
-      };
-    }
-  }, [connectionManager]);
-  
-  return null;
-}
-
 // Separate routes component for better organization
 const AppRoutes: React.FC = () => {
   return (
     <>
-      <ConnectionDebugger />
       <Routes>
         {/* Public routes */}
         <Route path="/" element={<Navigate to="/home" replace />} />

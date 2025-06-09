@@ -13,9 +13,6 @@ import DashboardHeader from '../components/Layout/DashboardHeader';
 import FundProfileCard from '../components/Dashboard/FundProfileCard';
 import TradingBooksGrid from '../components/Dashboard/TradingBooksGrid';
 
-// Debug Component
-import WebSocketConfigDebug from '../components/Debug/WebSocketConfigDebug';
-
 const HomePage: React.FC = () => {
   const { logout } = useAuth();
   const { isConnected } = useConnection();
@@ -106,12 +103,7 @@ const HomePage: React.FC = () => {
       minHeight: '100vh'
     }}>
       <DashboardHeader onLogout={handleLogout} />
-      
-      {/* Add debug component in development mode */}
-      {process.env.NODE_ENV === 'development' && (
-        <WebSocketConfigDebug />
-      )}
-      
+            
       <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 1400, mx: 'auto' }}>
         <Grid container spacing={3}>
           <Grid {...{component: "div", item: true, xs: 12, lg: 12, sx: { width: '100%' }} as any}>
