@@ -3,7 +3,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useBookManager } from '../../hooks/useBookManager';
 import { useConnection } from '../../hooks/useConnection';
-import BaseBookForm from '../Book/BaseBookForm';
+import BaseBookForm from '../Book/BaseBookForm2';
 import { BookRequest } from '@trading-app/types-core';
 
 const BookSetupPage: React.FC = () => {

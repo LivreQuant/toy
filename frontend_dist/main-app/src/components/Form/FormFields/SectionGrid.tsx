@@ -38,7 +38,7 @@ export const SectionGrid: React.FC<SectionGridProps> = ({
               component: "div", 
               item: true, 
               xs: 12, 
-              md: columns / React.Children.count(children),
+              md: 6, // Default to 2 columns on medium screens
               key: index
             } as any}
           >

@@ -53,6 +53,7 @@ const PURPOSE_OPTIONS = [
   { value: 'other', label: 'Other', description: 'Custom purpose' }
 ];
 
+// src/components/Fund/BaseFundProfileForm.tsx (REFACTORED) - continued
 interface BaseFundProfileFormProps {
   isEditMode: boolean;
   initialData?: FundProfile;

@@ -1,4 +1,4 @@
-// src/components/Form/FormFields/ToggleButtonGroup.tsx (add interface export)
+// src/components/Form/FormFields/ToggleButtonGroup.tsx (FIXED HORIZONTAL LAYOUT)
 import React from 'react';
 import { 
   Box, 
@@ -55,13 +55,19 @@ export const ToggleButtonGroup: React.FC<ToggleButtonGroupProps> = ({
         onChange={(_, newValue) => onChange(newValue || [])}
         aria-label={title}
         color="primary"
-        orientation={fullWidth ? 'horizontal' : 'vertical'}
         fullWidth={fullWidth}
         sx={{ 
-          flexWrap: 'wrap',
+          display: 'flex',
+          width: '100%',
           '& .MuiToggleButton-root': {
-            flex: fullWidth ? '1 1 auto' : 'none',
-            textAlign: 'center'
+            flex: 1,
+            textAlign: 'center',
+            padding: '20px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            minHeight: '72px'
           }
         }}
       >
@@ -72,7 +78,9 @@ export const ToggleButtonGroup: React.FC<ToggleButtonGroupProps> = ({
             disabled={option.disabled}
           >
             <Box sx={{ textAlign: 'center' }}>
-              <Typography variant="body2">{option.label}</Typography>
+              <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+                {option.label}
+              </Typography>
               {option.description && (
                 <Typography variant="caption" color="text.secondary" display="block">
                   {option.description}
@@ -84,7 +92,9 @@ export const ToggleButtonGroup: React.FC<ToggleButtonGroupProps> = ({
       </MUIToggleButtonGroup>
       
       {error && (
-        <FormHelperText error>{error}</FormHelperText>
+        <FormHelperText error sx={{ mt: 1 }}>
+          {error}
+        </FormHelperText>
       )}
     </Box>
   );

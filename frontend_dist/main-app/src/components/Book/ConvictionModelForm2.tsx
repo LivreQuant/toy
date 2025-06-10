@@ -1,5 +1,5 @@
 // src/components/Book/ConvictionModelForm.tsx (REFACTORED)
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   Box,
   Typography,
@@ -14,8 +14,6 @@ import {
   FormField, 
   SectionGrid 
 } from '../Form';
-import { useFormState, useFormValidation } from '../../hooks/forms';
-import { validationRules } from '../../utils/forms';
 import { ConvictionModelConfig } from '@trading-app/types-core';
 
 interface ConvictionModelFormProps {
@@ -24,12 +22,17 @@ interface ConvictionModelFormProps {
 }
 
 const ConvictionModelForm: React.FC<ConvictionModelFormProps> = ({ value, onChange }) => {
-  const { formData, updateField } = useFormState({
-    initialData: value,
-    onDataChange: onChange
-  });
-
   const [validationError, setValidationError] = useState<string | null>(null);
+
+  const updateField = useCallback(<K extends keyof ConvictionModelConfig>(
+    field: K, 
+    newValue: ConvictionModelConfig[K]
+  ) => {
+    onChange({
+      ...value,
+      [field]: newValue
+    });
+  }, [value, onChange]);
 
   const validateFingerprint = (fingerprint: string): boolean => {
     const fingerprintRegex = /^[A-Za-z0-9+/]+=*$/;
@@ -46,7 +49,7 @@ const ConvictionModelForm: React.FC<ConvictionModelFormProps> = ({ value, onChan
     }
     
     const normalizedHorizon = normalizeTimeHorizon(horizonInput);
-    const newHorizons = [...(formData.horizons || [])];
+    const newHorizons = [...(value.horizons || [])];
     
     if (isDuplicateHorizon(normalizedHorizon, newHorizons)) {
       setValidationError(`Time horizon ${normalizedHorizon} already exists`);
@@ -65,17 +68,17 @@ const ConvictionModelForm: React.FC<ConvictionModelFormProps> = ({ value, onChan
     if (!match) return horizon;
     
     const [_, valueStr, unit] = match;
-    let value = parseInt(valueStr);
+    let value_ = parseInt(valueStr);
     
-    if (unit === 'm' && value >= 60) {
-      const hours = Math.floor(value / 60);
-      const remainingMinutes = value % 60;
+    if (unit === 'm' && value_ >= 60) {
+      const hours = Math.floor(value_ / 60);
+      const remainingMinutes = value_ % 60;
       if (remainingMinutes === 0) {
         return hours === 24 ? '1d' : `${hours}h`;
       }
-    } else if (unit === 'h' && value >= 24) {
-      const days = Math.floor(value / 24);
-      const remainingHours = value % 24;
+    } else if (unit === 'h' && value_ >= 24) {
+      const days = Math.floor(value_ / 24);
+      const remainingHours = value_ % 24;
       if (remainingHours === 0) {
         return `${days}d`;
       }
@@ -94,13 +97,13 @@ const ConvictionModelForm: React.FC<ConvictionModelFormProps> = ({ value, onChan
     if (!match) return 0;
     
     const [_, valueStr, unit] = match;
-    const value = parseInt(valueStr);
+    const value_ = parseInt(valueStr);
     
     switch(unit) {
-      case 'm': return value;
-      case 'h': return value * 60;
-      case 'd': return value * 60 * 24;
-      case 'w': return value * 60 * 24 * 7;
+      case 'm': return value_;
+      case 'h': return value_ * 60;
+      case 'd': return value_ * 60 * 24;
+      case 'w': return value_ * 60 * 24 * 7;
       default: return 0;
     }
   };
@@ -108,32 +111,32 @@ const ConvictionModelForm: React.FC<ConvictionModelFormProps> = ({ value, onChan
   const getSampleColumns = (): string[] => {
     const columns: string[] = ['instrumentId'];
     
-    if (formData.portfolioApproach === 'target') {
-      if (formData.targetConvictionMethod === 'percent') {
+    if (value.portfolioApproach === 'target') {
+      if (value.targetConvictionMethod === 'percent') {
         columns.push('targetPercent');
       } else {
         columns.push('targetNotional');
       }
     } else {
-      if (formData.incrementalConvictionMethod === 'side_score') {
+      if (value.incrementalConvictionMethod === 'side_score') {
         columns.push('side', 'score');
-      } else if (formData.incrementalConvictionMethod === 'side_qty') {
+      } else if (value.incrementalConvictionMethod === 'side_qty') {
         columns.push('side', 'quantity');
-      } else if (formData.incrementalConvictionMethod === 'zscore') {
+      } else if (value.incrementalConvictionMethod === 'zscore') {
         columns.push('zscore');
-      } else if (formData.incrementalConvictionMethod === 'multi-horizon') {
-        const horizons = formData.horizons || ['1d', '5d', '20d'];
+      } else if (value.incrementalConvictionMethod === 'multi-horizon') {
+        const horizons = value.horizons || ['1d', '5d', '20d'];
         horizons.forEach(h => {
           const match = h.match(/(\d+)([mhdw])/);
           if (match) {
-            const [_, value, unit] = match;
+            const [_, value_, unit] = match;
             let unitText = unit;
             switch(unit) {
               case 'm': unitText = 'min'; break;
               case 'h': unitText = 'hour'; break;
               case 'd': unitText = 'day'; break;
             }
-            columns.push(`z${value}${unitText}`);
+            columns.push(`z${value_}${unitText}`);
           }
         });
       }
@@ -146,21 +149,21 @@ const ConvictionModelForm: React.FC<ConvictionModelFormProps> = ({ value, onChan
   const getSampleValues = (): string[] => {
     const values: string[] = ['AAPL.US'];
     
-    if (formData.portfolioApproach === 'target') {
-      if (formData.targetConvictionMethod === 'percent') {
+    if (value.portfolioApproach === 'target') {
+      if (value.targetConvictionMethod === 'percent') {
         values.push('2.5');
       } else {
         values.push('250000');
       }
     } else {
-      if (formData.incrementalConvictionMethod === 'side_score') {
-        values.push('BUY', Math.floor(Math.random() * (formData.maxScore || 5) + 1).toString());
-      } else if (formData.incrementalConvictionMethod === 'side_qty') {
+      if (value.incrementalConvictionMethod === 'side_score') {
+        values.push('BUY', Math.floor(Math.random() * (value.maxScore || 5) + 1).toString());
+      } else if (value.incrementalConvictionMethod === 'side_qty') {
         values.push('BUY', '100');
-      } else if (formData.incrementalConvictionMethod === 'zscore') {
+      } else if (value.incrementalConvictionMethod === 'zscore') {
         values.push((Math.random() * 4 - 2).toFixed(2));
-      } else if (formData.incrementalConvictionMethod === 'multi-horizon') {
-        const horizons = formData.horizons || ['1d', '5d', '20d'];
+      } else if (value.incrementalConvictionMethod === 'multi-horizon') {
+        const horizons = value.horizons || ['1d', '5d', '20d'];
         horizons.forEach(() => {
           values.push((Math.random() * 4 - 2).toFixed(2));
         });
@@ -235,14 +238,17 @@ const ConvictionModelForm: React.FC<ConvictionModelFormProps> = ({ value, onChan
               description: 'Desired portfolio allocations'
             }
           ]}
-          value={[formData.portfolioApproach]}
-          onChange={(value) => updateField('portfolioApproach', value[0] as "incremental" | "target")}
+          value={[value.portfolioApproach]}
+          onChange={(selectedValues) => {
+            const newValue = selectedValues[0] as 'incremental' | 'target';
+            updateField('portfolioApproach', newValue);
+          }}
           multiple={false}
         />
       </SectionGrid>
 
       {/* Target Portfolio Method */}
-      {formData.portfolioApproach === 'target' && (
+      {value.portfolioApproach === 'target' && (
         <SectionGrid title="Conviction Expression Method" description="How will you express your conviction?">
           <ToggleButtonGroup
             title=""
@@ -250,14 +256,17 @@ const ConvictionModelForm: React.FC<ConvictionModelFormProps> = ({ value, onChan
               { value: 'percent', label: 'Percentage of AUM' },
               { value: 'notional', label: 'Notional Amount' }
             ]}
-            value={[formData.targetConvictionMethod || 'percent']}
-            onChange={(value) => updateField('targetConvictionMethod', value[0] as "percent" | "notional")}
+            value={[value.targetConvictionMethod || 'percent']}
+            onChange={(selectedValues) => {
+              const newValue = selectedValues[0] as 'percent' | 'notional';
+              updateField('targetConvictionMethod', newValue);
+            }}
             multiple={false}
           />
           
           <Alert severity="info" sx={{ mt: 2 }}>
             <Typography variant="body2">
-              {formData.targetConvictionMethod === 'percent' ? (
+              {value.targetConvictionMethod === 'percent' ? (
                 <>
                   <strong>Percentage targets:</strong> The sum of absolute percentages must add up to 1. 
                   Positive values indicate long positions, negative values indicate short positions.
@@ -274,7 +283,7 @@ const ConvictionModelForm: React.FC<ConvictionModelFormProps> = ({ value, onChan
       )}
 
       {/* Incremental Method */}
-      {formData.portfolioApproach !== 'target' && (
+      {value.portfolioApproach !== 'target' && (
         <SectionGrid title="Conviction Expression Method" description="How will traders express their conviction?">
           <ToggleButtonGroup
             title=""
@@ -300,23 +309,33 @@ const ConvictionModelForm: React.FC<ConvictionModelFormProps> = ({ value, onChan
                 description: 'Statistical Signals at Different Timeframes'
               }
             ]}
-            value={[formData.incrementalConvictionMethod || 'side_score']} 
-            onChange={(value) => updateField('incrementalConvictionMethod', value[0] as "side_score" | "side_qty" | "zscore" | "multi-horizon")}
+            value={[value.incrementalConvictionMethod || 'side_score']} 
+            onChange={(selectedValues) => {
+              const newValue = selectedValues[0] as 'side_score' | 'side_qty' | 'zscore' | 'multi-horizon';
+              updateField('incrementalConvictionMethod', newValue);
+            }}
             multiple={false}
           />
 
           {/* Method-specific configurations */}
-          {formData.incrementalConvictionMethod === 'side_score' && (
+          {value.incrementalConvictionMethod === 'side_score' && (
             <Box sx={{ mt: 2 }}>
               <Typography variant="subtitle2" gutterBottom>Score range:</Typography>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 2, mb: 2 }}>
                 <Typography variant="body2">1 to</Typography>
-                <FormField
+                <TextField
                   label="Maximum Conviction Score"
                   type="number"
-                  value={formData.maxScore || 5}
-                  onChange={(value) => updateField('maxScore', Number(value))}
-                  fullWidth={false}
+                  size="small"
+                  value={value.maxScore || 5}
+                  onChange={(e) => {
+                    const newValue = parseInt(e.target.value);
+                    if (!isNaN(newValue) && newValue > 1) {
+                      updateField('maxScore', newValue);
+                    }
+                  }}
+                  inputProps={{ min: 1, max: 10 }}
+                  sx={{ width: 200 }}
                 />
               </Box>
               <Alert severity="info">
@@ -327,16 +346,16 @@ const ConvictionModelForm: React.FC<ConvictionModelFormProps> = ({ value, onChan
             </Box>
           )}
 
-          {formData.incrementalConvictionMethod === 'multi-horizon' && (
+          {value.incrementalConvictionMethod === 'multi-horizon' && (
             <Box sx={{ mt: 2 }}>
               <Typography variant="subtitle2" gutterBottom>Time horizons:</Typography>
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
-                {(formData.horizons || ['30m', '1h', '1d', '20d']).map((horizon, index) => (
+                {(value.horizons || ['30m', '1h', '1d', '20d']).map((horizon, index) => (
                   <Chip 
                     key={index}
                     label={horizon}
                     onDelete={() => {
-                      const newHorizons = [...(formData.horizons || ['30m', '1h', '1d', '20d'])];
+                      const newHorizons = [...(value.horizons || ['30m', '1h', '1d', '20d'])];
                       newHorizons.splice(index, 1);
                       updateField('horizons', newHorizons);
                     }}

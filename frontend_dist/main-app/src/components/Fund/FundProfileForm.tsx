@@ -1,7 +1,7 @@
 // src/components/Profile/FundProfileForm.tsx
 import React from 'react';
 import { useFundManager } from '../../hooks/useFundManager';
-import BaseFundProfileForm from './BaseFundProfileForm';
+import BaseFundProfileForm from './BaseFundProfileForm2';
 
 const FundProfileForm: React.FC = () => {
   const { createFundProfile } = useFundManager();
