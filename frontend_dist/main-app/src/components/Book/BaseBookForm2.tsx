@@ -12,7 +12,7 @@ import {
 import { useFormState, useFormValidation } from '../../hooks/forms';
 import { validationRules, combineValidators } from '../../utils/forms';
 import { BookRequest } from '@trading-app/types-core';
-import ConvictionModelForm from './ConvictionModelForm';
+import ConvictionModelForm from './ConvictionModelForm2';
 
 interface BaseBookFormProps {
   isEditMode: boolean;

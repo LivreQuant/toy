@@ -186,7 +186,7 @@ export const BaseFundProfileForm: React.FC<BaseFundProfileFormProps> = ({
           <FormField
             label="Fund Name"
             value={formData.fundName}
-            onChange={(value) => updateField('fundName', value)}
+            onChange={(value) => updateField('fundName', String(value))}
             error={errors.fundName}
             required
           />
@@ -194,7 +194,7 @@ export const BaseFundProfileForm: React.FC<BaseFundProfileFormProps> = ({
           <FormField
             label="Fund Location (State, Country)"
             value={formData.location}
-            onChange={(value) => updateField('location', value)}
+            onChange={(value) => updateField('location', String(value))}
             error={errors.location}
             required
           />
@@ -234,13 +234,13 @@ export const BaseFundProfileForm: React.FC<BaseFundProfileFormProps> = ({
             label="Year Established"
             type="number"
             value={formData.yearEstablished}
-            onChange={(value) => updateField('yearEstablished', value)}
+            onChange={(value) => updateField('yearEstablished', String(value))}
           />
           
           <FormField
             label="Investment Thesis"
             value={formData.investmentStrategy || ''}
-            onChange={(value) => updateField('investmentStrategy', value)}
+            onChange={(value) => updateField('investmentStrategy', String(value))}
             placeholder="Describe your fund's investment philosophy, thesis, and core beliefs about markets"
             multiline
             rows={4}
@@ -388,7 +388,7 @@ export const BaseFundProfileForm: React.FC<BaseFundProfileFormProps> = ({
             <FormField
               label="Please specify your purpose"
               value={formData.otherPurposeDetails || ''}
-              onChange={(value) => updateField('otherPurposeDetails', value)}
+              onChange={(value) => updateField('otherPurposeDetails', String(value))}
               multiline
               rows={2}
               required

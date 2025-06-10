@@ -236,7 +236,7 @@ const ConvictionModelForm: React.FC<ConvictionModelFormProps> = ({ value, onChan
             }
           ]}
           value={[formData.portfolioApproach]}
-          onChange={(value) => updateField('portfolioApproach', value[0])}
+          onChange={(value) => updateField('portfolioApproach', value[0] as "incremental" | "target")}
           multiple={false}
         />
       </SectionGrid>
@@ -251,7 +251,7 @@ const ConvictionModelForm: React.FC<ConvictionModelFormProps> = ({ value, onChan
               { value: 'notional', label: 'Notional Amount' }
             ]}
             value={[formData.targetConvictionMethod || 'percent']}
-            onChange={(value) => updateField('targetConvictionMethod', value[0])}
+            onChange={(value) => updateField('targetConvictionMethod', value[0] as "percent" | "notional")}
             multiple={false}
           />
           
@@ -300,8 +300,8 @@ const ConvictionModelForm: React.FC<ConvictionModelFormProps> = ({ value, onChan
                 description: 'Statistical Signals at Different Timeframes'
               }
             ]}
-            value={[formData.incrementalConvictionMethod]}
-            onChange={(value) => updateField('incrementalConvictionMethod', value[0])}
+            value={[formData.incrementalConvictionMethod || 'side_score']} 
+            onChange={(value) => updateField('incrementalConvictionMethod', value[0] as "side_score" | "side_qty" | "zscore" | "multi-horizon")}
             multiple={false}
           />
 

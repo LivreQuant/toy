@@ -7,7 +7,7 @@ export interface FormWizardProps {
   steps: Array<{
     label: string;
     content: ReactNode;
-    validate?: () => boolean;
+    validate?: () => boolean | string;
   }>;
   onSubmit: (formData: any) => Promise<{ success: boolean; error?: string }>;
   submitButtonText: string;
