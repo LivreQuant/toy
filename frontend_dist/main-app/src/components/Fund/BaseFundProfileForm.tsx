@@ -1,11 +1,9 @@
-// src/components/Profile/BaseFundProfileForm.tsx
+// src/components/Fund/BaseFundProfileForm.tsx
 import React, { useState } from 'react';
 import { 
   Box, 
-  Button, 
   Typography, 
   TextField, 
-  Paper, 
   Stepper, 
   Step, 
   StepLabel,
@@ -21,15 +19,15 @@ import {
   SelectChangeEvent,
   Tooltip,
   Grid,
-  CircularProgress
+  CircularProgress,
+  Paper
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
-import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { useToast } from '../../hooks/useToast';
 import { useNavigate } from 'react-router-dom';
-import { useFundManager } from '../../hooks/useFundManager';
 import { FundProfile, TeamMember, CreateFundProfileRequest, UpdateFundProfileRequest } from '@trading-app/types-core';
+import { FormContainer, FormStepper } from '../Form';
 import './BaseFundProfileForm.css';
 
 const LEGAL_STRUCTURES = [
@@ -106,15 +104,14 @@ const BaseFundProfileForm: React.FC<BaseFundProfileFormProps> = ({
   const handleNext = () => {
     let isValid = false;
     
-    // Validate current step
     switch (activeStep) {
-      case 0: // Fund Info
+      case 0:
         isValid = validateFundInfo();
         break;
-      case 1: // Team Members
+      case 1:
         isValid = validateTeamMembers();
         break;
-      case 2: // Purpose
+      case 2:
         isValid = validatePurpose();
         break;
       default:
@@ -176,12 +173,10 @@ const BaseFundProfileForm: React.FC<BaseFundProfileFormProps> = ({
       let newPurposes = [...(prev.profilePurpose || [])];
       
       if (checked) {
-        // Add purpose if not already in array
         if (!newPurposes.includes(name)) {
           newPurposes.push(name);
         }
       } else {
-        // Remove purpose if in array
         newPurposes = newPurposes.filter(purpose => purpose !== name);
       }
       
@@ -219,7 +214,6 @@ const BaseFundProfileForm: React.FC<BaseFundProfileFormProps> = ({
         setErrors({
           ...errors,
           [errorKey]: '',
-          // Also clear the general teamMembers error
           teamMembers: ''
         });
       }
@@ -304,11 +298,9 @@ const BaseFundProfileForm: React.FC<BaseFundProfileFormProps> = ({
   const validateTeamMembers = () => {
     const newErrors: Record<string, string> = {};
     
-    // Check all team members
     let hasInvalidMembers = false;
     
     formData.teamMembers.forEach((member, index) => {
-      // Check required fields for each member
       if (!member.firstName.trim()) {
         newErrors[`teamMember${index}FirstName`] = `Team member ${index + 1} requires a first name`;
         hasInvalidMembers = true;
@@ -330,7 +322,6 @@ const BaseFundProfileForm: React.FC<BaseFundProfileFormProps> = ({
       }
     });
     
-    // Add a general error message if any member is invalid
     if (hasInvalidMembers) {
       newErrors.teamMembers = 'Please complete all required fields for all team members';
     }
@@ -349,7 +340,6 @@ const BaseFundProfileForm: React.FC<BaseFundProfileFormProps> = ({
     setIsProcessing(true);
     
     try {
-      // Submit form data
       const result = await onSubmit(formData);
       
       if (result.success) {
@@ -378,104 +368,6 @@ const BaseFundProfileForm: React.FC<BaseFundProfileFormProps> = ({
         return true;
     }
   };
-
-  // Render purpose section
-  const renderPurposeSection = () => (
-    <div>
-      <Typography variant="h6" gutterBottom>
-        What are your objectives? (Select all that apply)
-      </Typography>
-      
-      <FormGroup>
-        <FormControlLabel
-          control={
-            <Checkbox 
-              checked={formData.profilePurpose?.includes('raise_capital')}
-              onChange={handlePurposeChange}
-              name="raise_capital"
-            />
-          }
-          label="Raise capital for your fund"
-        />
-        
-        <FormControlLabel
-          control={
-            <Checkbox 
-              checked={formData.profilePurpose?.includes('join_team')}
-              onChange={handlePurposeChange}
-              name="join_team"
-            />
-          }
-          label="Join an existing team or firm"
-        />
-        
-        <FormControlLabel
-          control={
-            <Checkbox 
-              checked={formData.profilePurpose?.includes('find_members')}
-              onChange={handlePurposeChange}
-              name="find_members"
-            />
-          }
-          label="Find partners or team members"
-        />
-        
-        <FormControlLabel
-          control={
-            <Checkbox 
-              checked={formData.profilePurpose?.includes('sell_strategy')}
-              onChange={handlePurposeChange}
-              name="sell_strategy"
-            />
-          }
-          label="Sell or license your investment strategy"
-        />
-        
-        <FormControlLabel
-          control={
-            <Checkbox 
-              checked={formData.profilePurpose?.includes('track_record')}
-              onChange={handlePurposeChange}
-              name="track_record"
-            />
-          }
-          label="Build a verifiable track record"
-        />
-        
-        <FormControlLabel
-          control={
-            <Checkbox 
-              checked={formData.profilePurpose?.includes('other')}
-              onChange={handlePurposeChange}
-              name="other"
-            />
-          }
-          label="Other"
-        />
-      </FormGroup>
-      
-      {errors.profilePurpose && (
-        <Typography color="error" variant="body2">{errors.profilePurpose}</Typography>
-      )}
-      
-      {formData.profilePurpose?.includes('other') && (
-        <div className="form-group">
-          <TextField
-            fullWidth
-            multiline
-            rows={2}
-            label="Please specify"
-            name="otherPurposeDetails"
-            value={formData.otherPurposeDetails || ''}
-            onChange={handleInputChange}
-            error={!!errors.otherPurposeDetails}
-            helperText={errors.otherPurposeDetails}
-            sx={{ mt: 2 }}
-          />
-        </div>
-      )}
-    </div>
-  );
 
   // Render fund info section
   const renderFundInfo = () => (
@@ -597,24 +489,23 @@ const BaseFundProfileForm: React.FC<BaseFundProfileFormProps> = ({
     <div>
       {formData.teamMembers.map((member, index) => (
         <Paper key={member.id} elevation={2} sx={{ p: 3, mb: 3, position: 'relative' }}>
-            <Typography variant="h6" gutterBottom>
+          <Typography variant="h6" gutterBottom>
             Team Member {index + 1}
-            </Typography>
-            
-            {formData.teamMembers.length > 1 && (
+          </Typography>
+          
+          {formData.teamMembers.length > 1 && (
             <IconButton 
-                aria-label="delete" 
-                onClick={() => removeTeamMember(member.id)}
-                sx={{ position: 'absolute', top: 8, right: 8 }}
+              aria-label="delete" 
+              onClick={() => removeTeamMember(member.id)}
+              sx={{ position: 'absolute', top: 8, right: 8 }}
             >
-                <DeleteIcon />
+              <DeleteIcon />
             </IconButton>
-            )}
-            
-            <Grid container spacing={2}>
-            {/* Basic Information */}
+          )}
+          
+          <Grid container spacing={2}>
             <Grid {...{component: "div", item: true, xs: 12, sm: 6, size: 6} as any}>
-                <TextField
+              <TextField
                 required
                 fullWidth
                 label="First Name"
@@ -622,11 +513,11 @@ const BaseFundProfileForm: React.FC<BaseFundProfileFormProps> = ({
                 onChange={(e) => handleTeamMemberChange(member.id, 'firstName', e.target.value)}
                 error={!!errors[`teamMember${index}FirstName`]}
                 helperText={errors[`teamMember${index}FirstName`] || ''}
-                />
+              />
             </Grid>
             
             <Grid {...{component: "div", item: true, xs: 12, sm: 6, size: 6} as any}>
-                <TextField
+              <TextField
                 required
                 fullWidth
                 label="Last Name"
@@ -634,11 +525,11 @@ const BaseFundProfileForm: React.FC<BaseFundProfileFormProps> = ({
                 onChange={(e) => handleTeamMemberChange(member.id, 'lastName', e.target.value)}
                 error={!!errors[`teamMember${index}LastName`]}
                 helperText={errors[`teamMember${index}LastName`] || ''}
-                />
+              />
             </Grid>
             
             <Grid {...{component: "div", item: true, xs: 12, sm: 6, size: 6} as any}>
-                <TextField
+              <TextField
                 required
                 fullWidth
                 label="Role/Title"
@@ -647,42 +538,32 @@ const BaseFundProfileForm: React.FC<BaseFundProfileFormProps> = ({
                 placeholder="e.g., Portfolio Manager, Chief Investment Officer"
                 error={!!errors[`teamMember${index}Role`]}
                 helperText={errors[`teamMember${index}Role`] || ''}
-                />
+              />
             </Grid>
             
             <Grid {...{component: "div", item: true, xs: 12, sm: 3, size: 3} as any}>
-                <TextField
-                    fullWidth
-                    label="Years of Experience"
-                    type="number"
-                    // Use 0 as the default value instead of empty string
-                    value={member.yearsExperience || '0'}
-                    onChange={(e) => {
-                    // Check if the value is empty or invalid and default to 0
-                    const inputValue = e.target.value;
-                    const parsedValue = parseInt(inputValue, 10);
-                    
-                    // If input is empty or not a valid number, set to '0'
-                    const validValue = (inputValue === '' || isNaN(parsedValue)) ? '0' : inputValue;
-                    
-                    handleTeamMemberChange(member.id, 'yearsExperience', validValue);
-                    }}
-                    // Set the label to always be floating above the input
-                    InputLabelProps={{ 
-                    shrink: true 
-                    }}
-                    // Additional props to control the input
-                    inputProps={{ 
-                    min: "0", 
-                    max: "70",
-                    style: { paddingRight: '20px' } // Add padding to avoid overlap with arrows
-                    }}
-                />
+              <TextField
+                fullWidth
+                label="Years of Experience"
+                type="number"
+                value={member.yearsExperience || '0'}
+                onChange={(e) => {
+                  const inputValue = e.target.value;
+                  const parsedValue = parseInt(inputValue, 10);
+                  const validValue = (inputValue === '' || isNaN(parsedValue)) ? '0' : inputValue;
+                  handleTeamMemberChange(member.id, 'yearsExperience', validValue);
+                }}
+                InputLabelProps={{ shrink: true }}
+                inputProps={{ 
+                  min: "0", 
+                  max: "70",
+                  style: { paddingRight: '20px' }
+                }}
+              />
             </Grid>
             
-            {/* Personal Details */}
             <Grid {...{component: "div", item: true, xs: 12, sm: 3, size: 3} as any}>
-                <TextField
+              <TextField
                 required
                 fullWidth
                 label="Birth Date"
@@ -692,10 +573,9 @@ const BaseFundProfileForm: React.FC<BaseFundProfileFormProps> = ({
                 onChange={(e) => handleTeamMemberChange(member.id, 'birthDate', e.target.value)}
                 error={!!errors[`teamMember${index}BirthDate`]}
                 helperText={errors[`teamMember${index}BirthDate`] || ''}
-                />
+              />
             </Grid>
 
-            {/* Professional Qualifications */}
             <Grid {...{component: "div", item: true, xs: 12, size: 12} as any}>
               <TextField
                 fullWidth
@@ -708,7 +588,6 @@ const BaseFundProfileForm: React.FC<BaseFundProfileFormProps> = ({
               />
             </Grid>
 
-            {/* Experience and Expertise */}
             <Grid {...{component: "div", item: true, xs: 12, size: 12} as any}>
               <TextField
                 fullWidth
@@ -746,25 +625,139 @@ const BaseFundProfileForm: React.FC<BaseFundProfileFormProps> = ({
         </Paper>
       ))}
 
-        {errors.teamMembers && (
+      {errors.teamMembers && (
         <Typography color="error" variant="body2" sx={{ mt: 2 }}>
-            {errors.teamMembers}
+          {errors.teamMembers}
         </Typography>
-        )}
+      )}
             
-      <Button
-        startIcon={<AddIcon />}
+      <Box
+        component="button"
+        type="button"
         onClick={addTeamMember}
-        variant="outlined"
-        color="primary"
-        sx={{ mt: 2 }}
+        sx={{
+          mt: 2,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1,
+          padding: '8px 16px',
+          backgroundColor: 'transparent',
+          border: '1px solid',
+          borderColor: 'primary.main',
+          borderRadius: 1,
+          color: 'primary.main',
+          cursor: 'pointer',
+          transition: 'all 0.2s',
+          '&:hover': {
+            backgroundColor: 'primary.main',
+            color: 'primary.contrastText'
+          }
+        }}
       >
+        <AddIcon />
         Add Team Member
-      </Button>
+      </Box>
     </div>
   );
 
-  // Render the appropriate step content
+  // Render purpose section
+  const renderPurposeSection = () => (
+    <div>
+      <Typography variant="h6" gutterBottom>
+        What are your objectives? (Select all that apply)
+      </Typography>
+      
+      <FormGroup>
+        <FormControlLabel
+          control={
+            <Checkbox 
+              checked={formData.profilePurpose?.includes('raise_capital')}
+              onChange={handlePurposeChange}
+              name="raise_capital"
+            />
+          }
+          label="Raise capital for your fund"
+        />
+        
+        <FormControlLabel
+          control={
+            <Checkbox 
+              checked={formData.profilePurpose?.includes('join_team')}
+              onChange={handlePurposeChange}
+              name="join_team"
+            />
+          }
+          label="Join an existing team or firm"
+        />
+        
+        <FormControlLabel
+          control={
+            <Checkbox 
+              checked={formData.profilePurpose?.includes('find_members')}
+              onChange={handlePurposeChange}
+              name="find_members"
+            />
+          }
+          label="Find partners or team members"
+        />
+        
+        <FormControlLabel
+          control={
+            <Checkbox 
+              checked={formData.profilePurpose?.includes('sell_strategy')}
+              onChange={handlePurposeChange}
+              name="sell_strategy"
+            />
+          }
+          label="Sell or license your investment strategy"
+        />
+        
+        <FormControlLabel
+          control={
+            <Checkbox 
+              checked={formData.profilePurpose?.includes('track_record')}
+              onChange={handlePurposeChange}
+              name="track_record"
+            />
+          }
+          label="Build a verifiable track record"
+        />
+        
+        <FormControlLabel
+          control={
+            <Checkbox 
+              checked={formData.profilePurpose?.includes('other')}
+              onChange={handlePurposeChange}
+              name="other"
+            />
+          }
+          label="Other"
+        />
+      </FormGroup>
+      
+      {errors.profilePurpose && (
+        <Typography color="error" variant="body2">{errors.profilePurpose}</Typography>
+      )}
+      
+      {formData.profilePurpose?.includes('other') && (
+        <div className="form-group">
+          <TextField
+            fullWidth
+            multiline
+            rows={2}
+            label="Please specify"
+            name="otherPurposeDetails"
+            value={formData.otherPurposeDetails || ''}
+            onChange={handleInputChange}
+            error={!!errors.otherPurposeDetails}
+            helperText={errors.otherPurposeDetails}
+            sx={{ mt: 2 }}
+          />
+        </div>
+      )}
+    </div>
+  );
+
   const renderStepContent = (step: number) => {
     switch (step) {
       case 0:
@@ -779,89 +772,23 @@ const BaseFundProfileForm: React.FC<BaseFundProfileFormProps> = ({
   };
 
   return (
-    <Box className="fund-profile-form">
-      {/* Add Back Button at the top */}
-      <Button
-        startIcon={<ArrowBackIcon />}
-        onClick={handleGoBack}
-        variant="contained"
-        color="secondary"
-        size="medium"
-        sx={{
-          py: 1,
-          px: 2,
-          fontWeight: 600,
-          marginBottom: 2,
-          width: '150px',
-          borderRadius: 2,
-          textTransform: 'none',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          height: '48px'
-        }}
+    <FormContainer 
+      title={title} 
+      subtitle={subtitle} 
+      onBack={handleGoBack}
+    >
+      <FormStepper
+        activeStep={activeStep}
+        steps={steps}
+        onNext={handleNext}
+        onBack={handleBack}
+        onSubmit={handleSubmit}
+        isSubmitting={isProcessing}
+        submitButtonText={submitButtonText}
       >
-        Back to Home
-      </Button>
-
-      <Paper elevation={3} sx={{ p: 4 }}>
-        <Typography variant="h4" component="h1" align="center" gutterBottom>
-          {title}
-        </Typography>
-
-        <Typography variant="subtitle1" color="textSecondary" align="center" paragraph>
-          {subtitle}
-        </Typography>
-        
-        <Stepper activeStep={activeStep} sx={{ mb: 4, pt: 2, pb: 4 }}>
-          {steps.map((label) => (
-            <Step key={label}>
-              <StepLabel>{label}</StepLabel>
-            </Step>
-          ))}
-        </Stepper>
-        
-        <Divider sx={{ mb: 4 }} />
-        
         {renderStepContent(activeStep)}
-        
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 4, pt: 2 }}>
-          <Button
-            disabled={activeStep === 0}
-            onClick={handleBack}
-            variant="outlined"
-          >
-            Back
-          </Button>
-          
-          {activeStep < steps.length - 1 ? (
-            <Button 
-              variant="contained" 
-              color="primary" 
-              onClick={handleNext}
-            >
-              Next
-            </Button>
-          ) : (
-            <Button 
-              variant="contained" 
-              color="primary" 
-              onClick={handleSubmit}
-              disabled={isProcessing}
-            >
-              {isProcessing ? (
-                <>
-                  <CircularProgress size={24} sx={{ mr: 1 }} />
-                  {submitButtonText}...
-                </>
-              ) : (
-                submitButtonText
-              )}
-            </Button>
-          )}
-        </Box>
-      </Paper>
-    </Box>
+      </FormStepper>
+    </FormContainer>
   );
 };
 

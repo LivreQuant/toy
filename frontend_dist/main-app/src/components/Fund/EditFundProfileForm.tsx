@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { CircularProgress, Box, Typography } from '@mui/material';
 import { useFundManager } from '../../hooks/useFundManager';
 import { useToast } from '../../hooks/useToast';
-import BaseFundProfileForm from './BaseFundProfileForm2';
+import BaseFundProfileForm from './BaseFundProfileForm';
 import { FundProfile } from '@trading-app/types-core';
 
 const EditFundProfileForm: React.FC = () => {
