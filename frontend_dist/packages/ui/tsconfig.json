@@ -1,0 +1,28 @@
+{
+    "compilerOptions": {
+      "target": "es2017",
+      "lib": ["es2017", "dom"],
+      "module": "esnext",
+      "moduleResolution": "node",
+      "declaration": true,
+      "composite": true,
+      "outDir": "./dist",
+      "rootDir": "./src",
+      "strict": true,
+      "esModuleInterop": true,
+      "skipLibCheck": true,
+      "forceConsistentCasingInFileNames": true,
+      "jsx": "react-jsx",
+      "baseUrl": ".",
+      "paths": {
+        "@trading-app/auth": ["../auth/dist"],
+        "@trading-app/logging": ["../logging/dist"]
+      }
+    },
+    "references": [
+      { "path": "../auth" },
+      { "path": "../logging" }
+    ],
+    "include": ["src/**/*"],
+    "exclude": ["node_modules", "dist"]
+  }

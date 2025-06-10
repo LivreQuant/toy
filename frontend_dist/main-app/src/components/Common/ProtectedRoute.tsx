@@ -1,10 +1,9 @@
-// src/components/Common/ProtectedRoute.tsx
-import React, { useEffect } from 'react'; // Add useEffect import
-import { Navigate, useNavigate } from 'react-router-dom'; // Add useNavigate import
+import React, { useEffect } from 'react';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useTokenManager } from '../../hooks/useTokenManager';
 import { DeviceIdManager } from '@trading-app/auth';
-import LoadingSpinner from './LoadingSpinner';
+import { LoadingSpinner } from '@trading-app/ui'; // ← Changed to named import
 
 interface ProtectedRouteProps {
   children: React.ReactElement;
@@ -42,4 +41,4 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   return children;
 };
 
-export default ProtectedRoute; // Make sure this is present
+export default ProtectedRoute;

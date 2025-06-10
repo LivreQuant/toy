@@ -44,14 +44,14 @@ import ProtectedRoute from './components/Common/ProtectedRoute';
 import AuthenticatedLayout from './components/Layout/AuthenticatedLayout';
 
 // PAGES
-import LoginPage from './pages/Auth/LoginPage';
+import LoginPage from './pages/LoginPage';
 import HomePage from './pages/HomePage';
 import SimulatorPage from './pages/SimulatorPage';
 import BookDetailsPage from './pages/BookDetailsPage';
 import SessionDeactivatedPage from './pages/SessionDeactivatedPage';
 
-import FundProfileForm from './components/Profile/FundProfileForm';
-import EditFundProfileForm from './components/Profile/EditFundProfileForm';
+import FundProfileForm from './components/Fund/FundProfileForm';
+import EditFundProfileForm from './components/Fund/EditFundProfileForm';
 
 import BookSetupPage from './components/Book/BookSetupPage';
 import EditBookPage from './components/Book/EditBookPage';

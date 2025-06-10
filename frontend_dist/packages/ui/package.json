@@ -1,0 +1,31 @@
+{
+    "name": "@trading-app/ui",
+    "version": "1.0.0",
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "scripts": {
+      "build": "tsc",
+      "dev": "tsc --watch",
+      "clean": "rm -rf dist"
+    },
+    "dependencies": {
+      "@mui/material": "^5.15.0",
+      "@mui/icons-material": "^5.15.0",
+      "@emotion/react": "^11.11.0",
+      "@emotion/styled": "^11.11.0",
+      "react": "^18.2.0",
+      "react-dom": "^18.2.0",
+      "react-router-dom": "^6.8.0"
+    },
+    "devDependencies": {
+      "@types/react": "^18.2.0",
+      "@types/react-dom": "^18.2.0",
+      "typescript": "^5.0.0",
+      "@trading-app/auth": "file:../auth",
+      "@trading-app/logging": "file:../logging"
+    },
+    "peerDependencies": {
+      "react": "^18.2.0",
+      "react-dom": "^18.2.0"
+    }
+  }

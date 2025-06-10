@@ -19,6 +19,8 @@ cd packages/websocket && npm run build && cd ../..
 cd packages/api && npm run build && cd ../..
 cd packages/assets && npm run build && cd ../..
 
+cd packages/ui && npm run build && cd ../..
+
 echo "Building main app..."
 cd main-app && npm install && npm run build
 

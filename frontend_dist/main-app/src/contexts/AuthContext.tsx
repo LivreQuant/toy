@@ -5,7 +5,7 @@ import { getLogger } from '@trading-app/logging';
 
 import { AuthClient, LoginRequest, LoginResponse } from '@trading-app/api';
 
-import LoadingSpinner from '../components/Common/LoadingSpinner';
+import { LoadingSpinner } from '@trading-app/ui';
 
 import { authState } from '@trading-app/state';
 
