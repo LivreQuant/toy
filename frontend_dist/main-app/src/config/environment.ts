@@ -35,6 +35,7 @@ class MainEnvironmentService {
       environment: this.config.environment,
       landingAppUrl: this.config.landing.baseUrl,
       mainAppUrl: this.config.main.baseUrl,
+      bookAppUrl: this.config.book.baseUrl,
       apiBaseUrl: this.config.apiBaseUrl,
       wsUrl: this.config.websocket.url
     });
@@ -46,6 +47,10 @@ class MainEnvironmentService {
 
   getMainAppUrl(): string {
     return this.config.main.baseUrl;
+  }
+
+  getBookAppUrl(): string {
+    return this.config.book.baseUrl;
   }
 
   getApiBaseUrl(): string {

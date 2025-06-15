@@ -8,6 +8,8 @@ import { useBookManager } from '../hooks/useBookManager';
 import { useFundManager } from '../hooks/useFundManager';
 import { Book, FundProfile } from '@trading-app/types-core';
 
+import { config, isMainApp, shouldLog } from '@trading-app/config';
+
 // Dashboard Components
 import DashboardHeader from '../components/Layout/DashboardHeader';
 import FundProfileCard from '../components/Dashboard/FundProfileCard';
@@ -86,7 +88,9 @@ const HomePage: React.FC = () => {
   };
 
   const handleOpenBook = (bookId: string) => {
-    navigate(`/books/${bookId}`);
+    // Redirect to sim app to view/interact with book
+    const bookAppUrl = config.book.baseUrl;
+    window.location.href = `${bookAppUrl}/books/${bookId}`;
   };
 
   const handleLogout = async () => {

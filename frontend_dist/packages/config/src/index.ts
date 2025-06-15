@@ -2,7 +2,7 @@
 
 export interface AppConfig {
   // App identification
-  appType: 'landing' | 'main' | 'simulator';
+  appType: 'landing' | 'main' | 'book';
   environment: 'development' | 'production' | 'staging';
   
   // API Configuration
@@ -40,7 +40,7 @@ export interface AppConfig {
     };
   };
 
-  simulator: {
+  book: {
     baseUrl: string;
     routes: {
       home: string;
@@ -64,11 +64,11 @@ export interface AppConfig {
   };
 }
 
-function determineAppType(): 'landing' | 'main' | 'simulator' {
+function determineAppType(): 'landing' | 'main' | 'book' {
   // Check environment variable first
   if (process.env.REACT_APP_TYPE === 'landing') return 'landing';
   if (process.env.REACT_APP_TYPE === 'main') return 'main';
-  if (process.env.REACT_APP_TYPE === 'simulator') return 'simulator';
+  if (process.env.REACT_APP_TYPE === 'book') return 'book';
   
   // Fallback: check current URL
   if (typeof window !== 'undefined') {
@@ -76,20 +76,20 @@ function determineAppType(): 'landing' | 'main' | 'simulator' {
     const port = window.location.port;
     
     // Check subdomain-based detection
-    if (hostname === 'trading.local' || hostname.includes('trading.local') && !hostname.includes('app.') && !hostname.includes('sim.')) {
+    if (hostname === 'trading.local' || hostname.includes('trading.local') && !hostname.includes('app.') && !hostname.includes('book.')) {
       return 'landing';
     }
     if (hostname === 'app.trading.local' || hostname.includes('app.')) {
       return 'main';
     }
-    if (hostname === 'sim.trading.local' || hostname.includes('sim.')) {
-      return 'simulator';
+    if (hostname === 'book.trading.local' || hostname.includes('book.')) {
+      return 'book';
     }
     
     // Port-based fallback for localhost development
     if (port === '3001') return 'landing';
     if (port === '3000') return 'main';
-    if (port === '3002') return 'simulator';
+    if (port === '3002') return 'book';
   }
   
   // Default assumption
@@ -100,7 +100,7 @@ function determineAppType(): 'landing' | 'main' | 'simulator' {
 type EnvironmentConfig = {
   landing: string;
   main: string;
-  simulator: string;
+  book: string;
   api: string;
   ws: string;
 };
@@ -116,21 +116,21 @@ function getEnvironmentUrls(environment: 'development' | 'production' | 'staging
     development: {
       landing: 'http://trading.local:3001',
       main: 'http://app.trading.local:3000',
-      simulator: 'http://sim.trading.local:3002',
+      book: 'http://book.trading.local:3002',
       api: 'http://trading.local/api',
       ws: 'ws://trading.local/ws'
     },
     production: {
       landing: 'https://trading.com',
       main: 'https://app.trading.com',
-      simulator: 'https://sim.trading.com',
+      book: 'https://book.trading.com',
       api: 'https://api.trading.com',
       ws: 'wss://api.trading.com/ws'
     },
     staging: {
       landing: 'https://staging.trading.com',
       main: 'https://app-staging.trading.com', 
-      simulator: 'https://sim-staging.trading.com',
+      book: 'https://book-staging.trading.com',
       api: 'https://api-staging.trading.com',
       ws: 'wss://api-staging.trading.com/ws'
     }
@@ -165,7 +165,7 @@ function getConfig(): AppConfig {
   const wsUrl = process.env.REACT_APP_WS_URL || urls.ws;
   const landingUrl = process.env.REACT_APP_LANDING_URL || urls.landing;
   const mainAppUrl = process.env.REACT_APP_MAIN_APP_URL || urls.main;
-  const simulatorUrl = process.env.REACT_APP_SIMULATOR_URL || urls.simulator;
+  const bookAppUrl = process.env.REACT_APP_BOOK_APP_URL || urls.book;
 
   const config: AppConfig = {
     appType,
@@ -198,16 +198,16 @@ function getConfig(): AppConfig {
         home: `${mainAppUrl}/home`,
         app: `${mainAppUrl}/app`,
         profile: `${mainAppUrl}/profile`,
-        books: `${mainAppUrl}/books`,
-        simulator: `${simulatorUrl}` // Cross-reference to simulator app
+        books: `${bookAppUrl}/books`,
+        simulator: `${bookAppUrl}/simulator`,
       }
     },
 
-    simulator: {
-      baseUrl: simulatorUrl,
+    book: {
+      baseUrl: bookAppUrl,
       routes: {
-        home: `${simulatorUrl}/`,
-        session: `${simulatorUrl}/session`
+        home: `${bookAppUrl}/`,
+        session: `${bookAppUrl}/session`
       }
     },
     
@@ -232,7 +232,7 @@ function getConfig(): AppConfig {
     wsUrl: config.websocket.url,
     landingUrl: config.landing.baseUrl,
     mainAppUrl: config.main.baseUrl,
-    simulatorUrl: config.simulator.baseUrl
+    bookAppUrl: config.book.baseUrl,
   });
   console.log('🔍 CONFIG: Loading unified configuration - END');
   
@@ -249,12 +249,12 @@ export const WS_BASE_URL = config.websocket.url;
 export const ENVIRONMENT = config.environment;
 export const LANDING_URL = config.landing.baseUrl;
 export const MAIN_APP_URL = config.main.baseUrl;
-export const SIMULATOR_URL = config.simulator.baseUrl;
+export const BOOK_APP_URL = config.book.baseUrl;
 
 // Helper functions
 export const isLandingApp = () => config.appType === 'landing';
 export const isMainApp = () => config.appType === 'main';
-export const isSimulatorApp = () => config.appType === 'simulator';
+export const isBookApp = () => config.appType === 'book';
 export const isDevelopment = () => config.environment === 'development';
 export const isProduction = () => config.environment === 'production';
 export const shouldLog = () => config.features.enableLogs;

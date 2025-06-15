@@ -230,6 +230,7 @@ const AppRoutes: React.FC = () => {
           </ProtectedRoute>
         } />
         
+        {/*
         <Route path="/books/:bookId" element={
           <ProtectedRoute>
             <AuthenticatedLayout>
@@ -237,8 +238,10 @@ const AppRoutes: React.FC = () => {
             </AuthenticatedLayout>
           </ProtectedRoute>
         } />
+        */}
 
         {/* Simulator page */}
+        {/*
         <Route path="/simulator/:simulationId" element={
           <ProtectedRoute>
             <AuthenticatedLayout>
@@ -246,7 +249,8 @@ const AppRoutes: React.FC = () => {
             </AuthenticatedLayout>
           </ProtectedRoute>
         } />
-
+        */}
+        
         {/* Session deactivated page - note: not protected since user may be logged out */}
         <Route path="/session-deactivated" element={
             <AuthenticatedLayout>

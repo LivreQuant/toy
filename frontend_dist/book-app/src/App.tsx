@@ -1,10 +1,10 @@
-// frontend_dist/main-app/src/App.tsx
+// frontend_dist/sim-app/src/App.tsx
 import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useNavigate } from 'react-router-dom';
 
 // Use unified config instead of local environment service
-import { config, isMainApp, shouldLog } from '@trading-app/config';
+import { config, isBookApp, shouldLog } from '@trading-app/config';
 
 // LOGGING - now from package
 import { initializeLogging, getLogger } from '@trading-app/logging';
@@ -35,7 +35,6 @@ import { TokenManagerProvider } from './contexts/TokenManagerContext';
 import { ConnectionProvider } from './contexts/ConnectionContext';
 import { ConvictionProvider } from './contexts/ConvictionContext';
 import { BookManagerProvider } from './contexts/BookContext';
-import { FundProvider } from './contexts/FundContext';
 
 // COMPONENTS
 import ProtectedRoute from './components/Common/ProtectedRoute';
@@ -44,40 +43,33 @@ import ProtectedRoute from './components/Common/ProtectedRoute';
 import AuthenticatedLayout from './components/Layout/AuthenticatedLayout';
 
 // PAGES
-import LoginPage from './pages/LoginPage';
-import HomePage from './pages/HomePage';
 import SimulatorPage from './pages/SimulatorPage';
 import BookDetailsPage from './pages/BookDetailsPage';
 import SessionDeactivatedPage from './pages/SessionDeactivatedPage';
-
-import FundProfileForm from './components/Fund/FundProfileForm';
-import EditFundProfileForm from './components/Fund/EditFundProfileForm';
-
-import BookSetupPage from './components/Book/BookSetupPage';
-import EditBookPage from './components/Book/EditBookPage';
 
 // Initialize Logging First
 initializeLogging();
 
 // Create a logger for App.tsx debugging
-const logger = getLogger('App');
+const logger = getLogger('BookApp');
 
 // --- Start Service Instantiation ---
 
-logger.info('🚀 Starting service instantiation...');
+logger.info('🚀 Starting book app service instantiation...');
 
 // Validate we're running the right app
-if (!isMainApp()) {
-  logger.warn('⚠️ Main app detected non-main app configuration!');
+if (!isBookApp()) {
+  logger.warn('⚠️ Book app detected non-book app configuration!');
 }
 
 // Log environment information for debugging using unified config
-logger.info('🔍 APP STARTUP: Environment information', {
+logger.info('🔍 BOOK APP STARTUP: Environment information', {
   appType: config.appType,
   environment: config.environment,
   apiBaseUrl: config.apiBaseUrl,
   wsUrl: config.websocket.url,
   mainAppUrl: config.main.baseUrl,
+  bookAppUrl: config.book.baseUrl,
   landingUrl: config.landing.baseUrl,
   NODE_ENV: process.env.NODE_ENV,
   REACT_APP_API_BASE_URL: process.env.REACT_APP_API_BASE_URL,
@@ -138,13 +130,6 @@ logger.info('✅ ConvictionManager created');
 
 logger.info('🎉 All services instantiated successfully');
 
-// Log final API URL being used
-logger.info('🔗 FINAL API URL CHECK', {
-  configApiUrl: config.apiBaseUrl,
-  envApiUrl: process.env.REACT_APP_API_BASE_URL,
-  timestamp: new Date().toISOString()
-});
-
 // --- End Service Instantiation ---
 
 function DeviceIdInvalidationHandler({ children }: { children: React.ReactNode }) {
@@ -184,52 +169,7 @@ const AppRoutes: React.FC = () => {
   return (
     <>
       <Routes>
-        {/* Public routes */}
-        <Route path="/" element={<Navigate to="/home" replace />} />
-        <Route path="/login" element={<LoginPage />} />
-
         {/* Protected routes with session */}
-        <Route path="/home" element={
-          <ProtectedRoute>
-            <AuthenticatedLayout>
-              <HomePage />
-            </AuthenticatedLayout>
-          </ProtectedRoute>
-        } />
-
-        <Route path="/profile/create" element={
-          <ProtectedRoute>
-            <AuthenticatedLayout>
-              <FundProfileForm />
-            </AuthenticatedLayout>
-          </ProtectedRoute>
-        } />
-
-        <Route path="/profile/edit" element={
-          <ProtectedRoute>
-            <AuthenticatedLayout>
-              <EditFundProfileForm />
-            </AuthenticatedLayout>
-          </ProtectedRoute>
-        } />
-
-        {/* Book routes */}
-        <Route path="/books/new" element={
-          <ProtectedRoute>
-            <AuthenticatedLayout>
-              <BookSetupPage />
-            </AuthenticatedLayout>
-          </ProtectedRoute>
-        } />
-
-        <Route path="/books/:bookId/edit" element={
-          <ProtectedRoute>
-            <AuthenticatedLayout>
-              <EditBookPage />
-            </AuthenticatedLayout>
-          </ProtectedRoute>
-        } />
-        
         <Route path="/books/:bookId" element={
           <ProtectedRoute>
             <AuthenticatedLayout>
@@ -254,18 +194,34 @@ const AppRoutes: React.FC = () => {
             </AuthenticatedLayout>
         } />
 
-        {/* Default route - Redirect to home */}
-        <Route path="*" element={
-          <Navigate to="/home" replace />
-        } />
+        {/* Default route - Redirect to main app */}
+        <Route path="*" element={<RedirectToMainApp />} />
       </Routes>
     </>
   );
 };
 
+// Component to redirect to main app
+const RedirectToMainApp: React.FC = () => {
+  const currentPath = window.location.pathname + window.location.search;
+  const mainAppUrl = config.main.baseUrl;
+  
+  React.useEffect(() => {
+    console.log(`🔗 Redirecting ${currentPath} to main app: ${mainAppUrl}${currentPath}`);
+    window.location.href = `${mainAppUrl}${currentPath}`;
+  }, [currentPath, mainAppUrl]);
+  
+  return (
+    <div style={{ textAlign: 'center', padding: '50px' }}>
+      <h2>Redirecting...</h2>
+      <p>Taking you to {mainAppUrl}{currentPath}</p>
+    </div>
+  );
+};
+
 function App() {
   useEffect(() => {
-    logger.info('🎯 App component mounted, services available globally');
+    logger.info('🎯 Book App component mounted, services available globally');
   }, []);
 
   return (
@@ -276,13 +232,11 @@ function App() {
             <BookManagerProvider bookClient={apiClients.book} tokenManager={tokenManager}>
               <ConvictionProvider convictionManager={convictionManager}>
                 <ConnectionProvider connectionManager={connectionManager}>
-                  <FundProvider fundClient={apiClients.fund} tokenManager={tokenManager}>  
-                    <Router>
-                      <DeviceIdInvalidationHandler>
-                        <AppRoutes />
-                      </DeviceIdInvalidationHandler>
-                    </Router>
-                  </FundProvider>
+                  <Router>
+                    <DeviceIdInvalidationHandler>
+                      <AppRoutes />
+                    </DeviceIdInvalidationHandler>
+                  </Router>
                 </ConnectionProvider>
               </ConvictionProvider>
             </BookManagerProvider>
@@ -292,25 +246,5 @@ function App() {
     </ThemeProvider>
   );
 }
-
-// Add redirect component
-/*
-const RedirectToLanding: React.FC = () => {
-  const currentPath = window.location.pathname + window.location.search;
-  const landingUrl = config.landing.baseUrl;
-  
-  React.useEffect(() => {
-    console.log(`🔗 Redirecting ${currentPath} to landing app: ${landingUrl}${currentPath}`);
-    window.location.href = `${landingUrl}${currentPath}`;
-  }, [currentPath, landingUrl]);
-  
-  return (
-    <div style={{ textAlign: 'center', padding: '50px' }}>
-      <h2>Redirecting...</h2>
-      <p>Taking you to {landingUrl}{currentPath}</p>
-    </div>
-  );
-};
-*/
 
 export default App;
