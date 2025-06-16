@@ -86,49 +86,11 @@ function App() {
             {/* PUBLIC PAGES */}
             <Route path="/enterprise-contact" element={<EnterpriseContactPage />} />
             
-            {/* 
-              ANY OTHER ROUTE = REDIRECT TO MAIN APP
-              This catches /login, /home, /profile, /books, /simulator, etc.
-            */}
-            <Route path="*" element={<RedirectToMainApp />} />
           </Routes>
         </ToastProvider>
       </ThemeProvider>
     </BrowserRouter>
   );
 }
-
-// Redirect component for authenticated routes and login
-const RedirectToMainApp: React.FC = () => {
-  const currentPath = window.location.pathname;
-  const mainAppUrl = environmentService.getMainAppUrl();
-  
-  React.useEffect(() => {
-    console.log(`🔗 Redirecting ${currentPath} to main app`);
-    window.location.href = `${mainAppUrl}${currentPath}`;
-  }, [currentPath, mainAppUrl]);
-  
-  return (
-    <div style={{ 
-      textAlign: 'center', 
-      padding: '50px',
-      maxWidth: '600px',
-      margin: '0 auto',
-    }}>
-      <h2>Redirecting to Application...</h2>
-      <p>Taking you to the main application...</p>
-      <div style={{ 
-        marginTop: '20px', 
-        padding: '10px', 
-        backgroundColor: '#f8f9fa', 
-        borderRadius: '4px',
-        fontSize: '0.9rem',
-        color: '#666'
-      }}>
-        Target: {mainAppUrl}{currentPath}
-      </div>
-    </div>
-  );
-};
 
 export default App;

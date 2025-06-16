@@ -143,12 +143,12 @@ const AppRoutes: React.FC = () => {
   return (
     <>
       <Routes>
-        {/* Public routes */}
-        <Route path="/" element={<Navigate to="/home" replace />} />
-        <Route path="/login" element={<LoginPage />} />
+        {/* These paths are relative to /app basename */}
+        <Route path="/" element={<Navigate to="/home" replace />} />  {/* /app/ → /app/home */}
+        <Route path="/login" element={<LoginPage />} />               {/* /app/login */}
 
-        {/* Protected routes with session */}
-        <Route path="/home" element={
+        {/* Protected routes */}
+        <Route path="/home" element={                                 
           <ProtectedRoute>
             <AuthenticatedLayout>
               <HomePage />
@@ -156,7 +156,7 @@ const AppRoutes: React.FC = () => {
           </ProtectedRoute>
         } />
 
-        <Route path="/profile/create" element={
+        <Route path="/profile/create" element={                     
           <ProtectedRoute>
             <AuthenticatedLayout>
               <FundProfileForm />
@@ -164,7 +164,7 @@ const AppRoutes: React.FC = () => {
           </ProtectedRoute>
         } />
 
-        <Route path="/profile/edit" element={
+        <Route path="/profile/edit" element={                       
           <ProtectedRoute>
             <AuthenticatedLayout>
               <EditFundProfileForm />
@@ -172,8 +172,8 @@ const AppRoutes: React.FC = () => {
           </ProtectedRoute>
         } />
 
-        {/* Book routes */}
-        <Route path="/books/new" element={
+        {/* Book routes - these will actually redirect to book app */}
+        <Route path="/books/new" element={                          
           <ProtectedRoute>
             <AuthenticatedLayout>
               <BookSetupPage />
@@ -181,7 +181,7 @@ const AppRoutes: React.FC = () => {
           </ProtectedRoute>
         } />
 
-        <Route path="/books/:bookId/edit" element={
+        <Route path="/books/:bookId/edit" element={                
           <ProtectedRoute>
             <AuthenticatedLayout>
               <EditBookPage />
@@ -189,17 +189,14 @@ const AppRoutes: React.FC = () => {
           </ProtectedRoute>
         } />
 
-        {/* Session deactivated page - note: not protected since user may be logged out */}
-        <Route path="/session-deactivated" element={
+        <Route path="/session-deactivated" element={              
             <AuthenticatedLayout>
               <SessionDeactivatedPage />
             </AuthenticatedLayout>
         } />
 
-        {/* Default route - Redirect to home */}
-        <Route path="*" element={
-          <Navigate to="/home" replace />
-        } />
+        {/* Default route */}
+        <Route path="*" element={<Navigate to="/home" replace />} />
       </Routes>
     </>
   );
@@ -225,7 +222,7 @@ function App() {
               <ConvictionProvider convictionManager={convictionManager}>
                 <FundProvider fundClient={apiClients.fund} tokenManager={tokenManager}>  
                   {/* Use Router without basename since proxy handles path rewriting */}
-                  <Router>
+                  <Router basename="/app">
                     <DeviceIdInvalidationHandler>
                       <AppRoutes />
                     </DeviceIdInvalidationHandler>

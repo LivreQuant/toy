@@ -63,14 +63,15 @@ function determineAppType(): 'land' | 'main' | 'book' {
   if (typeof window !== 'undefined') {
     const path = window.location.pathname;
     
-    // Check path-based routing
-    if (path.startsWith('/home') || path.startsWith('/login') || path.startsWith('/profile')) {
+    // ENTIRE main app is behind /app
+    if (path.startsWith('/app')) {
       return 'main';
     }
+    // Book app routes
     if (path.startsWith('/books') || path.startsWith('/simulator')) {
       return 'book';
     }
-    // Default to landing for root and auth routes
+    // Everything else (/, /signup, /login, etc.) is landing app
     return 'land';
   }
   
@@ -128,10 +129,10 @@ function getConfig(): AppConfig {
         resetPassword: `${gatewayBaseUrl}/reset-password`,
         enterpriseContact: `${gatewayBaseUrl}/enterprise-contact`,
         
-        // Main app routes (served under /home)
-        login: `${gatewayBaseUrl}/home/login`,
-        dashboard: `${gatewayBaseUrl}/home`,
-        profile: `${gatewayBaseUrl}/home/profile`,
+        // Main app routes - ALL UNDER /app
+        login: `${gatewayBaseUrl}/app/login`,
+        dashboard: `${gatewayBaseUrl}/app/home`,  // Main dashboard at /app/home
+        profile: `${gatewayBaseUrl}/app/profile`,
         
         // Book app routes
         books: `${gatewayBaseUrl}/books`,
@@ -166,9 +167,10 @@ function getConfig(): AppConfig {
     apiBaseUrl: config.apiBaseUrl,
     wsUrl: config.websocket.url,
     sampleRoutes: {
-      home: config.gateway.routes.home,
-      login: config.gateway.routes.login,
-      books: config.gateway.routes.books
+      home: config.gateway.routes.home,        // /
+      login: config.gateway.routes.login,      // /app/login
+      dashboard: config.gateway.routes.dashboard, // /app/home
+      books: config.gateway.routes.books       // /books
     }
   });
   console.log('🔍 CONFIG: Loading gateway-first configuration - END');

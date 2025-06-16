@@ -6,15 +6,15 @@ console.log('🔍 Starting proxy server...');
 const app = express();
 
 // Add error handling
-app.use((err, req, res, next) => {
-  console.error('❌ Proxy error:', err);
-  res.status(500).send('Proxy error');
+app.use((req, res, next) => {
+  console.log(`🔍 PROXY DEBUG: ${req.method} ${req.path} from ${req.get('host')}`);
+  next();
 });
 
 console.log('📦 Setting up routes...');
 
 // Order matters! Most specific routes first
-app.use(['/books', '/simulator'], createProxyMiddleware({
+app.use(['/book', '/simulator'], createProxyMiddleware({
   target: 'http://localhost:3002',
   changeOrigin: true,
   onError: (err, req, res) => {
@@ -26,7 +26,7 @@ app.use(['/books', '/simulator'], createProxyMiddleware({
   }
 }));
 
-// IMPORTANT: Add /app route BEFORE the catch-all /
+// MAIN APP: All /app routes go to main app
 app.use('/app', createProxyMiddleware({
   target: 'http://localhost:3000',
   changeOrigin: true,
@@ -64,8 +64,8 @@ app.listen(PORT, (err) => {
   }
   
   console.log(`🚀 Dev proxy running on http://localhost:${PORT}`);
-  console.log('🏠 Landing: http://localhost:8081/');
-  console.log('📱 Main: http://localhost:8081/app');
+  console.log('🎯 Landing: http://localhost:8081/');
+  console.log('🏠 Main: http://localhost:8081/app');
   console.log('📚 Books: http://localhost:8081/books/...');
   console.log('🎮 Simulator: http://localhost:8081/simulator/...');
   
