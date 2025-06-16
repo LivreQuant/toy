@@ -26,19 +26,19 @@ app.use(['/books', '/simulator'], createProxyMiddleware({
   }
 }));
 
-// IMPORTANT: Add /home route BEFORE the catch-all /
-app.use('/home', createProxyMiddleware({
+// IMPORTANT: Add /app route BEFORE the catch-all /
+app.use('/app', createProxyMiddleware({
   target: 'http://localhost:3000',
   changeOrigin: true,
   pathRewrite: {
-    '^/home': '', // Remove /home prefix when forwarding to main app
+    '^/app': '', // Remove /app prefix when forwarding to main app
   },
   onError: (err, req, res) => {
     console.error('❌ Main app proxy error:', err.message);
     res.status(502).send('Main app unavailable');
   },
   onProxyReq: (proxyReq, req, res) => {
-    console.log('🏠 Proxying to main app:', req.path, '-> target path:', req.path.replace('/home', ''));
+    console.log('🏠 Proxying to main app:', req.path, '-> target path:', req.path.replace('/app', ''));
   }
 }));
 
@@ -65,7 +65,7 @@ app.listen(PORT, (err) => {
   
   console.log(`🚀 Dev proxy running on http://localhost:${PORT}`);
   console.log('🏠 Landing: http://localhost:8081/');
-  console.log('📱 Main: http://localhost:8081/home');
+  console.log('📱 Main: http://localhost:8081/app');
   console.log('📚 Books: http://localhost:8081/books/...');
   console.log('🎮 Simulator: http://localhost:8081/simulator/...');
   

@@ -7,7 +7,8 @@ const Header: React.FC = () => {
   const theme = useTheme();
   
   const handleLogin = () => {
-    const loginUrl = environmentService.getLoginUrl();
+    // Now points to /app/login instead of /home/login
+    const loginUrl = `${environmentService.getGatewayUrl()}/app/login`;
     
     if (environmentService.shouldLog()) {
       console.log('🔗 HEADER: Redirecting to login:', loginUrl);
