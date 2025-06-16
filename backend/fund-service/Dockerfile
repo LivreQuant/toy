@@ -40,7 +40,7 @@ ENV PYTHONUNBUFFERED=1 \
     ENABLE_TRACING="true" \
     METRICS_PORT="9091" \
     OTEL_SERVICE_NAME="fund-service" \
-    OTEL_EXPORTER_JAEGER_ENDPOINT="http://jaeger-collector:14268/api/traces" \
+    OTEL_EXPORTER_OTLP_ENDPOINT="http://jaeger-collector:4317" \
     # Logging and Security
     LOG_LEVEL="INFO"
 

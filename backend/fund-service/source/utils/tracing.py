@@ -6,7 +6,7 @@ from contextlib import contextmanager
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from opentelemetry.exporter.jaeger.thrift import JaegerExporter
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 from opentelemetry.instrumentation.aiohttp_client import AioHttpClientInstrumentor
 from opentelemetry.instrumentation.asyncpg import AsyncPGInstrumentor
@@ -15,7 +15,7 @@ logger = logging.getLogger('tracing')
 
 
 def setup_tracing():
-    """Initialize OpenTelemetry tracing with Jaeger exporter"""
+    """Initialize OpenTelemetry tracing with OTLP exporter (for Jaeger)"""
     # Check if tracing is enabled (default to true)
     if os.getenv('ENABLE_TRACING', 'true').lower() != 'true':
         logger.info("Tracing is disabled, using no-op tracer")
@@ -25,7 +25,8 @@ def setup_tracing():
         return True
 
     service_name = os.getenv('OTEL_SERVICE_NAME', 'fund-service')
-    jaeger_endpoint = os.getenv('OTEL_EXPORTER_JAEGER_ENDPOINT', 'http://jaeger-collector:14268/api/traces')
+    # Use OTLP endpoint instead of Jaeger Thrift endpoint
+    otlp_endpoint = os.getenv('OTEL_EXPORTER_OTLP_ENDPOINT', 'http://jaeger-collector:4317')
 
     try:
         # Set up tracer provider with service name resource
@@ -36,20 +37,21 @@ def setup_tracing():
         provider = TracerProvider(resource=resource)
         trace.set_tracer_provider(provider)
 
-        # Create Jaeger exporter and add it to the tracer provider
-        jaeger_exporter = JaegerExporter(
-            collector_endpoint=jaeger_endpoint,
+        # Create OTLP exporter instead of Jaeger exporter
+        otlp_exporter = OTLPSpanExporter(
+            endpoint=otlp_endpoint,
+            insecure=True  # Use insecure for local development
         )
 
         # Process spans in batches for better performance
-        span_processor = BatchSpanProcessor(jaeger_exporter)
+        span_processor = BatchSpanProcessor(otlp_exporter)
         provider.add_span_processor(span_processor)
 
         # Instrument HTTP client and database
         AioHttpClientInstrumentor().instrument()
         AsyncPGInstrumentor().instrument()
 
-        logger.info(f"Tracing initialized for service {service_name}, exporting to {jaeger_endpoint}")
+        logger.info(f"Tracing initialized for service {service_name}, exporting to {otlp_endpoint}")
         return True
     except Exception as e:
         logger.error(f"Failed to initialize tracing: {e}")

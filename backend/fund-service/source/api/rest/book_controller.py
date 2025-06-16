@@ -118,7 +118,7 @@ class BookController(BaseController):
         """Handle book creation endpoint with new data format"""
         # Authenticate request
         logger.info(f"Processing book creation request from {request.remote}")
-        auth_success, auth_result = await self.authenticate(request)
+        auth_success, auth_result = await self.authenticate(request, w_device_id=False)
         if not auth_success:
             logger.warning(f"Authentication failed: {auth_result['error']}")
             return self.create_error_response(auth_result["error"], auth_result["status"])
@@ -167,7 +167,7 @@ class BookController(BaseController):
     async def _get_books(self, request: web.Request) -> web.Response:
         """Handle books retrieval endpoint"""
         # Authenticate request
-        auth_success, auth_result = await self.authenticate(request)
+        auth_success, auth_result = await self.authenticate(request, w_device_id=False)
         if not auth_success:
             return self.create_error_response(auth_result["error"], auth_result["status"])
 
@@ -186,7 +186,7 @@ class BookController(BaseController):
     async def _get_book(self, request: web.Request) -> web.Response:
         """Handle single book retrieval endpoint"""
         # Authenticate request
-        auth_success, auth_result = await self.authenticate(request)
+        auth_success, auth_result = await self.authenticate(request, w_device_id=False)
         if not auth_success:
             return self.create_error_response(auth_result["error"], auth_result["status"])
 
@@ -211,7 +211,7 @@ class BookController(BaseController):
     async def _update_book(self, request: web.Request) -> web.Response:
         """Handle book update endpoint with new format"""
         # Authenticate request
-        auth_success, auth_result = await self.authenticate(request)
+        auth_success, auth_result = await self.authenticate(request, w_device_id=False)
         if not auth_success:
             return self.create_error_response(auth_result["error"], auth_result["status"])
 
