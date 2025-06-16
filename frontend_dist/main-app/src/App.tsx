@@ -196,7 +196,6 @@ const AppRoutes: React.FC = () => {
         } />
 
         {/* Default route */}
-        <Route path="*" element={<Navigate to="/home" replace />} />
       </Routes>
     </>
   );
