@@ -19,7 +19,7 @@ export class AppUrlService {
   }
 
   // Updated to include 'signup' in the type, even though main app doesn't have it
-  public getMainAppRoute(route: 'login' | 'signup' | 'home' | 'app' | 'profile' | 'books' | 'simulator'): string {
+  public getMainAppRoute(route: 'login' | 'signup' | 'home' | 'main' | 'profile' | 'books' | 'simulator'): string {
     const routes = this.envService.getMainAppRoutes();
     
     // Handle the fact that main app routes don't include 'signup'
@@ -27,9 +27,9 @@ export class AppUrlService {
       // Main app doesn't have signup, redirect to login instead
       return routes.login;
     }
-    
-    // Now we can safely access the route since we've filtered out 'signup'
-    type ValidMainAppRoute = Exclude<typeof route, 'signup'>;
+        
+    // Now we can safely access the route since we've filtered out 'signup' and handled 'app'
+    type ValidMainAppRoute = Exclude<typeof route, 'signup' | 'app'>;
     return routes[route as ValidMainAppRoute];
   }
 
@@ -57,7 +57,7 @@ export class AppUrlService {
     return this.envService.getLandAppConfig().baseUrl;
   }
 
-  public redirectToLand(path: string = '/'): void {
+  public redirectToLandApp(path: string = '/'): void {
     const landUrl = this.getLandAppUrl();
     const fullUrl = `${landUrl}${path}`;
     

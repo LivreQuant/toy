@@ -285,10 +285,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, tokenManag
   
       toastService.success('You have been successfully logged out');
       
-      // 🚨 NEW: Redirect to landing app after logout
-      const landingUrl = config.landing.baseUrl;
-      logger.info('🔗 AUTH: Redirecting to landing app after logout', { landingUrl });
-      window.location.href = landingUrl;
+      // 🚨 NEW: Redirect to land app after logout
+      const landAppUrl = config.land.baseUrl;
+      logger.info('🔗 AUTH: Redirecting to land app after logout', { landAppUrl });
+      window.location.href = landAppUrl;
       
     } catch (error) {
       logger.error("Unexpected error during logout process:", { error });
@@ -307,10 +307,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, tokenManag
       setUserId(null);
       setIsAuthLoading(false);
   
-      // 🚨 NEW: Even on error, redirect to landing app
-      const landingUrl = config.landing.baseUrl;
-      logger.info('🔗 AUTH: Redirecting to landing app after logout error', { landingUrl });
-      window.location.href = landingUrl;
+      // 🚨 NEW: Even on error, redirect to land app
+      const landAppUrl = config.land.baseUrl;
+      logger.info('🔗 AUTH: Redirecting to land app after logout error', { landAppUrl });
+      window.location.href = landAppUrl;
     }
   }, [authApi, tokenManager]); //, connectionManager]);
 

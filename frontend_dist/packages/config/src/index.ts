@@ -33,7 +33,7 @@ export interface AppConfig {
     routes: {
       login: string;
       home: string;
-      app: string;
+      main: string;
       profile: string;
       books: string;
       simulator: string;
@@ -76,10 +76,10 @@ function determineAppType(): 'land' | 'main' | 'book' {
     const port = window.location.port;
     
     // Check subdomain-based detection
-    if (hostname === 'trading.local' || hostname.includes('trading.local') && !hostname.includes('app.') && !hostname.includes('book.')) {
+    if (hostname === 'trading.local' || hostname.includes('trading.local') && !hostname.includes('main.') && !hostname.includes('book.')) {
       return 'land';
     }
-    if (hostname === 'app.trading.local' || hostname.includes('app.')) {
+    if (hostname === 'main.trading.local' || hostname.includes('main.')) {
       return 'main';
     }
     if (hostname === 'book.trading.local' || hostname.includes('book.')) {
@@ -115,21 +115,21 @@ function getEnvironmentUrls(environment: 'development' | 'production' | 'staging
   const configs: ConfigEnvironments = {
     development: {
       land: 'http://land.trading.local:3001',
-      main: 'http://app.trading.local:3000',
+      main: 'http://main.trading.local:3000',
       book: 'http://book.trading.local:3002',
       api: 'http://trading.local/api',
       ws: 'ws://trading.local/ws'
     },
     production: {
       land: 'https://land.trading.com',
-      main: 'https://app.trading.com',
+      main: 'https://main.trading.com',
       book: 'https://book.trading.com',
       api: 'https://api.trading.com',
       ws: 'wss://api.trading.com/ws'
     },
     staging: {
       land: 'https://land-staging.trading.com',
-      main: 'https://app-staging.trading.com', 
+      main: 'https://main-staging.trading.com', 
       book: 'https://book-staging.trading.com',
       api: 'https://api-staging.trading.com',
       ws: 'wss://api-staging.trading.com/ws'
@@ -196,7 +196,7 @@ function getConfig(): AppConfig {
       routes: {
         login: `${mainAppUrl}/login`,
         home: `${mainAppUrl}/home`,
-        app: `${mainAppUrl}/app`,
+        main: `${mainAppUrl}/main`,
         profile: `${mainAppUrl}/profile`,
         books: `${bookAppUrl}/books`,
         simulator: `${bookAppUrl}/simulator`,

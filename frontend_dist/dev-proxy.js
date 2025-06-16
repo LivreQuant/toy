@@ -13,4 +13,4 @@ app.use('/', createProxyMiddleware({
   changeOrigin: true,
 }));
 
-app.listen(8080, () => console.log('Dev proxy: http://localhost:8080'));
+app.listen(8080, () => console.log('Dev proxy: http://trading.local:8080'));

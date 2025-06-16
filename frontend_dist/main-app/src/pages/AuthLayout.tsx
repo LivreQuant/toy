@@ -15,11 +15,11 @@ interface AuthLayoutProps {
 const AuthLayout: React.FC<AuthLayoutProps> = ({ children, title, subtitle }) => {
   const navigate = useNavigate();
 
-  // 🚨 NEW: Handle back to landing app
+  // 🚨 NEW: Handle back to land app
   const handleBackToHome = () => {
-    const landingUrl = config.landing.baseUrl;
-    console.log(`🔗 Redirecting to landing app: ${landingUrl}`);
-    window.location.href = landingUrl;
+    const landAppUrl = config.land.baseUrl;
+    console.log(`🔗 Redirecting to landing app: ${landAppUrl}`);
+    window.location.href = landAppUrl;
   };
 
   return (
