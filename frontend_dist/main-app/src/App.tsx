@@ -13,10 +13,10 @@ import { initializeLogging, getLogger } from '@trading-app/logging';
 import { AuthFactory, DeviceIdManager, TokenManager } from '@trading-app/auth';
 
 // WEBSOCKET SERVICES - now from websocket package
-import { 
-  ConnectionManager, 
-  createConnectionManagerWithGlobalDeps 
-} from '@trading-app/websocket';
+//import { 
+//  ConnectionManager, 
+//  createConnectionManagerWithGlobalDeps 
+//} from '@trading-app/websocket';
 
 // API SERVICES - now from api package
 import { ApiFactory } from '@trading-app/api';
@@ -25,7 +25,7 @@ import { ApiFactory } from '@trading-app/api';
 import { ConvictionManager } from './services/convictions/conviction-manager';
 
 // HOOKS
-import { useConnection } from './hooks/useConnection';
+//import { useConnection } from './hooks/useConnection';
 
 // CONTEXT
 import { ThemeProvider } from './contexts/ThemeContext';
@@ -108,6 +108,7 @@ tokenManager.setAuthApi(apiClients.auth);
 logger.info('✅ Auth API set on token manager');
 
 // Initialize connection manager with dependency injection using the new websocket package
+/*
 logger.info('🔌 Creating websocket dependencies...');
 const { stateManager, toastService, configService } = createConnectionManagerWithGlobalDeps();
 logger.info('✅ Websocket dependencies created', {
@@ -128,6 +129,7 @@ const connectionManager = new ConnectionManager(
 logger.info('✅ ConnectionManager created', { 
   connectionManager: !!connectionManager 
 });
+*/
 
 // Initialize conviction manager (now uses new API client)
 const convictionManager = new ConvictionManager(
@@ -149,9 +151,11 @@ logger.info('🔗 FINAL API URL CHECK', {
 
 function DeviceIdInvalidationHandler({ children }: { children: React.ReactNode }) {
   // websocket message "device_id_invalidated" routes user to session-deactivated Page
-  const navigate = useNavigate();
-  const { connectionManager } = useConnection();
+  logger.info('🔌 Main app: No WebSocket session management needed');
+  //const navigate = useNavigate();
+  //const { connectionManager } = useConnection();
   
+  /*
   useEffect(() => {
     if (!connectionManager) {
       logger.warn('❌ No connectionManager in DeviceIdInvalidationHandler');
@@ -175,7 +179,7 @@ function DeviceIdInvalidationHandler({ children }: { children: React.ReactNode }
       subscription.unsubscribe();
     };
   }, [connectionManager, navigate]);
-  
+  */
   return <>{children}</>;
 }
 
@@ -250,7 +254,7 @@ const AppRoutes: React.FC = () => {
           </ProtectedRoute>
         } />
         */}
-        
+
         {/* Session deactivated page - note: not protected since user may be logged out */}
         <Route path="/session-deactivated" element={
             <AuthenticatedLayout>
@@ -275,19 +279,21 @@ function App() {
   return (
     <ThemeProvider>
       <ToastProvider>
-        <AuthProvider tokenManager={tokenManager} authApi={apiClients.auth} connectionManager={connectionManager}>
+        <AuthProvider tokenManager={tokenManager} authApi={apiClients.auth}> {/* connectionManager={connectionManager}> */}
           <TokenManagerProvider tokenManager={tokenManager}>
             <BookManagerProvider bookClient={apiClients.book} tokenManager={tokenManager}>
               <ConvictionProvider convictionManager={convictionManager}>
+                {/*
                 <ConnectionProvider connectionManager={connectionManager}>
-                  <FundProvider fundClient={apiClients.fund} tokenManager={tokenManager}>  
-                    <Router>
-                      <DeviceIdInvalidationHandler>
-                        <AppRoutes />
-                      </DeviceIdInvalidationHandler>
-                    </Router>
-                  </FundProvider>
                 </ConnectionProvider>
+                */}
+                <FundProvider fundClient={apiClients.fund} tokenManager={tokenManager}>  
+                  <Router>
+                    <DeviceIdInvalidationHandler>
+                      <AppRoutes />
+                    </DeviceIdInvalidationHandler>
+                  </Router>
+                </FundProvider>
               </ConvictionProvider>
             </BookManagerProvider>
           </TokenManagerProvider>

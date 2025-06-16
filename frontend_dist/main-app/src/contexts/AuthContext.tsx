@@ -36,7 +36,7 @@ interface AuthProviderProps {
   children: ReactNode;
   tokenManager: TokenManager;
   authApi: AuthClient;
-  connectionManager: ConnectionManager;
+  connectionManager?: ConnectionManager;
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children, tokenManager, authApi, connectionManager }) => {
@@ -63,12 +63,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, tokenManag
       setIsAuthLoading(false);
 
       // 🚨 CRITICAL FIX: Auto-connect WebSocket when authenticated
-      if (authenticated && connectionManager) {
+      if (authenticated) {// && connectionManager) {
         logger.info('🔌 AUTH: User is authenticated, setting up WebSocket connection');
-        connectionManager.setDesiredState({ 
-          connected: true, 
-          simulatorRunning: false 
-        });
+        //connectionManager.setDesiredState({ 
+        //  connected: true, 
+        //  simulatorRunning: false 
+        //});
       }
     };
     checkAuth();
