@@ -41,13 +41,19 @@ const Hero = forwardRef<HTMLDivElement, HeroProps>(({ className }, ref) => {
 
   // Handle navigation to signup - STAY ON LANDING APP
   const handleGetStarted = () => {
-    window.location.href = '/signup';
+    const signupUrl = environmentService.getSignupUrl();
+    window.location.href = signupUrl;
   };
 
-  // Handle login - REDIRECT TO MAIN APP
+  // Handle login - USE CONFIGURED ROUTE (works with gateway)
   const handleLogin = () => {
-    const mainAppUrl = environmentService.getMainAppUrl();
-    window.location.href = `${mainAppUrl}/login`;
+    const loginUrl = environmentService.getLoginUrl();
+    
+    if (environmentService.shouldLog()) {
+      console.log('🔗 HERO: Redirecting to login:', loginUrl);
+    }
+    
+    window.location.href = loginUrl;
   };
 
   // Handle form input changes

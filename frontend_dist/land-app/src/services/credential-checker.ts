@@ -10,7 +10,7 @@ export interface CredentialCheckResult {
   hasValidCredentials: boolean;
   shouldRedirect: boolean;
   redirectUrl?: string;
-  userId?: string | number; // Changed from string | number | null to string | number | undefined
+  userId?: string | number;
   error?: string;
 }
 
@@ -84,8 +84,8 @@ class CredentialCheckerService {
         };
       }
 
-      // Tokens are valid, user should be redirected to main app
-      const redirectUrl = this.envService.getMainAppRoutes().home;
+      // Tokens are valid, user should be redirected to dashboard
+      const redirectUrl = this.envService.getDashboardUrl();
       
       if (this.envService.shouldLog()) {
         console.log('🔍 CREDENTIAL_CHECK: Valid credentials found, should redirect', { 
@@ -98,7 +98,7 @@ class CredentialCheckerService {
         hasValidCredentials: true,
         shouldRedirect: true,
         redirectUrl,
-        userId: userId || undefined // Convert null to undefined
+        userId: userId || undefined
       };
 
     } catch (error: any) {
@@ -124,7 +124,7 @@ class CredentialCheckerService {
    * Perform the actual redirect to main app
    */
   redirectToMainApp(url?: string): void {
-    const redirectUrl = url || this.envService.getMainAppRoutes().home;
+    const redirectUrl = url || this.envService.getDashboardUrl();
     
     if (this.envService.shouldLog()) {
       console.log(`🔗 CREDENTIAL_CHECK: Redirecting to main app: ${redirectUrl}`);

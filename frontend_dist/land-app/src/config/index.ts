@@ -8,13 +8,15 @@ export {
     wsConfig
 } from './environment';
 
-// Export everything from app-urls (excluding mainAppRoutes to avoid conflict)
+// Export everything from app-urls
 export {
     AppUrlService,
     appUrlService,
     redirectToMainApp,
     redirectToLandApp,
-    getMainAppRoute
+    getMainAppRoute,
+    getRoute,
+    redirectToRoute
 } from './app-urls';
 
 // Re-export from unified config for convenience
@@ -27,5 +29,7 @@ export {
     shouldLog, 
     shouldDebug,
     APP_TYPE,
-    ENVIRONMENT 
+    ENVIRONMENT,
+    GATEWAY_URL,
+    getAllRoutes
 } from '@trading-app/config';

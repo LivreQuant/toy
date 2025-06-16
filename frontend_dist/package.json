@@ -1,16 +1,27 @@
 {
-  "name": "frontend_dist",
+  "name": "trading-app-frontend",
   "version": "1.0.0",
-  "description": "",
-  "main": "dev-proxy.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "concurrently \"npm run dev:land\" \"npm run dev:main\" \"npm run dev:book\" \"npm run dev:gateway\"",
+    "dev:land": "cd land-app && npm start",
+    "dev:main": "cd main-app && npm start", 
+    "dev:book": "cd book-app && npm start",
+    "dev:gateway": "node dev-proxy.js",
+    
+    "build": "npm run build:land && npm run build:main && npm run build:book",
+    "build:land": "cd land-app && npm run build",
+    "build:main": "cd main-app && npm run build",
+    "build:book": "cd book-app && npm run build",
+    
+    "start": "node gateway.config.js",
+    
+    "install:all": "npm install && npm run install:packages && npm run install:apps",
+    "install:packages": "cd packages/config && npm install",
+    "install:apps": "cd land-app && npm install && cd ../main-app && npm install && cd ../book-app && npm install"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "dependencies": {
-    "express": "^5.1.0",
-    "http-proxy-middleware": "^3.0.5"
+  "devDependencies": {
+    "concurrently": "^7.6.0",
+    "express": "^4.18.2",
+    "http-proxy-middleware": "^2.0.6"
   }
 }

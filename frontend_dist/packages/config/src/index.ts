@@ -5,47 +5,36 @@ export interface AppConfig {
   appType: 'land' | 'main' | 'book';
   environment: 'development' | 'production' | 'staging';
   
+  // Gateway Configuration - single entry point
+  gateway: {
+    baseUrl: string;
+    routes: {
+      // Landing app routes
+      home: string;
+      signup: string;
+      verifyEmail: string;
+      forgotPassword: string;
+      forgotUsername: string;
+      resetPassword: string;
+      enterpriseContact: string;
+      
+      // Main app routes
+      login: string;
+      dashboard: string;
+      profile: string;
+      
+      // Book app routes
+      books: string;
+      simulator: string;
+    };
+  };
+  
   // API Configuration
   apiBaseUrl: string;
   
   // WebSocket Configuration  
   websocket: {
     url: string;
-  };
-  
-  // App URLs
-  land: {
-    baseUrl: string;
-    routes: {
-      home: string;
-      signup: string;
-      login: string;
-      verifyEmail: string;
-      forgotPassword: string;
-      forgotUsername: string;
-      resetPassword: string;
-      enterpriseContact: string;
-    };
-  };
-  
-  main: {
-    baseUrl: string;
-    routes: {
-      login: string;
-      home: string;
-      main: string;
-      profile: string;
-      books: string;
-      simulator: string;
-    };
-  };
-
-  book: {
-    baseUrl: string;
-    routes: {
-      home: string;
-      session: string;
-    };
   };
   
   // Feature flags
@@ -70,81 +59,37 @@ function determineAppType(): 'land' | 'main' | 'book' {
   if (process.env.REACT_APP_TYPE === 'main') return 'main';
   if (process.env.REACT_APP_TYPE === 'book') return 'book';
   
-  // Fallback: check current URL
+  // Fallback: check current path since we're always behind gateway
   if (typeof window !== 'undefined') {
-    const hostname = window.location.hostname;
-    const port = window.location.port;
+    const path = window.location.pathname;
     
-    // Check subdomain-based detection
-    if (hostname === 'trading.local' || hostname.includes('trading.local') && !hostname.includes('main.') && !hostname.includes('book.')) {
-      return 'land';
-    }
-    if (hostname === 'main.trading.local' || hostname.includes('main.')) {
+    // Check path-based routing
+    if (path.startsWith('/home') || path.startsWith('/login') || path.startsWith('/profile')) {
       return 'main';
     }
-    if (hostname === 'book.trading.local' || hostname.includes('book.')) {
+    if (path.startsWith('/books') || path.startsWith('/simulator')) {
       return 'book';
     }
-    
-    // Port-based fallback for localhost development
-    if (port === '3001') return 'land';
-    if (port === '3000') return 'main';
-    if (port === '3002') return 'book';
+    // Default to landing for root and auth routes
+    return 'land';
   }
   
   // Default assumption
-  return 'main';
+  return 'land';
 }
 
-// Define the type for environment configs
-type EnvironmentConfig = {
-  land: string;
-  main: string;
-  book: string;
-  api: string;
-  ws: string;
-};
-
-type ConfigEnvironments = {
-  development: EnvironmentConfig;
-  production: EnvironmentConfig;
-  staging: EnvironmentConfig;
-};
-
-function getEnvironmentUrls(environment: 'development' | 'production' | 'staging'): EnvironmentConfig {
-  const configs: ConfigEnvironments = {
-    development: {
-      land: 'http://land.trading.local:3001',
-      main: 'http://main.trading.local:3000',
-      book: 'http://book.trading.local:3002',
-      api: 'http://trading.local/api',
-      ws: 'ws://trading.local/ws'
-    },
-    production: {
-      land: 'https://land.trading.com',
-      main: 'https://main.trading.com',
-      book: 'https://book.trading.com',
-      api: 'https://api.trading.com',
-      ws: 'wss://api.trading.com/ws'
-    },
-    staging: {
-      land: 'https://land-staging.trading.com',
-      main: 'https://main-staging.trading.com', 
-      book: 'https://book-staging.trading.com',
-      api: 'https://api-staging.trading.com',
-      ws: 'wss://api-staging.trading.com/ws'
-    }
+function getGatewayUrls(environment: 'development' | 'production' | 'staging'): string {
+  const gateways = {
+    development: 'http://localhost:8081',
+    production: 'https://app.digitaltrader.com',
+    staging: 'https://app-staging.digitaltrader.com'
   };
 
-  return configs[environment] || configs.development;
+  return gateways[environment] || gateways.development;
 }
 
 function getConfig(): AppConfig {
-  console.log('🔍 CONFIG: Loading unified configuration - START');
-  console.log('🔍 CONFIG: process.env.REACT_APP_API_BASE_URL =', process.env.REACT_APP_API_BASE_URL);
-  console.log('🔍 CONFIG: process.env.NODE_ENV =', process.env.NODE_ENV);
-  console.log('🔍 CONFIG: process.env.REACT_APP_ENV =', process.env.REACT_APP_ENV);
-  console.log('🔍 CONFIG: process.env.REACT_APP_TYPE =', process.env.REACT_APP_TYPE);
+  console.log('🔍 CONFIG: Loading gateway-first configuration - START');
 
   const appType = determineAppType();
   
@@ -157,58 +102,47 @@ function getConfig(): AppConfig {
   console.log('🔍 CONFIG: appType =', appType);
   console.log('🔍 CONFIG: environment =', environment);
 
-  // Get environment-specific URLs
-  const urls = getEnvironmentUrls(environment);
+  // Get gateway URL
+  const gatewayBaseUrl = process.env.REACT_APP_GATEWAY_URL || getGatewayUrls(environment);
 
-  // Allow environment variable overrides
-  const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || urls.api;
-  const wsUrl = process.env.REACT_APP_WS_URL || urls.ws;
-  const landAppUrl = process.env.REACT_APP_LAND_APP_URL || urls.land;
-  const mainAppUrl = process.env.REACT_APP_MAIN_APP_URL || urls.main;
-  const bookAppUrl = process.env.REACT_APP_BOOK_APP_URL || urls.book;
+  // API and WebSocket URLs
+  const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || 
+    (environment === 'production' ? 'https://api.digitaltrader.com' : 'http://trading.local/api');
+  
+  const wsUrl = process.env.REACT_APP_WS_URL || 
+    (environment === 'production' ? 'wss://api.digitaltrader.com/ws' : 'ws://trading.local/ws');
 
   const config: AppConfig = {
     appType,
     environment,
     
-    apiBaseUrl: apiBaseUrl,
+    gateway: {
+      baseUrl: gatewayBaseUrl,
+      routes: {
+        // Landing app routes (served at root)
+        home: `${gatewayBaseUrl}/`,
+        signup: `${gatewayBaseUrl}/signup`,
+        verifyEmail: `${gatewayBaseUrl}/verify-email`,
+        forgotPassword: `${gatewayBaseUrl}/forgot-password`,
+        forgotUsername: `${gatewayBaseUrl}/forgot-username`,
+        resetPassword: `${gatewayBaseUrl}/reset-password`,
+        enterpriseContact: `${gatewayBaseUrl}/enterprise-contact`,
+        
+        // Main app routes (served under /home)
+        login: `${gatewayBaseUrl}/home/login`,
+        dashboard: `${gatewayBaseUrl}/home`,
+        profile: `${gatewayBaseUrl}/home/profile`,
+        
+        // Book app routes
+        books: `${gatewayBaseUrl}/books`,
+        simulator: `${gatewayBaseUrl}/simulator`,
+      }
+    },
+    
+    apiBaseUrl,
     
     websocket: {
       url: wsUrl
-    },
-    
-    land: {
-      baseUrl: landAppUrl,
-      routes: {
-        home: `${landAppUrl}/`,
-        signup: `${landAppUrl}/signup`,
-        login: `${mainAppUrl}/login`, // Land login redirects to main app
-        verifyEmail: `${landAppUrl}/verify-email`,
-        forgotPassword: `${landAppUrl}/forgot-password`,
-        forgotUsername: `${landAppUrl}/forgot-username`,
-        resetPassword: `${landAppUrl}/reset-password`,
-        enterpriseContact: `${landAppUrl}/enterprise-contact`
-      }
-    },
-    
-    main: {
-      baseUrl: mainAppUrl,
-      routes: {
-        login: `${mainAppUrl}/login`,
-        home: `${mainAppUrl}/home`,
-        main: `${mainAppUrl}/main`,
-        profile: `${mainAppUrl}/profile`,
-        books: `${bookAppUrl}/books`,
-        simulator: `${bookAppUrl}/simulator`,
-      }
-    },
-
-    book: {
-      baseUrl: bookAppUrl,
-      routes: {
-        home: `${bookAppUrl}/`,
-        session: `${bookAppUrl}/session`
-      }
     },
     
     features: {
@@ -225,16 +159,19 @@ function getConfig(): AppConfig {
     }
   };
 
-  console.log('🔍 CONFIG: Final configuration:', {
+  console.log('🔍 CONFIG: Final gateway configuration:', {
     appType: config.appType,
     environment: config.environment,
+    gatewayBaseUrl: config.gateway.baseUrl,
     apiBaseUrl: config.apiBaseUrl,
     wsUrl: config.websocket.url,
-    landAppUrl: config.land.baseUrl,
-    mainAppUrl: config.main.baseUrl,
-    bookAppUrl: config.book.baseUrl,
+    sampleRoutes: {
+      home: config.gateway.routes.home,
+      login: config.gateway.routes.login,
+      books: config.gateway.routes.books
+    }
   });
-  console.log('🔍 CONFIG: Loading unified configuration - END');
+  console.log('🔍 CONFIG: Loading gateway-first configuration - END');
   
   return config;
 }
@@ -244,12 +181,10 @@ export const config = getConfig();
 
 // Export individual values for convenience
 export const APP_TYPE = config.appType;
+export const GATEWAY_URL = config.gateway.baseUrl;
 export const API_BASE_URL = config.apiBaseUrl;
 export const WS_BASE_URL = config.websocket.url;
 export const ENVIRONMENT = config.environment;
-export const LAND_APP_URL = config.land.baseUrl;
-export const MAIN_APP_URL = config.main.baseUrl;
-export const BOOK_APP_URL = config.book.baseUrl;
 
 // Helper functions
 export const isLandApp = () => config.appType === 'land';
@@ -259,6 +194,10 @@ export const isDevelopment = () => config.environment === 'development';
 export const isProduction = () => config.environment === 'production';
 export const shouldLog = () => config.features.enableLogs;
 export const shouldDebug = () => config.features.enableDebug;
+
+// Route helpers
+export const getRoute = (routeName: keyof typeof config.gateway.routes) => config.gateway.routes[routeName];
+export const getAllRoutes = () => ({ ...config.gateway.routes });
 
 // Default export
 export default config;

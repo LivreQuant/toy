@@ -1,6 +1,9 @@
 // land-app/src/config/app-urls.ts
 import { environmentService } from './environment';
 
+// Define the route names type
+type RouteNames = 'home' | 'signup' | 'login' | 'dashboard' | 'profile' | 'books' | 'simulator' | 'verifyEmail' | 'forgotPassword' | 'forgotUsername' | 'resetPassword' | 'enterpriseContact';
+
 export class AppUrlService {
   private static instance: AppUrlService;
   private envService = environmentService;
@@ -18,24 +21,25 @@ export class AppUrlService {
     return this.envService.getMainAppRoutes();
   }
 
-  // Updated to include 'signup' in the type, even though main app doesn't have it
+  // Updated to work with gateway routing
   public getMainAppRoute(route: 'login' | 'signup' | 'home' | 'main' | 'profile' | 'books' | 'simulator'): string {
     const routes = this.envService.getMainAppRoutes();
     
-    // Handle the fact that main app routes don't include 'signup'
+    // Handle the fact that signup is handled by landing app
     if (route === 'signup') {
-      // Main app doesn't have signup, redirect to login instead
-      return routes.login;
+      return this.envService.getSignupUrl();
     }
         
-    // Now we can safely access the route since we've filtered out 'signup' and handled 'app'
-    type ValidMainAppRoute = Exclude<typeof route, 'signup' | 'app'>;
+    // Now we can safely access the route
+    type ValidMainAppRoute = Exclude<typeof route, 'signup'>;
     return routes[route as ValidMainAppRoute];
   }
 
   public redirectToMainApp(path: string = '/home', replace: boolean = false): void {
-    const mainAppUrl = this.envService.getMainAppUrl();
-    const fullUrl = `${mainAppUrl}${path}`;
+    const gatewayUrl = this.envService.getGatewayUrl();
+    // Remove leading slash to avoid double slashes
+    const cleanPath = path.startsWith('/') ? path.substring(1) : path;
+    const fullUrl = `${gatewayUrl}/${cleanPath}`;
     
     if (this.envService.shouldLog()) {
       console.log(`🔗 Redirecting to main app: ${fullUrl}`);
@@ -49,8 +53,8 @@ export class AppUrlService {
   }
 
   public isMainAppUrl(url: string): boolean {
-    const mainAppUrl = this.envService.getMainAppUrl();
-    return url.startsWith(mainAppUrl);
+    const gatewayUrl = this.envService.getGatewayUrl();
+    return url.startsWith(gatewayUrl);
   }
 
   public getLandAppUrl(): string {
@@ -90,6 +94,25 @@ export class AppUrlService {
       environment: this.envService.getAppConfig().environment,
     };
   }
+
+  // New gateway-specific methods
+  public getRoute(routeName: RouteNames): string {
+    return this.envService.getRoute(routeName);
+  }
+
+  public redirectToRoute(routeName: RouteNames, replace: boolean = false): void {
+    const url = this.getRoute(routeName);
+    
+    if (this.envService.shouldLog()) {
+      console.log(`🔗 Redirecting to route ${routeName}: ${url}`);
+    }
+
+    if (replace) {
+      window.location.replace(url);
+    } else {
+      window.location.href = url;
+    }
+  }
 }
 
 // Export singleton instance
@@ -99,3 +122,5 @@ export const appUrlService = AppUrlService.getInstance();
 export const redirectToMainApp = appUrlService.redirectToMainApp.bind(appUrlService);
 export const redirectToLandApp = appUrlService.redirectToLandApp.bind(appUrlService);
 export const getMainAppRoute = appUrlService.getMainAppRoute.bind(appUrlService);
+export const getRoute = appUrlService.getRoute.bind(appUrlService);
+export const redirectToRoute = appUrlService.redirectToRoute.bind(appUrlService);

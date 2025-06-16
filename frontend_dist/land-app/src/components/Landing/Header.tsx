@@ -7,14 +7,18 @@ const Header: React.FC = () => {
   const theme = useTheme();
   
   const handleLogin = () => {
-    // Redirect to main app login instead of staying on landing app
-    const mainAppUrl = environmentService.getMainAppUrl();
-    window.location.href = `${mainAppUrl}/login`;
+    const loginUrl = environmentService.getLoginUrl();
+    
+    if (environmentService.shouldLog()) {
+      console.log('🔗 HEADER: Redirecting to login:', loginUrl);
+    }
+    
+    window.location.href = loginUrl;
   };
   
   const handleSignup = () => {
-    // Stay on landing app - just navigate to signup route
-    window.location.href = '/signup';
+    const signupUrl = environmentService.getSignupUrl();
+    window.location.href = signupUrl;
   };
   
   return (
@@ -58,143 +62,50 @@ const Header: React.FC = () => {
             </Typography>
           </Box>
           
-          {/* ONLY MARKETING NAVIGATION - NO APP ROUTES */}
+          {/* MARKETING NAVIGATION */}
           <Box sx={{ 
             display: { xs: 'none', md: 'flex' }, 
             gap: 4,
             alignItems: 'center'
           }}>
-            <Button 
-              color="inherit" 
-              href="#features"
-              sx={{
-                padding: "8px 16px",
-                margin: 0,
-                minHeight: 0,
-                lineHeight: 1,
-                borderRadius: 0,
-                textTransform: 'none',
-                position: 'relative',
-                '&::after': {
-                  content: '""',
-                  position: 'absolute',
-                  bottom: 0,
-                  left: 0,
-                  width: 0,
-                  height: '2px',
-                  backgroundColor: 'primary.main',
-                  transition: 'width 0.3s ease'
-                },
-                '&:hover': {
-                  boxShadow: 'none',
-                  backgroundColor: 'transparent',
+            {['features', 'how-it-works', 'faq', 'enterprise'].map((section) => (
+              <Button 
+                key={section}
+                color="inherit" 
+                href={`#${section}`}
+                sx={{
+                  padding: "8px 16px",
+                  margin: 0,
+                  minHeight: 0,
+                  lineHeight: 1,
+                  borderRadius: 0,
+                  textTransform: 'none',
+                  position: 'relative',
                   '&::after': {
-                    width: '100%'
+                    content: '""',
+                    position: 'absolute',
+                    bottom: 0,
+                    left: 0,
+                    width: 0,
+                    height: '2px',
+                    backgroundColor: 'primary.main',
+                    transition: 'width 0.3s ease'
+                  },
+                  '&:hover': {
+                    boxShadow: 'none',
+                    backgroundColor: 'transparent',
+                    '&::after': {
+                      width: '100%'
+                    }
                   }
-                }
-              }}
-            >
-              Features
-            </Button>
-            <Button 
-              color="inherit" 
-              href="#how-it-works"
-              sx={{
-                padding: "8px 16px",
-                margin: 0,
-                minHeight: 0,
-                lineHeight: 1,
-                borderRadius: 0,
-                textTransform: 'none',
-                position: 'relative',
-                '&::after': {
-                  content: '""',
-                  position: 'absolute',
-                  bottom: 0,
-                  left: 0,
-                  width: 0,
-                  height: '2px',
-                  backgroundColor: 'primary.main',
-                  transition: 'width 0.3s ease'
-                },
-                '&:hover': {
-                  boxShadow: 'none',
-                  backgroundColor: 'transparent',
-                  '&::after': {
-                    width: '100%'
-                  }
-                }
-              }}
-            >
-              How It Works
-            </Button>
-            <Button 
-              color="inherit" 
-              href="#faq"
-              sx={{
-                padding: "8px 16px",
-                margin: 0,
-                minHeight: 0,
-                lineHeight: 1,
-                borderRadius: 0,
-                textTransform: 'none',
-                position: 'relative',
-                '&::after': {
-                  content: '""',
-                  position: 'absolute',
-                  bottom: 0,
-                  left: 0,
-                  width: 0,
-                  height: '2px',
-                  backgroundColor: 'primary.main',
-                  transition: 'width 0.3s ease'
-                },
-                '&:hover': {
-                  boxShadow: 'none',
-                  backgroundColor: 'transparent',
-                  '&::after': {
-                    width: '100%'
-                  }
-                }
-              }}
-            >
-              FAQ
-            </Button>
-            <Button 
-              color="inherit" 
-              href="#enterprise"
-              sx={{
-                padding: "8px 16px",
-                margin: 0,
-                minHeight: 0,
-                lineHeight: 1,
-                borderRadius: 0,
-                textTransform: 'none',
-                position: 'relative',
-                '&::after': {
-                  content: '""',
-                  position: 'absolute',
-                  bottom: 0,
-                  left: 0,
-                  width: 0,
-                  height: '2px',
-                  backgroundColor: 'primary.main',
-                  transition: 'width 0.3s ease'
-                },
-                '&:hover': {
-                  boxShadow: 'none',
-                  backgroundColor: 'transparent',
-                  '&::after': {
-                    width: '100%'
-                  }
-                }
-              }}
-            >
-              Enterprise
-            </Button>
+                }}
+              >
+                {section.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+              </Button>
+            ))}
           </Box>
           
-          {/* AUTH BUTTONS - LOGIN GOES TO MAIN APP */}
+          {/* AUTH BUTTONS */}
           <Box sx={{ display: 'flex', gap: 2 }}>
             <Button 
               onClick={handleLogin}

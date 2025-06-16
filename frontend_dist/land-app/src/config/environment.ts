@@ -1,5 +1,5 @@
 // frontend_dist/land-app/src/config/environment.ts
-import { config, AppConfig } from '@trading-app/config';
+import { config, AppConfig, getRoute } from '@trading-app/config';
 
 interface LandEnvironmentConfig extends AppConfig {
   // Land-specific additions can go here if needed
@@ -10,7 +10,6 @@ class LandEnvironmentService {
   private config: LandEnvironmentConfig;
 
   private constructor() {
-    // Use the unified config
     this.config = config as LandEnvironmentConfig;
     this.validateLandConfig();
   }
@@ -28,9 +27,8 @@ class LandEnvironmentService {
     }
 
     const requiredFields = [
-      'apiBaseUrl',  // ✅ FIXED: Use top-level apiBaseUrl instead of api.baseUrl
-      'land.baseUrl',
-      'main.baseUrl'
+      'apiBaseUrl',
+      'gateway.baseUrl'
     ];
 
     for (const field of requiredFields) {
@@ -44,10 +42,10 @@ class LandEnvironmentService {
       console.log('🔧 Land Environment Configuration Loaded:', {
         appType: this.config.appType,
         environment: this.config.environment,
-        landAppUrl: this.config.land.baseUrl,
-        mainAppUrl: this.config.main.baseUrl,
-        apiUrl: this.config.apiBaseUrl,  // ✅ FIXED: Use apiBaseUrl
-        autoRedirectValidCredentials: this.config.features.autoRedirectValidCredentials
+        gatewayUrl: this.config.gateway.baseUrl,
+        apiUrl: this.config.apiBaseUrl,
+        autoRedirectValidCredentials: this.config.features.autoRedirectValidCredentials,
+        routes: this.config.gateway.routes
       });
     }
   }
@@ -60,20 +58,11 @@ class LandEnvironmentService {
     return { ...this.config };
   }
 
-  public getMainAppUrl(): string {
-    return this.config.main.baseUrl;
-  }
-
-  public getMainAppRoutes() {
-    return { ...this.config.main.routes };
-  }
-
-  public getLandAppConfig() {
-    return { ...this.config.land };
+  public getGatewayUrl(): string {
+    return this.config.gateway.baseUrl;
   }
 
   public getApiConfig() {
-    // ✅ FIXED: Return object with baseUrl property from top-level apiBaseUrl
     return { 
       baseUrl: this.config.apiBaseUrl 
     };
@@ -115,6 +104,63 @@ class LandEnvironmentService {
   public shouldAutoRedirectValidCredentials(): boolean {
     return this.config.features.autoRedirectValidCredentials;
   }
+
+  // Route helper methods
+  public getRoute(routeName: keyof typeof this.config.gateway.routes): string {
+    return this.config.gateway.routes[routeName];
+  }
+
+  public getLoginUrl(): string {
+    return this.getRoute('login');
+  }
+
+  public getDashboardUrl(): string {
+    return this.getRoute('dashboard');
+  }
+
+  public getSignupUrl(): string {
+    return this.getRoute('signup');
+  }
+
+  public getBooksUrl(): string {
+    return this.getRoute('books');
+  }
+
+  public getSimulatorUrl(): string {
+    return this.getRoute('simulator');
+  }
+
+  // Legacy compatibility methods for existing code
+  public getMainAppUrl(): string {
+    return this.config.gateway.baseUrl;
+  }
+
+  public getMainAppRoutes() {
+    return {
+      login: this.getRoute('login'),
+      home: this.getRoute('dashboard'),
+      main: this.getRoute('dashboard'),
+      profile: this.getRoute('profile'),
+      books: this.getRoute('books'),
+      simulator: this.getRoute('simulator')
+    };
+  }
+
+  public getLandAppConfig() {
+    return {
+      baseUrl: this.config.gateway.baseUrl,
+      routes: {
+        home: this.getRoute('home'),
+        signup: this.getRoute('signup'),
+        login: this.getRoute('login'),
+        verifyEmail: this.getRoute('verifyEmail'),
+        forgotPassword: this.getRoute('forgotPassword'),
+        forgotUsername: this.getRoute('forgotUsername'),
+        resetPassword: this.getRoute('resetPassword'),
+        enterpriseContact: this.getRoute('enterpriseContact')
+      }
+    };
+  }
 }
 
 // Export singleton instance
@@ -123,7 +169,7 @@ export const environmentService = LandEnvironmentService.getInstance();
 // Export configuration object for direct access
 export const landConfig = environmentService.getConfig();
 
-// Export commonly used values
+// Export commonly used values for backward compatibility
 export const mainAppRoutes = environmentService.getMainAppRoutes();
 export const apiConfig = environmentService.getApiConfig();
 export const wsConfig = environmentService.getWebSocketConfig();
