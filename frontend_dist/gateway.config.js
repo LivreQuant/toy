@@ -43,7 +43,7 @@ const serveApp = (appPath, buildPath) => {
 };
 
 // Book app routes
-app.use(['/books', '/simulator'], serveApp('/books', path.join(__dirname, 'book-app/build')));
+app.use(['/book', '/simulator'], serveApp('/book', path.join(__dirname, 'book-app/build')));
 
 // Main app routes
 app.use('/home', serveApp('/home', path.join(__dirname, 'main-app/build')));
@@ -57,6 +57,6 @@ app.listen(PORT, () => {
   console.log(`🚀 Production gateway running on port ${PORT}`);
   console.log(`🏠 Landing: http://localhost:${PORT}/`);
   console.log(`📱 Main: http://localhost:${PORT}/home`);
-  console.log(`📚 Books: http://localhost:${PORT}/books`);
+  console.log(`📚 Book: http://localhost:${PORT}/book`);
   console.log(`🎮 Simulator: http://localhost:${PORT}/simulator`);
 });

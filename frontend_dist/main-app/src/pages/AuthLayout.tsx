@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Link } from 'react-router-dom';
 import { Box, Typography, Button, } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import { config } from '@trading-app/config'; // 🚨 NEW: Import config
+import { config } from '@trading-app/config';
 import './AuthLayout.css';
 
 interface AuthLayoutProps {
@@ -15,9 +15,9 @@ interface AuthLayoutProps {
 const AuthLayout: React.FC<AuthLayoutProps> = ({ children, title, subtitle }) => {
   const navigate = useNavigate();
 
-  // 🚨 NEW: Handle back to land app
+  // 🚨 NEW: Handle back to land app using gateway routes
   const handleBackToHome = () => {
-    const landAppUrl = config.land.baseUrl;
+    const landAppUrl = config.gateway?.routes?.home || config.gateway?.baseUrl || 'http://localhost:8081/';
     console.log(`🔗 Redirecting to landing app: ${landAppUrl}`);
     window.location.href = landAppUrl;
   };
@@ -27,7 +27,7 @@ const AuthLayout: React.FC<AuthLayoutProps> = ({ children, title, subtitle }) =>
       <div className="auth-logo">
         <Button
           startIcon={<ArrowBackIcon />}
-          onClick={handleBackToHome} // 🚨 CHANGED: Use new handler
+          onClick={handleBackToHome}
           variant="contained" 
           color="secondary" 
           size="medium"

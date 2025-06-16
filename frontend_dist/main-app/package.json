@@ -36,7 +36,7 @@
     "web-vitals": "^2.1.4"
   },
   "scripts": {
-    "start": "HOST=main.trading.local PORT=3000 REACT_APP_TYPE=main react-scripts start",
+    "start": "PORT=3000 REACT_APP_TYPE=main react-scripts start",
     "start:localhost": "PORT=3000 REACT_APP_TYPE=main react-scripts start",
     "build": "react-scripts build",
     "build:production": "REACT_APP_ENV=production react-scripts build",

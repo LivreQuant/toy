@@ -133,8 +133,9 @@ const HomePage: React.FC = () => {
   };
 
   const handleOpenBook = (bookId: string) => {
-    const bookAppUrl = config.book.baseUrl;
-    window.location.href = `${bookAppUrl}/books/${bookId}`;
+    // Use gateway routes for book app navigation
+    const bookAppUrl = config.gateway?.routes?.books || `${config.gateway?.baseUrl || 'http://localhost:8081'}/books`;
+    window.location.href = `${bookAppUrl}/${bookId}`;
   };
 
   const handleLogout = async () => {

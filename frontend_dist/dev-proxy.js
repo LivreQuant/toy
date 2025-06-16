@@ -26,21 +26,23 @@ app.use(['/books', '/simulator'], createProxyMiddleware({
   }
 }));
 
+// IMPORTANT: Add /home route BEFORE the catch-all /
 app.use('/home', createProxyMiddleware({
   target: 'http://localhost:3000',
   changeOrigin: true,
   pathRewrite: {
-    '^/home': '',
+    '^/home': '', // Remove /home prefix when forwarding to main app
   },
   onError: (err, req, res) => {
     console.error('❌ Main app proxy error:', err.message);
     res.status(502).send('Main app unavailable');
   },
   onProxyReq: (proxyReq, req, res) => {
-    console.log('🏠 Proxying to main app:', req.path);
+    console.log('🏠 Proxying to main app:', req.path, '-> target path:', req.path.replace('/home', ''));
   }
 }));
 
+// Landing app (catch-all, must be last)
 app.use('/', createProxyMiddleware({
   target: 'http://localhost:3001',
   changeOrigin: true,

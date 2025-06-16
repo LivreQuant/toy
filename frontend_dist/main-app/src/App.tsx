@@ -12,27 +12,17 @@ import { initializeLogging, getLogger } from '@trading-app/logging';
 // AUTH SERVICES - now from auth package
 import { AuthFactory, DeviceIdManager, TokenManager } from '@trading-app/auth';
 
-// WEBSOCKET SERVICES - now from websocket package
-//import { 
-//  ConnectionManager, 
-//  createConnectionManagerWithGlobalDeps 
-//} from '@trading-app/websocket';
-
 // API SERVICES - now from api package
 import { ApiFactory } from '@trading-app/api';
 
 // SERVICES - keep existing services that aren't API related
 import { ConvictionManager } from './services/convictions/conviction-manager';
 
-// HOOKS
-//import { useConnection } from './hooks/useConnection';
-
 // CONTEXT
 import { ThemeProvider } from './contexts/ThemeContext';
 import { ToastProvider } from './contexts/ToastContext';
 import { AuthProvider } from './contexts/AuthContext';
 import { TokenManagerProvider } from './contexts/TokenManagerContext';
-//import { ConnectionProvider } from './contexts/ConnectionContext';
 import { ConvictionProvider } from './contexts/ConvictionContext';
 import { BookManagerProvider } from './contexts/BookContext';
 import { FundProvider } from './contexts/FundContext';
@@ -46,8 +36,6 @@ import AuthenticatedLayout from './components/Layout/AuthenticatedLayout';
 // PAGES
 import LoginPage from './pages/LoginPage';
 import HomePage from './pages/HomePage';
-//import SimulatorPage from './pages/SimulatorPage';
-//import BookDetailsPage from './pages/BookDetailsPage';
 import SessionDeactivatedPage from './pages/SessionDeactivatedPage';
 
 import FundProfileForm from './components/Fund/FundProfileForm';
@@ -61,6 +49,22 @@ initializeLogging();
 
 // Create a logger for App.tsx debugging
 const logger = getLogger('App');
+
+// --- Helper functions for URL generation ---
+function getLandingAppUrl(): string {
+  // Use gateway routes for landing app
+  return config.gateway?.routes?.home || 'http://localhost:8081/';
+}
+
+function getMainAppUrl(): string {
+  // For main app, use the gateway dashboard route or construct from gateway base
+  return config.gateway?.routes?.dashboard || `${config.gateway?.baseUrl || 'http://localhost:8081'}/home`;
+}
+
+function getBookAppUrl(): string {
+  // For book app, use the gateway books route or construct from gateway base
+  return config.gateway?.routes?.books || `${config.gateway?.baseUrl || 'http://localhost:8081'}/books`;
+}
 
 // --- Start Service Instantiation ---
 
@@ -77,8 +81,10 @@ logger.info('🔍 APP STARTUP: Environment information', {
   environment: config.environment,
   apiBaseUrl: config.apiBaseUrl,
   wsUrl: config.websocket.url,
-  mainAppUrl: config.main.baseUrl,
-  landAppUrl: config.land.baseUrl,
+  gatewayBaseUrl: config.gateway?.baseUrl,
+  mainAppUrl: getMainAppUrl(),
+  landAppUrl: getLandingAppUrl(),
+  bookAppUrl: getBookAppUrl(),
   NODE_ENV: process.env.NODE_ENV,
   REACT_APP_API_BASE_URL: process.env.REACT_APP_API_BASE_URL,
   REACT_APP_WS_URL: process.env.REACT_APP_WS_URL,
@@ -107,30 +113,6 @@ logger.info('✅ API clients created with base URL:', config.apiBaseUrl);
 tokenManager.setAuthApi(apiClients.auth);
 logger.info('✅ Auth API set on token manager');
 
-// Initialize connection manager with dependency injection using the new websocket package
-/*
-logger.info('🔌 Creating websocket dependencies...');
-const { stateManager, toastService, configService } = createConnectionManagerWithGlobalDeps();
-logger.info('✅ Websocket dependencies created', {
-  hasStateManager: !!stateManager,
-  hasToastService: !!toastService,
-  hasConfigService: !!configService,
-  wsUrl: configService.getWebSocketUrl(),
-  reconnectionConfig: configService.getReconnectionConfig()
-});
-
-logger.info('🔌 Creating ConnectionManager...');
-const connectionManager = new ConnectionManager(
-  tokenManager,
-  stateManager,
-  toastService,
-  configService
-);
-logger.info('✅ ConnectionManager created', { 
-  connectionManager: !!connectionManager 
-});
-*/
-
 // Initialize conviction manager (now uses new API client)
 const convictionManager = new ConvictionManager(
   apiClients.conviction, 
@@ -152,34 +134,7 @@ logger.info('🔗 FINAL API URL CHECK', {
 function DeviceIdInvalidationHandler({ children }: { children: React.ReactNode }) {
   // websocket message "device_id_invalidated" routes user to session-deactivated Page
   logger.info('🔌 Main app: No WebSocket session management needed');
-  //const navigate = useNavigate();
-  //const { connectionManager } = useConnection();
   
-  /*
-  useEffect(() => {
-    if (!connectionManager) {
-      logger.warn('❌ No connectionManager in DeviceIdInvalidationHandler');
-      return;
-    }
-    
-    logger.info('🔌 Setting up device ID invalidation handler');
-    
-    const subscription = connectionManager.on('device_id_invalidated', (data) => {
-      logger.error("🚨 DEVICE ID INVALIDATED - REDIRECTING TO SESSION DEACTIVATED PAGE", {
-        data,
-        currentPath: window.location.pathname,
-        timestamp: new Date().toISOString()
-      });
-      
-      navigate('/session-deactivated', { replace: true });
-    });
-    
-    return () => {
-      logger.info('🔌 Cleaning up device ID invalidation handler');
-      subscription.unsubscribe();
-    };
-  }, [connectionManager, navigate]);
-  */
   return <>{children}</>;
 }
 
@@ -233,27 +188,6 @@ const AppRoutes: React.FC = () => {
             </AuthenticatedLayout>
           </ProtectedRoute>
         } />
-        
-        {/*
-        <Route path="/books/:bookId" element={
-          <ProtectedRoute>
-            <AuthenticatedLayout>
-              <BookDetailsPage />
-            </AuthenticatedLayout>
-          </ProtectedRoute>
-        } />
-        */}
-
-        {/* Simulator page */}
-        {/*
-        <Route path="/simulator/:simulationId" element={
-          <ProtectedRoute>
-            <AuthenticatedLayout>
-              <SimulatorPage />
-            </AuthenticatedLayout>
-          </ProtectedRoute>
-        } />
-        */}
 
         {/* Session deactivated page - note: not protected since user may be logged out */}
         <Route path="/session-deactivated" element={
@@ -271,23 +205,26 @@ const AppRoutes: React.FC = () => {
   );
 };
 
+// Update the App function's Router section
 function App() {
   useEffect(() => {
     logger.info('🎯 App component mounted, services available globally');
+    logger.info('🔍 Current location:', {
+      pathname: window.location.pathname,
+      href: window.location.href,
+      appType: config.appType
+    });
   }, []);
 
   return (
     <ThemeProvider>
       <ToastProvider>
-        <AuthProvider tokenManager={tokenManager} authApi={apiClients.auth}> {/* connectionManager={connectionManager}> */}
+        <AuthProvider tokenManager={tokenManager} authApi={apiClients.auth}>
           <TokenManagerProvider tokenManager={tokenManager}>
             <BookManagerProvider bookClient={apiClients.book} tokenManager={tokenManager}>
               <ConvictionProvider convictionManager={convictionManager}>
-                {/*
-                <ConnectionProvider connectionManager={connectionManager}>
-                </ConnectionProvider>
-                */}
                 <FundProvider fundClient={apiClients.fund} tokenManager={tokenManager}>  
+                  {/* Use Router without basename since proxy handles path rewriting */}
                   <Router>
                     <DeviceIdInvalidationHandler>
                       <AppRoutes />
@@ -302,25 +239,5 @@ function App() {
     </ThemeProvider>
   );
 }
-
-// Add redirect component
-/*
-const RedirectToLanding: React.FC = () => {
-  const currentPath = window.location.pathname + window.location.search;
-  const landingUrl = config.landing.baseUrl;
-  
-  React.useEffect(() => {
-    console.log(`🔗 Redirecting ${currentPath} to landing app: ${landingUrl}${currentPath}`);
-    window.location.href = `${landingUrl}${currentPath}`;
-  }, [currentPath, landingUrl]);
-  
-  return (
-    <div style={{ textAlign: 'center', padding: '50px' }}>
-      <h2>Redirecting...</h2>
-      <p>Taking you to {landingUrl}{currentPath}</p>
-    </div>
-  );
-};
-*/
 
 export default App;

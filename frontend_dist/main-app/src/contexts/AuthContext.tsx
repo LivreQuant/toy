@@ -2,21 +2,13 @@
 import React, { createContext, useState, useEffect, useCallback, ReactNode, useMemo } from 'react';
 
 import { getLogger } from '@trading-app/logging';
-
 import { AuthClient, LoginRequest, LoginResponse } from '@trading-app/api';
-
 import { LoadingSpinner } from '@trading-app/ui';
-
 import { authState } from '@trading-app/state';
-
 import { toastService } from '@trading-app/toast';
-
 import { TokenManager, TokenData } from '@trading-app/auth';
 import { DeviceIdManager } from '@trading-app/auth';
-
-import { config } from '@trading-app/config'; // 🚨 ADD THIS IMPORT
-
-import { ConnectionManager } from '@trading-app/websocket';
+import { config } from '@trading-app/config';
 
 const logger = getLogger('AuthContext');
 
@@ -36,13 +28,17 @@ interface AuthProviderProps {
   children: ReactNode;
   tokenManager: TokenManager;
   authApi: AuthClient;
-  connectionManager?: ConnectionManager;
 }
 
-export const AuthProvider: React.FC<AuthProviderProps> = ({ children, tokenManager, authApi, connectionManager }) => {
+export const AuthProvider: React.FC<AuthProviderProps> = ({ children, tokenManager, authApi }) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => tokenManager.isAuthenticated());
   const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
   const [userId, setUserId] = useState<string | number | null>(() => tokenManager.getUserId());
+
+  // Helper function to get landing app URL
+  const getLandingAppUrl = () => {
+    return config.gateway?.routes?.home || config.gateway?.baseUrl || 'http://localhost:8081/';
+  };
 
   // Check authentication status on mount and sync global state
   useEffect(() => {
@@ -61,15 +57,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, tokenManag
           lastAuthError: null
       });
       setIsAuthLoading(false);
-
-      // 🚨 CRITICAL FIX: Auto-connect WebSocket when authenticated
-      if (authenticated) {// && connectionManager) {
-        logger.info('🔌 AUTH: User is authenticated, setting up WebSocket connection');
-        //connectionManager.setDesiredState({ 
-        //  connected: true, 
-        //  simulatorRunning: false 
-        //});
-      }
     };
     checkAuth();
 
@@ -86,22 +73,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, tokenManag
           isAuthLoading: false,
           userId: refreshedUserId,
       });
-
-      // 🚨 CRITICAL FIX: Reconnect WebSocket after token refresh
-      if (refreshedIsAuth) {// && connectionManager) {
-        logger.info('🔌 AUTH: Token refreshed successfully, ensuring WebSocket connection');
-        //connectionManager.setDesiredState({ 
-        //  connected: true, 
-        //  simulatorRunning: false 
-        //});
-      }
     };
     tokenManager.addRefreshListener(handleRefresh);
 
     return () => {
       tokenManager.removeRefreshListener(handleRefresh);
     };
-  }, [tokenManager]);//, connectionManager]);
+  }, [tokenManager]);
 
   const login = useCallback(async (credentials: LoginRequest): Promise<LoginResponse> => {
     logger.info('🔍 AUTH: Attempting login...');
@@ -163,32 +141,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, tokenManag
   
         setIsAuthenticated(true);
         setUserId(response.userId);
-
-        // 🚨 CRITICAL FIX: Start WebSocket connection immediately after successful login
-        /*
-        if (connectionManager) {
-          logger.info('🔌 AUTH: Login successful, initiating WebSocket connection');
-          connectionManager.setDesiredState({ 
-            connected: true, 
-            simulatorRunning: false 
-          });
-          
-          // Give it a moment for auth state to propagate, then try to connect
-          setTimeout(async () => {
-            logger.info('🔌 AUTH: Attempting to connect WebSocket after login');
-            try {
-              const connected = await connectionManager.connect();
-              if (connected) {
-                logger.info('🔌 AUTH: WebSocket connection established after login');
-              } else {
-                logger.warn('🔌 AUTH: WebSocket connection failed after login');
-              }
-            } catch (error: any) {
-              logger.error('🔌 AUTH: Error connecting WebSocket after login', { error: error.message });
-            }
-          }, 100);
-        }
-        */
       } else if (response.success) {
         logger.error("Login response marked as success but missing required data");
         return {
@@ -221,7 +173,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, tokenManag
         error: error?.message || 'Login failed'
       };
     }
-  }, [authApi, tokenManager]); //, connectionManager]);
+  }, [authApi, tokenManager]);
 
   const forgotPassword = useCallback(async (data: { email: string }): Promise<boolean> => {
     logger.info('Attempting forgot password...');
@@ -244,23 +196,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, tokenManag
     authState.updateState({ isAuthLoading: true });
   
     try {
-      // 🚨 CRITICAL: Disconnect WebSocket FIRST before logout
-      /*
-      if (connectionManager) {
-        try {
-          logger.info('🔌 AUTH: Disconnecting WebSocket before logout');
-          connectionManager.setDesiredState({ 
-            connected: false,
-            simulatorRunning: false 
-          });
-          await connectionManager.disconnect('user_logout');
-          logger.info('🔌 AUTH: WebSocket disconnected for logout');
-        } catch (sessionError) {
-          logger.warn('🔌 AUTH: Failed to disconnect WebSocket during logout:', { error: sessionError });
-        }
-      }
-      */
-
       try {
         await authApi.logout();
         logger.info('Backend logout API call successful');
@@ -286,7 +221,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, tokenManag
       toastService.success('You have been successfully logged out');
       
       // 🚨 NEW: Redirect to land app after logout
-      const landAppUrl = config.land.baseUrl;
+      const landAppUrl = getLandingAppUrl();
       logger.info('🔗 AUTH: Redirecting to land app after logout', { landAppUrl });
       window.location.href = landAppUrl;
       
@@ -308,11 +243,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, tokenManag
       setIsAuthLoading(false);
   
       // 🚨 NEW: Even on error, redirect to land app
-      const landAppUrl = config.land.baseUrl;
+      const landAppUrl = getLandingAppUrl();
       logger.info('🔗 AUTH: Redirecting to land app after logout error', { landAppUrl });
       window.location.href = landAppUrl;
     }
-  }, [authApi, tokenManager]); //, connectionManager]);
+  }, [authApi, tokenManager]);
 
   const contextValue = useMemo(() => ({
     isAuthenticated,
