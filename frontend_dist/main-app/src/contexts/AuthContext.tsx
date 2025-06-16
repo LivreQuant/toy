@@ -88,12 +88,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, tokenManag
       });
 
       // 🚨 CRITICAL FIX: Reconnect WebSocket after token refresh
-      if (refreshedIsAuth && connectionManager) {
+      if (refreshedIsAuth) {// && connectionManager) {
         logger.info('🔌 AUTH: Token refreshed successfully, ensuring WebSocket connection');
-        connectionManager.setDesiredState({ 
-          connected: true, 
-          simulatorRunning: false 
-        });
+        //connectionManager.setDesiredState({ 
+        //  connected: true, 
+        //  simulatorRunning: false 
+        //});
       }
     };
     tokenManager.addRefreshListener(handleRefresh);
@@ -101,7 +101,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, tokenManag
     return () => {
       tokenManager.removeRefreshListener(handleRefresh);
     };
-  }, [tokenManager, connectionManager]);
+  }, [tokenManager]);//, connectionManager]);
 
   const login = useCallback(async (credentials: LoginRequest): Promise<LoginResponse> => {
     logger.info('🔍 AUTH: Attempting login...');
@@ -165,6 +165,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, tokenManag
         setUserId(response.userId);
 
         // 🚨 CRITICAL FIX: Start WebSocket connection immediately after successful login
+        /*
         if (connectionManager) {
           logger.info('🔌 AUTH: Login successful, initiating WebSocket connection');
           connectionManager.setDesiredState({ 
@@ -187,6 +188,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, tokenManag
             }
           }, 100);
         }
+        */
       } else if (response.success) {
         logger.error("Login response marked as success but missing required data");
         return {
@@ -219,7 +221,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, tokenManag
         error: error?.message || 'Login failed'
       };
     }
-  }, [authApi, tokenManager, connectionManager]);
+  }, [authApi, tokenManager]); //, connectionManager]);
 
   const forgotPassword = useCallback(async (data: { email: string }): Promise<boolean> => {
     logger.info('Attempting forgot password...');
@@ -243,6 +245,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, tokenManag
   
     try {
       // 🚨 CRITICAL: Disconnect WebSocket FIRST before logout
+      /*
       if (connectionManager) {
         try {
           logger.info('🔌 AUTH: Disconnecting WebSocket before logout');
@@ -256,7 +259,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, tokenManag
           logger.warn('🔌 AUTH: Failed to disconnect WebSocket during logout:', { error: sessionError });
         }
       }
-      
+      */
+
       try {
         await authApi.logout();
         logger.info('Backend logout API call successful');
@@ -308,7 +312,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, tokenManag
       logger.info('🔗 AUTH: Redirecting to landing app after logout error', { landingUrl });
       window.location.href = landingUrl;
     }
-  }, [authApi, tokenManager, connectionManager]);
+  }, [authApi, tokenManager]); //, connectionManager]);
 
   const contextValue = useMemo(() => ({
     isAuthenticated,
