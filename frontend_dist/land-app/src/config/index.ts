@@ -1,8 +1,8 @@
-// frontend_dist/landing-app/src/config/index.ts
+// frontend_dist/land-app/src/config/index.ts
 // Export everything from environment
 export {
     environmentService,
-    landingConfig,
+    landConfig,
     mainAppRoutes,
     apiConfig,
     wsConfig
@@ -13,14 +13,14 @@ export {
     AppUrlService,
     appUrlService,
     redirectToMainApp,
-    redirectToLanding,
+    redirectToLandApp,
     getMainAppRoute
 } from './app-urls';
 
 // Re-export from unified config for convenience
 export { 
     config, 
-    isLandingApp, 
+    isLandApp, 
     isMainApp, 
     isDevelopment, 
     isProduction, 

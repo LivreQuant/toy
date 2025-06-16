@@ -1,35 +1,35 @@
-// frontend_dist/landing-app/src/config/environment.ts
+// frontend_dist/land-app/src/config/environment.ts
 import { config, AppConfig } from '@trading-app/config';
 
-interface LandingEnvironmentConfig extends AppConfig {
-  // Landing-specific additions can go here if needed
+interface LandEnvironmentConfig extends AppConfig {
+  // Land-specific additions can go here if needed
 }
 
-class LandingEnvironmentService {
-  private static instance: LandingEnvironmentService;
-  private config: LandingEnvironmentConfig;
+class LandEnvironmentService {
+  private static instance: LandEnvironmentService;
+  private config: LandEnvironmentConfig;
 
   private constructor() {
     // Use the unified config
-    this.config = config as LandingEnvironmentConfig;
-    this.validateLandingConfig();
+    this.config = config as LandEnvironmentConfig;
+    this.validateLandConfig();
   }
 
-  public static getInstance(): LandingEnvironmentService {
-    if (!LandingEnvironmentService.instance) {
-      LandingEnvironmentService.instance = new LandingEnvironmentService();
+  public static getInstance(): LandEnvironmentService {
+    if (!LandEnvironmentService.instance) {
+      LandEnvironmentService.instance = new LandEnvironmentService();
     }
-    return LandingEnvironmentService.instance;
+    return LandEnvironmentService.instance;
   }
 
-  private validateLandingConfig(): void {
-    if (this.config.appType !== 'landing') {
-      console.warn('⚠️ Config indicates this is not a landing app, but LandingEnvironmentService is being used');
+  private validateLandConfig(): void {
+    if (this.config.appType !== 'land') {
+      console.warn('⚠️ Config indicates this is not a land app, but LandEnvironmentService is being used');
     }
 
     const requiredFields = [
       'apiBaseUrl',  // ✅ FIXED: Use top-level apiBaseUrl instead of api.baseUrl
-      'landing.baseUrl',
+      'land.baseUrl',
       'main.baseUrl'
     ];
 
@@ -41,10 +41,10 @@ class LandingEnvironmentService {
     }
 
     if (this.shouldLog()) {
-      console.log('🔧 Landing Environment Configuration Loaded:', {
+      console.log('🔧 Land Environment Configuration Loaded:', {
         appType: this.config.appType,
         environment: this.config.environment,
-        landingUrl: this.config.landing.baseUrl,
+        landAppUrl: this.config.land.baseUrl,
         mainAppUrl: this.config.main.baseUrl,
         apiUrl: this.config.apiBaseUrl,  // ✅ FIXED: Use apiBaseUrl
         autoRedirectValidCredentials: this.config.features.autoRedirectValidCredentials
@@ -56,7 +56,7 @@ class LandingEnvironmentService {
     return path.split('.').reduce((current, key) => current?.[key], obj);
   }
 
-  public getConfig(): LandingEnvironmentConfig {
+  public getConfig(): LandEnvironmentConfig {
     return { ...this.config };
   }
 
@@ -68,8 +68,8 @@ class LandingEnvironmentService {
     return { ...this.config.main.routes };
   }
 
-  public getLandingConfig() {
-    return { ...this.config.landing };
+  public getLandAppConfig() {
+    return { ...this.config.land };
   }
 
   public getApiConfig() {
@@ -118,10 +118,10 @@ class LandingEnvironmentService {
 }
 
 // Export singleton instance
-export const environmentService = LandingEnvironmentService.getInstance();
+export const environmentService = LandEnvironmentService.getInstance();
 
 // Export configuration object for direct access
-export const landingConfig = environmentService.getConfig();
+export const landConfig = environmentService.getConfig();
 
 // Export commonly used values
 export const mainAppRoutes = environmentService.getMainAppRoutes();

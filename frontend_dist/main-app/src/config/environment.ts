@@ -33,7 +33,7 @@ class MainEnvironmentService {
     logger.info('🔧 Main App Environment initialized', {
       appType: this.config.appType,
       environment: this.config.environment,
-      landingAppUrl: this.config.landing.baseUrl,
+      landAppUrl: this.config.land.baseUrl,
       mainAppUrl: this.config.main.baseUrl,
       bookAppUrl: this.config.book.baseUrl,
       apiBaseUrl: this.config.apiBaseUrl,
@@ -42,7 +42,7 @@ class MainEnvironmentService {
   }
 
   getLandingAppUrl(): string {
-    return this.config.landing.baseUrl;
+    return this.config.land.baseUrl;
   }
 
   getMainAppUrl(): string {

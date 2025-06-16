@@ -1,4 +1,4 @@
-// landing-app/src/config/app-urls.ts
+// land-app/src/config/app-urls.ts
 import { environmentService } from './environment';
 
 export class AppUrlService {
@@ -53,16 +53,16 @@ export class AppUrlService {
     return url.startsWith(mainAppUrl);
   }
 
-  public getLandingUrl(): string {
-    return this.envService.getLandingConfig().baseUrl;
+  public getLandAppUrl(): string {
+    return this.envService.getLandAppConfig().baseUrl;
   }
 
-  public redirectToLanding(path: string = '/'): void {
-    const landingUrl = this.getLandingUrl();
-    const fullUrl = `${landingUrl}${path}`;
+  public redirectToLand(path: string = '/'): void {
+    const landUrl = this.getLandAppUrl();
+    const fullUrl = `${landUrl}${path}`;
     
     if (this.envService.shouldLog()) {
-      console.log(`🔗 Redirecting to landing: ${fullUrl}`);
+      console.log(`🔗 Redirecting to land: ${fullUrl}`);
     }
     
     window.location.href = fullUrl;
@@ -97,5 +97,5 @@ export const appUrlService = AppUrlService.getInstance();
 
 // Export commonly used methods for convenience
 export const redirectToMainApp = appUrlService.redirectToMainApp.bind(appUrlService);
-export const redirectToLanding = appUrlService.redirectToLanding.bind(appUrlService);
+export const redirectToLandApp = appUrlService.redirectToLandApp.bind(appUrlService);
 export const getMainAppRoute = appUrlService.getMainAppRoute.bind(appUrlService);

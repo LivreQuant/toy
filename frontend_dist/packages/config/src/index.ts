@@ -2,7 +2,7 @@
 
 export interface AppConfig {
   // App identification
-  appType: 'landing' | 'main' | 'book';
+  appType: 'land' | 'main' | 'book';
   environment: 'development' | 'production' | 'staging';
   
   // API Configuration
@@ -14,7 +14,7 @@ export interface AppConfig {
   };
   
   // App URLs
-  landing: {
+  land: {
     baseUrl: string;
     routes: {
       home: string;
@@ -64,9 +64,9 @@ export interface AppConfig {
   };
 }
 
-function determineAppType(): 'landing' | 'main' | 'book' {
+function determineAppType(): 'land' | 'main' | 'book' {
   // Check environment variable first
-  if (process.env.REACT_APP_TYPE === 'landing') return 'landing';
+  if (process.env.REACT_APP_TYPE === 'land') return 'land';
   if (process.env.REACT_APP_TYPE === 'main') return 'main';
   if (process.env.REACT_APP_TYPE === 'book') return 'book';
   
@@ -77,7 +77,7 @@ function determineAppType(): 'landing' | 'main' | 'book' {
     
     // Check subdomain-based detection
     if (hostname === 'trading.local' || hostname.includes('trading.local') && !hostname.includes('app.') && !hostname.includes('book.')) {
-      return 'landing';
+      return 'land';
     }
     if (hostname === 'app.trading.local' || hostname.includes('app.')) {
       return 'main';
@@ -87,7 +87,7 @@ function determineAppType(): 'landing' | 'main' | 'book' {
     }
     
     // Port-based fallback for localhost development
-    if (port === '3001') return 'landing';
+    if (port === '3001') return 'land';
     if (port === '3000') return 'main';
     if (port === '3002') return 'book';
   }
@@ -98,7 +98,7 @@ function determineAppType(): 'landing' | 'main' | 'book' {
 
 // Define the type for environment configs
 type EnvironmentConfig = {
-  landing: string;
+  land: string;
   main: string;
   book: string;
   api: string;
@@ -114,21 +114,21 @@ type ConfigEnvironments = {
 function getEnvironmentUrls(environment: 'development' | 'production' | 'staging'): EnvironmentConfig {
   const configs: ConfigEnvironments = {
     development: {
-      landing: 'http://trading.local:3001',
+      land: 'http://land.trading.local:3001',
       main: 'http://app.trading.local:3000',
       book: 'http://book.trading.local:3002',
       api: 'http://trading.local/api',
       ws: 'ws://trading.local/ws'
     },
     production: {
-      landing: 'https://trading.com',
+      land: 'https://land.trading.com',
       main: 'https://app.trading.com',
       book: 'https://book.trading.com',
       api: 'https://api.trading.com',
       ws: 'wss://api.trading.com/ws'
     },
     staging: {
-      landing: 'https://staging.trading.com',
+      land: 'https://land-staging.trading.com',
       main: 'https://app-staging.trading.com', 
       book: 'https://book-staging.trading.com',
       api: 'https://api-staging.trading.com',
@@ -163,7 +163,7 @@ function getConfig(): AppConfig {
   // Allow environment variable overrides
   const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || urls.api;
   const wsUrl = process.env.REACT_APP_WS_URL || urls.ws;
-  const landingUrl = process.env.REACT_APP_LANDING_URL || urls.landing;
+  const landAppUrl = process.env.REACT_APP_LAND_APP_URL || urls.land;
   const mainAppUrl = process.env.REACT_APP_MAIN_APP_URL || urls.main;
   const bookAppUrl = process.env.REACT_APP_BOOK_APP_URL || urls.book;
 
@@ -177,17 +177,17 @@ function getConfig(): AppConfig {
       url: wsUrl
     },
     
-    landing: {
-      baseUrl: landingUrl,
+    land: {
+      baseUrl: landAppUrl,
       routes: {
-        home: `${landingUrl}/`,
-        signup: `${landingUrl}/signup`,
-        login: `${mainAppUrl}/login`, // Landing login redirects to main app
-        verifyEmail: `${landingUrl}/verify-email`,
-        forgotPassword: `${landingUrl}/forgot-password`,
-        forgotUsername: `${landingUrl}/forgot-username`,
-        resetPassword: `${landingUrl}/reset-password`,
-        enterpriseContact: `${landingUrl}/enterprise-contact`
+        home: `${landAppUrl}/`,
+        signup: `${landAppUrl}/signup`,
+        login: `${mainAppUrl}/login`, // Land login redirects to main app
+        verifyEmail: `${landAppUrl}/verify-email`,
+        forgotPassword: `${landAppUrl}/forgot-password`,
+        forgotUsername: `${landAppUrl}/forgot-username`,
+        resetPassword: `${landAppUrl}/reset-password`,
+        enterpriseContact: `${landAppUrl}/enterprise-contact`
       }
     },
     
@@ -230,7 +230,7 @@ function getConfig(): AppConfig {
     environment: config.environment,
     apiBaseUrl: config.apiBaseUrl,
     wsUrl: config.websocket.url,
-    landingUrl: config.landing.baseUrl,
+    landAppUrl: config.land.baseUrl,
     mainAppUrl: config.main.baseUrl,
     bookAppUrl: config.book.baseUrl,
   });
@@ -247,12 +247,12 @@ export const APP_TYPE = config.appType;
 export const API_BASE_URL = config.apiBaseUrl;
 export const WS_BASE_URL = config.websocket.url;
 export const ENVIRONMENT = config.environment;
-export const LANDING_URL = config.landing.baseUrl;
+export const LAND_APP_URL = config.land.baseUrl;
 export const MAIN_APP_URL = config.main.baseUrl;
 export const BOOK_APP_URL = config.book.baseUrl;
 
 // Helper functions
-export const isLandingApp = () => config.appType === 'landing';
+export const isLandApp = () => config.appType === 'land';
 export const isMainApp = () => config.appType === 'main';
 export const isBookApp = () => config.appType === 'book';
 export const isDevelopment = () => config.environment === 'development';
