@@ -4,7 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Box, CircularProgress, Typography } from '@mui/material';
 import { useToast } from '../../hooks/useToast';
 import { useBookManager } from '../../hooks/useBookManager';
-import { useConnection } from '../../hooks/useConnection';
+//import { useConnection } from '../../hooks/useConnection';
 import BaseBookForm from '../Book/BaseBookForm';
 import { BookRequest } from '@trading-app/types-core';
 
@@ -16,7 +16,7 @@ interface ExtendedBookRequest extends BookRequest {
 const EditBookPage: React.FC = () => {
   const { bookId } = useParams<{ bookId: string }>();
   const navigate = useNavigate();
-  const { isConnected } = useConnection();
+  //const { isConnected } = useConnection();
   const { addToast } = useToast();
   const bookManager = useBookManager();
   
@@ -25,7 +25,7 @@ const EditBookPage: React.FC = () => {
 
   useEffect(() => {
     const fetchBookDetails = async () => {
-      if (!bookId || !isConnected) return;
+      if (!bookId) return; // || !isConnected) return;
       
       setIsLoading(true);
       
@@ -48,7 +48,7 @@ const EditBookPage: React.FC = () => {
     };
     
     fetchBookDetails();
-  }, [bookId, isConnected, bookManager, addToast, navigate]);
+  }, [bookId, bookManager, addToast, navigate]); //, isConnected
 
   const handleUpdateBook = async (formData: BookRequest) => {
     if (!bookId) {

@@ -1,9 +1,8 @@
-// frontend_dist/main-app/src/pages/HomePage.tsx
+// src/pages/HomePage.tsx
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Box, Grid, useMediaQuery, useTheme } from '@mui/material';
 import { useAuth } from '../hooks/useAuth';
-import { useConnection } from '../hooks/useConnection';
 import { useBookManager } from '../hooks/useBookManager';
 import { useFundManager } from '../hooks/useFundManager';
 import { Book, FundProfile } from '@trading-app/types-core';
@@ -16,8 +15,11 @@ import FundProfileCard from '../components/Dashboard/FundProfileCard';
 import TradingBooksGrid from '../components/Dashboard/TradingBooksGrid';
 
 const HomePage: React.FC = () => {
-  const { logout } = useAuth();
-  const { isConnected } = useConnection();
+  console.log('🏠 HomePage component rendering...');
+  
+  const { logout, isAuthenticated } = useAuth();
+  console.log('🏠 HomePage auth state:', { isAuthenticated });
+  
   const bookManager = useBookManager();
   const fundManager = useFundManager();
   const navigate = useNavigate();
@@ -28,52 +30,95 @@ const HomePage: React.FC = () => {
   const [fundProfile, setFundProfile] = useState<FundProfile | null>(null);
   const [isFundLoading, setIsFundLoading] = useState(true);
 
+  console.log('🏠 HomePage state:', {
+    isAuthenticated,
+    isFundLoading,
+    hasFundProfile: !!fundProfile,
+    booksCount: books.length,
+    fundManager: !!fundManager
+  });
+
   // Fetch fund profile first
   useEffect(() => {
+    console.log('🔍 Fund profile useEffect triggered!', { isAuthenticated });
+    
     const fetchFundProfile = async () => {
-      if (!isConnected) return;
+      console.log('🔍 Starting fetchFundProfile...');
+      
+      if (!isAuthenticated) {
+        console.log('❌ Not authenticated, skipping fund profile fetch');
+        setIsFundLoading(false);
+        return;
+      }
+      
+      if (!fundManager) {
+        console.log('❌ No fundManager available');
+        setIsFundLoading(false);
+        return;
+      }
       
       try {
         setIsFundLoading(true);
-        const response = await fundManager.getFundProfile();
+        console.log('📡 Calling fundManager.getFundProfile()...');
+        
+        // Add a timeout to see if the call is hanging
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('API call timeout after 10 seconds')), 10000)
+        );
+        
+        const apiPromise = fundManager.getFundProfile();
+        
+        const response = await Promise.race([apiPromise, timeoutPromise]) as any;
+        console.log('📡 Fund profile response:', response);
         
         if (response.success && response.fund) {
+          console.log('✅ Fund profile loaded successfully:', response.fund);
           setFundProfile(response.fund);
         } else {
+          console.log('ℹ️ No fund profile found or error:', response.error);
           setFundProfile(null);
         }
       } catch (error) {
-        console.error('Error fetching fund profile:', error);
+        console.error('❌ Error fetching fund profile:', error);
         setFundProfile(null);
       } finally {
+        console.log('🏁 Fund profile fetch completed');
         setIsFundLoading(false);
       }
     };
   
-    if (isConnected) {
-      fetchFundProfile();
-    }
-  }, [isConnected, fundManager]);
+    fetchFundProfile();
+  }, [isAuthenticated, fundManager]);
 
   // Only fetch books if we have a fund profile
   useEffect(() => {
-    if (!isConnected || !fundProfile) {
+    console.log('🔍 Books useEffect triggered!', { 
+      hasFundProfile: !!fundProfile, 
+      isAuthenticated 
+    });
+    
+    if (!fundProfile || !isAuthenticated) {
+      console.log('⏭️ Skipping books fetch - no fund profile or not authenticated');
       return;
     }
     
     const fetchBooks = async () => {
+      console.log('🔍 Starting fetchBooks...');
+      
       try {
         setIsLoading(true);
         const response = await bookManager.fetchBooks();
+        console.log('📡 Books response:', response);
         
         if (response.success && response.books) {
+          console.log('✅ Books loaded successfully:', response.books);
           setBooks(response.books);
         } else {
-          console.error('Failed to fetch books:', response.error);
+          console.error('❌ Failed to fetch books:', response.error);
           setBooks([]);
         }
       } catch (error) {
-        console.error('Error fetching books:', error);
+        console.error('❌ Error fetching books:', error);
         setBooks([]);
       } finally {
         setIsLoading(false);
@@ -81,14 +126,13 @@ const HomePage: React.FC = () => {
     };
 
     fetchBooks();
-  }, [isConnected, fundProfile, bookManager]);
+  }, [fundProfile, isAuthenticated, bookManager]);
 
   const handleCreateBook = () => {
     navigate('/books/new');
   };
 
   const handleOpenBook = (bookId: string) => {
-    // Redirect to sim app to view/interact with book
     const bookAppUrl = config.book.baseUrl;
     window.location.href = `${bookAppUrl}/books/${bookId}`;
   };
@@ -100,6 +144,8 @@ const HomePage: React.FC = () => {
       console.error('Logout failed:', error);
     }
   };
+
+  console.log('🏠 HomePage about to render UI, isFundLoading:', isFundLoading);
 
   return (
     <Box sx={{ 
@@ -121,7 +167,7 @@ const HomePage: React.FC = () => {
               <TradingBooksGrid 
                 books={books} 
                 isLoading={isLoading}
-                isConnected={isConnected}
+                isConnected={true}
                 onCreateBook={handleCreateBook}
                 onOpenBook={handleOpenBook}
               />

@@ -79,7 +79,7 @@ class FundController(BaseController):
     async def _create_fund(self, request: web.Request) -> web.Response:
         """Handle fund creation endpoint"""
         # Authenticate request
-        auth_success, auth_result = await self.authenticate(request)
+        auth_success, auth_result = await self.authenticate(request, w_device_id=False)
         if not auth_success:
             return self.create_error_response(auth_result["error"], auth_result["status"])
 
@@ -125,7 +125,7 @@ class FundController(BaseController):
     async def _get_fund(self, request: web.Request) -> web.Response:
         """Handle fund retrieval endpoint"""
         # Authenticate request
-        auth_success, auth_result = await self.authenticate(request)
+        auth_success, auth_result = await self.authenticate(request, w_device_id=False)
         if not auth_success:
             return self.create_error_response(auth_result["error"], auth_result["status"])
 
@@ -147,7 +147,7 @@ class FundController(BaseController):
     async def _update_fund(self, request: web.Request) -> web.Response:
         """Handle fund update endpoint using temporal data pattern"""
         # Authenticate request
-        auth_success, auth_result = await self.authenticate(request)
+        auth_success, auth_result = await self.authenticate(request, w_device_id=False)
         if not auth_success:
             return self.create_error_response(auth_result["error"], auth_result["status"])
 

@@ -14,10 +14,13 @@ class BaseController:
         """Initialize with common dependencies"""
         self.session_manager = session_manager
     
-    async def authenticate(self, request: web.Request) -> Tuple[bool, Dict[str, Any]]:
+    async def authenticate(self, request: web.Request, w_device_id: bool = True) -> Tuple[bool, Dict[str, Any]]:
         """Authenticate and validate a request"""
-        return await self.session_manager.authenticate_request(request)
-    
+        if w_device_id: 
+            return await self.session_manager.authenticate_request_w_device_id(request)
+        else:
+            return await self.session_manager.authenticate_request(request)
+        
     async def parse_json_body(self, request: web.Request) -> Tuple[bool, Any]:
         """
         Parse request body as JSON

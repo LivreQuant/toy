@@ -98,7 +98,7 @@ class SessionManager:
             return None
 
 
-    async def authenticate_request(self,
+    async def authenticate_request_w_device_id(self,
                                    request: web.Request,
                                    ) -> Tuple[bool, Dict[str, Any]]:
         """
@@ -140,6 +140,43 @@ class SessionManager:
                 "success": False,
                 "error": "Invalid device ID for this session",
                 "status": 400
+            }
+
+        return True, {"user_id": user_id}
+
+    async def authenticate_request(self,
+                                   request: web.Request,
+                                   ) -> Tuple[bool, Dict[str, Any]]:
+        """
+        Authenticate and validate a request
+
+        Args:
+            request: Web request
+            session_manager: Session Manager
+            session_manager: Session manager
+
+        Returns:
+            Tuple of (success, result_dict)
+            If success is False, result_dict contains error information with 'status' code
+            If success is True, result_dict contains 'user_id'
+        """
+        # Extract token and device ID
+        token, device_id, csrf_token = await self.get_token(request)
+
+        if not token:
+            return False, {
+                "success": False,
+                "error": "Authentication token is required",
+                "status": 401
+            }
+
+        # Get user_id from token
+        user_id = await self.get_user_id_from_token(token, csrf_token)
+        if not user_id:
+            return False, {
+                "success": False,
+                "error": "Invalid authentication token",
+                "status": 401
             }
 
         return True, {"user_id": user_id}

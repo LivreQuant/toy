@@ -25,7 +25,7 @@ import { useNavigate } from 'react-router-dom';
 interface TradingBooksGridProps {
   books: any[];
   isLoading: boolean;
-  isConnected: boolean;
+  isConnected?: boolean;
   onCreateBook: () => void;
   onOpenBook: (bookId: string) => void;
 }

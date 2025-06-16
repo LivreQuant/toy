@@ -32,7 +32,7 @@ import { ThemeProvider } from './contexts/ThemeContext';
 import { ToastProvider } from './contexts/ToastContext';
 import { AuthProvider } from './contexts/AuthContext';
 import { TokenManagerProvider } from './contexts/TokenManagerContext';
-import { ConnectionProvider } from './contexts/ConnectionContext';
+//import { ConnectionProvider } from './contexts/ConnectionContext';
 import { ConvictionProvider } from './contexts/ConvictionContext';
 import { BookManagerProvider } from './contexts/BookContext';
 import { FundProvider } from './contexts/FundContext';
@@ -46,8 +46,8 @@ import AuthenticatedLayout from './components/Layout/AuthenticatedLayout';
 // PAGES
 import LoginPage from './pages/LoginPage';
 import HomePage from './pages/HomePage';
-import SimulatorPage from './pages/SimulatorPage';
-import BookDetailsPage from './pages/BookDetailsPage';
+//import SimulatorPage from './pages/SimulatorPage';
+//import BookDetailsPage from './pages/BookDetailsPage';
 import SessionDeactivatedPage from './pages/SessionDeactivatedPage';
 
 import FundProfileForm from './components/Fund/FundProfileForm';
