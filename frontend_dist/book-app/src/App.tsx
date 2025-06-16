@@ -113,7 +113,7 @@ function checkAuthenticationStatus(): {
     wsUrl: config.websocket.url,
     mainAppUrl: config.main.baseUrl,
     bookAppUrl: config.book.baseUrl,
-    landingUrl: config.landing.baseUrl,
+    landAppUrl: config.land.baseUrl,
     NODE_ENV: process.env.NODE_ENV,
     REACT_APP_API_BASE_URL: process.env.REACT_APP_API_BASE_URL,
     REACT_APP_WS_URL: process.env.REACT_APP_WS_URL,
