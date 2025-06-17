@@ -282,7 +282,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, tokenManag
       toastService.success('You have been successfully logged out');
       
       // 🚨 NEW: Redirect to land app after logout
-      const landAppUrl = config.land.baseUrl;
+      const landAppUrl = config.gateway.baseUrl;
       logger.info('🔗 AUTH: Redirecting to land app after logout', { landAppUrl });
       window.location.href = landAppUrl;
       
@@ -304,7 +304,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, tokenManag
       setIsAuthLoading(false);
   
       // 🚨 NEW: Even on error, redirect to land app
-      const landAppUrl = config.land.baseUrl;
+      const landAppUrl = config.gateway.routes.home;
       logger.info('🔗 AUTH: Redirecting to land app after logout error', { landAppUrl });
       window.location.href = landAppUrl;
     }

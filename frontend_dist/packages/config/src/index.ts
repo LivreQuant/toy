@@ -24,7 +24,7 @@ export interface AppConfig {
       profile: string;
       
       // Book app routes
-      books: string;
+      book: string;
       simulator: string;
     };
   };
@@ -68,7 +68,7 @@ function determineAppType(): 'land' | 'main' | 'book' {
       return 'main';
     }
     // Book app routes
-    if (path.startsWith('/books') || path.startsWith('/simulator')) {
+    if (path.startsWith('/book')) {
       return 'book';
     }
     // Everything else (/, /signup, /login, etc.) is landing app
@@ -135,8 +135,8 @@ function getConfig(): AppConfig {
         profile: `${gatewayBaseUrl}/app/profile`,
         
         // Book app routes
-        books: `${gatewayBaseUrl}/books`,
-        simulator: `${gatewayBaseUrl}/simulator`,
+        book: `${gatewayBaseUrl}/book`,
+        simulator: `${gatewayBaseUrl}/book/simulator`,
       }
     },
     
@@ -170,7 +170,7 @@ function getConfig(): AppConfig {
       home: config.gateway.routes.home,        // /
       login: config.gateway.routes.login,      // /app/login
       dashboard: config.gateway.routes.dashboard, // /app/home
-      books: config.gateway.routes.books       // /books
+      book: config.gateway.routes.book       // /book
     }
   });
   console.log('🔍 CONFIG: Loading gateway-first configuration - END');

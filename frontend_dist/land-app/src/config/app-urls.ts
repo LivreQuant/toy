@@ -2,7 +2,7 @@
 import { environmentService } from './environment';
 
 // Define the route names type
-type RouteNames = 'home' | 'signup' | 'login' | 'dashboard' | 'profile' | 'books' | 'simulator' | 'verifyEmail' | 'forgotPassword' | 'forgotUsername' | 'resetPassword' | 'enterpriseContact';
+type RouteNames = 'home' | 'signup' | 'login' | 'dashboard' | 'profile' | 'book' | 'simulator' | 'verifyEmail' | 'forgotPassword' | 'forgotUsername' | 'resetPassword' | 'enterpriseContact';
 
 export class AppUrlService {
   private static instance: AppUrlService;
@@ -22,7 +22,7 @@ export class AppUrlService {
   }
 
   // Updated to work with gateway routing
-  public getMainAppRoute(route: 'login' | 'signup' | 'home' | 'main' | 'profile' | 'books' | 'simulator'): string {
+  public getMainAppRoute(route: 'login' | 'signup' | 'home' | 'main' | 'profile' | 'book' | 'simulator'): string {
     const routes = this.envService.getMainAppRoutes();
     
     // Handle the fact that signup is handled by landing app

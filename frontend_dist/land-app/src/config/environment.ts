@@ -122,8 +122,8 @@ class LandEnvironmentService {
     return this.getRoute('signup');
   }
 
-  public getBooksUrl(): string {
-    return this.getRoute('books');
+  public getBookUrl(): string {
+    return this.getRoute('book');
   }
 
   public getSimulatorUrl(): string {
@@ -141,7 +141,7 @@ class LandEnvironmentService {
       home: this.getRoute('dashboard'),
       main: this.getRoute('dashboard'),
       profile: this.getRoute('profile'),
-      books: this.getRoute('books'),
+      book: this.getRoute('book'),
       simulator: this.getRoute('simulator')
     };
   }

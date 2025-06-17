@@ -36,7 +36,7 @@
     "web-vitals": "^2.1.4"
   },
   "scripts": {
-    "start": "HOST=book.trading.local PORT=3002 REACT_APP_TYPE=book react-scripts start",
+    "start": "PORT=3002 REACT_APP_TYPE=book react-scripts start",
     "start:localhost": "PORT=3002 REACT_APP_TYPE=book react-scripts start",
     "build": "react-scripts build",
     "build:production": "REACT_APP_ENV=production react-scripts build",

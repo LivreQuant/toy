@@ -63,7 +63,7 @@ function getMainAppUrl(): string {
 
 function getBookAppUrl(): string {
   // For book app, use the gateway books route or construct from gateway base
-  return config.gateway?.routes?.books || `${config.gateway?.baseUrl || 'http://localhost:8081'}/books`;
+  return config.gateway?.routes?.book || `${config.gateway?.baseUrl || 'http://localhost:8081'}/book`;
 }
 
 // --- Start Service Instantiation ---

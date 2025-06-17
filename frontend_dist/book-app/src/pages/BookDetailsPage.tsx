@@ -70,8 +70,8 @@ const BookDetailsPage: React.FC = () => {
   }, [bookId, isConnected, addToast, bookManager]);
 
   const handleBackToMain = () => {
-    const mainAppUrl = config.main.baseUrl;
-    window.location.href = `${mainAppUrl}/home`;
+    const mainAppUrl = config.gateway.baseUrl + '/app';
+    window.location.href = `${mainAppUrl}`;
   };
 
   const handleStartSimulator = async () => {
