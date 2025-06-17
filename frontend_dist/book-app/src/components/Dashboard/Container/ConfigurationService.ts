@@ -1,7 +1,7 @@
 import { Model } from 'flexlayout-react';
 
 //import { ClientConfigService } from '../../../services_old/api/clientConfigsService';
-import { ClientConfigService } from '../../../services/api/services/clientConfigsService';
+import { ClientConfigService } from '../../../api/clientConfigsService';
 
 import { ColumnStateService } from '../AgGrid/columnStateService';
 import { CompleteConfiguration } from './layoutTypes';

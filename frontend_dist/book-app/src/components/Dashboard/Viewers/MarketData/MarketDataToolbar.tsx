@@ -1,8 +1,15 @@
-// src/components/MarketData/MarketDataToolbar.tsx
+// src/components/Dashboard/Viewers/MarketData/MarketDataToolbar.tsx
 import React from 'react';
 import { Button, ButtonGroup, InputGroup, H4, Tag, Intent } from '@blueprintjs/core';
 
-import { StreamStatus } from '../../../../services/stream/services/exchangeDataStream';
+// Define StreamStatus locally
+enum StreamStatus {
+  CONNECTING = 'CONNECTING',
+  CONNECTED = 'CONNECTED',
+  RECONNECTING = 'RECONNECTING',
+  DISCONNECTED = 'DISCONNECTED',
+  FAILED = 'FAILED'
+}
 
 interface MarketDataToolbarProps {
   status: StreamStatus;

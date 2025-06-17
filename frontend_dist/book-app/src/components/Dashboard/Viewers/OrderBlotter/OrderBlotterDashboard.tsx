@@ -6,19 +6,23 @@ import OrderBlotterToolbar from './OrderBlotterToolbar';
 import OrderBlotterGrid from './OrderBlotterGrid';
 import { ColumnStateService, ColumnStateDetails } from '../../AgGrid/columnStateService';
 import { getOrderBlotterColumnDefs } from './columnDefinitions';
-import OrderFileDropzone from './utils/OrderFileDropzone';
 import { useOrderData, OrderDataStatus } from './useOrderBlotterData';
+import { useParams } from 'react-router-dom';
 
-//import { OrderService } from '../../../../services_old/api/orderService';
-import { OrderService } from '../../../../services/api/services/orderService';
+import FileUploadZone from '../../../Simulator/FileUploadZone';
+import ConvictionFileProcessor from '../../../Simulator/ConvictionFileProcessor';
+import { useConvictionManager } from '../../../../contexts/ConvictionContext';
 
-import { Side } from '../../../../protobufs/services/orderentryservice_pb';
-import { useAuth } from '../../../Login/AuthProvider';
+import { useToast } from '../../../../hooks/useToast';
+
+import { Side } from '../../Mock/OrderDataService';
 
 interface OrderBlotterDashboardProps {
   colController: AgGridColumnChooserController;
   viewId: string;
 }
+
+const { bookId } = useParams<{ bookId: string }>();
 
 const OrderBlotterDashboard: React.FC<OrderBlotterDashboardProps> = ({ colController, viewId }) => {
   const [filterText, setFilterText] = useState<string>('');
@@ -28,7 +32,8 @@ const OrderBlotterDashboard: React.FC<OrderBlotterDashboardProps> = ({ colContro
   const preventUpdateRef = useRef(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
-  const { isAuthenticated, logout } = useAuth();
+  const convictionManager = useConvictionManager();
+  const { addToast } = useToast();
 
   // Use a ref to store column definitions to prevent regeneration on data changes
   const columnDefsRef = useRef(columnDefsState);
@@ -90,12 +95,34 @@ const OrderBlotterDashboard: React.FC<OrderBlotterDashboardProps> = ({ colContro
     }
   }, [viewId]); // This effect should run once when component mounts
 
-  const handleFileAccepted = async (file: File) => {
-    await processFile(file);
+  const handleFileAccepted = (file: File | null) => {
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target?.result as string;
+      const processor = new ConvictionFileProcessor(null, addToast);
+      
+      // Use the existing processor but call it "orders" instead of "convictions"
+      const parsedOrders = processor.processSubmitCsv(content);
+      
+      if (parsedOrders.length > 0) {
+        // Convert conviction format to order format if needed
+        const orderData = parsedOrders.map(item => ({
+          ...item,
+          orderSide: item.side,
+          status: item.status || 'READY'
+        }));
+        
+        updateOrderData(orderData);
+        // This will set isDropzoneVisible to false through the hook
+      }
+    };
+    
+    reader.readAsText(file);
   };
-  
+
   const handleSubmitOrders = async () => {
-    // Check if all selected orders are valid (not ERROR status)
     const selectedErrorOrders = selectedOrders.filter(order => order.status === 'ERROR');
     
     if (selectedErrorOrders.length > 0) {
@@ -103,77 +130,52 @@ const OrderBlotterDashboard: React.FC<OrderBlotterDashboardProps> = ({ colContro
       return;
     }
     
-    // Use selected orders only if any are selected
     const ordersToSubmit = selectedOrders.length > 0 ? selectedOrders : orderData;
-    
-    // Filter out any orders with ERROR status
     const validOrders = ordersToSubmit.filter(order => order.status !== 'ERROR');
     
     if (validOrders.length === 0) {
       alert('No valid orders to submit');
       return;
     }
-      
-    if (!isAuthenticated) {
-      alert('You must be logged in to submit orders');
-      return;
-    }
     
     try {
       setIsSubmitting(true);
-      // Get the OrderService instance
-      const orderService = OrderService.getInstance();
       
-      // Transform the order data to match the service expectations
-      const formattedOrders = validOrders.map(order => ({
-        clOrderId: order.clOrderId,
-        orderId: "0", // TEMPORARY ORDER ID
-        instrument: order.instrument,
-        exchange: order.exchange,
-        side: order.orderSide === 'BUY' ? Side.BUY : Side.SELL,
-        quantity: parseFloat(order.quantity),
-        price: parseFloat(order.price),
-        orderType: order.orderType,
-        currency: order.currency,
-        fillRate: order.fillRate ? parseFloat(order.fillRate) : 1.0
+      // Convert orders to conviction format
+      const convictions = validOrders.map(order => ({
+        instrumentId: order.instrument,
+        convictionId: order.clOrderId,
+        side: order.orderSide,
+        quantity: order.quantity,
+        // Add other fields as needed
       }));
       
-      // Call the service to insert the orders
-      const result = await orderService.insertOrders(formattedOrders);
+      // Use existing conviction submission
+      const response = await convictionManager.submitConvictions({
+        bookId: bookId!, // Get from useParams
+        convictions: convictions,
+        notes: `Order submission: ${validOrders.length} orders`
+      });
       
-      if (result && result.length > 0) {
-        // Update the status of submitted orders
+      if (response.success) {
+        // Update order status
         const updatedOrders = [...orderData];
         const submittedOrderIds = new Set(validOrders.map(order => order.id));
         
         updatedOrders.forEach(order => {
           if (submittedOrderIds.has(order.id)) {
-            // Update status to indicate the order has been submitted
             order.status = 'SUBMITTED';
           }
         });
         
-        // Update the order data
         updateOrderData(updatedOrders);
-        
         alert(`${validOrders.length} orders submitted successfully!`);
       } else {
         alert('Order submission failed');
       }
-
+      
     } catch (error) {
       console.error('Error submitting orders:', error);
-      
-      // Check for authentication errors (unauthorized)
-      if (error instanceof Error && 
-          (error.message.includes('unauthorized') || 
-           error.message.includes('unauthenticated') || 
-           error.message.includes('token'))) {
-        alert('Your session has expired. Please log in again.');
-        logout();
-        return;
-      }
-      
       alert(`Error submitting orders: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsSubmitting(false);
@@ -368,7 +370,14 @@ const OrderBlotterDashboard: React.FC<OrderBlotterDashboardProps> = ({ colContro
       )}
       
       {isDropzoneVisible ? (
-        <OrderFileDropzone onFileAccepted={handleFileAccepted} />
+        <FileUploadZone
+          title="Order File"
+          acceptedTypes=".csv"
+          onFileSelect={handleFileAccepted}
+          file={null}
+          required={true}
+          description="CSV file containing your orders"
+        />
       ) : (
         <OrderBlotterGrid
           columnDefs={columnDefsRef.current}

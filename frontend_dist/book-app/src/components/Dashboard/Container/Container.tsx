@@ -11,7 +11,6 @@ import QuestionDialog from './QuestionDialog';
 import ViewNameDialog from './ViewNameDialog';
 import ColumnChooserAgGrid from '../AgGrid/ColumnChooseAgGrid';
 import { QuestionDialogController, ViewNameDialogController, AgGridColumnChooserController } from './Controllers';
-import { useAuth } from '../../Login/AuthProvider';
 
 const Container = () => {
   // Access auth context to get desk_id

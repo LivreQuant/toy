@@ -1,4 +1,4 @@
-// src/components/MarketData/MarketDataDashboard.tsx
+// src/components/Dashboard/Viewers/MarketData/MarketDataDashboard.tsx
 import React, { useState, useRef, useEffect } from 'react';
 import { GridApi, ColDef } from 'ag-grid-community';
 import { AgGridColumnChooserController } from '../../Container/Controllers';
@@ -7,12 +7,20 @@ import { getMarketDataColumnDefs } from './columnDefinitions';
 import MarketDataToolbar from './MarketDataToolbar';
 import MarketDataGrid from './MarketDataGrid';
 import { ColumnStateService, ColumnStateDetails } from '../../AgGrid/columnStateService';
-import { StreamStatus } from '../../../../services/stream/services/exchangeDataStream';
 import { MarketDataStatus } from './useMarketData';
 
 interface MarketDataDashboardProps {
   colController: AgGridColumnChooserController;
   viewId: string;
+}
+
+// Define StreamStatus locally since we removed the import
+enum StreamStatus {
+  CONNECTING = 'CONNECTING',
+  CONNECTED = 'CONNECTED',
+  RECONNECTING = 'RECONNECTING',
+  DISCONNECTED = 'DISCONNECTED',
+  FAILED = 'FAILED'
 }
 
 const getStreamStatus = (marketDataStatus: MarketDataStatus): StreamStatus => {
@@ -28,7 +36,6 @@ const getStreamStatus = (marketDataStatus: MarketDataStatus): StreamStatus => {
       return StreamStatus.DISCONNECTED;
   }
 };
-
 
 const MarketDataDashboard: React.FC<MarketDataDashboardProps> = ({ colController, viewId }) => {
   const [filterText, setFilterText] = useState<string>('');

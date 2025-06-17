@@ -1,5 +1,9 @@
 // src/components/Mock/OrderDataService.ts
-import { Side } from "../../../protobufs/services/orderentryservice_pb";
+
+export enum Side {
+  BUY = 'BUY',
+  SELL = 'SELL'
+}
 
 export interface OrderData {
   clOrderId: string;

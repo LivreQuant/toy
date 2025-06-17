@@ -1,4 +1,4 @@
-// frontend_dist/sim-app/src/pages/BookDetailsPage.tsx
+// frontend_dist/book-app/src/pages/BookDetailsPage.tsx
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { useRequireAuth } from '../hooks/useRequireAuth';
@@ -7,6 +7,7 @@ import { useToast } from '../hooks/useToast';
 import { useBookManager } from '../hooks/useBookManager';
 import { Book } from '@trading-app/types-core';
 import ConvictionSubmissionContainer from '../components/Simulator/ConvictionSubmissionContainer';
+import Container from '../components/Dashboard/Container/Container'; // Add this import
 import { Tabs, Tab } from '@mui/material';
 import { 
   Box, 
@@ -34,7 +35,7 @@ const BookDetailsPage: React.FC = () => {
   const [book, setBook] = useState<Book | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isStartingSimulator, setIsStartingSimulator] = useState(false);
-  const [activeTab, setActiveTab] = useState(0);
+  const [activeTab, setActiveTab] = useState(0); // Change default to 0 to show dashboard first
 
   useEffect(() => {
     const fetchBookDetails = async () => {
@@ -116,7 +117,7 @@ const BookDetailsPage: React.FC = () => {
   }
 
   return (
-    <Box sx={{ maxWidth: 1200, mx: 'auto', p: { xs: 2, md: 4 } }}>
+    <Box sx={{ maxWidth: 1400, mx: 'auto', p: { xs: 2, md: 4 } }}> {/* Increased maxWidth for dashboard */}
       {/* Header with ONLY Back Button */}
       <Box sx={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center', mb: 3 }}>
         <Button 
@@ -341,7 +342,7 @@ const BookDetailsPage: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Conviction Management Section - Always accessible */}
+      {/* Main Content Section */}
       <Card variant="outlined" sx={{ mb: 4 }}>
         <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
           <Tabs 
@@ -368,13 +369,20 @@ const BookDetailsPage: React.FC = () => {
               }
             }}
           >
+            <Tab label="Trading Dashboard" />
             <Tab label="Start Simulator" />
             <Tab label="Conviction Management" />
           </Tabs>
         </Box>
         
-        <CardContent>
+        <CardContent sx={{ p: 0 }}>
           {activeTab === 0 && (
+            <Box sx={{ height: '80vh' }}> {/* Set height for dashboard */}
+              <Container />
+            </Box>
+          )}
+          
+          {activeTab === 1 && (
             <Box sx={{ textAlign: 'center', py: 4 }}>
               <Button 
                 variant="contained" 
@@ -400,8 +408,10 @@ const BookDetailsPage: React.FC = () => {
             </Box>
           )}
           
-          {activeTab === 1 && (
-            <ConvictionSubmissionContainer />
+          {activeTab === 2 && (
+            <Box sx={{ p: 3 }}>
+              <ConvictionSubmissionContainer />
+            </Box>
           )}
         </CardContent>
       </Card>
