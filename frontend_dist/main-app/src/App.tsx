@@ -15,15 +15,11 @@ import { AuthFactory, DeviceIdManager, TokenManager } from '@trading-app/auth';
 // API SERVICES - now from api package
 import { ApiFactory } from '@trading-app/api';
 
-// SERVICES - keep existing services that aren't API related
-import { ConvictionManager } from './services/convictions/conviction-manager';
-
 // CONTEXT
 import { ThemeProvider } from './contexts/ThemeContext';
 import { ToastProvider } from './contexts/ToastContext';
 import { AuthProvider } from './contexts/AuthContext';
 import { TokenManagerProvider } from './contexts/TokenManagerContext';
-import { ConvictionProvider } from './contexts/ConvictionContext';
 import { BookManagerProvider } from './contexts/BookContext';
 import { FundProvider } from './contexts/FundContext';
 
@@ -36,7 +32,6 @@ import AuthenticatedLayout from './components/Layout/AuthenticatedLayout';
 // PAGES
 import LoginPage from './pages/LoginPage';
 import HomePage from './pages/HomePage';
-import SessionDeactivatedPage from './pages/SessionDeactivatedPage';
 
 import FundProfileForm from './components/Fund/FundProfileForm';
 import EditFundProfileForm from './components/Fund/EditFundProfileForm';
@@ -113,13 +108,6 @@ logger.info('✅ API clients created with base URL:', config.apiBaseUrl);
 tokenManager.setAuthApi(apiClients.auth);
 logger.info('✅ Auth API set on token manager');
 
-// Initialize conviction manager (now uses new API client)
-const convictionManager = new ConvictionManager(
-  apiClients.conviction, 
-  tokenManager
-);
-logger.info('✅ ConvictionManager created');
-
 logger.info('🎉 All services instantiated successfully');
 
 // Log final API URL being used
@@ -189,12 +177,6 @@ const AppRoutes: React.FC = () => {
           </ProtectedRoute>
         } />
 
-        <Route path="/session-deactivated" element={              
-            <AuthenticatedLayout>
-              <SessionDeactivatedPage />
-            </AuthenticatedLayout>
-        } />
-
         {/* Default route */}
       </Routes>
     </>
@@ -218,16 +200,14 @@ function App() {
         <AuthProvider tokenManager={tokenManager} authApi={apiClients.auth}>
           <TokenManagerProvider tokenManager={tokenManager}>
             <BookManagerProvider bookClient={apiClients.book} tokenManager={tokenManager}>
-              <ConvictionProvider convictionManager={convictionManager}>
-                <FundProvider fundClient={apiClients.fund} tokenManager={tokenManager}>  
-                  {/* Use Router without basename since proxy handles path rewriting */}
-                  <Router basename="/app">
-                    <DeviceIdInvalidationHandler>
-                      <AppRoutes />
-                    </DeviceIdInvalidationHandler>
-                  </Router>
-                </FundProvider>
-              </ConvictionProvider>
+              <FundProvider fundClient={apiClients.fund} tokenManager={tokenManager}>  
+                {/* Use Router without basename since proxy handles path rewriting */}
+                <Router basename="/app">
+                  <DeviceIdInvalidationHandler>
+                    <AppRoutes />
+                  </DeviceIdInvalidationHandler>
+                </Router>
+              </FundProvider>
             </BookManagerProvider>
           </TokenManagerProvider>
         </AuthProvider>

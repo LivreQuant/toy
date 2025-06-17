@@ -237,7 +237,7 @@ const AppRoutes: React.FC = () => {
    <>
      <Routes>
        {/* Protected routes with session */}
-       <Route path="/books/:bookId" element={
+       <Route path="/:bookId" element={
          <ProtectedRoute>
            <AuthenticatedLayout>
              <BookDetailsPage />

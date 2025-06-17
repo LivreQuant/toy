@@ -29,11 +29,6 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
     return <LoadingSpinner message="Checking authentication..." />;
   }
 
-  // This check is already in your code, ensure it works
-  if (isAuthenticated && tokenManager.isSessionDeactivated()) {
-    return <Navigate to="/session-deactivated" replace />;
-  }
-
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
