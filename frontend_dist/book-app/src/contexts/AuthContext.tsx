@@ -1,4 +1,4 @@
-// frontend_dist/main-app/src/contexts/AuthContext.tsx
+// frontend_dist/book-app/src/contexts/AuthContext.tsx
 import React, { createContext, useState, useEffect, useCallback, ReactNode, useMemo } from 'react';
 
 import { getLogger } from '@trading-app/logging';
@@ -14,7 +14,7 @@ import { toastService } from '@trading-app/toast';
 import { TokenManager, TokenData } from '@trading-app/auth';
 import { DeviceIdManager } from '@trading-app/auth';
 
-import { config } from '@trading-app/config'; // 🚨 ADD THIS IMPORT
+import { config } from '@trading-app/config';
 
 import { ConnectionManager } from '@trading-app/websocket';
 
@@ -39,70 +39,17 @@ interface AuthProviderProps {
   connectionManager: ConnectionManager;
 }
 
-export const AuthProvider: React.FC<AuthProviderProps> = ({ children, tokenManager, authApi, connectionManager }) => {
+export const AuthProvider: React.FC<AuthProviderProps> = ({ 
+  children, 
+  tokenManager, 
+  authApi, 
+  connectionManager 
+}) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => tokenManager.isAuthenticated());
   const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
   const [userId, setUserId] = useState<string | number | null>(() => tokenManager.getUserId());
 
-  // Check authentication status on mount and sync global state
-  useEffect(() => {
-    const checkAuth = async () => {
-      const authenticated = tokenManager.isAuthenticated();
-      const currentUserId = authenticated ? tokenManager.getUserId() : null;
-      logger.info(`Initial auth check: authenticated=${authenticated}, userId=${currentUserId}`);
-      setIsAuthenticated(authenticated);
-      setUserId(currentUserId);
-      
-      // Sync global state on initial load
-      authState.updateState({
-          isAuthenticated: authenticated,
-          isAuthLoading: false,
-          userId: currentUserId,
-          lastAuthError: null
-      });
-      setIsAuthLoading(false);
-
-      // 🚨 CRITICAL FIX: Auto-connect WebSocket when authenticated
-      if (authenticated && connectionManager) {
-        logger.info('🔌 AUTH: User is authenticated, setting up WebSocket connection');
-        connectionManager.setDesiredState({ 
-          connected: true, 
-          simulatorRunning: false 
-        });
-      }
-    };
-    checkAuth();
-
-    // Listen for token refresh events to update auth state
-    const handleRefresh = (success: boolean) => {
-      const refreshedIsAuth = success && tokenManager.isAuthenticated();
-      const refreshedUserId = refreshedIsAuth ? tokenManager.getUserId() : null;
-      logger.info(`Token refresh event: success=${success}. New auth state: ${refreshedIsAuth}`);
-      setIsAuthenticated(refreshedIsAuth);
-      setUserId(refreshedUserId);
-      
-      authState.updateState({
-          isAuthenticated: refreshedIsAuth,
-          isAuthLoading: false,
-          userId: refreshedUserId,
-      });
-
-      // 🚨 CRITICAL FIX: Reconnect WebSocket after token refresh
-      if (refreshedIsAuth && connectionManager) {
-        logger.info('🔌 AUTH: Token refreshed successfully, ensuring WebSocket connection');
-        connectionManager.setDesiredState({ 
-          connected: true, 
-          simulatorRunning: false 
-        });
-      }
-    };
-    tokenManager.addRefreshListener(handleRefresh);
-
-    return () => {
-      tokenManager.removeRefreshListener(handleRefresh);
-    };
-  }, [tokenManager, connectionManager]);
-
+  // Login function
   const login = useCallback(async (credentials: LoginRequest): Promise<LoginResponse> => {
     logger.info('🔍 AUTH: Attempting login...');
     console.log("🔍 AUTH: Login attempt for user:", credentials.username);
@@ -164,7 +111,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, tokenManag
         setIsAuthenticated(true);
         setUserId(response.userId);
 
-        // 🚨 CRITICAL FIX: Start WebSocket connection immediately after successful login
+        // Start WebSocket connection immediately after successful login
         if (connectionManager) {
           logger.info('🔌 AUTH: Login successful, initiating WebSocket connection');
           connectionManager.setDesiredState({ 
@@ -172,7 +119,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, tokenManag
             simulatorRunning: false 
           });
           
-          // Give it a moment for auth state to propagate, then try to connect
           setTimeout(async () => {
             logger.info('🔌 AUTH: Attempting to connect WebSocket after login');
             try {
@@ -221,6 +167,67 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, tokenManag
     }
   }, [authApi, tokenManager, connectionManager]);
 
+  // Check authentication status on mount and sync global state
+  useEffect(() => {
+    const checkAuth = async () => {
+      // Normal authentication check for existing tokens
+      const authenticated = tokenManager.isAuthenticated();
+      const currentUserId = authenticated ? tokenManager.getUserId() : null;
+      logger.info(`Initial auth check: authenticated=${authenticated}, userId=${currentUserId}`);
+      setIsAuthenticated(authenticated);
+      setUserId(currentUserId);
+      
+      // Sync global state on initial load
+      authState.updateState({
+          isAuthenticated: authenticated,
+          isAuthLoading: false,
+          userId: currentUserId,
+          lastAuthError: null
+      });
+      setIsAuthLoading(false);
+
+      // Auto-connect WebSocket when authenticated
+      if (authenticated && connectionManager) {
+        logger.info('🔌 AUTH: User is authenticated, setting up WebSocket connection');
+        connectionManager.setDesiredState({ 
+          connected: true, 
+          simulatorRunning: false 
+        });
+      }
+    };
+    
+    checkAuth();
+
+    // Listen for token refresh events to update auth state
+    const handleRefresh = (success: boolean) => {
+      const refreshedIsAuth = success && tokenManager.isAuthenticated();
+      const refreshedUserId = refreshedIsAuth ? tokenManager.getUserId() : null;
+      logger.info(`Token refresh event: success=${success}. New auth state: ${refreshedIsAuth}`);
+      setIsAuthenticated(refreshedIsAuth);
+      setUserId(refreshedUserId);
+      
+      authState.updateState({
+          isAuthenticated: refreshedIsAuth,
+          isAuthLoading: false,
+          userId: refreshedUserId,
+      });
+
+      // Reconnect WebSocket after token refresh
+      if (refreshedIsAuth && connectionManager) {
+        logger.info('🔌 AUTH: Token refreshed successfully, ensuring WebSocket connection');
+        connectionManager.setDesiredState({ 
+          connected: true, 
+          simulatorRunning: false 
+        });
+      }
+    };
+    tokenManager.addRefreshListener(handleRefresh);
+
+    return () => {
+      tokenManager.removeRefreshListener(handleRefresh);
+    };
+  }, [tokenManager, connectionManager]);
+
   const forgotPassword = useCallback(async (data: { email: string }): Promise<boolean> => {
     logger.info('Attempting forgot password...');
     setIsAuthLoading(true);
@@ -242,7 +249,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, tokenManag
     authState.updateState({ isAuthLoading: true });
   
     try {
-      // 🚨 CRITICAL: Disconnect WebSocket FIRST before logout
+      // Disconnect WebSocket FIRST before logout
       if (connectionManager) {
         try {
           logger.info('🔌 AUTH: Disconnecting WebSocket before logout');
@@ -281,7 +288,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, tokenManag
   
       toastService.success('You have been successfully logged out');
       
-      // 🚨 NEW: Redirect to land app after logout
+      // Redirect to land app after logout
       const landAppUrl = config.gateway.baseUrl;
       logger.info('🔗 AUTH: Redirecting to land app after logout', { landAppUrl });
       window.location.href = landAppUrl;
@@ -303,12 +310,53 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, tokenManag
       setUserId(null);
       setIsAuthLoading(false);
   
-      // 🚨 NEW: Even on error, redirect to land app
-      const landAppUrl = config.gateway.routes.home;
+      // Even on error, redirect to land app
+      const landAppUrl = config.gateway.baseUrl;
       logger.info('🔗 AUTH: Redirecting to land app after logout error', { landAppUrl });
       window.location.href = landAppUrl;
     }
   }, [authApi, tokenManager, connectionManager]);
+
+  // Development helpers - expose to window in dev mode
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      (window as any).devAuth = {
+        manualLogin: async (username?: string, password?: string) => {
+          const user = username || prompt('Enter username:');
+          const pass = password || prompt('Enter password:');
+          if (user && pass) {
+            return await login({ username: user, password: pass });
+          }
+        },
+        showCurrentAuth: () => {
+          console.log('🔍 Current Auth Status:');
+          console.log(`Authenticated: ${isAuthenticated}`);
+          console.log(`User ID: ${userId}`);
+          console.log(`Tokens:`, tokenManager.getTokens());
+        },
+        clearAuth: () => {
+          tokenManager.clearTokens();
+          console.log('🗑️ Authentication cleared. Refresh the page.');
+        },
+        tokenManager: {
+          isAuthenticated: () => tokenManager.isAuthenticated(),
+          getUserId: () => tokenManager.getUserId(),
+          getTokens: () => tokenManager.getTokens(),
+          clearTokens: () => tokenManager.clearTokens(),
+          getAccessToken: async () => await tokenManager.getAccessToken(),
+          getCsrfToken: async () => await tokenManager.getCsrfToken()
+        }
+      };
+      
+      console.log('🔧 DEV MODE: Global devAuth helper available');
+      console.log('Usage:');
+      console.log('  devAuth.showCurrentAuth() - Show current auth state');
+      console.log('  devAuth.manualLogin() - Login with prompts');
+      console.log('  devAuth.manualLogin("user", "pass") - Direct login');
+      console.log('  devAuth.clearAuth() - Clear authentication');
+      console.log('  devAuth.tokenManager - Access token manager methods');
+    }
+  }, [isAuthenticated, userId, login, tokenManager]);
 
   const contextValue = useMemo(() => ({
     isAuthenticated,

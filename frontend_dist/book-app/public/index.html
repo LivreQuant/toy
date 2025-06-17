@@ -20,6 +20,14 @@
       Learn how to configure a non-root public URL by running `npm run build`.
     -->
     <title>Open Trading Platform</title>
+
+    <!-- Redirect script for root access -->
+    <script>
+      // If we're at the root path, redirect to /book
+      if (window.location.pathname === '/') {
+        window.location.replace('/book');
+      }
+    </script>
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>

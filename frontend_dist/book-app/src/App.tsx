@@ -47,6 +47,9 @@ import SimulatorPage from './pages/SimulatorPage';
 import BookDetailsPage from './pages/BookDetailsPage';
 import SessionDeactivatedPage from './pages/SessionDeactivatedPage';
 
+// DEV AUTH HELPER
+import { attemptDevAuthentication, DEV_AUTH_CONFIG } from './utils/dev-auth-helper';
+
 // Initialize Logging First
 initializeLogging();
 
@@ -90,15 +93,22 @@ const RedirectingToMainApp: React.FC<{ reason: string }> = ({ reason }) => {
  );
 };
 
+console.log('🔧 DEBUG ENV VARS:', {
+  NODE_ENV: process.env.NODE_ENV,
+  REACT_APP_USE_DEV_AUTH: process.env.REACT_APP_USE_DEV_AUTH,
+  REACT_APP_DEV_USERNAME: process.env.REACT_APP_DEV_USERNAME,
+  REACT_APP_DEV_PASSWORD: process.env.REACT_APP_DEV_PASSWORD ? '***SET***' : 'NOT SET'
+});
+
 // Check authentication status and return appropriate component
-function checkAuthenticationStatus(): { 
+async function checkAuthenticationStatus(): Promise<{ 
  isValid: boolean, 
  reason?: string,
  authServices?: any,
  apiClients?: any,
  connectionManager?: any,
  convictionManager?: any 
-} {
+}> {
  // Validate we're running the right app
  if (!isBookApp()) {
    logger.warn('⚠️ Book app detected non-book app configuration!');
@@ -122,6 +132,18 @@ function checkAuthenticationStatus(): {
      href: window.location.href
    } : 'server-side'
  });
+
+ // 🚨 NEW: Attempt development auto-login FIRST
+ if (DEV_AUTH_CONFIG.enabled) {
+   logger.info('🔧 DEV MODE: Development authentication enabled, attempting auto-login');
+   const devLoginSuccess = await attemptDevAuthentication();
+   
+   if (devLoginSuccess) {
+     logger.info('🔧 DEV MODE: Auto-login successful, proceeding with app initialization');
+   } else {
+     logger.warn('🔧 DEV MODE: Auto-login failed, continuing with normal auth check');
+   }
+ }
 
  // Create auth services using factory
  const authServices = AuthFactory.createAuthServices();
@@ -232,10 +254,18 @@ function DeviceIdInvalidationHandler({ children }: { children: React.ReactNode }
 }
 
 // Separate routes component for better organization
-const AppRoutes: React.FC = () => {
+const AppRoutes: React.FC = () => {  
+  const defaultBookId = process.env.REACT_APP_DEFAULT_BOOK_ID || '26d41a49-ec77-45b3-aa4c-75cb202e5890';
+
  return (
    <>
-     <Routes>
+     <Routes>        
+      
+        {/* Default route - redirect to default book */}
+        <Route path="/" element={
+          <Navigate to={`/${defaultBookId}`} replace />
+        } />
+
        {/* Protected routes with session */}
        <Route path="/:bookId" element={
          <ProtectedRoute>
@@ -335,8 +365,12 @@ function App() {
 
  // Check authentication status on mount
  useEffect(() => {
-   const result = checkAuthenticationStatus();
-   setAuthResult(result);
+   const checkAuth = async () => {
+     const result = await checkAuthenticationStatus(); // 🚨 Now async
+     setAuthResult(result);
+   };
+   
+   checkAuth();
  }, []);
 
  // Show loading while checking authentication
