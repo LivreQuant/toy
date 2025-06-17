@@ -116,9 +116,63 @@ const BookDetailsPage: React.FC = () => {
     );
   }
 
+  // ==========================================
+  // TEMPORARY: FULL SCREEN TRADING DASHBOARD
+  // ==========================================
+  // TODO: Remove this section and uncomment the original layout below when debugging is complete
   return (
-    <Box sx={{ maxWidth: 1400, mx: 'auto', p: { xs: 2, md: 4 } }}> {/* Increased maxWidth for dashboard */}
-      {/* Header with ONLY Back Button */}
+    <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
+      {/* Minimal Header for Debug Mode */}
+      <Box sx={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        p: 2,
+        borderBottom: '1px solid #e5e7eb',
+        backgroundColor: 'white',
+        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+        zIndex: 1000,
+        minHeight: '64px'
+      }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Button 
+            startIcon={<ArrowBackIcon />} 
+            variant="outlined" 
+            onClick={handleBackToMain}
+            size="small"
+          >
+            Back to Main App
+          </Button>
+          <Typography variant="h6" sx={{ fontWeight: 600, color: '#111827' }}>
+            🚧 DEBUG MODE: Trading Dashboard - {book.name}
+          </Typography>
+        </Box>
+        
+        <Typography variant="body2" color="text.secondary" sx={{ 
+          backgroundColor: '#fff3cd', 
+          padding: '4px 8px', 
+          borderRadius: '4px',
+          border: '1px solid #ffeaa7'
+        }}>
+          Temporary Full Screen | Book ID: {bookId}
+        </Typography>
+      </Box>
+      
+      {/* Full Screen Trading Dashboard */}
+      <Box sx={{ flex: 1, overflow: 'hidden' }}>
+        <Container />
+      </Box>
+    </Box>
+  );
+
+  // ==========================================
+  // ORIGINAL LAYOUT (COMMENTED OUT FOR NOW)
+  // ==========================================
+  // TODO: Uncomment this section when ready to revert to the original layout
+  /*
+  return (
+    <Box sx={{ maxWidth: 1400, mx: 'auto', p: { xs: 2, md: 4 } }}> 
+      {/* Header with ONLY Back Button *//*}
       <Box sx={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center', mb: 3 }}>
         <Button 
           startIcon={<ArrowBackIcon />} 
@@ -129,7 +183,7 @@ const BookDetailsPage: React.FC = () => {
         </Button>
       </Box>
             
-      {/* Book Details Card - READ ONLY */}
+      {/* Book Details Card - READ ONLY *//*}
       <Card 
         variant="outlined" 
         sx={{ 
@@ -139,7 +193,7 @@ const BookDetailsPage: React.FC = () => {
         }}
       >
         <CardContent sx={{ p: 0 }}>
-          {/* Header */}
+          {/* Header *//*}
           <Box sx={{ 
             p: 3, 
             borderBottom: '1px solid #f3f4f6'
@@ -152,10 +206,10 @@ const BookDetailsPage: React.FC = () => {
             </Typography>
           </Box>
 
-          {/* Main Content - Horizontal Layout */}
+          {/* Main Content - Horizontal Layout *//*}
           <Box sx={{ p: 3, size: 12 }}>
             <Grid container spacing={0}>
-              {/* Regions */}
+              {/* Regions *//*}
               <Grid {...{component: "div", item: true, xs: 12, md: 2, size: 2} as any} sx={{ pr: 4 }}>
                 <Typography variant="subtitle2" sx={{ mb: 1, textAlign: 'center', color: '#6b7280', fontWeight: 600 }}>
                   Regions
@@ -179,7 +233,7 @@ const BookDetailsPage: React.FC = () => {
                 </Box>
               </Grid>
 
-              {/* Markets */}
+              {/* Markets *//*}
               <Grid {...{component: "div", item: true, xs: 12, md: 2, size: 2} as any} sx={{ pr: 4 }}>
                 <Typography variant="subtitle2" sx={{ mb: 1, textAlign: 'center', color: '#6b7280', fontWeight: 600 }}>
                   Markets
@@ -203,7 +257,7 @@ const BookDetailsPage: React.FC = () => {
                 </Box>
               </Grid>
 
-              {/* Instruments */}
+              {/* Instruments *//*}
               <Grid {...{component: "div", item: true, xs: 12, md: 2, size: 2} as any} sx={{ pr: 4 }}>
                 <Typography variant="subtitle2" sx={{ mb: 1, textAlign: 'center', color: '#6b7280', fontWeight: 600 }}>
                   Instruments
@@ -227,7 +281,7 @@ const BookDetailsPage: React.FC = () => {
                 </Box>
               </Grid>
 
-              {/* Investment Approach */}
+              {/* Investment Approach *//*}
               <Grid {...{component: "div", item: true, xs: 12, md: 2, size: 2} as any} sx={{ pr: 4 }}>
                 <Typography variant="subtitle2" sx={{ mb: 1, textAlign: 'center', color: '#6b7280', fontWeight: 600 }}>
                   Approach
@@ -251,7 +305,7 @@ const BookDetailsPage: React.FC = () => {
                 </Box>
               </Grid>
 
-              {/* Position Types */}
+              {/* Position Types *//*}
               <Grid {...{component: "div", item: true, xs: 12, md: 2, size: 2} as any} sx={{ pr: 4 }}>
                 <Typography variant="subtitle2" sx={{ mb: 1, textAlign: 'center', color: '#6b7280', fontWeight: 600 }}>
                   Position Types
@@ -288,7 +342,7 @@ const BookDetailsPage: React.FC = () => {
                 </Box>
               </Grid>
 
-              {/* Timeframe */}
+              {/* Timeframe *//*}
               <Grid {...{component: "div", item: true, xs: 12, md: 2, size: 2} as any}>
                 <Typography variant="subtitle2" sx={{ mb: 1, textAlign: 'center', color: '#6b7280', fontWeight: 600 }}>
                   Timeframe
@@ -313,7 +367,7 @@ const BookDetailsPage: React.FC = () => {
               </Grid>
             </Grid>
 
-            {/* Sectors Row - Only if exists */}
+            {/* Sectors Row - Only if exists *//*}
             {book.sectors && book.sectors.length > 0 && (
               <Box sx={{ mt: 3, pt: 3 }}>
                 <Typography variant="subtitle2" sx={{ mb: 1, textAlign: 'center', color: '#6b7280', fontWeight: 600 }}>
@@ -342,7 +396,7 @@ const BookDetailsPage: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Main Content Section */}
+      {/* Main Content Section *//*}
       <Card variant="outlined" sx={{ mb: 4 }}>
         <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
           <Tabs 
@@ -377,7 +431,7 @@ const BookDetailsPage: React.FC = () => {
         
         <CardContent sx={{ p: 0 }}>
           {activeTab === 0 && (
-            <Box sx={{ height: '80vh' }}> {/* Set height for dashboard */}
+            <Box sx={{ height: '80vh' }}> {/* Set height for dashboard *//*}
               <Container />
             </Box>
           )}
@@ -417,6 +471,7 @@ const BookDetailsPage: React.FC = () => {
       </Card>
     </Box>
   );
+  */
 };
 
 export default BookDetailsPage;

@@ -22,8 +22,6 @@ interface OrderBlotterDashboardProps {
   viewId: string;
 }
 
-const { bookId } = useParams<{ bookId: string }>();
-
 const OrderBlotterDashboard: React.FC<OrderBlotterDashboardProps> = ({ colController, viewId }) => {
   const [filterText, setFilterText] = useState<string>('');
   const [gridApi, setGridApi] = useState<GridApi | null>(null);
@@ -34,6 +32,8 @@ const OrderBlotterDashboard: React.FC<OrderBlotterDashboardProps> = ({ colContro
 
   const convictionManager = useConvictionManager();
   const { addToast } = useToast();
+
+  const { bookId } = useParams<{ bookId: string }>();
 
   // Use a ref to store column definitions to prevent regeneration on data changes
   const columnDefsRef = useRef(columnDefsState);

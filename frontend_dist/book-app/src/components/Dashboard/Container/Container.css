@@ -1,0 +1,90 @@
+/* Container.css - Force Blueprint dialogs to appear on top */
+
+/* Override ALL Blueprint dialog styles aggressively */
+.bp3-portal,
+.bp3-portal > *,
+div[class*="bp3-portal"] {
+  z-index: 9999 !important;
+  position: fixed !important;
+}
+
+.bp3-overlay,
+.bp3-overlay-open,
+.bp3-overlay-inline,
+div[class*="bp3-overlay"] {
+  z-index: 9998 !important;
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  background-color: rgba(0, 0, 0, 0.7) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.bp3-dialog-container,
+div[class*="bp3-dialog-container"] {
+  z-index: 10000 !important;
+  position: fixed !important;
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  max-height: 90vh !important;
+  max-width: 90vw !important;
+  overflow: auto !important;
+}
+
+.bp3-dialog,
+div[class*="bp3-dialog"] {
+  z-index: 10001 !important;
+  position: relative !important;
+  background: white !important;
+  border-radius: 6px !important;
+  box-shadow: 0 0 0 1px rgba(16, 22, 26, 0.1), 0 4px 8px rgba(16, 22, 26, 0.2), 0 18px 46px 6px rgba(16, 22, 26, 0.2) !important;
+  min-width: 400px !important;
+  min-height: 200px !important;
+}
+
+/* Dark theme fixes */
+.bp3-dark .bp3-dialog,
+.bp3-dark div[class*="bp3-dialog"] {
+  background: #30404d !important;
+  color: #f5f8fa !important;
+}
+
+/* Ensure everything else stays below */
+.flexlayout__layout,
+.ag-theme-quartz,
+.bp3-navbar,
+div[class*="flexlayout"],
+div[class*="ag-theme"] {
+  z-index: 1 !important;
+}
+
+/* Force popover to appear */
+.bp3-popover,
+.bp3-popover2,
+div[class*="bp3-popover"] {
+  z-index: 500 !important;
+  position: fixed !important;
+}
+
+.bp3-transition-container,
+div[class*="bp3-transition-container"] {
+  z-index: 501 !important;
+}
+
+/* Debug - temporarily add visible borders to see what's happening */
+.bp3-dialog-container {
+  border: 3px solid red !important;
+}
+
+.bp3-dialog {
+  border: 3px solid blue !important;
+}
+
+.bp3-overlay {
+  border: 3px solid green !important;
+}
