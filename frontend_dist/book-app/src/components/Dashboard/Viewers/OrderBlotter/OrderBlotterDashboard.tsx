@@ -1,5 +1,5 @@
-// Modified OrderBlotterDashboard.tsx - Key parts updated
-import React, { useState, useRef, useEffect } from 'react';
+// src/components/Dashboard/Viewers/OrderBlotter/OrderBlotterDashboard.tsx
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { GridApi, ColDef } from 'ag-grid-community';
 import { AgGridColumnChooserController } from '../../Container/Controllers';
 import OrderBlotterToolbar from './OrderBlotterToolbar';
@@ -20,9 +20,14 @@ import { Side } from '../../Mock/OrderDataService';
 interface OrderBlotterDashboardProps {
   colController: AgGridColumnChooserController;
   viewId: string;
+  onColumnHandlerReady?: (handler: () => void) => void; // NEW
 }
 
-const OrderBlotterDashboard: React.FC<OrderBlotterDashboardProps> = ({ colController, viewId }) => {
+const OrderBlotterDashboard: React.FC<OrderBlotterDashboardProps> = ({ 
+  colController, 
+  viewId,
+  onColumnHandlerReady // NEW
+}) => {
   const [filterText, setFilterText] = useState<string>('');
   const [gridApi, setGridApi] = useState<GridApi | null>(null);
   const [columnDefsState, setColumnDefs] = useState<ColDef[]>(getOrderBlotterColumnDefs());
@@ -238,7 +243,8 @@ const OrderBlotterDashboard: React.FC<OrderBlotterDashboardProps> = ({ colContro
     // No need to filter data here - AG Grid will handle it internally
   };
   
-  const editVisibleColumns = () => {
+  // UPDATED: Make editVisibleColumns stable with useCallback
+  const editVisibleColumns = useCallback(() => {
     try {
       // Skip grid API calls entirely and just use our column definitions
       const columnDefs = columnDefsRef.current;
@@ -334,7 +340,15 @@ const OrderBlotterDashboard: React.FC<OrderBlotterDashboardProps> = ({ colContro
     } catch (error) {
       console.error("Error opening column chooser:", error);
     }
-  };
+  }, [colController, viewId, gridApi]);
+
+  // NEW: Register the column handler with the container
+  useEffect(() => {
+    if (onColumnHandlerReady) {
+      console.log('📋 OrderBlotter: Registering column handler');
+      onColumnHandlerReady(editVisibleColumns);
+    }
+  }, [onColumnHandlerReady, editVisibleColumns]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>

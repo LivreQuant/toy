@@ -1,5 +1,5 @@
 // src/components/Dashboard/Viewers/MarketData/MarketDataDashboard.tsx
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { GridApi, ColDef } from 'ag-grid-community';
 import { AgGridColumnChooserController } from '../../Container/Controllers';
 import { useMarketData } from './useMarketData';
@@ -12,6 +12,7 @@ import { MarketDataStatus } from './useMarketData';
 interface MarketDataDashboardProps {
   colController: AgGridColumnChooserController;
   viewId: string;
+  onColumnHandlerReady?: (handler: () => void) => void; // NEW
 }
 
 // Define StreamStatus locally since we removed the import
@@ -37,7 +38,11 @@ const getStreamStatus = (marketDataStatus: MarketDataStatus): StreamStatus => {
   }
 };
 
-const MarketDataDashboard: React.FC<MarketDataDashboardProps> = ({ colController, viewId }) => {
+const MarketDataDashboard: React.FC<MarketDataDashboardProps> = ({ 
+  colController, 
+  viewId,
+  onColumnHandlerReady // NEW
+}) => {
   const [filterText, setFilterText] = useState<string>('');
   const [gridApi, setGridApi] = useState<GridApi | null>(null);
   const [columnDefsState, setColumnDefs] = useState<ColDef[]>(getMarketDataColumnDefs());
@@ -103,7 +108,8 @@ const MarketDataDashboard: React.FC<MarketDataDashboardProps> = ({ colController
     }
   }, [viewId]); // This effect should run once when component mounts
 
-  const editVisibleColumns = () => {
+  // UPDATED: Make editVisibleColumns stable with useCallback
+  const editVisibleColumns = useCallback(() => {
     try {
       // Skip grid API calls entirely and just use our column definitions
       const columnDefs = columnDefsRef.current;
@@ -198,7 +204,15 @@ const MarketDataDashboard: React.FC<MarketDataDashboardProps> = ({ colController
     } catch (error) {
       console.error("Error opening column chooser:", error);
     }
-  };
+  }, [colController, viewId, gridApi]);
+
+  // NEW: Register the column handler with the container
+  useEffect(() => {
+    if (onColumnHandlerReady) {
+      console.log('📋 MarketData: Registering column handler');
+      onColumnHandlerReady(editVisibleColumns);
+    }
+  }, [onColumnHandlerReady, editVisibleColumns]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>

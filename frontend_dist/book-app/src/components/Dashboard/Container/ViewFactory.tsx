@@ -1,68 +1,36 @@
-// src/components/Container/ViewFactory.tsx
+// src/components/Dashboard/Container/ViewFactory.tsx
 import React from 'react';
 import { TabNode } from 'flexlayout-react';
 import { Views } from './layoutTypes';
-//import MockMarketDataComponent from '../Viewers/MockMarketData/MarketData';
 import MarketDataComponent from '../Viewers/MarketData/MarketDataDashboard';
-//import PortfolioSummaryComponent from '../Viewers/Portfolio/PortfolioSummary';
-//import RiskDataComponent from '../Viewers/Risk/RiskData';
-//import OrdersComponent from '../Viewers/Orders/Orders';
 import OrderBlotterComponent from '../Viewers/OrderBlotter/OrderBlotterDashboard';
 import { AgGridColumnChooserController } from './Controllers';
 
 interface ViewFactoryProps {
   columnChooserController: AgGridColumnChooserController;
+  onViewColumnHandler?: (viewId: string, handler: () => void) => void;
 }
 
-export const createViewFactory = ({ columnChooserController }: ViewFactoryProps) => {
+export const createViewFactory = ({ columnChooserController, onViewColumnHandler }: ViewFactoryProps) => {
   return (node: TabNode) => {
     const component = node.getComponent();
+    const viewId = node.getId(); // Get unique view ID
     
     switch(component) {
-      /*
-      case Views.Portfolio:
-        return (
-          <PortfolioSummaryComponent 
-            colController={columnChooserController} 
-            viewId="portfolio"
-          />
-        );
-      case Views.MockMarketData:
-        return (
-          <MockMarketDataComponent 
-            colController={columnChooserController}
-            viewId="mockmarket"
-          />
-        );
-      */
       case Views.MarketData:
         return (
           <MarketDataComponent 
             colController={columnChooserController}
             viewId="marketdata"
+            onColumnHandlerReady={onViewColumnHandler ? (handler) => onViewColumnHandler(viewId, handler) : undefined}
           />
         );
-      /*
-      case Views.RiskAnalysis:
-        return (
-          <RiskDataComponent 
-            colController={columnChooserController}
-            viewId="risk"
-          />
-        );
-      case Views.Orders:
-        return (
-          <OrdersComponent 
-            colController={columnChooserController}
-            viewId="orders"
-          />
-        );
-      */
       case Views.OrderBlotter:
         return (
           <OrderBlotterComponent 
             colController={columnChooserController}
             viewId="orderblotter"
+            onColumnHandlerReady={onViewColumnHandler ? (handler) => onViewColumnHandler(viewId, handler) : undefined}
           />
         );
       default:
