@@ -1,4 +1,4 @@
-// src/components/Dashboard/Viewers/OrderBlotter/convictionColumnDefinitions.ts
+// src/components/Dashboard/Viewers/ConvictionBlotter/convictionColumnDefinitions.ts
 import { ColDef, CellStyle } from 'ag-grid-community';
 import { ConvictionModelConfig } from '@trading-app/types-core';
 import StatusCellRenderer from './utils/StatusCellRenderer';

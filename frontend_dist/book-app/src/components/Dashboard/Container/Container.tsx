@@ -198,7 +198,7 @@ const Container = () => {
   const [saveLayoutModalOpen, setSaveLayoutModalOpen] = useState(false);
   const [addViewModalOpen, setAddViewModalOpen] = useState(false);
   const [selectedViewType, setSelectedViewType] = useState<Views | null>(null);
-  const [cancelOrdersModalOpen, setCancelOrdersModalOpen] = useState(false);
+  const [cancelConvictionsModalOpen, setCancelConvictionsModalOpen] = useState(false);
 
   // Update model and force re-render
   const updateLayoutModel = (newModel: Model) => {
@@ -260,11 +260,11 @@ const Container = () => {
     }
   };
 
-  const handleCancelOrdersConfirm = () => {
-    console.log('🗑️ Container: Cancelling all orders via custom modal');
-    setCancelOrdersModalOpen(false);
-    console.log("All orders canceled");
-    alert("All orders canceled");
+  const handleCancelConvictionsConfirm = () => {
+    console.log('🗑️ Container: Cancelling all convictions via custom modal');
+    setCancelConvictionsModalOpen(false);
+    console.log("All convictions canceled");
+    alert("All convictions canceled");
   };
   
   // Main handlers
@@ -273,9 +273,9 @@ const Container = () => {
     setSaveLayoutModalOpen(true);
   };
 
-  const onCancelAllOrders = () => {
-    console.log('🗑️ Container: Cancel All Orders button clicked - using CUSTOM MODAL');
-    setCancelOrdersModalOpen(true);
+  const onCancelAllConvictions = () => {
+    console.log('🗑️ Container: Cancel All Convictions button clicked - using CUSTOM MODAL');
+    setCancelConvictionsModalOpen(true);
   };
 
   // Direct handler for Add View button
@@ -333,8 +333,8 @@ const Container = () => {
     switch (viewType) {
       case Views.MarketData:
         return 'Real-time market data display with price feeds and charts';
-      case Views.OrderBlotter:
-        return 'Order management interface for viewing and managing trades';
+      case Views.ConvictionBlotter:
+        return 'Conviction management interface for viewing and managing trades';
       default:
         return 'A new dashboard view';
     }
@@ -345,8 +345,8 @@ const Container = () => {
     switch (viewType) {
       case Views.MarketData:
         return 'Market Data';
-      case Views.OrderBlotter:
-        return 'Order Blotter';
+      case Views.ConvictionBlotter:
+        return 'Conviction Blotter';
       default:
         return 'New View';
     }
@@ -356,7 +356,7 @@ const Container = () => {
   const getAllViewTypes = (): ViewInfo[] => {
     return [
       { type: Views.MarketData, name: "Market Data", icon: "chart" },
-      { type: Views.OrderBlotter, name: "Order Blotter", icon: "import" }
+      { type: Views.ConvictionBlotter, name: "Conviction Blotter", icon: "import" }
     ];
   };
 
@@ -432,7 +432,7 @@ const Container = () => {
               case Views.MarketData:
                 icon = <Icon icon="chart" style={{ paddingRight: 5 }}></Icon>;
                 break;
-              case Views.OrderBlotter:
+              case Views.ConvictionBlotter:
                 icon = <Icon icon="shield" style={{ paddingRight: 5 }}></Icon>;
                 break;
               default:
@@ -456,8 +456,8 @@ const Container = () => {
           <Button 
             minimal={true} 
             icon="delete" 
-            text="Cancel All Desk Orders" 
-            onClick={onCancelAllOrders} 
+            text="Cancel All Desk Convictions" 
+            onClick={onCancelAllConvictions} 
           />
         </Navbar.Group>
       </Navbar>
@@ -533,7 +533,7 @@ const Container = () => {
             </div>
             <ul style={{ fontSize: '12px', color: '#888', marginTop: '8px', paddingLeft: '20px' }}>
               <li>Current tab layout and arrangement</li>
-              <li>Column visibility and order</li>
+              <li>Column visibility and conviction</li>
               <li>Column widths and sizing</li>
               <li>View configurations</li>
             </ul>
@@ -677,14 +677,14 @@ const Container = () => {
 
       {/* Cancel Orders Custom Modal */}
       <CustomModal
-        isOpen={cancelOrdersModalOpen}
-        title="🗑️ Cancel All Orders"
-        onClose={() => setCancelOrdersModalOpen(false)}
+        isOpen={cancelConvictionsModalOpen}
+        title="🗑️ Cancel All Convictions"
+        onClose={() => setCancelConvictionsModalOpen(false)}
       >
         <div style={{ padding: '20px' }}>
-          <h4 style={{ margin: '0 0 15px 0', color: '#333' }}>Cancel All Desk Orders</h4>
+          <h4 style={{ margin: '0 0 15px 0', color: '#333' }}>Cancel All Desk Convictions</h4>
           <p style={{ margin: '0 0 20px 0', color: '#666', lineHeight: '1.5' }}>
-            Are you sure you want to cancel all active orders for this trading desk? This action cannot be undone.
+            Are you sure you want to cancel all active convictions for this trading desk? This action cannot be undone.
           </p>
           <div style={{ 
             padding: '12px 16px', 
@@ -694,7 +694,7 @@ const Container = () => {
             border: '1px solid #ffeaa7'
           }}>
             <div style={{ fontSize: '13px', color: '#856404' }}>
-              <strong>⚠️ Warning:</strong> This will cancel all pending and partially filled orders
+              <strong>⚠️ Warning:</strong> This will cancel all pending and partially filled convictions
             </div>
           </div>
           <div style={{ 
@@ -705,7 +705,7 @@ const Container = () => {
             borderTop: '1px solid #eee'
           }}>
             <button 
-              onClick={() => setCancelOrdersModalOpen(false)}
+              onClick={() => setCancelConvictionsModalOpen(false)}
               style={{ 
                 padding: '10px 20px', 
                 backgroundColor: '#6c757d', 
@@ -717,10 +717,10 @@ const Container = () => {
                 cursor: 'pointer'
               }}
             >
-              Keep Orders
+              Keep Convictions
             </button>
             <button 
-              onClick={handleCancelOrdersConfirm}
+              onClick={handleCancelConvictionsConfirm}
               style={{ 
                 padding: '10px 20px', 
                 backgroundColor: '#dc3545', 
@@ -732,7 +732,7 @@ const Container = () => {
                 cursor: 'pointer'
               }}
             >
-              🗑️ Cancel All Orders
+              🗑️ Cancel All Convictions
             </button>
           </div>
         </div>

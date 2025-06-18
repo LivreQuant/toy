@@ -1,11 +1,11 @@
-// src/components/Dashboard/Viewers/OrderBlotter/OrderBlotterGrid.tsx
+// src/components/Dashboard/Viewers/ConvictionBlotter/ConvictionBlotterGrid.tsx
 import React, { useState, useEffect } from 'react';
 import { GridApi, ColDef } from 'ag-grid-community';
 import ConfigurableGrid from '../../AgGrid/ConfigurableGrid';
 import { darkTheme } from '../../AgGrid/gridThemes';
 import StatusCellRenderer from './utils/StatusCellRenderer';
 
-interface OrderBlotterGridProps {
+interface ConvictionBlotterGridProps {
   columnDefs: ColDef[];
   rowData: any[];
   viewId: string;
@@ -20,7 +20,7 @@ interface ConvictionData {
   [key: string]: any;
 }
 
-const OrderBlotterGrid: React.FC<OrderBlotterGridProps> = (props) => {
+const ConvictionBlotterGrid: React.FC<ConvictionBlotterGridProps> = (props) => {
   const components = {
     statusCellRenderer: StatusCellRenderer
   };
@@ -69,4 +69,4 @@ const OrderBlotterGrid: React.FC<OrderBlotterGridProps> = (props) => {
   );
 };
 
-export default OrderBlotterGrid;
+export default ConvictionBlotterGrid;

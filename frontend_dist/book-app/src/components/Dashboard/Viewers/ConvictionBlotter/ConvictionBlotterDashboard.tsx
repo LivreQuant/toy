@@ -1,12 +1,12 @@
-// src/components/Dashboard/Viewers/OrderBlotter/OrderBlotterDashboard.tsx
+// src/components/Dashboard/Viewers/ConvictionBlotter/ConvictionBlotterDashboard.tsx
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { GridApi, ColDef } from 'ag-grid-community';
 import { AgGridColumnChooserController } from '../../Container/Controllers';
-import OrderBlotterToolbar from './OrderBlotterToolbar';
-import OrderBlotterGrid from './OrderBlotterGrid';
+import ConvictionBlotterToolbar from './ConvictionBlotterToolbar';
+import ConvictionBlotterGrid from './ConvictionBlotterGrid';
 import { ColumnStateService, ColumnStateDetails } from '../../AgGrid/columnStateService';
 import { getConvictionColumnDefs, validateConvictionData } from './convictionColumnDefinitions';
-import { useOrderData, OrderDataStatus } from './useOrderBlotterData';
+import { useConvictionData, ConvictionDataStatus } from './useConvictionBlotterData';
 import { useParams } from 'react-router-dom';
 import { useBookManager } from '../../../../hooks/useBookManager';
 import { useToast } from '../../../../hooks/useToast';
@@ -17,13 +17,13 @@ import ConvictionFileProcessor from '../../../Simulator/ConvictionFileProcessor'
 import ConvictionFormatInfo from './ConvictionFormatInfo'; // NEW COMPONENT
 import { useConvictionManager } from '../../../../contexts/ConvictionContext';
 
-interface OrderBlotterDashboardProps {
+interface ConvictionBlotterDashboardProps {
   colController: AgGridColumnChooserController;
   viewId: string;
   onColumnHandlerReady?: (handler: () => void) => void;
 }
 
-const OrderBlotterDashboard: React.FC<OrderBlotterDashboardProps> = ({ 
+const ConvictionBlotterDashboard: React.FC<ConvictionBlotterDashboardProps> = ({ 
   colController, 
   viewId,
   onColumnHandlerReady
@@ -45,7 +45,7 @@ const OrderBlotterDashboard: React.FC<OrderBlotterDashboardProps> = ({
   const columnDefsRef = useRef(columnDefsState);
   
   const {
-    orderData: convictionData,
+    convictionData: convictionData,
     status,
     error,
     dataCount,
@@ -53,8 +53,8 @@ const OrderBlotterDashboard: React.FC<OrderBlotterDashboardProps> = ({
     isDropzoneVisible,
     processFile,
     clearData,
-    updateOrderData: updateConvictionData
-  } = useOrderData(viewId);
+    updateConvictionData: updateConvictionData
+  } = useConvictionData(viewId);
 
   // Load book's conviction schema
   useEffect(() => {
@@ -330,7 +330,7 @@ const OrderBlotterDashboard: React.FC<OrderBlotterDashboardProps> = ({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {!isDropzoneVisible && (
-        <OrderBlotterToolbar
+        <ConvictionBlotterToolbar
           title="Conviction Blotter"
           onSubmitConvictions={handleSubmitConvictions}
           onDeleteSelected={handleDeleteSelectedConvictions}
@@ -384,7 +384,7 @@ const OrderBlotterDashboard: React.FC<OrderBlotterDashboardProps> = ({
           </div>
         </div>
       ) : (
-        <OrderBlotterGrid
+        <ConvictionBlotterGrid
           columnDefs={columnDefsRef.current}
           rowData={convictionData}
           viewId={viewId}
@@ -403,4 +403,4 @@ const OrderBlotterDashboard: React.FC<OrderBlotterDashboardProps> = ({
   );
 };
 
-export default OrderBlotterDashboard;
+export default ConvictionBlotterDashboard;

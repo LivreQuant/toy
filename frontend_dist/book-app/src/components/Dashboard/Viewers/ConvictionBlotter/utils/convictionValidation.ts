@@ -1,4 +1,4 @@
-// src/components/Dashboard/Viewers/OrderBlotter/utils/convictionValidation.ts
+// src/components/Dashboard/Viewers/ConvictionBlotter/utils/convictionValidation.ts
 
 // Valid values for conviction fields
 const VALID_SIDES = ['BUY', 'SELL', 'CLOSE'];
@@ -145,7 +145,3 @@ export const processConvictionCsvData = (parsedCsv: any): {
     };
   }
 };
-
-// Keep the old exports for backward compatibility
-export const validateOrderRow = validateConvictionRow;
-export const processOrderCsvData = processConvictionCsvData;

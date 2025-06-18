@@ -1,4 +1,4 @@
-// src/components/Dashboard/Viewers/OrderBlotter/ConvictionFormatInfo.tsx
+// src/components/Dashboard/Viewers/ConvictionBlotter/ConvictionFormatInfo.tsx
 import React, { useMemo } from 'react';
 import { ConvictionModelConfig } from '@trading-app/types-core';
 import ConvictionFileProcessor from '../../../Simulator/ConvictionFileProcessor';

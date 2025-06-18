@@ -1,9 +1,9 @@
-// src/components/Dashboard/Viewers/OrderBlotter/OrderBlotterToolbar.tsx
+// src/components/Dashboard/Viewers/ConvictionBlotter/ConvictionBlotterToolbar.tsx
 import React from 'react';
 import { Button, InputGroup, Tag, Intent } from '@blueprintjs/core';
 import { ConvictionModelConfig } from '@trading-app/types-core';
 
-interface OrderBlotterToolbarProps {
+interface ConvictionBlotterToolbarProps {
   title?: string;
   onSubmitConvictions: () => void;
   onDeleteSelected: () => void;
@@ -21,7 +21,7 @@ interface OrderBlotterToolbarProps {
   convictionSchema?: ConvictionModelConfig | null;
 }
 
-const OrderBlotterToolbar: React.FC<OrderBlotterToolbarProps> = ({
+const ConvictionBlotterToolbar: React.FC<ConvictionBlotterToolbarProps> = ({
   title = "Conviction Blotter",
   onSubmitConvictions,
   onDeleteSelected,
@@ -208,4 +208,4 @@ const OrderBlotterToolbar: React.FC<OrderBlotterToolbarProps> = ({
  );
 };
 
-export default OrderBlotterToolbar;
+export default ConvictionBlotterToolbar;

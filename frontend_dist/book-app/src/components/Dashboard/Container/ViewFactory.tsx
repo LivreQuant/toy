@@ -3,7 +3,7 @@ import React from 'react';
 import { TabNode } from 'flexlayout-react';
 import { Views } from './layoutTypes';
 import MarketDataComponent from '../Viewers/MarketData/MarketDataDashboard';
-import OrderBlotterComponent from '../Viewers/OrderBlotter/OrderBlotterDashboard';
+import ConvictionBlotterComponent from '../Viewers/ConvictionBlotter/ConvictionBlotterDashboard';
 import { AgGridColumnChooserController } from './Controllers';
 
 interface ViewFactoryProps {
@@ -25,11 +25,11 @@ export const createViewFactory = ({ columnChooserController, onViewColumnHandler
             onColumnHandlerReady={onViewColumnHandler ? (handler) => onViewColumnHandler(viewId, handler) : undefined}
           />
         );
-      case Views.OrderBlotter:
+      case Views.ConvictionBlotter:
         return (
-          <OrderBlotterComponent 
+          <ConvictionBlotterComponent 
             colController={columnChooserController}
-            viewId="orderblotter"
+            viewId="convictionblotter"
             onColumnHandlerReady={onViewColumnHandler ? (handler) => onViewColumnHandler(viewId, handler) : undefined}
           />
         );

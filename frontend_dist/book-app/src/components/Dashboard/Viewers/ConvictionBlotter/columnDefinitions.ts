@@ -1,4 +1,4 @@
-// src/components/Dashboard/Viewers/OrderBlotter/columnDefinitions.ts
+// src/components/Dashboard/Viewers/ConvictionBlotter/columnDefinitions.ts
 import { ColDef } from 'ag-grid-community';
 import { GlobalColours } from '../../AgGrid/Colours';
 import StatusCellRenderer from './utils/StatusCellRenderer';
@@ -27,7 +27,7 @@ const createStatusPriorityComparator = <T extends any>(defaultComparator: (a: T,
 const textComparator = createStatusPriorityComparator<string>((a, b) => (a || '').localeCompare(b || ''));
 const numberComparator = createStatusPriorityComparator<number>((a, b) => (a || 0) - (b || 0));
 
-export const getOrderBlotterColumnDefs = (): ColDef[] => [
+export const getConvictionBlotterColumnDefs = (): ColDef[] => [
   { 
     headerName: 'Status', 
     field: 'status', 
@@ -37,8 +37,8 @@ export const getOrderBlotterColumnDefs = (): ColDef[] => [
     cellRenderer: StatusCellRenderer
   },
   { 
-    headerName: 'Client Order ID', 
-    field: 'clOrderId', 
+    headerName: 'Client Conviction ID', 
+    field: 'clConvictionId', 
     width: 150,
     sortable: true,
     filter: true,
@@ -62,7 +62,7 @@ export const getOrderBlotterColumnDefs = (): ColDef[] => [
   },
   { 
     headerName: 'Side', 
-    field: 'orderSide', 
+    field: 'convictionSide', 
     width: 80,
     sortable: true,
     filter: true,
@@ -104,8 +104,8 @@ export const getOrderBlotterColumnDefs = (): ColDef[] => [
     comparator: textComparator
   },
   { 
-    headerName: 'Order Type', 
-    field: 'orderType', 
+    headerName: 'Conviction Type', 
+    field: 'ConvictionType', 
     width: 120,
     filter: true,
     comparator: textComparator

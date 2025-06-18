@@ -8,8 +8,7 @@ export enum Views {
   //MockMarketData = "mockmarket",
   //RiskAnalysis = "risk",
   MarketData = "marketdata",
-  //Orders = "orders",
-  OrderBlotter = "orderblotter",
+  ConvictionBlotter = "convictionblotter",
 }
 
 // Define the structure for the complete configuration

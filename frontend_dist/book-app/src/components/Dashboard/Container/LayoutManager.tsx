@@ -49,13 +49,13 @@ export class LayoutManager {
       views.push({ type: Views.RiskAnalysis, name: "Risk Analysis", icon: "shield" });
     }
     
-    if (!this.isViewInLayout(Views.Orders)) {
-      views.push({ type: Views.Orders, name: "Orders", icon: "document-open" });
+    if (!this.isViewInLayout(Views.ConvictionsFills)) {
+      views.push({ type: Views.Convictions, name: "Convictions", icon: "document-open" });
     }
     */
     
-    if (!this.isViewInLayout(Views.OrderBlotter)) {
-      views.push({ type: Views.OrderBlotter, name: "Order Blotter", icon: "import" });
+    if (!this.isViewInLayout(Views.ConvictionBlotter)) {
+      views.push({ type: Views.ConvictionBlotter, name: "Conviction Blotter", icon: "import" });
     }
     return views;
   };

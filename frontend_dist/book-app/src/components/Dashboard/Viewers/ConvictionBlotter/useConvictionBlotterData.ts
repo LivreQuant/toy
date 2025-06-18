@@ -1,18 +1,18 @@
-// src/components/Dashboard/Viewers/OrderBlotter/useOrderBlotterData.ts
+// src/components/Dashboard/Viewers/ConvictionBlotter/useConvictionBlotterData.ts
 import { useState, useRef, useEffect } from 'react';
 import { ColumnStateService } from '../../AgGrid/columnStateService';
 import { validateConvictionsCsv, parseConvictionsCsv } from './utils/convictionCsvUtils';
 
-export enum OrderDataStatus {
+export enum ConvictionDataStatus {
   READY = 'READY',
   LOADING = 'LOADING',
   ERROR = 'ERROR',
   NO_DATA = 'NO_DATA'
 }
 
-export const useOrderData = (viewId: string) => {
-  const [orderData, setOrderData] = useState<any[]>([]);
-  const [status, setStatus] = useState<OrderDataStatus>(OrderDataStatus.NO_DATA);
+export const useConvictionData = (viewId: string) => {
+  const [convictionData, setConvictionData] = useState<any[]>([]);
+  const [status, setStatus] = useState<ConvictionDataStatus>(ConvictionDataStatus.NO_DATA);
   const [error, setError] = useState<string | null>(null);
   const [dataCount, setDataCount] = useState<number>(0);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
@@ -48,7 +48,7 @@ export const useOrderData = (viewId: string) => {
 
   const processFile = async (file: File) => {
     try {
-      setStatus(OrderDataStatus.LOADING);
+      setStatus(ConvictionDataStatus.LOADING);
       setError(null);
       
       // Validate the CSV file structure
@@ -59,58 +59,58 @@ export const useOrderData = (viewId: string) => {
       
       if (convictions.length === 0) {
         setError('No convictions found in the CSV file.');
-        setStatus(OrderDataStatus.ERROR);
+        setStatus(ConvictionDataStatus.ERROR);
         return false;
       }
       
       const processedConvictions = processConvictionWithColumnOrder(convictions);
       
-      setOrderData(processedConvictions);
+      setConvictionData(processedConvictions);
       latestDataRef.current = processedConvictions;
       setDataCount(processedConvictions.length);
       setLastUpdated(new Date().toLocaleTimeString());
       setIsDropzoneVisible(false);
       
       if (hasErrors) {
-        setStatus(OrderDataStatus.ERROR);
+        setStatus(ConvictionDataStatus.ERROR);
       } else {
-        setStatus(OrderDataStatus.READY);
+        setStatus(ConvictionDataStatus.READY);
       }
       
       return true;
     } catch (error) {
       console.error('Error processing CSV file:', error);
       setError(`${error instanceof Error ? error.message : 'Unknown error processing file'}`);
-      setStatus(OrderDataStatus.ERROR);
+      setStatus(ConvictionDataStatus.ERROR);
       return false;
     }
   };
 
   const clearData = () => {
-    setOrderData([]);
+    setConvictionData([]);
     latestDataRef.current = [];
     setDataCount(0);
     setLastUpdated(null);
     setError(null);
-    setStatus(OrderDataStatus.NO_DATA);
+    setStatus(ConvictionDataStatus.NO_DATA);
     setIsDropzoneVisible(true);
   };
   
-  const updateOrderData = (newConvictionData: any[]) => {
+  const updateConvictionData = (newConvictionData: any[]) => {
     const processedConvictions = processConvictionWithColumnOrder(newConvictionData);
-    setOrderData(processedConvictions);
+    setConvictionData(processedConvictions);
     latestDataRef.current = processedConvictions;
     setDataCount(processedConvictions.length);
     setLastUpdated(new Date().toLocaleTimeString());
     
     if (processedConvictions.length === 0) {
       setIsDropzoneVisible(true);
-      setStatus(OrderDataStatus.NO_DATA);
+      setStatus(ConvictionDataStatus.NO_DATA);
     }
   };
 
   return {
-    orderData,
+    convictionData,
     status,
     error,
     dataCount,
@@ -118,7 +118,7 @@ export const useOrderData = (viewId: string) => {
     isDropzoneVisible,
     processFile,
     clearData,
-    updateOrderData,
-    setOrderData
+    updateConvictionData,
+    setConvictionData
   };
 };
