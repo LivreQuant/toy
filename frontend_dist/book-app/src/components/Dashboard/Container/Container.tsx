@@ -1,5 +1,4 @@
-// Update the Container.tsx file with these corrections:
-
+// src/components/Dashboard/Container/Container.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { Layout, Model, TabNode } from 'flexlayout-react';
@@ -200,17 +199,6 @@ const Container = () => {
   const [addViewModalOpen, setAddViewModalOpen] = useState(false);
   const [selectedViewType, setSelectedViewType] = useState<Views | null>(null);
   const [cancelOrdersModalOpen, setCancelOrdersModalOpen] = useState(false);
-  
-  // Active view tracking for column chooser
-  const [activeViewType, setActiveViewType] = useState<Views | null>(null);
-  const [activeViewName, setActiveViewName] = useState<string>('');
-  
-  // Debug state to track dialog status
-  const [debugInfo, setDebugInfo] = useState({
-    questionDialogOpen: false,
-    viewNameDialogOpen: false,
-    columnChooserOpen: false
-  });
 
   // Update model and force re-render
   const updateLayoutModel = (newModel: Model) => {
@@ -246,39 +234,6 @@ const Container = () => {
     
     loadSavedLayout();
   }, [configService]);
-
-  // FIXED: Track active tab changes for column chooser
-  useEffect(() => {
-    // Listen for model changes to detect active tab
-    const handleActiveTabChange = () => {
-      try {
-        // Get the active tabset and selected node from the model
-        const activeTabset = model.getActiveTabset();
-        if (activeTabset) {
-          const selectedNode = activeTabset.getSelectedNode();
-          if (selectedNode && selectedNode.getType() === 'tab') {
-            const tabNode = selectedNode as TabNode;
-            const component = tabNode.getComponent();
-            const name = tabNode.getName();
-            
-            console.log('📋 Active tab changed:', { component, name });
-            setActiveViewType(component as Views);
-            setActiveViewName(name);
-          }
-        }
-      } catch (error) {
-        console.warn('Could not determine active tab:', error);
-      }
-    };
-
-    // Initial check
-    handleActiveTabChange();
-    
-    // We'll use a periodic check since we don't have direct event listeners
-    const interval = setInterval(handleActiveTabChange, 1000);
-    
-    return () => clearInterval(interval);
-  }, [model, layoutUpdate]);
   
   // Factory function using the view factory module
   const factory = createViewFactory({ columnChooserController });
@@ -312,38 +267,6 @@ const Container = () => {
     alert("All orders canceled");
   };
   
-  
-  // NEW: Global Columns handler
-  const onGlobalColumns = () => {
-    console.log('📋 Container: Global Columns button clicked');
-    console.log('📋 Active view:', { type: activeViewType, name: activeViewName });
-    
-    if (!activeViewType) {
-      alert('No active view selected. Please select a tab first.');
-      return;
-    }
-
-    // Get the view-specific name for the column chooser
-    const viewDisplayName = getViewDisplayName(activeViewType);
-    
-    // Get demo column states and create simplified column objects
-    const demoColumnStates = getDemoColumnStates(activeViewType);
-    const demoColumns = getDemoColumns(activeViewType);
-    
-    columnChooserController.open(
-      viewDisplayName,
-      demoColumnStates,
-      demoColumns as any, // Use 'as any' to bypass type checking, same as testColumnChooser
-      (result) => {
-        console.log('📋 Global column chooser result:', result);
-        if (result) {
-          alert(`Column visibility updated for ${viewDisplayName}`);
-          // In a real implementation, you would broadcast this change to the active view
-        }
-      }
-    );
-  };
-  
   // Main handlers
   const onSaveLayout = () => {
     console.log('💾 Container: Save Layout button clicked - using CUSTOM MODAL');
@@ -355,7 +278,7 @@ const Container = () => {
     setCancelOrdersModalOpen(true);
   };
 
-  // NEW: Direct handler for Add View button
+  // Direct handler for Add View button
   const onAddView = () => {
     console.log('➕ Container: Add View button clicked - opening custom modal');
     setAddViewModalOpen(true);
@@ -429,90 +352,6 @@ const Container = () => {
     }
   };
 
-  // Helper function to get display name for active view
-  const getViewDisplayName = (viewType: Views) => {
-    switch (viewType) {
-      case Views.MarketData:
-        return 'Market Data';
-      case Views.OrderBlotter:
-        return 'Order Blotter';
-      default:
-        return 'Current View';
-    }
-  };
-
-  // Helper function to get demo column states (replace with real implementation)
-  const getDemoColumnStates = (viewType: Views) => {
-    switch (viewType) {
-      case Views.MarketData:
-        return [
-          { colId: 'instrument', hide: false },
-          { colId: 'exchange', hide: false },
-          { colId: 'timestamp', hide: false },
-          { colId: 'close', hide: false },
-          { colId: 'open', hide: true },
-          { colId: 'high', hide: true },
-          { colId: 'low', hide: true },
-          { colId: 'volume', hide: false },
-          { colId: 'change', hide: false }
-        ];
-      case Views.OrderBlotter:
-        return [
-          { colId: 'status', hide: false },
-          { colId: 'clOrderId', hide: false },
-          { colId: 'instrument', hide: false },
-          { colId: 'exchange', hide: false },
-          { colId: 'orderSide', hide: false },
-          { colId: 'quantity', hide: false },
-          { colId: 'price', hide: false },
-          { colId: 'currency', hide: true },
-          { colId: 'orderType', hide: false },
-          { colId: 'fillRate', hide: true }
-        ];
-      default:
-        return [];
-    }
-  };
-    
-  // Keep the getDemoColumns function as it was (simple version):
-  const getDemoColumns = (viewType: Views) => {
-    // Create simplified column objects that match what the column chooser expects
-    const createColumnLike = (colId: string, headerName: string) => ({
-      getColId: () => colId,
-      getDefinition: () => ({ headerName })
-    });
-
-    switch (viewType) {
-      case Views.MarketData:
-        return [
-          createColumnLike('instrument', 'Instrument'),
-          createColumnLike('exchange', 'Exchange'),
-          createColumnLike('timestamp', 'Time'),
-          createColumnLike('close', 'Close'),
-          createColumnLike('open', 'Open'),
-          createColumnLike('high', 'High'),
-          createColumnLike('low', 'Low'),
-          createColumnLike('volume', 'Volume'),
-          createColumnLike('change', 'Change')
-        ];
-      case Views.OrderBlotter:
-        return [
-          createColumnLike('status', 'Status'),
-          createColumnLike('clOrderId', 'Client Order ID'),
-          createColumnLike('instrument', 'Instrument'),
-          createColumnLike('exchange', 'Exchange'),
-          createColumnLike('orderSide', 'Side'),
-          createColumnLike('quantity', 'Quantity'),
-          createColumnLike('price', 'Price'),
-          createColumnLike('currency', 'Currency'),
-          createColumnLike('orderType', 'Order Type'),
-          createColumnLike('fillRate', 'Fill Rate')
-        ];
-      default:
-        return [];
-    }
-  };
-
   // Get all possible view types (not just available ones)
   const getAllViewTypes = (): ViewInfo[] => {
     return [
@@ -554,12 +393,8 @@ const Container = () => {
         <button onClick={testColumnChooser} style={{ padding: '4px 8px', fontSize: '11px', backgroundColor: '#9C27B0', color: 'white', border: 'none', borderRadius: '3px' }}>
           Test Blueprint Column
         </button>
-        <button onClick={onGlobalColumns} style={{ padding: '4px 8px', fontSize: '11px', backgroundColor: '#607D8B', color: 'white', border: 'none', borderRadius: '3px' }}>
-          Test Global Columns
-        </button>
         <span style={{ marginLeft: '20px' }}>STATUS:</span>
         <span>Available Views: {availableViews.length}</span>
-        <span>Active: {activeViewName || 'None'} ({activeViewType || 'None'})</span>
       </div>
 
       {/* Top Navbar */}
@@ -578,18 +413,6 @@ const Container = () => {
             icon="floppy-disk" 
             text="Save Layout" 
             onClick={onSaveLayout}
-          />
-        </Navbar.Group>
-        
-        {/* NEW: Right side with Columns button */}
-        <Navbar.Group align={Alignment.RIGHT}>
-          <Button 
-            minimal={true} 
-            icon="manually-entered-data" 
-            text="Columns" 
-            onClick={onGlobalColumns}
-            disabled={!activeViewType}
-            title={activeViewType ? `Configure columns for ${activeViewName}` : 'Select a view to configure columns'}
           />
         </Navbar.Group>
       </Navbar>
@@ -659,7 +482,7 @@ const Container = () => {
         </div>
       </div>
 
-      {/* All existing modals remain the same... */}
+      {/* Test Custom Modal */}
       <CustomModal
         isOpen={testModalOpen}
         title="🧪 Test Custom Modal"
@@ -803,119 +626,119 @@ const Container = () => {
                       <strong style={{ fontSize: '16px', color: '#333' }}>{viewInfo.name}</strong>
                     </div>
                     <div style={{ fontSize: '14px', color: '#666', paddingLeft: '30px' }}>
-                    {getViewDescription(viewInfo.type)}
-                   </div>
-                 </div>
-               ))}
-             </div>
-             
-             <div style={{ 
-               display: 'flex', 
-               justifyContent: 'flex-end',
-               paddingTop: '20px',
-               borderTop: '1px solid #eee'
-             }}>
-               <button 
-                 onClick={() => setAddViewModalOpen(false)}
-                 style={{ 
-                   padding: '10px 20px', 
-                   backgroundColor: '#6c757d', 
-                   color: 'white', 
-                   border: 'none', 
-                   borderRadius: '6px',
-                   fontSize: '14px',
-                   fontWeight: '500',
-                   cursor: 'pointer'
-                 }}
-               >
-                 Cancel
-               </button>
-             </div>
-           </div>
-         ) : (
-           <ViewNameStep 
-             selectedViewType={selectedViewType}
-             onBack={() => setSelectedViewType(null)}
-             onCancel={() => {
-               setAddViewModalOpen(false);
-               setSelectedViewType(null);
-             }}
-             onConfirm={(viewName: string) => {
-               console.log('📋 Creating view:', selectedViewType, viewName);
-               handleAddViewConfirm(selectedViewType, viewName);
-             }}
-             getAllViewTypes={getAllViewTypes}
-             getViewDescription={getViewDescription}
-             getViewDefaultName={getViewDefaultName}
-           />
-         )}
-       </div>
-     </CustomModal>
+                      {getViewDescription(viewInfo.type)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              <div style={{ 
+                display: 'flex', 
+                justifyContent: 'flex-end',
+                paddingTop: '20px',
+                borderTop: '1px solid #eee'
+              }}>
+                <button 
+                  onClick={() => setAddViewModalOpen(false)}
+                  style={{ 
+                    padding: '10px 20px', 
+                    backgroundColor: '#6c757d', 
+                    color: 'white', 
+                    border: 'none', 
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <ViewNameStep 
+              selectedViewType={selectedViewType}
+              onBack={() => setSelectedViewType(null)}
+              onCancel={() => {
+                setAddViewModalOpen(false);
+                setSelectedViewType(null);
+              }}
+              onConfirm={(viewName: string) => {
+                console.log('📋 Creating view:', selectedViewType, viewName);
+                handleAddViewConfirm(selectedViewType, viewName);
+              }}
+              getAllViewTypes={getAllViewTypes}
+              getViewDescription={getViewDescription}
+              getViewDefaultName={getViewDefaultName}
+            />
+          )}
+        </div>
+      </CustomModal>
 
-     {/* Cancel Orders Custom Modal */}
-     <CustomModal
-       isOpen={cancelOrdersModalOpen}
-       title="🗑️ Cancel All Orders"
-       onClose={() => setCancelOrdersModalOpen(false)}
-     >
-       <div style={{ padding: '20px' }}>
-         <h4 style={{ margin: '0 0 15px 0', color: '#333' }}>Cancel All Desk Orders</h4>
-         <p style={{ margin: '0 0 20px 0', color: '#666', lineHeight: '1.5' }}>
-           Are you sure you want to cancel all active orders for this trading desk? This action cannot be undone.
-         </p>
-         <div style={{ 
-           padding: '12px 16px', 
-           backgroundColor: '#fff3cd', 
-           borderRadius: '6px', 
-           marginBottom: '20px',
-           border: '1px solid #ffeaa7'
-         }}>
-           <div style={{ fontSize: '13px', color: '#856404' }}>
-             <strong>⚠️ Warning:</strong> This will cancel all pending and partially filled orders
-           </div>
-         </div>
-         <div style={{ 
-           display: 'flex', 
-           gap: '12px', 
-           justifyContent: 'flex-end',
-           paddingTop: '10px',
-           borderTop: '1px solid #eee'
-         }}>
-           <button 
-             onClick={() => setCancelOrdersModalOpen(false)}
-             style={{ 
-               padding: '10px 20px', 
-               backgroundColor: '#6c757d', 
-               color: 'white', 
-               border: 'none', 
-               borderRadius: '6px',
-               fontSize: '14px',
-               fontWeight: '500',
-               cursor: 'pointer'
-             }}
-           >
-             Keep Orders
-           </button>
-           <button 
-             onClick={handleCancelOrdersConfirm}
-             style={{ 
-               padding: '10px 20px', 
-               backgroundColor: '#dc3545', 
-               color: 'white', 
-               border: 'none', 
-               borderRadius: '6px',
-               fontSize: '14px',
-               fontWeight: '500',
-               cursor: 'pointer'
-             }}
-           >
-             🗑️ Cancel All Orders
-           </button>
-         </div>
-       </div>
-     </CustomModal>
-   </div>
- );
+      {/* Cancel Orders Custom Modal */}
+      <CustomModal
+        isOpen={cancelOrdersModalOpen}
+        title="🗑️ Cancel All Orders"
+        onClose={() => setCancelOrdersModalOpen(false)}
+      >
+        <div style={{ padding: '20px' }}>
+          <h4 style={{ margin: '0 0 15px 0', color: '#333' }}>Cancel All Desk Orders</h4>
+          <p style={{ margin: '0 0 20px 0', color: '#666', lineHeight: '1.5' }}>
+            Are you sure you want to cancel all active orders for this trading desk? This action cannot be undone.
+          </p>
+          <div style={{ 
+            padding: '12px 16px', 
+            backgroundColor: '#fff3cd', 
+            borderRadius: '6px', 
+            marginBottom: '20px',
+            border: '1px solid #ffeaa7'
+          }}>
+            <div style={{ fontSize: '13px', color: '#856404' }}>
+              <strong>⚠️ Warning:</strong> This will cancel all pending and partially filled orders
+            </div>
+          </div>
+          <div style={{ 
+            display: 'flex', 
+            gap: '12px', 
+            justifyContent: 'flex-end',
+            paddingTop: '10px',
+            borderTop: '1px solid #eee'
+          }}>
+            <button 
+              onClick={() => setCancelOrdersModalOpen(false)}
+              style={{ 
+                padding: '10px 20px', 
+                backgroundColor: '#6c757d', 
+                color: 'white', 
+                border: 'none', 
+                borderRadius: '6px',
+                fontSize: '14px',
+                fontWeight: '500',
+                cursor: 'pointer'
+              }}
+            >
+              Keep Orders
+            </button>
+            <button 
+              onClick={handleCancelOrdersConfirm}
+              style={{ 
+                padding: '10px 20px', 
+                backgroundColor: '#dc3545', 
+                color: 'white', 
+                border: 'none', 
+                borderRadius: '6px',
+                fontSize: '14px',
+                fontWeight: '500',
+                cursor: 'pointer'
+              }}
+            >
+              🗑️ Cancel All Orders
+            </button>
+          </div>
+        </div>
+      </CustomModal>
+    </div>
+  );
 };
 
 export default Container;

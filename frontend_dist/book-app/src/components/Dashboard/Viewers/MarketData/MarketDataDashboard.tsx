@@ -6,13 +6,14 @@ import { useMarketData } from './useMarketData';
 import { getMarketDataColumnDefs } from './columnDefinitions';
 import MarketDataToolbar from './MarketDataToolbar';
 import MarketDataGrid from './MarketDataGrid';
+import ColumnChooserModal from '../../Container/ColumnChooserModal';
 import { ColumnStateService, ColumnStateDetails } from '../../AgGrid/columnStateService';
 import { MarketDataStatus } from './useMarketData';
 
 interface MarketDataDashboardProps {
   colController: AgGridColumnChooserController;
   viewId: string;
-  onColumnHandlerReady?: (handler: () => void) => void; // NEW
+  onColumnHandlerReady?: (handler: () => void) => void;
 }
 
 // Define StreamStatus locally since we removed the import
@@ -41,11 +42,12 @@ const getStreamStatus = (marketDataStatus: MarketDataStatus): StreamStatus => {
 const MarketDataDashboard: React.FC<MarketDataDashboardProps> = ({ 
   colController, 
   viewId,
-  onColumnHandlerReady // NEW
+  onColumnHandlerReady
 }) => {
   const [filterText, setFilterText] = useState<string>('');
   const [gridApi, setGridApi] = useState<GridApi | null>(null);
   const [columnDefsState, setColumnDefs] = useState<ColDef[]>(getMarketDataColumnDefs());
+  const [columnChooserOpen, setColumnChooserOpen] = useState(false);
   const preventUpdateRef = useRef(false);
   
   // Use a ref to store column definitions to prevent regeneration on data changes
@@ -108,105 +110,103 @@ const MarketDataDashboard: React.FC<MarketDataDashboardProps> = ({
     }
   }, [viewId]); // This effect should run once when component mounts
 
-  // UPDATED: Make editVisibleColumns stable with useCallback
+  // Custom column chooser function that opens the modal
   const editVisibleColumns = useCallback(() => {
+    setColumnChooserOpen(true);
+  }, []);
+
+  // Handler for the custom column chooser modal
+  const handleColumnChooserApply = useCallback((newColumns: any[]) => {
     try {
-      // Skip grid API calls entirely and just use our column definitions
-      const columnDefs = columnDefsRef.current;
+      // Check if anything has actually changed
+      const hasChanges = newColumns.some(state => {
+        const columnDef = columnDefsRef.current.find(def => def.field === state.colId);
+        return columnDef && (columnDef.hide !== state.hide);
+      });
+
+      if (!hasChanges) {
+        return;
+      }
+
+      console.log("[DEBUG A] Column visibility changed via modal");
       
-      // Create column states directly from column definitions
-      const columnStates = columnDefs.map(def => ({
+      // Create new column definitions with updated visibility
+      const updatedColumnDefs = columnDefsRef.current.map(colDef => {
+        if (!colDef.field) return colDef;
+        
+        const newState = newColumns.find(state => state.colId === colDef.field);
+        if (newState !== undefined) {
+          return {
+            ...colDef,
+            hide: newState.hide === true
+          };
+        }
+        return colDef;
+      });
+      
+      // Update the state with new column definitions
+      preventUpdateRef.current = true;
+      setColumnDefs(updatedColumnDefs);
+      
+      // Get current column state to preserve widths
+      const columnStateService = ColumnStateService.getInstance();
+      const currentState = columnStateService.getViewColumnState(viewId);
+      const columnState: ColumnStateDetails = {};
+      
+      // Convert from column state to our detailed state format
+      newColumns.forEach((state, index) => {
+        if (state.colId) {
+          // Preserve width from current state if available
+          const currentWidth = currentState[state.colId]?.width;
+          
+          columnState[state.colId] = {
+            visibility: !state.hide,
+            order: index,
+            ...(currentWidth !== undefined ? { width: currentWidth } : {})
+          };
+        }
+      });
+      
+      columnStateService.setViewColumnState(viewId, columnState);
+      
+      // Force refresh the grid
+      if (gridApi) {
+        console.log("[DEBUG A] Updating grid with new column definitions");
+        gridApi.setGridOption('columnDefs', updatedColumnDefs);
+      }
+      
+      setTimeout(() => {
+        preventUpdateRef.current = false;
+      }, 0);
+    } catch (error) {
+      console.error("Error applying column state:", error);
+    }
+  }, [viewId, gridApi]);
+
+  // Prepare data for the modal
+  const getModalData = useCallback(() => {
+    const columnDefs = columnDefsRef.current;
+    
+    // Create column states directly from column definitions
+    const columnStates = columnDefs
+      .filter(def => def.field) // Only include columns with fields
+      .map(def => ({
         colId: def.field || '',
         hide: def.hide === true
       }));
-      
-      // Create columns-like objects for header mapping
-      const columnLikes = columnDefs.map(def => ({
-        getColId: () => def.field || '',
-        getDefinition: () => ({ headerName: def.headerName || def.field || '' })
-      }));
-      
-      colController.open(
-        "Live Market Data",
-        columnStates,
-        columnLikes as any,
-        (newColumnsState) => {
-          if (!newColumnsState) {
-            return;
-          }
-          
-          try {
-            // Check if anything has actually changed
-            const hasChanges = newColumnsState.some(state => {
-              const columnDef = columnDefsRef.current.find(def => def.field === state.colId);
-              return columnDef && (columnDef.hide !== state.hide);
-            });
-            
-            if (!hasChanges) {
-              return;
-            }
-            
-            console.log("[DEBUG A] Column visibility changed via column chooser");
-            
-            // Create new column definitions with updated visibility
-            const updatedColumnDefs = columnDefs.map(colDef => {
-              if (!colDef.field) return colDef;
-              
-              const newState = newColumnsState.find(state => state.colId === colDef.field);
-              if (newState !== undefined) {
-                return {
-                  ...colDef,
-                  hide: newState.hide === true  // Make sure this matches AG Grid's 'hide' property
-                };
-              }
-              return colDef;
-            });
-            
-            // Update the state with new column definitions
-            preventUpdateRef.current = true;
-            setColumnDefs(updatedColumnDefs);
-            
-            // Get current column state to preserve widths
-            const columnStateService = ColumnStateService.getInstance();
-            const currentState = columnStateService.getViewColumnState(viewId);
-            const columnState: ColumnStateDetails = {};
-            
-            // Convert from column state to our detailed state format
-            newColumnsState.forEach((state, index) => {
-              if (state.colId) {
-                // Preserve width from current state if available
-                const currentWidth = currentState[state.colId]?.width;
-                
-                columnState[state.colId] = {
-                  visibility: !state.hide,  // Note the NOT operator here
-                  order: index,
-                  ...(currentWidth !== undefined ? { width: currentWidth } : {})
-                };
-              }
-            });
-            
-            columnStateService.setViewColumnState(viewId, columnState);
-            
-            // Force refresh the grid
-            if (gridApi) {
-              console.log("[DEBUG A] Updating grid with new column definitions");
-              gridApi.setGridOption('columnDefs', updatedColumnDefs);
-            }
-            
-            setTimeout(() => {
-              preventUpdateRef.current = false;
-            }, 0);
-          } catch (error) {
-            console.error("Error applying column state:", error);
-          }
-        }
-      );
-    } catch (error) {
-      console.error("Error opening column chooser:", error);
-    }
-  }, [colController, viewId, gridApi]);
+    
+    // Create header mapping
+    const columnHeaders = columnDefs.reduce((acc, def) => {
+      if (def.field) {
+        acc[def.field] = def.headerName || def.field || '';
+      }
+      return acc;
+    }, {} as { [key: string]: string });
+    
+    return { columnStates, columnHeaders };
+  }, []);
 
-  // NEW: Register the column handler with the container
+  // Register the column handler with the container
   useEffect(() => {
     if (onColumnHandlerReady) {
       console.log('📋 MarketData: Registering column handler');
@@ -254,6 +254,16 @@ const MarketDataDashboard: React.FC<MarketDataDashboardProps> = ({
             setColumnDefs(newColDefs);
           }
         }}
+      />
+
+      {/* Column Chooser Modal */}
+      <ColumnChooserModal
+        isOpen={columnChooserOpen}
+        title="Market Data"
+        columns={getModalData().columnStates}
+        columnHeaders={getModalData().columnHeaders}
+        onClose={() => setColumnChooserOpen(false)}
+        onApply={handleColumnChooserApply}
       />
     </div>
   );
