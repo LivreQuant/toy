@@ -14,7 +14,7 @@ import { ConvictionModelConfig } from '@trading-app/types-core';
 
 import FileUploadZone from '../../../Simulator/FileUploadZone';
 import ConvictionFileProcessor from '../../../Simulator/ConvictionFileProcessor';
-import ConvictionFormatInfo from './ConvictionFormatInfo'; // NEW COMPONENT
+import ConvictionFormatInfo from './ConvictionFormatInfo';
 import { useConvictionManager } from '../../../../contexts/ConvictionContext';
 
 interface ConvictionBlotterDashboardProps {
@@ -34,7 +34,6 @@ const ConvictionBlotterDashboard: React.FC<ConvictionBlotterDashboardProps> = ({
   const [selectedConvictions, setSelectedConvictions] = useState<any[]>([]);
   const [convictionSchema, setConvictionSchema] = useState<ConvictionModelConfig | null>(null);
   const [isLoadingSchema, setIsLoadingSchema] = useState(false);
-  const preventUpdateRef = useRef(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   const convictionManager = useConvictionManager();
@@ -43,9 +42,11 @@ const ConvictionBlotterDashboard: React.FC<ConvictionBlotterDashboardProps> = ({
   const { bookId } = useParams<{ bookId: string }>();
 
   const columnDefsRef = useRef(columnDefsState);
+  const preventUpdateRef = useRef(false);
+  const hasAppliedColumnOrder = useRef(false); // ← ADD THIS TO PREVENT INFINITE LOOP
   
   const {
-    convictionData: convictionData,
+    convictionData,
     status,
     error,
     dataCount,
@@ -53,37 +54,67 @@ const ConvictionBlotterDashboard: React.FC<ConvictionBlotterDashboardProps> = ({
     isDropzoneVisible,
     processFile,
     clearData,
-    updateConvictionData: updateConvictionData
+    updateConvictionData
   } = useConvictionData(viewId);
+
+  // Debug logging for component state
+  console.log('[ConvictionBlotter] Component state:', {
+    bookId,
+    convictionDataLength: convictionData.length,
+    status,
+    error,
+    dataCount,
+    lastUpdated,
+    isDropzoneVisible,
+    convictionSchema: convictionSchema ? 'loaded' : 'not loaded',
+    isLoadingSchema,
+    columnDefsStateLength: columnDefsState.length
+  });
 
   // Load book's conviction schema
   useEffect(() => {
     const loadConvictionSchema = async () => {
-      if (!bookId) return;
+      if (!bookId) {
+        console.log('[ConvictionBlotter] No bookId, skipping schema load');
+        return;
+      }
       
+      console.log('[ConvictionBlotter] Loading conviction schema for book:', bookId);
       setIsLoadingSchema(true);
+      
       try {
         const response = await bookManager.fetchBook(bookId);
+        console.log('[ConvictionBlotter] Book fetch response:', {
+          success: response.success,
+          hasBook: !!response.book,
+          hasConvictionSchema: !!response.book?.convictionSchema
+        });
         
         if (response.success && response.book?.convictionSchema) {
           setConvictionSchema(response.book.convictionSchema);
           
           const newColumnDefs = getConvictionColumnDefs(response.book.convictionSchema);
+          console.log('[ConvictionBlotter] Generated column defs:', {
+            count: newColumnDefs.length,
+            fields: newColumnDefs.map(def => def.field).filter(Boolean)
+          });
           setColumnDefs(newColumnDefs);
           
           addToast('info', `Loaded conviction schema: ${response.book.convictionSchema.portfolioApproach}/${response.book.convictionSchema.portfolioApproach === 'target' ? response.book.convictionSchema.targetConvictionMethod : response.book.convictionSchema.incrementalConvictionMethod}`);
         } else {
+          console.log('[ConvictionBlotter] Using default conviction schema');
           const defaultColumnDefs = getConvictionColumnDefs(null);
           setColumnDefs(defaultColumnDefs);
           addToast('warning', 'Using default conviction schema');
         }
       } catch (error: any) {
-        console.error('Error loading conviction schema:', error);
+        console.error('[ConvictionBlotter] Error loading conviction schema:', error);
         const defaultColumnDefs = getConvictionColumnDefs(null);
         setColumnDefs(defaultColumnDefs);
         addToast('error', 'Failed to load conviction schema, using defaults');
       } finally {
         setIsLoadingSchema(false);
+        console.log('[ConvictionBlotter] Schema loading completed');
       }
     };
 
@@ -94,8 +125,11 @@ const ConvictionBlotterDashboard: React.FC<ConvictionBlotterDashboardProps> = ({
     columnDefsRef.current = columnDefsState;
   }, [columnDefsState]);
 
+  // FIX: Only apply column order ONCE when columns are first loaded
   useEffect(() => {
-    if (columnDefsState.length === 0) return;
+    if (columnDefsState.length === 0 || hasAppliedColumnOrder.current) return;
+    
+    console.log('[ConvictionBlotter] Applying saved column order (one-time)');
     
     const columnStateService = ColumnStateService.getInstance();
     const savedState = columnStateService.getViewColumnState(viewId);
@@ -121,22 +155,50 @@ const ConvictionBlotterDashboard: React.FC<ConvictionBlotterDashboardProps> = ({
         }
       });
       
+      hasAppliedColumnOrder.current = true; // ← MARK AS APPLIED
       setColumnDefs(orderedDefs);
+    } else {
+      hasAppliedColumnOrder.current = true; // ← MARK AS APPLIED EVEN IF NO SAVED ORDER
     }
-  }, [viewId, columnDefsState]);
+  }, [viewId, columnDefsState.length]); // ← CHANGED: Only depend on length, not the array itself
 
   const handleFileAccepted = (file: File | null) => {
-    if (!file) return;
+    console.log('[ConvictionBlotter] handleFileAccepted called with:', file);
+    
+    if (!file) {
+      console.log('[ConvictionBlotter] No file provided');
+      return;
+    }
+    
+    console.log('[ConvictionBlotter] Processing file:', {
+      name: file.name,
+      size: file.size,
+      type: file.type,
+      convictionSchemaAvailable: !!convictionSchema
+    });
     
     const reader = new FileReader();
     reader.onload = (event) => {
       const content = event.target?.result as string;
+      console.log('[ConvictionBlotter] File content loaded:', {
+        contentLength: content.length,
+        firstLine: content.split('\n')[0],
+        lineCount: content.split('\n').length,
+        convictionSchema: convictionSchema ? 'available' : 'not available'
+      });
+      
       const processor = new ConvictionFileProcessor(convictionSchema, addToast);
       
       const parsedConvictions = processor.processSubmitCsv(content);
+      console.log('[ConvictionBlotter] Parsed convictions:', {
+        count: parsedConvictions.length,
+        sample: parsedConvictions.slice(0, 2),
+        allFields: parsedConvictions.length > 0 ? Object.keys(parsedConvictions[0]) : []
+      });
       
       if (parsedConvictions.length > 0) {
         const validation = validateConvictionData(parsedConvictions, convictionSchema);
+        console.log('[ConvictionBlotter] Validation result:', validation);
         
         if (!validation.isValid) {
           addToast('warning', `Missing required fields: ${validation.missingFields.join(', ')}`);
@@ -146,15 +208,40 @@ const ConvictionBlotterDashboard: React.FC<ConvictionBlotterDashboardProps> = ({
           addToast('info', `Unexpected fields found: ${validation.unexpectedFields.join(', ')}`);
         }
         
-        const convictionData = parsedConvictions.map((conviction, index) => ({
+        const convictionDataWithIds = parsedConvictions.map((conviction, index) => ({
           ...conviction,
           id: `CONV-${Date.now()}-${index}`,
           status: conviction.status || 'READY'
         }));
         
-        updateConvictionData(convictionData);
+        console.log('[ConvictionBlotter] Final conviction data being set:', {
+          count: convictionDataWithIds.length,
+          sample: convictionDataWithIds.slice(0, 2),
+          isDropzoneVisibleBefore: isDropzoneVisible,
+          statusBefore: status
+        });
+        
+        updateConvictionData(convictionDataWithIds);
         addToast('success', `Loaded ${parsedConvictions.length} convictions`);
+        
+        // Check state after update
+        setTimeout(() => {
+          console.log('[ConvictionBlotter] State after update (delayed check):', {
+            convictionDataLength: convictionData.length,
+            isDropzoneVisible,
+            status,
+            dataCount
+          });
+        }, 100);
+      } else {
+        console.log('[ConvictionBlotter] No convictions parsed from file');
+        addToast('warning', 'No valid convictions found in the CSV file');
       }
+    };
+    
+    reader.onerror = (error) => {
+      console.error('[ConvictionBlotter] File reader error:', error);
+      addToast('error', 'Failed to read the file');
     };
     
     reader.readAsText(file);
@@ -229,17 +316,21 @@ const ConvictionBlotterDashboard: React.FC<ConvictionBlotterDashboardProps> = ({
   };
   
   const handleSelectionChanged = () => {
+    console.log('[ConvictionBlotter] Selection changed, gridApi available:', !!gridApi);
     if (gridApi) {
       const selected = gridApi.getSelectedRows();
+      console.log('[ConvictionBlotter] Selected rows:', selected.length);
       setSelectedConvictions(selected);
     }
   };
   
   const handleReplaceFile = () => {
+    console.log('[ConvictionBlotter] Replace file clicked');
     clearData();
   };
   
   const handleFilterChange = (text: string) => {
+    console.log('[ConvictionBlotter] Filter changed to:', text);
     setFilterText(text);
   };
   
@@ -313,7 +404,18 @@ const ConvictionBlotterDashboard: React.FC<ConvictionBlotterDashboardProps> = ({
     }
   }, [onColumnHandlerReady, editVisibleColumns]);
 
+  // Debug the render decision
+  console.log('[ConvictionBlotter] Render decision:', {
+    isLoadingSchema,
+    isDropzoneVisible,
+    convictionDataLength: convictionData.length,
+    error,
+    status,
+    columnDefsLength: columnDefsState.length
+  });
+
   if (isLoadingSchema) {
+    console.log('[ConvictionBlotter] Rendering loading state');
     return (
       <div style={{ 
         display: 'flex', 
@@ -363,7 +465,6 @@ const ConvictionBlotterDashboard: React.FC<ConvictionBlotterDashboardProps> = ({
       
       {isDropzoneVisible ? (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-          {/* File Upload Section */}
           <div style={{ flex: '0 0 auto', marginBottom: '20px' }}>
             <FileUploadZone
               title="Conviction File"
@@ -375,7 +476,6 @@ const ConvictionBlotterDashboard: React.FC<ConvictionBlotterDashboardProps> = ({
             />
           </div>
           
-          {/* Format Information Section */}
           <div style={{ flex: '1 1 auto', overflow: 'auto' }}>
             <ConvictionFormatInfo 
               convictionSchema={convictionSchema}

@@ -84,7 +84,37 @@ export class ConvictionFileProcessor {
     return `${required.join(',')}\n${sampleValues.join(',')}`;
   }
 
-  // Validate CSV structure
+  // Get all valid column names (required + optional + multi-horizon)
+  getAllValidColumns(): string[] {
+    const { required, optional } = this.getExpectedColumns();
+    const validColumns = [...required, ...optional];
+    
+    // Add multi-horizon columns if applicable
+    if (this.convictionSchema?.portfolioApproach === 'incremental' && 
+        this.convictionSchema?.incrementalConvictionMethod === 'multi-horizon') {
+      const horizons = this.convictionSchema.horizons || [];
+      horizons.forEach(horizon => {
+        const match = horizon.match(/(\d+)([mhdw])/);
+        if (match) {
+          const [_, value, unit] = match;
+          let unitText = unit;
+          
+          switch(unit) {
+            case 'm': unitText = 'min'; break;
+            case 'h': unitText = 'hour'; break;
+            case 'd': unitText = 'day'; break;
+            case 'w': unitText = 'week'; break;
+          }
+          
+          validColumns.push(`z${value}${unitText}`);
+        }
+      });
+    }
+    
+    return validColumns;
+  }
+
+  // Validate CSV structure with strict column checking
   validateCSVStructure(content: string): { isValid: boolean, errors: string[] } {
     const lines = content.trim().split('\n');
     const errors: string[] = [];
@@ -95,7 +125,14 @@ export class ConvictionFileProcessor {
     }
 
     const header = lines[0].split(',').map(col => col.trim().toLowerCase());
-    const { required, optional } = this.getExpectedColumns();
+    const { required } = this.getExpectedColumns();
+    const validColumns = this.getAllValidColumns().map(col => col.toLowerCase());
+    
+    console.log('[ConvictionFileProcessor] CSV validation:', {
+      headerColumns: header,
+      requiredColumns: required.map(col => col.toLowerCase()),
+      validColumns: validColumns
+    });
     
     // Check for required columns
     const missingRequired = required.filter(col => !header.includes(col.toLowerCase()));
@@ -103,11 +140,11 @@ export class ConvictionFileProcessor {
       errors.push(`Missing required columns: ${missingRequired.join(', ')}`);
     }
 
-    // Check for unexpected columns (warn but don't fail)
-    const expectedColumns = [...required, ...optional].map(col => col.toLowerCase());
-    const unexpectedColumns = header.filter(col => !expectedColumns.includes(col));
-    if (unexpectedColumns.length > 0) {
-      errors.push(`Unexpected columns (will be ignored): ${unexpectedColumns.join(', ')}`);
+    // Check for invalid columns (strict validation)
+    const invalidColumns = header.filter(col => col && !validColumns.includes(col));
+    if (invalidColumns.length > 0) {
+      errors.push(`Invalid columns found: ${invalidColumns.join(', ')}. These columns are not supported by the current conviction schema.`);
+      return { isValid: false, errors }; // REJECT the file immediately
     }
 
     return { 
@@ -203,14 +240,18 @@ export class ConvictionFileProcessor {
     return errors;
   }
 
-  // Process submit CSV
+  // Process submit CSV with strict validation
   processSubmitCsv(content: string): ConvictionData[] {
-    // First validate structure
+    console.log('[ConvictionFileProcessor] Processing CSV content');
+    
+    // First validate structure with strict column checking
     const structureValidation = this.validateCSVStructure(content);
+    
+    console.log('[ConvictionFileProcessor] Structure validation:', structureValidation);
     
     // Show structure errors/warnings
     structureValidation.errors.forEach(error => {
-      if (error.includes('Missing required')) {
+      if (error.includes('Missing required') || error.includes('Invalid columns')) {
         this.addToast('error', error);
       } else {
         this.addToast('warning', error);
@@ -218,11 +259,14 @@ export class ConvictionFileProcessor {
     });
 
     if (!structureValidation.isValid) {
+      console.log('[ConvictionFileProcessor] CSV structure validation failed, returning empty array');
       return [];
     }
 
     const lines = content.trim().split('\n');
     const header = lines[0].split(',').map(col => col.trim().toLowerCase());
+    
+    console.log('[ConvictionFileProcessor] Processing rows with valid structure');
     
     // Create column index mapping
     const columnMap: Record<string, number> = {};
@@ -245,9 +289,9 @@ export class ConvictionFileProcessor {
       }
 
       // Build conviction object based on available columns
-      const conviction: Partial<ConvictionData> = {}; // Use Partial<ConvictionData> to allow empty initialization
+      const conviction: Partial<ConvictionData> = {};
       
-      // Map all available columns
+      // Only map known valid columns
       header.forEach((colName, colIndex) => {
         const value = values[colIndex];
         if (!value) return;
@@ -286,21 +330,36 @@ export class ConvictionFileProcessor {
             if (!isNaN(targetNot)) conviction.targetNotional = targetNot;
             break;
           case 'participationrate':
-            if (['LOW', 'MEDIUM', 'HIGH'].includes(value.toUpperCase())) {
-              conviction.participationRate = value.toUpperCase() as 'LOW' | 'MEDIUM' | 'HIGH';
+            // FIXED: Handle both string and number participation rates properly
+            const upperValue = value.toUpperCase();
+            if (['LOW', 'MEDIUM', 'HIGH'].includes(upperValue)) {
+              conviction.participationRate = upperValue as 'LOW' | 'MEDIUM' | 'HIGH';
+            } else {
+              const numericRate = parseFloat(value);
+              if (!isNaN(numericRate) && numericRate >= 0 && numericRate <= 1) {
+                // Convert numeric rate to string equivalent for type safety
+                if (numericRate <= 0.33) {
+                  conviction.participationRate = 'LOW';
+                } else if (numericRate <= 0.66) {
+                  conviction.participationRate = 'MEDIUM';
+                } else {
+                  conviction.participationRate = 'HIGH';
+                }
+              }
             }
             break;
           case 'tag':
             conviction.tag = value;
             break;
           default:
-            // Handle multi-horizon columns
+            // Handle multi-horizon columns ONLY
             if (colName.startsWith('z') && (colName.includes('min') || colName.includes('hour') || colName.includes('day') || colName.includes('week'))) {
               const zValue = parseFloat(value);
               if (!isNaN(zValue)) {
                 conviction[colName] = zValue;
               }
             }
+            // NOTE: Unknown columns are now rejected at validation stage, so we shouldn't reach here
             break;
         }
       });
@@ -327,10 +386,15 @@ export class ConvictionFileProcessor {
       }
     }
 
+    console.log('[ConvictionFileProcessor] Final parsed convictions:', {
+      count: parsedConvictions.length,
+      validationErrors: allValidationErrors.length
+    });
+
     return parsedConvictions;
   }
 
-  // Process cancel CSV
+  // Process cancel CSV (unchanged)
   processCancelCsv(content: string): ConvictionData[] {
     const lines = content.trim().split('\n');
     if (lines.length === 0) return [];

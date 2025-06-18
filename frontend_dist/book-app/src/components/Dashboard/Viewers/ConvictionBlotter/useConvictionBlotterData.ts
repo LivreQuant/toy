@@ -97,16 +97,39 @@ export const useConvictionData = (viewId: string) => {
   };
   
   const updateConvictionData = (newConvictionData: any[]) => {
+    console.log('[useConvictionData] updateConvictionData called with:', {
+      newDataLength: newConvictionData.length,
+      currentDataLength: convictionData.length,
+      isDropzoneVisibleBefore: isDropzoneVisible,
+      statusBefore: status
+    });
+    
     const processedConvictions = processConvictionWithColumnOrder(newConvictionData);
+    console.log('[useConvictionData] Processed convictions:', {
+      processedLength: processedConvictions.length,
+      sample: processedConvictions.slice(0, 1)
+    });
+    
     setConvictionData(processedConvictions);
     latestDataRef.current = processedConvictions;
     setDataCount(processedConvictions.length);
     setLastUpdated(new Date().toLocaleTimeString());
     
     if (processedConvictions.length === 0) {
+      console.log('[useConvictionData] No data, showing dropzone');
       setIsDropzoneVisible(true);
       setStatus(ConvictionDataStatus.NO_DATA);
+    } else {
+      console.log('[useConvictionData] Data available, hiding dropzone');
+      setIsDropzoneVisible(false);
+      setStatus(ConvictionDataStatus.READY);
     }
+    
+    console.log('[useConvictionData] State updated:', {
+      dataCount: processedConvictions.length,
+      isDropzoneVisible: processedConvictions.length === 0,
+      status: processedConvictions.length === 0 ? 'NO_DATA' : 'READY'
+    });
   };
 
   return {
