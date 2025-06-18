@@ -1,0 +1,228 @@
+/* src/components/Dashboard/Viewers/OrderBlotter/ConvictionFormatInfo.css */
+.conviction-format-info {
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    padding: 24px;
+    margin: 20px;
+    max-height: 100%;
+    overflow-y: auto;
+  }
+  
+  .conviction-format-info.loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 200px;
+  }
+  
+  .loading-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    color: #666;
+  }
+  
+  .loading-spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid #f3f3f3;
+    border-top: 3px solid #007bff;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+  
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+  
+  .format-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 2px solid #f0f2f5;
+  }
+  
+  .format-header h3 {
+    margin: 0;
+    color: #1f2937;
+    font-size: 1.5rem;
+    font-weight: 600;
+  }
+  
+  .schema-badge {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+  
+  .format-description {
+    margin-bottom: 24px;
+    padding: 16px;
+    background-color: #f8fafc;
+    border-left: 4px solid #007bff;
+    border-radius: 4px;
+  }
+  
+  .format-description p {
+    margin: 0;
+    color: #4b5563;
+    font-size: 1rem;
+    line-height: 1.5;
+  }
+  
+  .format-sections {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+  
+  .format-section {
+    background-color: #fafbfc;
+    border: 1px solid #e1e5e9;
+    border-radius: 8px;
+    padding: 20px;
+  }
+  
+  .format-section h4 {
+    margin: 0 0 16px 0;
+    color: #1f2937;
+    font-size: 1.125rem;
+    font-weight: 600;
+  }
+  
+  .field-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  
+  .field-tag {
+    padding: 6px 12px;
+    border-radius: 16px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  }
+  
+  .field-tag.required {
+    background-color: #fee2e2;
+    color: #dc2626;
+    border: 1px solid #fca5a5;
+  }
+  
+  .field-tag.optional {
+    background-color: #e0f2fe;
+    color: #0284c7;
+    border: 1px solid #7dd3fc;
+  }
+  
+  .sample-format {
+    margin-bottom: 16px;
+  }
+  
+  .format-code {
+    background-color: #1f2937;
+    color: #f9fafb;
+    padding: 16px;
+    border-radius: 6px;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    overflow-x: auto;
+    white-space: pre;
+    margin: 0;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+  
+  .format-notes {
+    background-color: #fffbeb;
+    border: 1px solid #fbbf24;
+    border-radius: 6px;
+    padding: 16px;
+  }
+  
+  .format-notes p {
+    margin: 0 0 8px 0;
+    color: #92400e;
+    font-weight: 600;
+  }
+  
+  .format-notes ul {
+    margin: 0;
+    padding-left: 20px;
+    color: #78350f;
+  }
+  
+  .format-notes li {
+    margin-bottom: 4px;
+    line-height: 1.4;
+  }
+  
+  .schema-details {
+    background-color: #f0f9ff;
+    border-color: #0ea5e9;
+  }
+  
+  .schema-info {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .schema-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background-color: white;
+    border-radius: 4px;
+    border: 1px solid #e0f2fe;
+  }
+  
+  .schema-label {
+    font-weight: 500;
+    color: #374151;
+  }
+  
+  .schema-value {
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    background-color: #f1f5f9;
+    padding: 2px 8px;
+    border-radius: 4px;
+    color: #1e40af;
+    font-size: 0.875rem;
+  }
+  
+  /* Responsive adjustments */
+  @media (max-width: 768px) {
+    .conviction-format-info {
+      margin: 10px;
+      padding: 16px;
+    }
+    
+    .format-header {
+      flex-direction: column;
+      gap: 12px;
+      align-items: flex-start;
+    }
+    
+    .schema-item {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 4px;
+    }
+    
+    .format-code {
+      font-size: 0.75rem;
+    }
+  }

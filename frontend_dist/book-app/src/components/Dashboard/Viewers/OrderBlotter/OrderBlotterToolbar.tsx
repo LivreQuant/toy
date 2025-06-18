@@ -1,43 +1,57 @@
-// OrderBlotterToolbar.tsx
+// src/components/Dashboard/Viewers/OrderBlotter/OrderBlotterToolbar.tsx
 import React from 'react';
-import { Button, ButtonGroup, InputGroup, Tag, Intent } from '@blueprintjs/core';
+import { Button, InputGroup, Tag, Intent } from '@blueprintjs/core';
+import { ConvictionModelConfig } from '@trading-app/types-core';
 
 interface OrderBlotterToolbarProps {
-  onSubmitOrders: () => void;
+  title?: string;
+  onSubmitConvictions: () => void;
   onDeleteSelected: () => void;
   onReplaceFile: () => void;
   onEditColumns: () => void;
   filterText: string;
   onFilterChange: (text: string) => void;
-  hasOrders: boolean;
+  hasConvictions: boolean;
   hasErrors: boolean;
   selectedCount: number;
-  selectedOrders: any[];
+  selectedConvictions: any[];
   dataCount: number;
   lastUpdated: string | null;
   isSubmitting: boolean;
+  convictionSchema?: ConvictionModelConfig | null;
 }
 
 const OrderBlotterToolbar: React.FC<OrderBlotterToolbarProps> = ({
-  onSubmitOrders,
+  title = "Conviction Blotter",
+  onSubmitConvictions,
   onDeleteSelected,
   onReplaceFile,
   onEditColumns,
   filterText,
   onFilterChange,
-  hasOrders,
+  hasConvictions,
   hasErrors,
   selectedCount,
-  selectedOrders,
+  selectedConvictions,
   dataCount,
   lastUpdated,
-  isSubmitting
+  isSubmitting,
+  convictionSchema
 }) => {
   
   const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newValue = e.target.value;
-    console.log("Filter input changed to:", newValue);
-    onFilterChange(newValue);
+    onFilterChange(e.target.value);
+  };
+
+  const getSchemaDisplayText = (): string => {
+    if (!convictionSchema) return 'Default Schema';
+    
+    const approach = convictionSchema.portfolioApproach;
+    const method = approach === 'target' 
+      ? convictionSchema.targetConvictionMethod 
+      : convictionSchema.incrementalConvictionMethod;
+    
+    return `${approach}/${method}`;
   };
 
   return (
@@ -50,17 +64,17 @@ const OrderBlotterToolbar: React.FC<OrderBlotterToolbarProps> = ({
     }}>
       {/* Left section - Submit and Delete */}
       <div style={{ display: 'flex', gap: '10px' }}>
-        {!(hasErrors || selectedOrders.some(order => order.status === 'ERROR')) && (
+        {!(hasErrors || selectedConvictions.some(conviction => conviction.status === 'ERROR')) && (
           <Button 
-            icon={isSubmitting ? "refresh" : "send-to"} // "refresh" is a valid BlueprintJS icon
-            onClick={onSubmitOrders}
+            icon={isSubmitting ? "refresh" : "send-to"}
+            onClick={onSubmitConvictions}
             intent={Intent.PRIMARY}
-            text={isSubmitting ? "Submitting..." : (selectedCount > 0 ? `Submit ${selectedCount} Order${selectedCount !== 1 ? 's' : ''}` : "Submit")}
+            text={isSubmitting ? "Submitting..." : (selectedCount > 0 ? `Submit ${selectedCount} Conviction${selectedCount !== 1 ? 's' : ''}` : "Submit")}
             disabled={
-              !hasOrders || 
+              !hasConvictions || 
               hasErrors || 
               selectedCount === 0 || 
-              selectedOrders.some(order => order.status === 'ERROR') ||
+              selectedConvictions.some(conviction => conviction.status === 'ERROR') ||
               isSubmitting
             }
           />
@@ -69,18 +83,26 @@ const OrderBlotterToolbar: React.FC<OrderBlotterToolbarProps> = ({
           icon="delete" 
           onClick={onDeleteSelected}
           intent={Intent.WARNING}
-          text={selectedCount > 0 ? `Delete ${selectedCount} Order${selectedCount !== 1 ? 's' : ''}` : "Delete"}
+          text={selectedCount > 0 ? `Delete ${selectedCount} Conviction${selectedCount !== 1 ? 's' : ''}` : "Delete"}
           disabled={selectedCount === 0}
         />
       </div>
 
-      {/* Middle section - Search with caution sign */}
+      {/* Middle section - Schema info and Search */}
       <div style={{ 
         display: 'flex', 
         alignItems: 'center', 
-        gap: '10px', 
+        gap: '15px', 
         flex: '1'
       }}>
+        {/* Schema indicator */}
+        <Tag 
+          intent={convictionSchema ? Intent.SUCCESS : Intent.WARNING}
+          style={{ fontSize: '12px', whiteSpace: 'nowrap' }}
+        >
+          {getSchemaDisplayText()}
+        </Tag>
+
         <div style={{ 
           display: 'flex',
           alignItems: 'center',
@@ -88,14 +110,13 @@ const OrderBlotterToolbar: React.FC<OrderBlotterToolbarProps> = ({
           maxWidth: '300px',
           width: '100%',
         }}>
-          {/* Input field with X button inside */}
           <div style={{ 
             position: 'relative', 
             width: '100%',
           }}>
             <InputGroup
               leftIcon="search"
-              placeholder="Filter by Instrument, ID, or Order Type..."
+              placeholder="Filter by Instrument, ID, or Conviction Type..."
               value={filterText}
               onChange={handleFilterChange}
               style={{ 
@@ -103,86 +124,88 @@ const OrderBlotterToolbar: React.FC<OrderBlotterToolbarProps> = ({
                 borderColor: filterText ? '#FF3A5B' : undefined,
                 borderWidth: filterText ? '2px' : undefined,
                 borderStyle: filterText ? 'solid' : undefined,
-                //boxShadow: filterText ? '0 0 5px rgba(0, 229, 255, 0.5)' : 'none',
               }}
-              disabled={!hasOrders}
+              disabled={!hasConvictions}
             />
             {filterText && (
               <button 
-                onClick={() => {
-                  console.log("Clear filter button clicked");
-                  onFilterChange('');
-                }} 
+                onClick={() => onFilterChange('')} 
                 style={{
                   position: 'absolute',
                   right: '8px',
                   top: '50%',
                   transform: 'translateY(-50%)',
-                  background: 'transparent',
-                  border: 'none',
-                  cursor: 'pointer',
-                  fontSize: '16px',
-                  color: '#FF3A5B',
-                  padding: '4px'
-                }}
-              >
-                ✕
-              </button>
-            )}
-          </div>
-        </div>
+                 background: 'transparent',
+                 border: 'none',
+                 cursor: 'pointer',
+                 fontSize: '16px',
+                 color: '#FF3A5B',
+                 padding: '4px'
+               }}
+             >
+               ✕
+             </button>
+           )}
+         </div>
+       </div>
 
-        {/* Caution icon separate from input */}
-        {filterText && (
-            <div style={{ 
-              backgroundColor: '#FF3A5B', 
-              color: 'white',
-              padding: '0 12px',
-              height: '32px',
-              width: '32px',
-              borderRadius: '4px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0
-            }}>
-              <span style={{ 
-                fontSize: '20px',
-                lineHeight: 1,
-                display: 'flex',
-                margin: 0,
-                padding: 0,
-                transform: 'translateY(-2px)'
-              }}>
-                ⚠️
-              </span>
-            </div>
-          )}
-      </div>
-      
-      {/* Right section - Replace File and Columns buttons */}
-      <div style={{ 
-        display: 'flex', 
-        gap: '10px', 
-        marginLeft: 'auto' 
-      }}>
-        <Tag style={{ fontSize: '14px' }}>
-          # of Orders: {dataCount}
-        </Tag>
-        <Button 
-          icon="folder-open" 
-          onClick={onReplaceFile}
-          text="Replace File"
-        />
-        <Button
-          icon="manually-entered-data"
-          onClick={onEditColumns}
-          text="Columns"
-          disabled={!hasOrders}
-        />
-      </div>
-    </div>
-  );
+       {/* Filter warning indicator */}
+       {filterText && (
+         <div style={{ 
+           backgroundColor: '#FF3A5B', 
+           color: 'white',
+           padding: '0 12px',
+           height: '32px',
+           width: '32px',
+           borderRadius: '4px',
+           display: 'flex',
+           alignItems: 'center',
+           justifyContent: 'center',
+           flexShrink: 0
+         }}>
+           <span style={{ 
+             fontSize: '20px',
+             lineHeight: 1,
+             display: 'flex',
+             margin: 0,
+             padding: 0,
+             transform: 'translateY(-2px)'
+           }}>
+             ⚠️
+           </span>
+         </div>
+       )}
+     </div>
+     
+     {/* Right section - Stats and Controls */}
+     <div style={{ 
+       display: 'flex', 
+       gap: '10px', 
+       marginLeft: 'auto',
+       alignItems: 'center'
+     }}>
+       <Tag style={{ fontSize: '14px' }}>
+         # of Convictions: {dataCount}
+       </Tag>
+       {lastUpdated && (
+         <Tag style={{ fontSize: '12px', opacity: 0.8 }}>
+           Updated: {lastUpdated}
+         </Tag>
+       )}
+       <Button 
+         icon="folder-open" 
+         onClick={onReplaceFile}
+         text="Replace File"
+       />
+       <Button
+         icon="manually-entered-data"
+         onClick={onEditColumns}
+         text="Columns"
+         disabled={!hasConvictions}
+       />
+     </div>
+   </div>
+ );
 };
 
 export default OrderBlotterToolbar;

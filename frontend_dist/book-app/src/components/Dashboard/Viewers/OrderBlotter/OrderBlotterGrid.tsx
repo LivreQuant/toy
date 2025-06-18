@@ -1,9 +1,8 @@
-// Modified OrderBlotterGrid.tsx
+// src/components/Dashboard/Viewers/OrderBlotter/OrderBlotterGrid.tsx
 import React, { useState, useEffect } from 'react';
 import { GridApi, ColDef } from 'ag-grid-community';
 import ConfigurableGrid from '../../AgGrid/ConfigurableGrid';
 import { darkTheme } from '../../AgGrid/gridThemes';
-
 import StatusCellRenderer from './utils/StatusCellRenderer';
 
 interface OrderBlotterGridProps {
@@ -16,9 +15,9 @@ interface OrderBlotterGridProps {
   onSelectionChanged: () => void;
 }
 
-interface OrderData {
+interface ConvictionData {
   status?: string;
-  // Add other properties as needed
+  [key: string]: any;
 }
 
 const OrderBlotterGrid: React.FC<OrderBlotterGridProps> = (props) => {
@@ -27,13 +26,13 @@ const OrderBlotterGrid: React.FC<OrderBlotterGridProps> = (props) => {
   };
   
   const [isErrorsPresent, setIsErrorsPresent] = useState(
-    props.rowData.some((row: OrderData) => row.status === 'ERROR')
+    props.rowData.some((row: ConvictionData) => row.status === 'ERROR')
   );
 
-  // Use effect to track ERROR status changes
+  // Track ERROR status changes
   useEffect(() => {
-    const hasErrorOrders = props.rowData.some((row: OrderData) => row.status === 'ERROR');
-    setIsErrorsPresent(hasErrorOrders);
+    const hasErrorConvictions = props.rowData.some((row: ConvictionData) => row.status === 'ERROR');
+    setIsErrorsPresent(hasErrorConvictions);
   }, [props.rowData]);
 
   const selectionConfig = {
@@ -41,7 +40,7 @@ const OrderBlotterGrid: React.FC<OrderBlotterGridProps> = (props) => {
     headerCheckboxSelection: true,
     headerCheckboxSelectionFilteredOnly: true,
     multiSelect: true,
-    isSelectable: (data: OrderData) => {
+    isSelectable: (data: ConvictionData) => {
       // If errors are present, only allow selecting ERROR rows
       if (isErrorsPresent) {
         return data.status === 'ERROR';
@@ -51,11 +50,8 @@ const OrderBlotterGrid: React.FC<OrderBlotterGridProps> = (props) => {
     }
   };
 
-  console.log("[DEBUG C] OrderBlotterGrid - Received onSelectionChanged:", props.onSelectionChanged);
-  console.log("OrderBlotterGrid received filterText:", props.filterText);
-  
-  const fieldsToFilter = ['instrument', 'id', 'orderType'];
-  console.log("Fields to filter:", fieldsToFilter);
+  // Filter fields for conviction data
+  const fieldsToFilter = ['instrumentId', 'convictionId', 'side', 'tag', 'status'];
 
   return (
     <ConfigurableGrid
@@ -63,11 +59,10 @@ const OrderBlotterGrid: React.FC<OrderBlotterGridProps> = (props) => {
       theme={darkTheme}
       components={components}
       filterFields={fieldsToFilter}
-      // Explicitly add selection configuration
       selectionConfig={selectionConfig}
       rowSelection="multiple"
       onSelectionChanged={() => {
-        console.log("[DEBUG C] ConfigurableGrid - Selection Changed");
+        console.log("[DEBUG C] ConfigurableGrid - Conviction Selection Changed");
         props.onSelectionChanged();
       }}
     />

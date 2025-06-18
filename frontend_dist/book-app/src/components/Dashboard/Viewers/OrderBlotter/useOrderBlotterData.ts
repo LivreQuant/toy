@@ -1,7 +1,7 @@
 // src/components/Dashboard/Viewers/OrderBlotter/useOrderBlotterData.ts
 import { useState, useRef, useEffect } from 'react';
 import { ColumnStateService } from '../../AgGrid/columnStateService';
-import { validateOrdersCsv, parseOrdersCsv } from './utils/orderCsvUtils';
+import { validateConvictionsCsv, parseConvictionsCsv } from './utils/convictionCsvUtils';
 
 export enum OrderDataStatus {
   READY = 'READY',
@@ -18,33 +18,30 @@ export const useOrderData = (viewId: string) => {
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [isDropzoneVisible, setIsDropzoneVisible] = useState<boolean>(true);
   
-  // Reference to the latest data for any background operations
   const latestDataRef = useRef<any[]>([]);
 
-  // Process and transform order data with proper column order
-  const processOrderWithColumnOrder = (orders: any[]) => {
+  // Process and transform conviction data with proper column order
+  const processConvictionWithColumnOrder = (convictions: any[]) => {
     const columnStateService = ColumnStateService.getInstance();
     const savedColumnOrder = columnStateService.getOrderedColumns(viewId);
     
     if (!savedColumnOrder || savedColumnOrder.length === 0) {
-      return orders;
+      return convictions;
     }
     
-    // Transform orders to match the column order
-    return orders.map(order => {
-      const orderedOrder: {[key: string]: any} = {};
+    return convictions.map(conviction => {
+      const orderedConviction: {[key: string]: any} = {};
       
-      // Explicitly map columns in the saved order
+      // Map columns in the saved order
       savedColumnOrder.forEach(colId => {
-        if (order.hasOwnProperty(colId)) {
-          orderedOrder[colId] = order[colId];
+        if (conviction.hasOwnProperty(colId)) {
+          orderedConviction[colId] = conviction[colId];
         }
       });
       
-      // Add any additional fields not in the saved order
       return {
-        ...order,
-        ...orderedOrder
+        ...conviction,
+        ...orderedConviction
       };
     });
   };
@@ -55,28 +52,25 @@ export const useOrderData = (viewId: string) => {
       setError(null);
       
       // Validate the CSV file structure
-      await validateOrdersCsv(file);
+      await validateConvictionsCsv(file);
       
       // Parse and validate the CSV file
-      const { orders, hasErrors } = await parseOrdersCsv(file);
+      const { convictions, hasErrors } = await parseConvictionsCsv(file);
       
-      if (orders.length === 0) {
-        setError('No orders found in the CSV file.');
+      if (convictions.length === 0) {
+        setError('No convictions found in the CSV file.');
         setStatus(OrderDataStatus.ERROR);
         return false;
       }
       
-      // Process orders with proper column order
-      const processedOrders = processOrderWithColumnOrder(orders);
+      const processedConvictions = processConvictionWithColumnOrder(convictions);
       
-      // Update the state with the parsed orders
-      setOrderData(processedOrders);
-      latestDataRef.current = processedOrders;
-      setDataCount(processedOrders.length);
+      setOrderData(processedConvictions);
+      latestDataRef.current = processedConvictions;
+      setDataCount(processedConvictions.length);
       setLastUpdated(new Date().toLocaleTimeString());
       setIsDropzoneVisible(false);
       
-      // If there are errors, show a notification but don't prevent displaying the grid
       if (hasErrors) {
         setStatus(OrderDataStatus.ERROR);
       } else {
@@ -86,7 +80,6 @@ export const useOrderData = (viewId: string) => {
       return true;
     } catch (error) {
       console.error('Error processing CSV file:', error);
-      // Display the error message
       setError(`${error instanceof Error ? error.message : 'Unknown error processing file'}`);
       setStatus(OrderDataStatus.ERROR);
       return false;
@@ -103,15 +96,14 @@ export const useOrderData = (viewId: string) => {
     setIsDropzoneVisible(true);
   };
   
-  // Function to update order data
-  const updateOrderData = (newOrderData: any[]) => {
-    const processedOrders = processOrderWithColumnOrder(newOrderData);
-    setOrderData(processedOrders);
-    latestDataRef.current = processedOrders;
-    setDataCount(processedOrders.length);
+  const updateOrderData = (newConvictionData: any[]) => {
+    const processedConvictions = processConvictionWithColumnOrder(newConvictionData);
+    setOrderData(processedConvictions);
+    latestDataRef.current = processedConvictions;
+    setDataCount(processedConvictions.length);
     setLastUpdated(new Date().toLocaleTimeString());
     
-    if (processedOrders.length === 0) {
+    if (processedConvictions.length === 0) {
       setIsDropzoneVisible(true);
       setStatus(OrderDataStatus.NO_DATA);
     }

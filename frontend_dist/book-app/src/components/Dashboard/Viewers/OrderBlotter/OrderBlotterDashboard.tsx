@@ -5,46 +5,47 @@ import { AgGridColumnChooserController } from '../../Container/Controllers';
 import OrderBlotterToolbar from './OrderBlotterToolbar';
 import OrderBlotterGrid from './OrderBlotterGrid';
 import { ColumnStateService, ColumnStateDetails } from '../../AgGrid/columnStateService';
-import { getOrderBlotterColumnDefs } from './columnDefinitions';
+import { getConvictionColumnDefs, validateConvictionData } from './convictionColumnDefinitions';
 import { useOrderData, OrderDataStatus } from './useOrderBlotterData';
 import { useParams } from 'react-router-dom';
+import { useBookManager } from '../../../../hooks/useBookManager';
+import { useToast } from '../../../../hooks/useToast';
+import { ConvictionModelConfig } from '@trading-app/types-core';
 
 import FileUploadZone from '../../../Simulator/FileUploadZone';
 import ConvictionFileProcessor from '../../../Simulator/ConvictionFileProcessor';
+import ConvictionFormatInfo from './ConvictionFormatInfo'; // NEW COMPONENT
 import { useConvictionManager } from '../../../../contexts/ConvictionContext';
-
-import { useToast } from '../../../../hooks/useToast';
-
-import { Side } from '../../Mock/OrderDataService';
 
 interface OrderBlotterDashboardProps {
   colController: AgGridColumnChooserController;
   viewId: string;
-  onColumnHandlerReady?: (handler: () => void) => void; // NEW
+  onColumnHandlerReady?: (handler: () => void) => void;
 }
 
 const OrderBlotterDashboard: React.FC<OrderBlotterDashboardProps> = ({ 
   colController, 
   viewId,
-  onColumnHandlerReady // NEW
+  onColumnHandlerReady
 }) => {
   const [filterText, setFilterText] = useState<string>('');
   const [gridApi, setGridApi] = useState<GridApi | null>(null);
-  const [columnDefsState, setColumnDefs] = useState<ColDef[]>(getOrderBlotterColumnDefs());
-  const [selectedOrders, setSelectedOrders] = useState<any[]>([]);
+  const [columnDefsState, setColumnDefs] = useState<ColDef[]>([]);
+  const [selectedConvictions, setSelectedConvictions] = useState<any[]>([]);
+  const [convictionSchema, setConvictionSchema] = useState<ConvictionModelConfig | null>(null);
+  const [isLoadingSchema, setIsLoadingSchema] = useState(false);
   const preventUpdateRef = useRef(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   const convictionManager = useConvictionManager();
+  const bookManager = useBookManager();
   const { addToast } = useToast();
-
   const { bookId } = useParams<{ bookId: string }>();
 
-  // Use a ref to store column definitions to prevent regeneration on data changes
   const columnDefsRef = useRef(columnDefsState);
   
   const {
-    orderData,
+    orderData: convictionData,
     status,
     error,
     dataCount,
@@ -52,53 +53,77 @@ const OrderBlotterDashboard: React.FC<OrderBlotterDashboardProps> = ({
     isDropzoneVisible,
     processFile,
     clearData,
-    updateOrderData
+    updateOrderData: updateConvictionData
   } = useOrderData(viewId);
 
-  // Only update the ref if column definitions have explicitly changed
+  // Load book's conviction schema
+  useEffect(() => {
+    const loadConvictionSchema = async () => {
+      if (!bookId) return;
+      
+      setIsLoadingSchema(true);
+      try {
+        const response = await bookManager.fetchBook(bookId);
+        
+        if (response.success && response.book?.convictionSchema) {
+          setConvictionSchema(response.book.convictionSchema);
+          
+          const newColumnDefs = getConvictionColumnDefs(response.book.convictionSchema);
+          setColumnDefs(newColumnDefs);
+          
+          addToast('info', `Loaded conviction schema: ${response.book.convictionSchema.portfolioApproach}/${response.book.convictionSchema.portfolioApproach === 'target' ? response.book.convictionSchema.targetConvictionMethod : response.book.convictionSchema.incrementalConvictionMethod}`);
+        } else {
+          const defaultColumnDefs = getConvictionColumnDefs(null);
+          setColumnDefs(defaultColumnDefs);
+          addToast('warning', 'Using default conviction schema');
+        }
+      } catch (error: any) {
+        console.error('Error loading conviction schema:', error);
+        const defaultColumnDefs = getConvictionColumnDefs(null);
+        setColumnDefs(defaultColumnDefs);
+        addToast('error', 'Failed to load conviction schema, using defaults');
+      } finally {
+        setIsLoadingSchema(false);
+      }
+    };
+
+    loadConvictionSchema();
+  }, [bookId, bookManager, addToast]);
+
   useEffect(() => {
     columnDefsRef.current = columnDefsState;
   }, [columnDefsState]);
 
-  // Modified useEffect to include width handling
   useEffect(() => {
-    // Get the saved column order
+    if (columnDefsState.length === 0) return;
+    
     const columnStateService = ColumnStateService.getInstance();
     const savedState = columnStateService.getViewColumnState(viewId);
     const savedColumnOrder = columnStateService.getOrderedColumns(viewId);
     
     if (savedColumnOrder.length > 0) {
-      // Get the default column definitions
-      const defaultDefs = getOrderBlotterColumnDefs();
-      
-      // Create a new ordered array based on the saved order
       const orderedDefs: ColDef[] = [];
       
-      // First add columns in the saved order
       savedColumnOrder.forEach(colId => {
-        const def = defaultDefs.find(d => d.field === colId);
+        const def = columnDefsState.find(d => d.field === colId);
         if (def) {
-          // Apply saved visibility and width
           orderedDefs.push({
             ...def,
             hide: !savedState[colId]?.visibility,
-            // Use saved width if available, otherwise use the default width from column definition
             width: savedState[colId]?.width || def.width
           });
         }
       });
       
-      // Then add any remaining columns not in the saved order
-      defaultDefs.forEach(def => {
+      columnDefsState.forEach(def => {
         if (def.field && !savedColumnOrder.includes(def.field)) {
           orderedDefs.push(def);
         }
       });
       
-      // Update the column definitions state
       setColumnDefs(orderedDefs);
     }
-  }, [viewId]); // This effect should run once when component mounts
+  }, [viewId, columnDefsState]);
 
   const handleFileAccepted = (file: File | null) => {
     if (!file) return;
@@ -106,129 +131,107 @@ const OrderBlotterDashboard: React.FC<OrderBlotterDashboardProps> = ({
     const reader = new FileReader();
     reader.onload = (event) => {
       const content = event.target?.result as string;
-      const processor = new ConvictionFileProcessor(null, addToast);
+      const processor = new ConvictionFileProcessor(convictionSchema, addToast);
       
-      // Use the existing processor but call it "orders" instead of "convictions"
-      const parsedOrders = processor.processSubmitCsv(content);
+      const parsedConvictions = processor.processSubmitCsv(content);
       
-      if (parsedOrders.length > 0) {
-        // Convert conviction format to order format if needed
-        const orderData = parsedOrders.map(item => ({
-          ...item,
-          orderSide: item.side,
-          status: item.status || 'READY'
+      if (parsedConvictions.length > 0) {
+        const validation = validateConvictionData(parsedConvictions, convictionSchema);
+        
+        if (!validation.isValid) {
+          addToast('warning', `Missing required fields: ${validation.missingFields.join(', ')}`);
+        }
+        
+        if (validation.unexpectedFields.length > 0) {
+          addToast('info', `Unexpected fields found: ${validation.unexpectedFields.join(', ')}`);
+        }
+        
+        const convictionData = parsedConvictions.map((conviction, index) => ({
+          ...conviction,
+          id: `CONV-${Date.now()}-${index}`,
+          status: conviction.status || 'READY'
         }));
         
-        updateOrderData(orderData);
-        // This will set isDropzoneVisible to false through the hook
+        updateConvictionData(convictionData);
+        addToast('success', `Loaded ${parsedConvictions.length} convictions`);
       }
     };
     
     reader.readAsText(file);
   };
 
-  const handleSubmitOrders = async () => {
-    const selectedErrorOrders = selectedOrders.filter(order => order.status === 'ERROR');
+  const handleSubmitConvictions = async () => {
+    const selectedErrorConvictions = selectedConvictions.filter(conviction => conviction.status === 'ERROR');
     
-    if (selectedErrorOrders.length > 0) {
-      alert('Cannot submit orders with ERROR status');
+    if (selectedErrorConvictions.length > 0) {
+      addToast('error', 'Cannot submit convictions with ERROR status');
       return;
     }
     
-    const ordersToSubmit = selectedOrders.length > 0 ? selectedOrders : orderData;
-    const validOrders = ordersToSubmit.filter(order => order.status !== 'ERROR');
+    const convictionsToSubmit = selectedConvictions.length > 0 ? selectedConvictions : convictionData;
+    const validConvictions = convictionsToSubmit.filter(conviction => conviction.status !== 'ERROR');
     
-    if (validOrders.length === 0) {
-      alert('No valid orders to submit');
+    if (validConvictions.length === 0) {
+      addToast('error', 'No valid convictions to submit');
       return;
     }
     
     try {
       setIsSubmitting(true);
       
-      // Convert orders to conviction format
-      const convictions = validOrders.map(order => ({
-        instrumentId: order.instrument,
-        convictionId: order.clOrderId,
-        side: order.orderSide,
-        quantity: order.quantity,
-        // Add other fields as needed
-      }));
-      
-      // Use existing conviction submission
       const response = await convictionManager.submitConvictions({
-        bookId: bookId!, // Get from useParams
-        convictions: convictions,
-        notes: `Order submission: ${validOrders.length} orders`
+        bookId: bookId!,
+        convictions: validConvictions,
+        notes: `Conviction submission: ${validConvictions.length} convictions`
       });
       
       if (response.success) {
-        // Update order status
-        const updatedOrders = [...orderData];
-        const submittedOrderIds = new Set(validOrders.map(order => order.id));
+        const updatedConvictions = [...convictionData];
+        const submittedConvictionIds = new Set(validConvictions.map(conviction => conviction.id));
         
-        updatedOrders.forEach(order => {
-          if (submittedOrderIds.has(order.id)) {
-            order.status = 'SUBMITTED';
+        updatedConvictions.forEach(conviction => {
+          if (submittedConvictionIds.has(conviction.id)) {
+            conviction.status = 'SUBMITTED';
           }
         });
         
-        updateOrderData(updatedOrders);
-        alert(`${validOrders.length} orders submitted successfully!`);
+        updateConvictionData(updatedConvictions);
+        addToast('success', `${validConvictions.length} convictions submitted successfully!`);
       } else {
-        alert('Order submission failed');
+        addToast('error', 'Conviction submission failed');
       }
       
     } catch (error) {
-      console.error('Error submitting orders:', error);
-      alert(`Error submitting orders: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error('Error submitting convictions:', error);
+      addToast('error', `Error submitting convictions: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsSubmitting(false);
     }
   };
-    
-  const handleDeleteSelectedOrders = () => {
-    // Allow deleting selected orders (even if they have ERROR status)
-    if (selectedOrders.length === 0) {
-      alert('No orders selected');
+
+  const handleDeleteSelectedConvictions = () => {
+    if (selectedConvictions.length === 0) {
+      addToast('error', 'No convictions selected');
       return;
     }
     
-    // Create a map of selected order IDs for faster lookup
-    const selectedOrderIds = new Set(selectedOrders.map(order => order.id));
+    const selectedConvictionIds = new Set(selectedConvictions.map(conviction => conviction.id));
+    const remainingConvictions = convictionData.filter(conviction => !selectedConvictionIds.has(conviction.id));
     
-    // Filter out the selected orders
-    const remainingOrders = orderData.filter(order => !selectedOrderIds.has(order.id));
+    updateConvictionData(remainingConvictions);
+    setSelectedConvictions([]);
     
-    // Update our data through the hook
-    updateOrderData(remainingOrders);
-    setSelectedOrders([]);
-    
-    if (remainingOrders.length === 0) {
+    if (remainingConvictions.length === 0) {
       clearData();
     }
+    
+    addToast('success', `Deleted ${selectedConvictions.length} convictions`);
   };
   
   const handleSelectionChanged = () => {
     if (gridApi) {
       const selected = gridApi.getSelectedRows();
-      
-      // Add detailed logging
-      console.log("Selection Changed - Raw Selected Rows:", selected);
-      console.log("Selection Changed - Number of Selected Rows:", selected.length);
-      
-      // Log the details of each selected row
-      selected.forEach((row, index) => {
-        console.log(`Selected Row ${index + 1}:`, {
-          id: row.id,
-          status: row.status,
-          // Add any other key properties you want to log
-        });
-      });
-      
-      setSelectedOrders(selected);
-    } else {
-      console.warn("Grid API is not available during selection");
+      setSelectedConvictions(selected);
     }
   };
   
@@ -237,103 +240,65 @@ const OrderBlotterDashboard: React.FC<OrderBlotterDashboardProps> = ({
   };
   
   const handleFilterChange = (text: string) => {
-    console.log("Filter text changed to:", text);
     setFilterText(text);
-    
-    // No need to filter data here - AG Grid will handle it internally
   };
   
-  // UPDATED: Make editVisibleColumns stable with useCallback
   const editVisibleColumns = useCallback(() => {
     try {
-      // Skip grid API calls entirely and just use our column definitions
       const columnDefs = columnDefsRef.current;
-      
-      // Filter out the 'id' column before creating column states
       const visibleColumnDefs = columnDefs.filter(def => def.field !== 'id');
       
-      // Create column states directly from filtered column definitions
       const columnStates = visibleColumnDefs.map(def => ({
         colId: def.field || '',
         hide: def.hide === true
       }));
       
-      // Create columns-like objects for header mapping (also filtered)
       const columnLikes = visibleColumnDefs.map(def => ({
         getColId: () => def.field || '',
         getDefinition: () => ({ headerName: def.headerName || def.field || '' })
       }));
       
       colController.open(
-        "Order Blotter",
+        "Conviction Blotter",
         columnStates,
         columnLikes as any,
         (newColumnsState) => {
-          if (!newColumnsState) {
-            return;
-          }
+          if (!newColumnsState) return;
           
-          try {
-            // Check if anything has actually changed
-            const hasChanges = newColumnsState.some(state => {
-              const columnDef = columnDefsRef.current.find(def => def.field === state.colId);
-              return columnDef && (columnDef.hide !== state.hide);
-            });
+          const updatedColumnDefs = columnDefs.map(colDef => {
+            if (!colDef.field) return colDef;
             
-            if (!hasChanges) {
-              return;
+            const newState = newColumnsState.find(state => state.colId === colDef.field);
+            if (newState !== undefined) {
+              return {
+                ...colDef,
+                hide: newState.hide === true
+              };
             }
-            
-            // Create new column definitions with updated visibility
-            const updatedColumnDefs = columnDefs.map(colDef => {
-              if (!colDef.field) return colDef;
-              
-              const newState = newColumnsState.find(state => state.colId === colDef.field);
-              if (newState !== undefined) {
-                return {
-                  ...colDef,
-                  hide: newState.hide === true
-                };
-              }
-              return colDef;
-            });
-            
-            // Update the state with new column definitions
-            preventUpdateRef.current = true;
-            setColumnDefs(updatedColumnDefs);
-            columnDefsRef.current = updatedColumnDefs;
-            
-            // Get current column state to preserve widths
-            const columnStateService = ColumnStateService.getInstance();
-            const currentState = columnStateService.getViewColumnState(viewId);
-            const columnState: ColumnStateDetails = {};
-            
-            // Convert from column state to our detailed state format
-            newColumnsState.forEach((state, index) => {
-              if (state.colId) {
-                // Preserve width from current state if available
-                const currentWidth = currentState[state.colId]?.width;
-                
-                columnState[state.colId] = {
-                  visibility: !state.hide,
-                  order: index,
-                  ...(currentWidth !== undefined ? { width: currentWidth } : {})
-                };
-              }
-            });
-            
-            columnStateService.setViewColumnState(viewId, columnState);
-            
-            // Force refresh the grid
-            if (gridApi) {
-              gridApi.setGridOption('columnDefs', updatedColumnDefs);
+            return colDef;
+          });
+          
+          setColumnDefs(updatedColumnDefs);
+          
+          const columnStateService = ColumnStateService.getInstance();
+          const currentState = columnStateService.getViewColumnState(viewId);
+          const columnState: ColumnStateDetails = {};
+          
+          newColumnsState.forEach((state, index) => {
+            if (state.colId) {
+              const currentWidth = currentState[state.colId]?.width;
+              columnState[state.colId] = {
+                visibility: !state.hide,
+                order: index,
+                ...(currentWidth !== undefined ? { width: currentWidth } : {})
+              };
             }
-            
-            setTimeout(() => {
-              preventUpdateRef.current = false;
-            }, 0);
-          } catch (error) {
-            console.error("Error applying column state:", error);
+          });
+          
+          columnStateService.setViewColumnState(viewId, columnState);
+          
+          if (gridApi) {
+            gridApi.setGridOption('columnDefs', updatedColumnDefs);
           }
         }
       );
@@ -342,32 +307,45 @@ const OrderBlotterDashboard: React.FC<OrderBlotterDashboardProps> = ({
     }
   }, [colController, viewId, gridApi]);
 
-  // NEW: Register the column handler with the container
   useEffect(() => {
     if (onColumnHandlerReady) {
-      console.log('📋 OrderBlotter: Registering column handler');
       onColumnHandlerReady(editVisibleColumns);
     }
   }, [onColumnHandlerReady, editVisibleColumns]);
 
+  if (isLoadingSchema) {
+    return (
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        height: '200px',
+        fontSize: '16px'
+      }}>
+        Loading conviction schema...
+      </div>
+    );
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      {/* Only show toolbar when dropzone is not visible */}
       {!isDropzoneVisible && (
         <OrderBlotterToolbar
-          onSubmitOrders={handleSubmitOrders}
-          onDeleteSelected={handleDeleteSelectedOrders}
+          title="Conviction Blotter"
+          onSubmitConvictions={handleSubmitConvictions}
+          onDeleteSelected={handleDeleteSelectedConvictions}
           onReplaceFile={handleReplaceFile}
           onEditColumns={editVisibleColumns}
           filterText={filterText}
           onFilterChange={handleFilterChange}
-          hasOrders={orderData.length > 0}
-          hasErrors={orderData.some(order => order.status === 'ERROR')}
-          selectedCount={selectedOrders.length}
-          selectedOrders={selectedOrders}
+          hasConvictions={convictionData.length > 0}
+          hasErrors={convictionData.some(conviction => conviction.status === 'ERROR')}
+          selectedCount={selectedConvictions.length}
+          selectedConvictions={selectedConvictions}
           dataCount={dataCount}
           lastUpdated={lastUpdated}
           isSubmitting={isSubmitting}
+          convictionSchema={convictionSchema}
         />
       )}
 
@@ -384,25 +362,36 @@ const OrderBlotterDashboard: React.FC<OrderBlotterDashboardProps> = ({
       )}
       
       {isDropzoneVisible ? (
-        <FileUploadZone
-          title="Order File"
-          acceptedTypes=".csv"
-          onFileSelect={handleFileAccepted}
-          file={null}
-          required={true}
-          description="CSV file containing your orders"
-        />
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+          {/* File Upload Section */}
+          <div style={{ flex: '0 0 auto', marginBottom: '20px' }}>
+            <FileUploadZone
+              title="Conviction File"
+              acceptedTypes=".csv"
+              onFileSelect={handleFileAccepted}
+              file={null}
+              required={true}
+              description="CSV file containing your convictions"
+            />
+          </div>
+          
+          {/* Format Information Section */}
+          <div style={{ flex: '1 1 auto', overflow: 'auto' }}>
+            <ConvictionFormatInfo 
+              convictionSchema={convictionSchema}
+              isLoadingSchema={isLoadingSchema}
+            />
+          </div>
+        </div>
       ) : (
         <OrderBlotterGrid
           columnDefs={columnDefsRef.current}
-          rowData={orderData}  // Pass the original data, not filtered
+          rowData={convictionData}
           viewId={viewId}
           filterText={filterText}
           onGridReady={setGridApi}
           onColumnDefsChange={(newColDefs) => {
             if (preventUpdateRef.current) return;
-            
-            // Compare with current state to avoid unnecessary updates
             if (JSON.stringify(newColDefs) !== JSON.stringify(columnDefsRef.current)) {
               setColumnDefs(newColDefs);
             }
