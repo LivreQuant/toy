@@ -1,11 +1,14 @@
 /* src/components/Layout/AuthenticatedLayout.css */
 .authenticated-layout {
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-  }
-  
-  .authenticated-layout .content {
-    flex: 1;
-    padding-bottom: 30px; /* Match the height of the status bar */
-  }
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.authenticated-layout .content {
+  flex: 1;
+  padding-bottom: 30px; /* Match the height of the status bar */
+  /* NEW: Ensure content doesn't overflow viewport */
+  height: calc(100vh - 30px); /* Subtract status bar height from viewport */
+  overflow: hidden; /* Prevent scrolling on the main content */
+}

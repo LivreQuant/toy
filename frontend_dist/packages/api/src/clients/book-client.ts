@@ -5,7 +5,10 @@ import {
   CreateBookResponse,
   GetBooksResponse,
   GetBookResponse,
-  UpdateBookResponse
+  UpdateBookResponse,
+  ClientConfigResponse,
+  ClientConfigUpdateRequest,
+  ClientConfigUpdateResponse
 } from '../types/book-types';
 
 export class BookClient extends BaseApiClient {
@@ -23,5 +26,13 @@ export class BookClient extends BaseApiClient {
 
   async updateBook(bookId: string, updates: Partial<BookRequest>): Promise<UpdateBookResponse> {
     return this.put(`/books/${bookId}`, updates);
+  }
+
+  async getClientConfig(bookId: string): Promise<ClientConfigResponse> {
+    return this.get(`/books/${bookId}/config`);
+  }
+
+  async updateClientConfig(bookId: string, config: string): Promise<ClientConfigUpdateResponse> {
+    return this.put(`/books/${bookId}/config`, { config });
   }
 }

@@ -1,4 +1,4 @@
-// src/components/Dashboard/Container/Container.tsx
+// frontend_dist/book-app/src/components/Dashboard/Container/Container.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { Layout, Model, TabNode } from 'flexlayout-react';
@@ -15,6 +15,13 @@ import ColumnChooserAgGrid from '../AgGrid/ColumnChooseAgGrid';
 import { QuestionDialogController, ViewNameDialogController, AgGridColumnChooserController } from './Controllers';
 import CustomModal from './CustomModal';
 import './Container.css';
+
+// Import the services we need
+import { ClientConfigService } from '../../../services/client-config/client-config-service';
+import { useBookManager } from '../../../hooks/useBookManager';
+import { useTokenManager } from '../../../hooks/useTokenManager';
+import { useParams } from 'react-router-dom';
+import { ApiFactory } from '@trading-app/api';
 
 // ViewNameStep component definition (keeping the existing implementation)
 interface ViewNameStepProps {
@@ -177,6 +184,13 @@ const ViewNameStep: React.FC<ViewNameStepProps> = ({
 };
 
 const Container = () => {
+  // Get bookId from route params
+  const { bookId } = useParams<{ bookId: string }>();
+  
+  // Get dependencies for ClientConfigService
+  const bookManager = useBookManager();
+  const tokenManager = useTokenManager();
+  
   // Create the initial model
   const [model, setModel] = useState<Model>(() => Model.fromJson(defaultLayoutJson));
   const [layoutUpdate, setLayoutUpdate] = useState(0);
@@ -187,7 +201,9 @@ const Container = () => {
   const [questionDialogController] = useState(new QuestionDialogController());
   const [viewNameDialogController] = useState(new ViewNameDialogController());
   const [columnChooserController] = useState(new AgGridColumnChooserController());
-  const [configService] = useState(new ConfigurationService());
+  
+  // Initialize configuration service with real implementation
+  const [configService, setConfigService] = useState<ConfigurationService | null>(null);
   
   // Initialize layout manager after model is available
   const [layoutManager, setLayoutManager] = useState<LayoutManager | null>(null);
@@ -199,6 +215,34 @@ const Container = () => {
   const [addViewModalOpen, setAddViewModalOpen] = useState(false);
   const [selectedViewType, setSelectedViewType] = useState<Views | null>(null);
   const [cancelConvictionsModalOpen, setCancelConvictionsModalOpen] = useState(false);
+
+  // Initialize ConfigurationService with real API client
+  useEffect(() => {
+    const initializeConfigService = async () => {
+      if (!tokenManager || !bookId) {
+        console.log('📋 Container: Waiting for tokenManager and bookId...');
+        return;
+      }
+      
+      try {
+        console.log('📋 Container: Initializing ConfigurationService for book:', bookId);
+        
+        // Create BookClient using the API factory
+        const apiClients = ApiFactory.createClients(tokenManager);
+        const clientConfigService = ClientConfigService.getInstance(apiClients.book, tokenManager);
+        const configurationService = new ConfigurationService(clientConfigService);
+        
+        setConfigService(configurationService);
+        console.log('✅ Container: ConfigurationService initialized successfully');
+      } catch (error) {
+        console.error('❌ Container: Failed to initialize configuration service:', error);
+        // Set to null to indicate failure
+        setConfigService(null);
+      }
+    };
+
+    initializeConfigService();
+  }, [tokenManager, bookId]);
 
   // Update model and force re-render
   const updateLayoutModel = (newModel: Model) => {
@@ -224,16 +268,29 @@ const Container = () => {
   // Load saved configuration on component mount
   useEffect(() => {
     const loadSavedLayout = async () => {
-      console.log('🔄 Container: Loading saved layout');
+      if (!configService || !bookId) {
+        console.log('🔄 Container: ConfigService or bookId not ready, using default layout');
+        setIsLoading(false);
+        return;
+      }
+      
+      console.log('🔄 Container: Loading saved layout for book:', bookId);
       setIsLoading(true);
-      const newModel = await configService.loadSavedLayout("DESK_ID_0");
-      setModel(newModel);
-      setIsLoading(false);
-      console.log('✅ Container: Layout loaded');
+      
+      try {
+        const newModel = await configService.loadSavedLayout(bookId);
+        setModel(newModel);
+        console.log('✅ Container: Layout loaded for book:', bookId);
+      } catch (error) {
+        console.error('❌ Container: Error loading layout for book:', bookId, error);
+        // Keep the default model on error
+      } finally {
+        setIsLoading(false);
+      }
     };
     
     loadSavedLayout();
-  }, [configService]);
+  }, [configService, bookId]);
   
   // Factory function using the view factory module
   const factory = createViewFactory({ columnChooserController });
@@ -243,7 +300,12 @@ const Container = () => {
     console.log('💾 Container: Saving layout via custom modal');
     setSaveLayoutModalOpen(false);
     
-    const success = await configService.saveLayout("DESK_ID_0", model);
+    if (!configService || !bookId) {
+      alert("Configuration service not available");
+      return;
+    }
+    
+    const success = await configService.saveLayout(bookId, model);
     if (success) {
       alert("Layout and column configurations saved successfully");
     } else {
@@ -361,7 +423,32 @@ const Container = () => {
   };
 
   if (isLoading) {
-    return <div>Loading dashboard configuration...</div>;
+    return (
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        height: '100vh',
+        fontFamily: 'Arial, sans-serif'
+      }}>
+        <div>Loading dashboard configuration...</div>
+      </div>
+    );
+  }
+
+  if (!bookId) {
+    return (
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        height: '100vh',
+        fontFamily: 'Arial, sans-serif',
+        color: '#e74c3c'
+      }}>
+        <div>Error: Book ID is required</div>
+      </div>
+    );
   }
 
   return (
@@ -395,6 +482,8 @@ const Container = () => {
         </button>
         <span style={{ marginLeft: '20px' }}>STATUS:</span>
         <span>Available Views: {availableViews.length}</span>
+        <span>Book ID: {bookId}</span>
+        <span>Config Service: {configService ? '✅ Ready' : '❌ Not Ready'}</span>
       </div>
 
       {/* Top Navbar */}
@@ -413,6 +502,7 @@ const Container = () => {
             icon="floppy-disk" 
             text="Save Layout" 
             onClick={onSaveLayout}
+            disabled={!configService}
           />
         </Navbar.Group>
       </Navbar>
@@ -449,7 +539,7 @@ const Container = () => {
       {/* Bottom Navbar */}
       <Navbar className="bp3-dark" style={{ width: '100%', zIndex: 100 }}>
         <Navbar.Group align={Alignment.LEFT}>
-          <Navbar.Heading>'{"trader@$DESK_ID_0"}'</Navbar.Heading>
+          <Navbar.Heading>trader@{bookId}</Navbar.Heading>
           <Navbar.Divider />
         </Navbar.Group>
         <Navbar.Group align={Alignment.RIGHT}>
@@ -519,7 +609,7 @@ const Container = () => {
           <h4 style={{ margin: '0 0 15px 0', color: '#333' }}>Save Layout</h4>
           <p style={{ margin: '0 0 20px 0', color: '#666', lineHeight: '1.5' }}>
             Do you want to save the current dashboard layout and column configurations? 
-            This will preserve your current view arrangement, column visibility, and sizing.
+            This will preserve your current view arrangement, column visibility, and sizing for book <strong>{bookId}</strong>.
           </p>
           <div style={{ 
             padding: '12px 16px', 
@@ -533,7 +623,7 @@ const Container = () => {
             </div>
             <ul style={{ fontSize: '12px', color: '#888', marginTop: '8px', paddingLeft: '20px' }}>
               <li>Current tab layout and arrangement</li>
-              <li>Column visibility and conviction</li>
+              <li>Column visibility and order</li>
               <li>Column widths and sizing</li>
               <li>View configurations</li>
             </ul>
@@ -562,15 +652,17 @@ const Container = () => {
             </button>
             <button 
               onClick={handleSaveLayoutConfirm}
+              disabled={!configService}
               style={{ 
                 padding: '10px 20px', 
-                backgroundColor: '#28a745', 
+                backgroundColor: configService ? '#28a745' : '#6c757d',
                 color: 'white', 
                 border: 'none', 
                 borderRadius: '6px',
                 fontSize: '14px',
                 fontWeight: '500',
-                cursor: 'pointer'
+                cursor: configService ? 'pointer' : 'not-allowed',
+                opacity: configService ? 1 : 0.6
               }}
             >
               💾 Save Layout
@@ -723,22 +815,22 @@ const Container = () => {
               onClick={handleCancelConvictionsConfirm}
               style={{ 
                 padding: '10px 20px', 
-                backgroundColor: '#dc3545', 
+                backgroundColor: '#dc3545',
                 color: 'white', 
-                border: 'none', 
-                borderRadius: '6px',
-                fontSize: '14px',
-                fontWeight: '500',
-                cursor: 'pointer'
-              }}
-            >
-              🗑️ Cancel All Convictions
-            </button>
-          </div>
-        </div>
-      </CustomModal>
-    </div>
-  );
+               border: 'none', 
+               borderRadius: '6px',
+               fontSize: '14px',
+               fontWeight: '500',
+               cursor: 'pointer'
+             }}
+           >
+             🗑️ Cancel All Convictions
+           </button>
+         </div>
+       </div>
+     </CustomModal>
+   </div>
+ );
 };
 
 export default Container;
