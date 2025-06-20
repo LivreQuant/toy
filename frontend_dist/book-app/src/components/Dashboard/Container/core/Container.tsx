@@ -292,23 +292,13 @@ const Container = () => {
 
   return (
     <div style={{ height: '100vh', width: '100%', display: 'flex', flexDirection: 'column' }}>
-      {/* Debug Panel - Now using extracted component */}
-      <DebugPanel
-        onTestCustomModal={testCustomModal}
-        onAddView={onAddView}
-        onTestQuestionDialog={testQuestionDialog}
-        onTestViewNameDialog={testViewNameDialog}
-        onTestColumnChooser={testColumnChooser}
-        availableViews={availableViews.length}
-        bookId={bookId}
-        configServiceReady={!!configService}
-      />
-
+      
       {/* Top Navbar */}
       <TopNavbar
         onAddView={onAddView}
         onSaveLayout={onSaveLayout}
         configServiceReady={!!configService}
+        bookId={bookId} // Add this line
       />
       
       {/* Main Content Area */}

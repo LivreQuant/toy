@@ -122,42 +122,6 @@ const BookDetailsPage: React.FC = () => {
   // TODO: Remove this section and uncomment the original layout below when debugging is complete
   return (
     <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
-      {/* Minimal Header for Debug Mode */}
-      <Box sx={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center', 
-        p: 2,
-        borderBottom: '1px solid #e5e7eb',
-        backgroundColor: 'white',
-        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
-        zIndex: 1000,
-        minHeight: '64px'
-      }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <Button 
-            startIcon={<ArrowBackIcon />} 
-            variant="outlined" 
-            onClick={handleBackToMain}
-            size="small"
-          >
-            Back to Main App
-          </Button>
-          <Typography variant="h6" sx={{ fontWeight: 600, color: '#111827' }}>
-            🚧 DEBUG MODE: Trading Dashboard - {book.name}
-          </Typography>
-        </Box>
-        
-        <Typography variant="body2" color="text.secondary" sx={{ 
-          backgroundColor: '#fff3cd', 
-          padding: '4px 8px', 
-          borderRadius: '4px',
-          border: '1px solid #ffeaa7'
-        }}>
-          Temporary Full Screen | Book ID: {bookId}
-        </Typography>
-      </Box>
-      
       {/* Full Screen Trading Dashboard */}
       <Box sx={{ flex: 1, overflow: 'hidden' }}>
         <Container />
