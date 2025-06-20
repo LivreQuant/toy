@@ -250,11 +250,19 @@ export class SocketClient implements Disposable {
   }
 
   // Listen for events
-  public on<T extends keyof typeof this.events.events>(
+  public on<T extends keyof {
+    message: WebSocketMessage;
+    error: Error;
+    open: void;
+    close: { code: number; reason: string; wasClean: boolean };
+  }>(
     event: T,
-    callback: (data: typeof this.events.events[T]) => void
+    callback: (data: T extends 'message' ? WebSocketMessage : 
+                   T extends 'error' ? Error : 
+                   T extends 'open' ? void : 
+                   { code: number; reason: string; wasClean: boolean }) => void
   ): { unsubscribe: () => void } {
-    return this.events.on(event, callback);
+    return this.events.on(event as any, callback as any);
   }
 
   // Handle incoming messages

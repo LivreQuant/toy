@@ -64,11 +64,22 @@ export class Resilience implements Disposable {
     };
   }
 
-  public on<T extends keyof typeof this.events.events>(
+  public on<T extends keyof {
+    failure_recorded: { count: number; threshold: number; state: ResilienceState; error?: any };
+    state_changed: { oldState: ResilienceState; newState: ResilienceState; reason: string };
+    suspended: { failureCount: number; resumeTime: number };
+    resumed: void;
+    reset: void;
+    reconnect_scheduled: { attempt: number; maxAttempts: number; delay: number; when: number };
+    reconnect_attempt: { attempt: number; maxAttempts: number };
+    reconnect_success: { attempt: number };
+    reconnect_failure: { attempt: number; error?: any };
+    max_attempts_reached: { attempts: number; maxAttempts: number };
+  }>(
     event: T,
-    callback: (data: typeof this.events.events[T]) => void
+    callback: (data: any) => void
   ): { unsubscribe: () => void } {
-    return this.events.on(event, callback);
+    return this.events.on(event as any, callback as any);
   }
 
   public recordFailure(errorInfo?: any): void {

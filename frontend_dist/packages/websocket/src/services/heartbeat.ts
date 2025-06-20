@@ -71,11 +71,15 @@ export class Heartbeat implements Disposable {
     this.clearHeartbeatTimeout();
   }
 
-  public on<T extends keyof typeof this.events.events>(
+  public on<T extends keyof {
+    timeout: void;
+    response: { latency: number; deviceIdValid: boolean; simulatorStatus: string };
+  }>(
     event: T,
-    callback: (data: typeof this.events.events[T]) => void
+    callback: (data: T extends 'timeout' ? void : 
+                   { latency: number; deviceIdValid: boolean; simulatorStatus: string }) => void
   ): { unsubscribe: () => void } {
-    return this.events.on(event, callback);
+    return this.events.on(event as any, callback as any);
   }
 
   private scheduleNextHeartbeat(): void {

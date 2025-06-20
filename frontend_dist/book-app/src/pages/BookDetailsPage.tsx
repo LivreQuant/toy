@@ -81,6 +81,13 @@ const BookDetailsPage: React.FC = () => {
   };
 
   const handleStartSimulator = async () => {
+    console.log('🎮 STEP 1: Starting simulator flow', {
+      bookId,
+      connectionManager: !!connectionManager,
+      isConnected,
+      simulatorStatus
+    });
+    
     if (!bookId || !connectionManager) {
       addToast('error', 'Cannot start simulator: Missing book ID or connection');
       return;
@@ -89,22 +96,21 @@ const BookDetailsPage: React.FC = () => {
     setIsStartingSimulator(true);
     
     try {
-      console.log('📡 Starting simulator via WebSocket for book:', bookId);
-      addToast('info', 'Starting simulator...');
-      
+      console.log('🎮 STEP 2: Calling connectionManager.startSimulator()');
       const result = await connectionManager.startSimulator();
+      console.log('🎮 STEP 3: Got result from startSimulator:', result);
       
       if (result.success) {
         addToast('success', 'Simulator started successfully');
         console.log('📡 Simulator started, navigating to dashboard');
         // Navigate to simulator page with bookId
-      navigate(`/${bookId}/simulator/`);
+        navigate(`/${bookId}/simulator/`);
       } else {
         addToast('error', `Failed to start simulator: ${result.error || 'Unknown error'}`);
         console.error('📡 Simulator start failed:', result);
       }
     } catch (error: any) {
-      console.error('📡 Error starting simulator:', error);
+      console.error('🎮 STEP ERROR: Exception in startSimulator:', error);
       addToast('error', `Error starting simulator: ${error.message}`);
     } finally {
       setIsStartingSimulator(false);

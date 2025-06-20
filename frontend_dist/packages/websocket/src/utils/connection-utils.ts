@@ -94,21 +94,21 @@ export class GlobalConfigService implements ConfigService {
     // Log the config object content
     logger.info('🔍 CONFIG DEBUG: Global config object', {
       config,
-      hasWsBaseUrl: !!config?.wsBaseUrl,
-      wsBaseUrl: config?.wsBaseUrl,
+      hasWsBaseUrl: !!(config as any)?.wsBaseUrl,
+      wsBaseUrl: (config as any)?.wsBaseUrl,
       configKeys: config ? Object.keys(config) : 'config is null/undefined'
     });
-
+    
     let wsUrl: string;
-
+    
     // PRIORITY 1: Environment variable (YOUR BACKEND)
     if (process.env.REACT_APP_WS_URL) {
       wsUrl = process.env.REACT_APP_WS_URL;
       logger.info('🔍 CONFIG DEBUG: Using REACT_APP_WS_URL (YOUR BACKEND)', { wsUrl });
     }
     // PRIORITY 2: Global config wsBaseUrl
-    else if (config?.wsBaseUrl) {
-      wsUrl = config.wsBaseUrl;
+    else if ((config as any)?.wsBaseUrl) {
+      wsUrl = (config as any).wsBaseUrl;
       logger.info('🔍 CONFIG DEBUG: Using config.wsBaseUrl', { wsUrl });
     }
     // PRIORITY 3: Development default (YOUR BACKEND)
