@@ -27,20 +27,15 @@ import './BookDetailsPage.css';
 const BookDetailsPage: React.FC = () => {
   useRequireAuth();
   const { bookId } = useParams<{ bookId: string }>();
-  const { isConnected, connectionManager, connectionState } = useConnection();
+  const { isConnected, connectionManager } = useConnection();
   const { addToast } = useToast();
   const bookManager = useBookManager();
   const navigate = useNavigate();
 
   const [book, setBook] = useState<Book | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isStartingSimulator, setIsStartingSimulator] = useState(false);
+  const [isStarting, setIsStarting] = useState(false);
   const [activeTab, setActiveTab] = useState(0);
-
-  // Get simulator status from connection state
-  const simulatorStatus = connectionState?.simulatorStatus || 'UNKNOWN';
-  const isSimulatorRunning = simulatorStatus === 'RUNNING';
-  const isSimulatorBusy = simulatorStatus === 'STARTING' || simulatorStatus === 'STOPPING';
 
   useEffect(() => {
     const fetchBookDetails = async () => {
@@ -80,47 +75,35 @@ const BookDetailsPage: React.FC = () => {
     window.location.href = `${mainAppUrl}`;
   };
 
-  const handleStartSimulator = async () => {
-    console.log('🎮 STEP 1: Starting simulator flow', {
-      bookId,
-      connectionManager: !!connectionManager,
-      isConnected,
-      simulatorStatus
-    });
+  // ONE FUCKING BUTTON THAT DOES EVERYTHING
+  const handleGoToTradingDashboard = async () => {
+    console.log('🎮 TRADING DASHBOARD: User wants to go to trading dashboard');
+    console.log('🎮 TRADING DASHBOARD: Starting simulator and navigating...');
     
     if (!bookId || !connectionManager) {
-      addToast('error', 'Cannot start simulator: Missing book ID or connection');
+      addToast('error', 'Cannot access trading dashboard: Missing requirements');
       return;
     }
     
-    setIsStartingSimulator(true);
+    setIsStarting(true);
     
     try {
-      console.log('🎮 STEP 2: Calling connectionManager.startSimulator()');
+      console.log('🎮 TRADING DASHBOARD: Ensuring simulator is running...');
       const result = await connectionManager.startSimulator();
-      console.log('🎮 STEP 3: Got result from startSimulator:', result);
+      console.log('🎮 TRADING DASHBOARD: Simulator result:', result);
       
       if (result.success) {
-        addToast('success', 'Simulator started successfully');
-        console.log('📡 Simulator started, navigating to dashboard');
-        // Navigate to simulator page with bookId
-        navigate(`/${bookId}/simulator/`);
+        console.log('🎮 TRADING DASHBOARD: Success! Navigating to dashboard...');
+        navigate(`/${bookId}/simulator`);
       } else {
-        addToast('error', `Failed to start simulator: ${result.error || 'Unknown error'}`);
-        console.error('📡 Simulator start failed:', result);
+        console.error('🎮 TRADING DASHBOARD: Failed to start simulator:', result);
+        addToast('error', `Cannot access trading dashboard: ${result.error || 'Simulator failed to start'}`);
       }
     } catch (error: any) {
-      console.error('🎮 STEP ERROR: Exception in startSimulator:', error);
-      addToast('error', `Error starting simulator: ${error.message}`);
+      console.error('🎮 TRADING DASHBOARD: Exception:', error);
+      addToast('error', `Error accessing trading dashboard: ${error.message}`);
     } finally {
-      setIsStartingSimulator(false);
-    }
-  };
-
-  // If simulator is already running for this book, show option to go to dashboard
-  const handleGoToDashboard = () => {
-    if (bookId) {
-      navigate(`/${bookId}/simulator/`);
+      setIsStarting(false);
     }
   };
 
@@ -397,7 +380,7 @@ const BookDetailsPage: React.FC = () => {
               }
             }}
           >
-            <Tab label="Start Simulator" />
+            <Tab label="Trading Dashboard" />
             <Tab label="Conviction Management" />
           </Tabs>
         </Box>
@@ -405,53 +388,34 @@ const BookDetailsPage: React.FC = () => {
         <CardContent sx={{ p: 0 }}>          
           {activeTab === 0 && (
             <Box sx={{ textAlign: 'center', py: 4 }}>
-              {/* Show different buttons based on simulator status */}
-              {isSimulatorRunning ? (
-                <Button 
-                  variant="contained" 
-                  color="success"
-                  size="large"
-                  startIcon={<PlayArrowIcon />}
-                  onClick={handleGoToDashboard}
-                  sx={{ 
-                    py: 1.5, 
-                    px: 4,
-                    fontSize: '1.1rem',
-                    borderRadius: 2
-                  }}
-                >
-                  Go to Trading Dashboard
-                </Button>
-              ) : (
-                <Button 
-                  variant="contained" 
-                  color="primary"
-                  size="large"
-                  startIcon={<PlayArrowIcon />}
-                  onClick={handleStartSimulator}
-                  disabled={isStartingSimulator || isSimulatorBusy || !isConnected}
-                  sx={{ 
-                    py: 1.5, 
-                    px: 4,
-                    fontSize: '1.1rem',
-                    borderRadius: 2
-                  }}
-                >
-                  {isStartingSimulator || isSimulatorBusy ? 'Starting Simulator...' : 'Start Simulator'}
-                </Button>
-              )}
+              {/* ONE BUTTON TO RULE THEM ALL */}
+              <Button 
+                variant="contained" 
+                color="primary"
+                size="large"
+                startIcon={<PlayArrowIcon />}
+                onClick={handleGoToTradingDashboard}
+                disabled={isStarting || !isConnected}
+                sx={{ 
+                  py: 1.5, 
+                  px: 4,
+                  fontSize: '1.1rem',
+                  borderRadius: 2
+                }}
+              >
+                {isStarting ? 'Preparing Trading Dashboard...' : 'Go to Trading Dashboard'}
+              </Button>
 
               <Typography variant="body1" sx={{ mt: 3, maxWidth: 600, mx: 'auto' }}>
-                {isSimulatorRunning 
-                  ? 'Your trading simulator is running. Click above to access the dashboard.'
-                  : 'Launch the simulator to begin trading with this book\'s settings. The simulator provides a real-time trading environment to test your convictions.'
-                }
+                Access your real-time trading environment with live market data, 
+                conviction management, and portfolio analytics.
               </Typography>
 
-              {/* Show simulator status */}
-              <Typography variant="body2" sx={{ mt: 2, color: 'text.secondary' }}>
-                Simulator Status: {simulatorStatus}
-              </Typography>
+              {!isConnected && (
+                <Typography variant="body2" sx={{ mt: 2, color: 'error.main' }}>
+                  Waiting for connection to trading platform...
+                </Typography>
+              )}
             </Box>
           )}
           
