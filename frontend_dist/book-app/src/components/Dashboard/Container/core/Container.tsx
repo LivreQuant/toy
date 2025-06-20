@@ -302,7 +302,7 @@ const Container = () => {
     return <LoadingSpinner/>;
   }
 
-  if (!bookId) {
+  if (!bookId) { 
     return <LoadingSpinner/>;
   }
 

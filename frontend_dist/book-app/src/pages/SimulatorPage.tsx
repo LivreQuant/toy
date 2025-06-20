@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useConnection } from '../hooks/useConnection';
 import { useRequireAuth } from '../hooks/useRequireAuth';
 import { useToast } from '../hooks/useToast';
-import Container from '../components/Dashboard/Container/core/Container'; // ADD THIS IMPORT
+import Container from '../components/Dashboard/Container/core/Container'; // Add this import
 import CsvConvictionUpload from '../components/Simulator/CsvConvictionUpload';
 import './SimulatorPage.css';
 
@@ -84,16 +84,18 @@ const SimulatorPage: React.FC = () => {
        }
    }, [connectionManager, addToast]);
 
-   // NEW: If simulator is running, show full dashboard
    if (isSimulatorRunning && isConnected) {
     return (
-      <div style={{ height: '100vh', width: '100%' }}>
-        <Container />
+      <div style={{ height: '100vh', width: '100%', background: 'green', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <h1>DASHBOARD SHOULD BE HERE - Container component loading...</h1>
+        <Container/>
       </div>
     );
   }
 
-  return (
+    // CANNOT FIND BOOKID IN CONTAINER.TSX SO IT SHOWS THE LOADING ICON
+
+    return (
     <div className="simulator-page">
         <header className="simulator-header">
             <h1>Trading Simulator</h1>
