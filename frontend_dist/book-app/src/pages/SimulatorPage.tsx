@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useConnection } from '../hooks/useConnection';
 import { useRequireAuth } from '../hooks/useRequireAuth';
 import { useToast } from '../hooks/useToast';
+import Container from '../components/Dashboard/Container/core/Container'; // ADD THIS IMPORT
 import CsvConvictionUpload from '../components/Simulator/CsvConvictionUpload';
 import './SimulatorPage.css';
 
@@ -83,6 +84,15 @@ const SimulatorPage: React.FC = () => {
        }
    }, [connectionManager, addToast]);
 
+   // NEW: If simulator is running, show full dashboard
+   if (isSimulatorRunning && isConnected) {
+    return (
+      <div style={{ height: '100vh', width: '100%' }}>
+        <Container />
+      </div>
+    );
+  }
+
   return (
     <div className="simulator-page">
         <header className="simulator-header">
@@ -100,15 +110,6 @@ const SimulatorPage: React.FC = () => {
                    {simulatorStatus === 'STARTING' ? 'Starting...' : 'Start Simulator'}
                 </button>
 
-                {/* Shutdown and Go Home Button */}
-                <button
-                    onClick={handleShutdownAndGoHome}
-                    disabled={!isConnected || !isSimulatorRunning || isSimulatorBusy || isSimActionLoading}
-                    className="control-button danger"
-                    title="Stop simulator and return to home"
-                >
-                   {simulatorStatus === 'STOPPING' ? 'Stopping...' : 'Shutdown & Home'}
-                </button>
             </div>
         </header>
 

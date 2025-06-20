@@ -1,6 +1,6 @@
 // frontend_dist/book-app/src/pages/BookDetailsPage.tsx
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useRequireAuth } from '../hooks/useRequireAuth';
 import { useConnection } from '../hooks/useConnection';
 import { useToast } from '../hooks/useToast';
@@ -31,6 +31,7 @@ const BookDetailsPage: React.FC = () => {
   const { isConnected, connectionManager } = useConnection();
   const { addToast } = useToast();
   const bookManager = useBookManager();
+  const navigate = useNavigate();
 
   const [book, setBook] = useState<Book | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -85,7 +86,7 @@ const BookDetailsPage: React.FC = () => {
       
       if (result.success) {
         addToast('success', 'Simulator started successfully');
-        window.location.href = `/simulator/${bookId}`;
+        navigate(`/simulator/${bookId}`);
       } else {
         addToast('error', `Failed to start simulator: ${result.error || 'Unknown error'}`);
       }
@@ -120,23 +121,24 @@ const BookDetailsPage: React.FC = () => {
   // TEMPORARY: FULL SCREEN TRADING DASHBOARD
   // ==========================================
   // TODO: Remove this section and uncomment the original layout below when debugging is complete
+  /*
   return (
     <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
-      {/* Full Screen Trading Dashboard */}
       <Box sx={{ flex: 1, overflow: 'hidden' }}>
         <Container />
       </Box>
     </Box>
   );
+  */
+  
 
   // ==========================================
   // ORIGINAL LAYOUT (COMMENTED OUT FOR NOW)
   // ==========================================
   // TODO: Uncomment this section when ready to revert to the original layout
-  /*
   return (
     <Box sx={{ maxWidth: 1400, mx: 'auto', p: { xs: 2, md: 4 } }}> 
-      {/* Header with ONLY Back Button *//*}
+      {/* Header with ONLY Back Button */}
       <Box sx={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center', mb: 3 }}>
         <Button 
           startIcon={<ArrowBackIcon />} 
@@ -147,7 +149,7 @@ const BookDetailsPage: React.FC = () => {
         </Button>
       </Box>
             
-      {/* Book Details Card - READ ONLY *//*}
+      {/* Book Details Card - READ ONLY */}
       <Card 
         variant="outlined" 
         sx={{ 
@@ -157,7 +159,7 @@ const BookDetailsPage: React.FC = () => {
         }}
       >
         <CardContent sx={{ p: 0 }}>
-          {/* Header *//*}
+          {/* Header */}
           <Box sx={{ 
             p: 3, 
             borderBottom: '1px solid #f3f4f6'
@@ -170,7 +172,7 @@ const BookDetailsPage: React.FC = () => {
             </Typography>
           </Box>
 
-          {/* Main Content - Horizontal Layout *//*}
+          {/* Main Content - Horizontal Layout */}
           <Box sx={{ p: 3, size: 12 }}>
             <Grid container spacing={0}>
               {/* Regions *//*}
@@ -197,7 +199,7 @@ const BookDetailsPage: React.FC = () => {
                 </Box>
               </Grid>
 
-              {/* Markets *//*}
+              {/* Markets */}
               <Grid {...{component: "div", item: true, xs: 12, md: 2, size: 2} as any} sx={{ pr: 4 }}>
                 <Typography variant="subtitle2" sx={{ mb: 1, textAlign: 'center', color: '#6b7280', fontWeight: 600 }}>
                   Markets
@@ -221,7 +223,7 @@ const BookDetailsPage: React.FC = () => {
                 </Box>
               </Grid>
 
-              {/* Instruments *//*}
+              {/* Instruments */}
               <Grid {...{component: "div", item: true, xs: 12, md: 2, size: 2} as any} sx={{ pr: 4 }}>
                 <Typography variant="subtitle2" sx={{ mb: 1, textAlign: 'center', color: '#6b7280', fontWeight: 600 }}>
                   Instruments
@@ -245,7 +247,7 @@ const BookDetailsPage: React.FC = () => {
                 </Box>
               </Grid>
 
-              {/* Investment Approach *//*}
+              {/* Investment Approach */}
               <Grid {...{component: "div", item: true, xs: 12, md: 2, size: 2} as any} sx={{ pr: 4 }}>
                 <Typography variant="subtitle2" sx={{ mb: 1, textAlign: 'center', color: '#6b7280', fontWeight: 600 }}>
                   Approach
@@ -269,7 +271,7 @@ const BookDetailsPage: React.FC = () => {
                 </Box>
               </Grid>
 
-              {/* Position Types *//*}
+              {/* Position Types */}
               <Grid {...{component: "div", item: true, xs: 12, md: 2, size: 2} as any} sx={{ pr: 4 }}>
                 <Typography variant="subtitle2" sx={{ mb: 1, textAlign: 'center', color: '#6b7280', fontWeight: 600 }}>
                   Position Types
@@ -306,7 +308,7 @@ const BookDetailsPage: React.FC = () => {
                 </Box>
               </Grid>
 
-              {/* Timeframe *//*}
+              {/* Timeframe */}
               <Grid {...{component: "div", item: true, xs: 12, md: 2, size: 2} as any}>
                 <Typography variant="subtitle2" sx={{ mb: 1, textAlign: 'center', color: '#6b7280', fontWeight: 600 }}>
                   Timeframe
@@ -331,7 +333,7 @@ const BookDetailsPage: React.FC = () => {
               </Grid>
             </Grid>
 
-            {/* Sectors Row - Only if exists *//*}
+            {/* Sectors Row - Only if exists */}
             {book.sectors && book.sectors.length > 0 && (
               <Box sx={{ mt: 3, pt: 3 }}>
                 <Typography variant="subtitle2" sx={{ mb: 1, textAlign: 'center', color: '#6b7280', fontWeight: 600 }}>
@@ -360,7 +362,7 @@ const BookDetailsPage: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Main Content Section *//*}
+      {/* Main Content Section */}
       <Card variant="outlined" sx={{ mb: 4 }}>
         <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
           <Tabs 
@@ -387,20 +389,13 @@ const BookDetailsPage: React.FC = () => {
               }
             }}
           >
-            <Tab label="Trading Dashboard" />
             <Tab label="Start Simulator" />
             <Tab label="Conviction Management" />
           </Tabs>
         </Box>
         
-        <CardContent sx={{ p: 0 }}>
+        <CardContent sx={{ p: 0 }}>          
           {activeTab === 0 && (
-            <Box sx={{ height: '80vh' }}> {/* Set height for dashboard *//*}
-              <Container />
-            </Box>
-          )}
-          
-          {activeTab === 1 && (
             <Box sx={{ textAlign: 'center', py: 4 }}>
               <Button 
                 variant="contained" 
@@ -426,7 +421,7 @@ const BookDetailsPage: React.FC = () => {
             </Box>
           )}
           
-          {activeTab === 2 && (
+          {activeTab === 1 && (
             <Box sx={{ p: 3 }}>
               <ConvictionSubmissionContainer />
             </Box>
@@ -435,7 +430,6 @@ const BookDetailsPage: React.FC = () => {
       </Card>
     </Box>
   );
-  */
 };
 
 export default BookDetailsPage;
