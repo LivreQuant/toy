@@ -1,13 +1,13 @@
-// src/components/Dashboard/Viewers/OrderBlotter/utils/StatusCellRenderer.tsx
+// src/components/Dashboard/Viewers/ConvictionBlotter/utils/StatusCellRenderer.tsx
 import React from 'react';
 import { ICellRendererParams } from 'ag-grid-community';
 
-interface OrderData {
+interface ConvictionData {
   status: string;
   [key: string]: any;
 }
 
-const StatusCellRenderer: React.FC<ICellRendererParams<OrderData, string>> = (props) => {
+const StatusCellRenderer: React.FC<ICellRendererParams<ConvictionData, string>> = (props) => {
   if (!props.value) {
     return <span></span>;
   }

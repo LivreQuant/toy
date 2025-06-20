@@ -25,3 +25,19 @@ export interface UpdateBookResponse {
 }
 
 export { Book, BookRequest };
+
+
+export interface ClientConfigResponse {
+  success: boolean;
+  config?: string | null;
+  error?: string;
+}
+
+export interface ClientConfigUpdateRequest {
+  config: string;
+}
+
+export interface ClientConfigUpdateResponse {
+  success: boolean;
+  error?: string;
+}

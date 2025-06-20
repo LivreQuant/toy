@@ -589,3 +589,76 @@ class BookRepository:
         except Exception as e:
             logger.error(f"Error updating book {book_id}: {e}", exc_info=True)
             return False
+        
+    async def get_client_config(self, user_id: str, book_id: str) -> str:
+        """
+        Get client config for a specific user and book
+        
+        Args:
+            user_id: User ID
+            book_id: Book ID
+            
+        Returns:
+            Config string if found, empty string otherwise
+        """
+        pool = await self.db_pool.get_pool()
+        
+        query = """
+        SELECT config FROM fund.book_clientconfig
+        WHERE user_id = $1 AND book_id = $2
+        """
+        
+        start_time = time.time()
+        try:
+            async with pool.acquire() as conn:
+                result = await conn.fetchval(query, user_id, book_id)
+                
+                duration = time.time() - start_time
+                track_db_operation("get_client_config", True, duration)
+                
+                # Return empty string if no config found
+                return result if result is not None else ""
+                
+        except Exception as e:
+            duration = time.time() - start_time
+            track_db_operation("get_client_config", False, duration)
+            logger.error(f"Error getting client config for user {user_id}, book {book_id}: {e}")
+            return ""
+
+    async def upsert_client_config(self, user_id: str, book_id: str, config: str) -> bool:
+        """
+        Insert or update client config for a specific user and book
+        
+        Args:
+            user_id: User ID
+            book_id: Book ID
+            config: Config string to store
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        pool = await self.db_pool.get_pool()
+        
+        query = """
+        INSERT INTO fund.book_clientconfig (user_id, book_id, config)
+        VALUES ($1, $2, $3)
+        ON CONFLICT (user_id, book_id)
+        DO UPDATE SET config = EXCLUDED.config
+        """
+        
+        start_time = time.time()
+        try:
+            async with pool.acquire() as conn:
+                await conn.execute(query, user_id, book_id, config)
+                
+                duration = time.time() - start_time
+                track_db_operation("upsert_client_config", True, duration)
+                
+                logger.info(f"Client config updated for user {user_id}, book {book_id}")
+                return True
+                
+        except Exception as e:
+            duration = time.time() - start_time
+            track_db_operation("upsert_client_config", False, duration)
+            logger.error(f"Error upserting client config for user {user_id}, book {book_id}: {e}")
+            return False

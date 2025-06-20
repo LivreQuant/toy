@@ -42,7 +42,7 @@ const ColumnChooserAgGrid: React.FC<ColumnChooserAgGridProps> = ({ controller })
           }
         }
       
-        // Ensure colStates is never undefined and preserve order
+        // Ensure colStates is never undefined and preserve conviction
         setIsOpen(true);
         setColumns(colStates || []);
         setCallback(() => callback);

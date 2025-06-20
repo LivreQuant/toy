@@ -251,3 +251,108 @@ class BookController(BaseController):
 
         return self.create_success_response({"message": "Book updated successfully"})
     
+    async def get_client_config(self, request: web.Request) -> web.Response:
+        """
+        Handle client config retrieval endpoint
+        """
+        # Try to acquire the lock first
+        acquired = await self.state_manager.acquire()
+        if not acquired:
+            return self.create_error_response("Service is currently busy. Please try again later.", 503)
+
+        try:
+            return await self._get_client_config(request)
+        except Exception as e:
+            logger.error(f"Error handling client config retrieval: {e}")
+            return self.create_error_response("Server error processing client config request")
+        finally:
+            # Always release the lock, even if there's an error
+            await self.state_manager.release()
+
+    async def update_client_config(self, request: web.Request) -> web.Response:
+        """
+        Handle client config update endpoint
+        """
+        # Try to acquire the lock first
+        acquired = await self.state_manager.acquire()
+        if not acquired:
+            return self.create_error_response("Service is currently busy. Please try again later.", 503)
+
+        try:
+            return await self._update_client_config(request)
+        except Exception as e:
+            logger.error(f"Error handling client config update: {e}")
+            return self.create_error_response("Server error processing client config update")
+        finally:
+            # Always release the lock, even if there's an error
+            await self.state_manager.release()
+
+    async def _get_client_config(self, request: web.Request) -> web.Response:
+        """Handle client config retrieval endpoint"""
+        # Authenticate request
+        auth_success, auth_result = await self.authenticate(request, w_device_id=False)
+        if not auth_success:
+            return self.create_error_response(auth_result["error"], auth_result["status"])
+
+        user_id = auth_result["user_id"]
+
+        # Get book ID from URL
+        book_id = request.match_info.get('id')
+        if not book_id:
+            return self.create_error_response("Book ID is required", 400)
+
+        logger.info(f"Getting client config for user {user_id}, book {book_id}")
+
+        # Verify book ownership first
+        book_result = await self.book_manager.get_book(book_id, user_id)
+        if not book_result["success"]:
+            return self.create_error_response("Book not found or does not belong to user", 404)
+
+        # Get client config
+        config = await self.book_manager.get_client_config(user_id, book_id)
+
+        return self.create_success_response({"config": config})
+
+    async def _update_client_config(self, request: web.Request) -> web.Response:
+        """Handle client config update endpoint"""
+        # Authenticate request
+        auth_success, auth_result = await self.authenticate(request, w_device_id=False)
+        if not auth_success:
+            return self.create_error_response(auth_result["error"], auth_result["status"])
+
+        user_id = auth_result["user_id"]
+
+        # Get book ID from URL
+        book_id = request.match_info.get('id')
+        if not book_id:
+            return self.create_error_response("Book ID is required", 400)
+
+        # Parse request body
+        parse_success, data = await self.parse_json_body(request)
+        if not parse_success:
+            return self.create_error_response(data["error"], data["status"])
+
+        # Validate that config field exists
+        if 'config' not in data:
+            return self.create_error_response("Config field is required", 400)
+
+        config = data['config']
+        
+        # Validate that config is a string
+        if not isinstance(config, str):
+            return self.create_error_response("Config must be a string", 400)
+
+        logger.info(f"Updating client config for user {user_id}, book {book_id}")
+
+        # Verify book ownership first
+        book_result = await self.book_manager.get_book(book_id, user_id)
+        if not book_result["success"]:
+            return self.create_error_response("Book not found or does not belong to user", 404)
+
+        # Update client config
+        success = await self.book_manager.update_client_config(user_id, book_id, config)
+
+        if success:
+            return self.create_success_response({"message": "Client config updated successfully"})
+        else:
+            return self.create_error_response("Failed to update client config", 500)

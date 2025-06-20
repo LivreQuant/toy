@@ -75,6 +75,10 @@ async def setup_app(
     app.router.add_post('/api/books', book_controller.create_book)
     app.router.add_get('/api/books/{id}', book_controller.get_book)
     app.router.add_put('/api/books/{id}', book_controller.update_book)
+    
+    # Add client config routes
+    app.router.add_get('/api/books/{id}/config', book_controller.get_client_config)
+    app.router.add_put('/api/books/{id}/config', book_controller.update_client_config)
 
     # Add conviction routes
     conviction_controller = ConvictionController(state_manager, session_manager, conviction_manager)

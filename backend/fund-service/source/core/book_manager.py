@@ -645,3 +645,49 @@ class BookManager:
                 "success": False,
                 "error": f"Error getting contract details: {str(e)}"
             }
+
+    async def get_client_config(self, user_id: str, book_id: str) -> str:
+        """
+        Get client config for a user and book
+        
+        Args:
+            user_id: User ID
+            book_id: Book ID
+            
+        Returns:
+            Config string (empty string if not found)
+        """
+        logger.info(f"Getting client config for user {user_id}, book {book_id}")
+        
+        try:
+            config = await self.book_repository.get_client_config(user_id, book_id)
+            logger.info(f"Retrieved client config for user {user_id}, book {book_id}: {len(config)} characters")
+            return config
+        except Exception as e:
+            logger.error(f"Error getting client config for user {user_id}, book {book_id}: {e}")
+            return ""
+
+    async def update_client_config(self, user_id: str, book_id: str, config: str) -> bool:
+        """
+        Update client config for a user and book
+        
+        Args:
+            user_id: User ID
+            book_id: Book ID
+            config: Config string to store
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        logger.info(f"Updating client config for user {user_id}, book {book_id}")
+        
+        try:
+            success = await self.book_repository.upsert_client_config(user_id, book_id, config)
+            if success:
+                logger.info(f"Successfully updated client config for user {user_id}, book {book_id}")
+            else:
+                logger.error(f"Failed to update client config for user {user_id}, book {book_id}")
+            return success
+        except Exception as e:
+            logger.error(f"Error updating client config for user {user_id}, book {book_id}: {e}")
+            return False

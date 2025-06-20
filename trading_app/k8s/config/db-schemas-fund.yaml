@@ -65,6 +65,13 @@ data:
         PRIMARY KEY (property_id, category, subcategory, active_at)
     );
 
+    CREATE TABLE fund.book_clientconfig (
+        user_id UUID NOT NULL REFERENCES auth.users(user_id) ON DELETE CASCADE UNIQUE,
+        book_id UUID NOT NULL REFERENCES fund.books(book_id) ON DELETE CASCADE,
+        config text NOT NULL,
+        PRIMARY KEY (user_id, book_id)
+    );
+
     -- Create indexes for performance
     CREATE INDEX idx_fund_funds_user_id ON fund.funds(user_id);
     CREATE INDEX idx_fund_team_members_fund ON fund.team_members(fund_id);
@@ -73,6 +80,8 @@ data:
     CREATE INDEX idx_fund_properties_lookup ON fund.fund_properties(fund_id, category, subcategory);
     CREATE INDEX idx_fund_team_member_properties_lookup ON fund.team_member_properties(member_id, category, subcategory);
     CREATE INDEX idx_book_properties_category ON fund.book_properties(book_id, category, subcategory);
+
+    CREATE INDEX idx_book_clientconfig_category ON fund.book_clientconfig(book_id);
 
     -- Grant permissions
     GRANT USAGE ON SCHEMA fund TO opentp;
