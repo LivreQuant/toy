@@ -1,4 +1,4 @@
-// src/index.ts
+// frontend_dist/packages/websocket/src/index.ts
 export * from './types';
 export * from './client';
 export * from './handlers';
@@ -17,3 +17,6 @@ export { SimulatorClient } from './services/simulator-client';
 
 // Export factory function for easy setup
 export { createConnectionManagerWithGlobalDeps } from './utils/connection-utils';
+
+// Export debugging utilities
+export { debugConnectionManagerInstances } from './utils/debug-utils';

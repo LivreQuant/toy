@@ -75,28 +75,62 @@ const BookDetailsPage: React.FC = () => {
     window.location.href = `${mainAppUrl}`;
   };
 
-  // ONE FUCKING BUTTON THAT DOES EVERYTHING
   const handleGoToTradingDashboard = async () => {
     console.log('🎮 TRADING DASHBOARD: User wants to go to trading dashboard');
-    console.log('🎮 TRADING DASHBOARD: Starting simulator and navigating...');
     
     if (!bookId || !connectionManager) {
       addToast('error', 'Cannot access trading dashboard: Missing requirements');
       return;
     }
     
+    // 🔍 DEBUG: Check the socketClient specifically
+    const cm = connectionManager as any;
+    
+    console.log('🔍 DEBUG: SocketClient details:', {
+      hasSocketClient: !!cm.socketClient,
+      socketClientKeys: cm.socketClient ? Object.keys(cm.socketClient) : 'no socketClient'
+    });
+    
+    if (cm.socketClient) {
+      console.log('🔍 DEBUG: SocketClient object:', cm.socketClient);
+      
+      // Check if socketClient has a socket property
+      if (cm.socketClient.socket) {
+        console.log('🔍 DEBUG: SocketClient.socket:', cm.socketClient.socket);
+        console.log('🔍 DEBUG: SocketClient.socket.url:', cm.socketClient.socket.url);
+      }
+      
+      // Check if socketClient has a url property
+      if (cm.socketClient.url) {
+        console.log('🔍 DEBUG: SocketClient.url:', cm.socketClient.url);
+      }
+      
+      // Check if socketClient has a config
+      if (cm.socketClient.config) {
+        console.log('🔍 DEBUG: SocketClient.config:', cm.socketClient.config);
+      }
+    }
+    
+    // Also check configService since that was in the keys
+    if (cm.configService) {
+      console.log('🔍 DEBUG: ConfigService:', cm.configService);
+      
+      // Check if configService has WebSocket URL
+      if (typeof cm.configService.getWebSocketUrl === 'function') {
+        console.log('🔍 DEBUG: ConfigService.getWebSocketUrl():', cm.configService.getWebSocketUrl());
+      }
+    }
+    
     setIsStarting(true);
     
     try {
-      console.log('🎮 TRADING DASHBOARD: Ensuring simulator is running...');
+      console.log('🎮 TRADING DASHBOARD: Starting simulator...');
       const result = await connectionManager.startSimulator();
       console.log('🎮 TRADING DASHBOARD: Simulator result:', result);
       
       if (result.success) {
-        console.log('🎮 TRADING DASHBOARD: Success! Navigating to dashboard...');
         navigate(`/${bookId}/simulator`);
       } else {
-        console.error('🎮 TRADING DASHBOARD: Failed to start simulator:', result);
         addToast('error', `Cannot access trading dashboard: ${result.error || 'Simulator failed to start'}`);
       }
     } catch (error: any) {

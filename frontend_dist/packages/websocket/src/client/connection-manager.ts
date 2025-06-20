@@ -27,7 +27,7 @@ export class ConnectionManager implements Disposable {
   private sessionHandler: SessionHandler;
   private simulatorClient: SimulatorClient;
   private isDisposed = false;
-  private hasAuthInitialized = false; // 🚨 NEW: Track if auth has been properly initialized
+  private hasAuthInitialized = false;
   
   public desiredState: ConnectionDesiredState = {
     connected: false,
@@ -62,27 +62,94 @@ export class ConnectionManager implements Disposable {
       }
     };
 
+    // 🚨 FIX: Create ONE SocketClient instance and share it across all services
     this.socketClient = new SocketClient(tokenManager, configService);
-    this.heartbeat = new Heartbeat(this.socketClient, this.stateManager, {
-      interval: options.heartbeatInterval || 15000,
-      timeout: options.heartbeatTimeout || 5000
+    this.logger.info('🔌 CONNECTION: Created shared SocketClient instance', {
+      socketClientId: (this.socketClient as any)._id || 'no-id'
     });
-    this.resilience = new Resilience(tokenManager, toastService, options.resilience);
-    this.sessionHandler = new SessionHandler(this.socketClient);
-    this.simulatorClient = new SimulatorClient(this.socketClient, this.stateManager);
+
+    // 🚨 FIX: Pass the SAME socketClient instance to all services
+    this.heartbeat = new Heartbeat(
+      this.socketClient, // ✅ Shared instance
+      this.stateManager, 
+      {
+        interval: mergedOptions.heartbeatInterval!,
+        timeout: mergedOptions.heartbeatTimeout!
+      }
+    );
+    
+    this.resilience = new Resilience(tokenManager, toastService, mergedOptions.resilience);
+    
+    this.sessionHandler = new SessionHandler(
+      this.socketClient // ✅ Shared instance
+    );
+    
+    this.simulatorClient = new SimulatorClient(
+      this.socketClient, // ✅ Shared instance
+      this.stateManager
+    );
+    
+    // Log instance sharing verification
+    this.logger.info('🔌 CONNECTION: Service instances created', {
+      socketClientInstance: !!this.socketClient,
+      heartbeatSocketClient: !!(this.heartbeat as any).client,
+      sessionHandlerSocketClient: !!(this.sessionHandler as any).client,
+      simulatorSocketClient: !!(this.simulatorClient as any).socketClient,
+      allUsingSameInstance: this.verifySharedInstances()
+    });
     
     this.setupListeners();
-    
-    // 🚨 NEW: Wait for auth to initialize before allowing connections
     this.waitForAuthInitialization();
   }
 
-  // 🚨 NEW: Wait for proper auth initialization
+  // 🚨 NEW: Verification method to ensure all services share the same SocketClient
+  private verifySharedInstances(): boolean {
+    const heartbeatClient = (this.heartbeat as any).client;
+    const sessionClient = (this.sessionHandler as any).client;
+    const simulatorClient = (this.simulatorClient as any).socketClient;
+    
+    const allSame = (
+      this.socketClient === heartbeatClient &&
+      this.socketClient === sessionClient &&
+      this.socketClient === simulatorClient
+    );
+    
+    if (!allSame) {
+      this.logger.error('🚨 CRITICAL: Services are NOT using the same SocketClient instance!', {
+        mainSocketClient: this.socketClient,
+        heartbeatClient,
+        sessionClient,
+        simulatorClient
+      });
+    }
+    
+    return allSame;
+  }
+
+  // 🚨 NEW: Public getter for debugging
+  public getSocketClient(): SocketClient {
+    return this.socketClient;
+  }
+
+  // 🚨 NEW: Public method for debugging instance sharing
+  public debugInstances(): void {
+    console.log('🔍 CONNECTION MANAGER DEBUG:', {
+      mainSocketClient: this.socketClient,
+      mainSocketClientSocket: this.socketClient.getSocket(), // ✅ Use public getter
+      mainSocketClientInfo: this.socketClient.getSocketInfo(), // ✅ Use public getter
+      heartbeatClient: (this.heartbeat as any).client,
+      sessionClient: (this.sessionHandler as any).client,
+      simulatorClient: (this.simulatorClient as any).socketClient,
+      simulatorHandler: (this.simulatorClient as any).simulatorHandler,
+      simulatorHandlerClient: (this.simulatorClient as any).simulatorHandler?.client,
+      allUsingSameInstance: this.verifySharedInstances()
+    });
+  }
+
   private waitForAuthInitialization(): void {
     const checkAuthInit = () => {
       const authState = this.stateManager.getAuthState();
       
-      // Auth is considered initialized when isAuthLoading becomes false
       if (!authState.isAuthLoading) {
         this.hasAuthInitialized = true;
         this.logger.info('🔌 CONNECTION: Auth initialization complete, connections now allowed', {
@@ -90,7 +157,6 @@ export class ConnectionManager implements Disposable {
           userId: authState.userId
         });
         
-        // Now sync the connection state if needed
         this.syncConnectionState();
         return;
       }
@@ -100,11 +166,9 @@ export class ConnectionManager implements Disposable {
         isAuthenticated: authState.isAuthenticated
       });
       
-      // Check again in 100ms
       setTimeout(checkAuthInit, 100);
     };
     
-    // Start checking
     setTimeout(checkAuthInit, 50);
   }
 
@@ -191,7 +255,6 @@ export class ConnectionManager implements Disposable {
       hasAuthInitialized: this.hasAuthInitialized
     });
     
-    // 🚨 CRITICAL: Only sync if auth has been initialized
     if (this.hasAuthInitialized) {
       this.syncConnectionState();
       
@@ -206,7 +269,6 @@ export class ConnectionManager implements Disposable {
   private syncConnectionState(): void {
     if (this.isDisposed) return;
     
-    // 🚨 CRITICAL: Block all connections until auth is properly initialized
     if (!this.hasAuthInitialized) {
       this.logger.debug('🔌 CONNECTION: Sync blocked - auth not yet initialized');
       return;
@@ -288,7 +350,6 @@ export class ConnectionManager implements Disposable {
   public async connect(): Promise<boolean> {
     if (this.isDisposed) return false;
     
-    // 🚨 CRITICAL: Prevent connections until auth is initialized
     if (!this.hasAuthInitialized) {
       this.logger.warn('🔌 CONNECTION: Connect blocked - auth not yet initialized');
       return false;
@@ -431,7 +492,6 @@ export class ConnectionManager implements Disposable {
   public async attemptRecovery(reason: string = 'manual'): Promise<boolean> {
     if (this.isDisposed) return false;
     
-    // 🚨 CRITICAL: Block recovery until auth is initialized
     if (!this.hasAuthInitialized) {
       this.logger.warn('🔌 CONNECTION: Recovery blocked - auth not yet initialized');
       return false;
@@ -551,6 +611,7 @@ export class ConnectionManager implements Disposable {
     this.disconnect('device_id_invalidated');
   }
 
+  
   public async startSimulator(): Promise<{ success: boolean; status?: string; error?: string }> {
     if (this.isDisposed) {
       return { success: false, error: 'ConnectionManager disposed' };
@@ -569,9 +630,17 @@ export class ConnectionManager implements Disposable {
       return { success: true, status: connState.simulatorStatus };
     }
     
+    // 🚨 FIXED: Use public getter instead of private property
+    this.logger.info('🔌 CONNECTION: About to start simulator', {
+      simulatorClientSocketClient: (this.simulatorClient as any).socketClient,
+      simulatorClientSocketInfo: (this.simulatorClient as any).socketClient?.getSocketInfo(), // ✅ Use public getter
+      mainSocketClientInfo: this.socketClient.getSocketInfo(), // ✅ Use public getter
+      instancesMatch: (this.simulatorClient as any).socketClient === this.socketClient
+    });
+    
     return this.simulatorClient.startSimulator();
   }
-
+  
   public async stopSimulator(): Promise<{ success: boolean; status?: string; error?: string }> {
     if (this.isDisposed) {
       return { success: false, error: 'ConnectionManager disposed' };

@@ -9,6 +9,9 @@ import { EventEmitter } from '@trading-app/utils';
 import { WebSocketMessage } from '../types/message-types';
 import { SocketClientOptions, ConfigService } from '../types/connection-types';
 
+// 🚨 NEW: Instance counter for debugging
+let socketClientInstanceCounter = 0;
+
 export class SocketClient implements Disposable {
   private logger = getLogger('SocketClient');
 
@@ -22,6 +25,7 @@ export class SocketClient implements Disposable {
   }>();
 
   private options: Required<SocketClientOptions>;
+  private readonly instanceId: number;
 
   constructor(
     private tokenManager: TokenManager,
@@ -34,6 +38,39 @@ export class SocketClient implements Disposable {
       secureConnection: false,
       ...options
     };
+    
+    // 🚨 NEW: Track instance creation
+    this.instanceId = ++socketClientInstanceCounter;
+    this.logger.info(`🔌 SocketClient instance #${this.instanceId} created`);
+  }
+
+  // 🚨 NEW: Get instance ID for debugging
+  public getInstanceId(): number {
+    return this.instanceId;
+  }
+
+  // 🚨 NEW: Public getter for socket (for debugging)
+  public getSocket(): WebSocket | null {
+    return this.socket;
+  }
+
+  // 🚨 NEW: Public getter for socket state info
+  public getSocketInfo(): {
+    hasSocket: boolean;
+    readyState?: number;
+    readyStateText?: string;
+    url?: string;
+  } {
+    return {
+      hasSocket: !!this.socket,
+      readyState: this.socket?.readyState,
+      readyStateText: this.socket ? this.getReadyStateText(this.socket.readyState) : undefined,
+      url: this.socket?.url
+    };
+  }
+
+  public hasActiveSocket(): boolean {
+    return !!(this.socket && this.socket.readyState === WebSocket.OPEN);
   }
 
   // Get the connection status observable
@@ -49,24 +86,24 @@ export class SocketClient implements Disposable {
   // Connect to the WebSocket server
   public async connect(): Promise<boolean> {
     if (this.socket) {
-      this.logger.warn('Connect called with existing socket, cleaning up previous instance');
+      this.logger.warn(`SocketClient #${this.instanceId}: Connect called with existing socket, cleaning up previous instance`);
       this.cleanup();
     }
 
     if (!this.tokenManager.isAuthenticated()) {
-      this.logger.error('Cannot connect: Not authenticated');
+      this.logger.error(`SocketClient #${this.instanceId}: Cannot connect: Not authenticated`);
       this.status$.next(ConnectionStatus.DISCONNECTED);
       return false;
     }
 
     const currentStatus = this.status$.getValue();
     if (currentStatus === ConnectionStatus.CONNECTING || currentStatus === ConnectionStatus.CONNECTED) {
-      this.logger.warn(`Connect call ignored: WebSocket status is already ${currentStatus}`);
+      this.logger.warn(`SocketClient #${this.instanceId}: Connect call ignored: WebSocket status is already ${currentStatus}`);
       return currentStatus === ConnectionStatus.CONNECTED;
     }
 
     try {
-      this.logger.info('🚀 Initiating WebSocket connection...');
+      this.logger.info(`🚀 SocketClient #${this.instanceId}: Initiating WebSocket connection...`);
       this.status$.next(ConnectionStatus.CONNECTING);
 
       const token = await this.tokenManager.getAccessToken();
@@ -87,7 +124,7 @@ export class SocketClient implements Disposable {
       const baseWsUrl = this.configService.getWebSocketUrl();
       
       // Log the URL construction process
-      this.logger.info('🔍 WEBSOCKET URL DEBUG: Constructing connection URL', {
+      this.logger.info(`🔍 SocketClient #${this.instanceId}: Constructing connection URL`, {
         baseWsUrl,
         hasToken: !!token,
         hasDeviceId: !!deviceId,
@@ -102,7 +139,7 @@ export class SocketClient implements Disposable {
       const maskedUrl = wsUrl.replace(/token=[^&]+/, 'token=***MASKED***')
                             .replace(/csrfToken=[^&]+/, 'csrfToken=***MASKED***');
       
-      this.logger.info('🔗 WEBSOCKET CONNECTION: Final URL constructed', {
+      this.logger.info(`🔗 SocketClient #${this.instanceId}: Final URL constructed`, {
         maskedUrl,
         urlLength: wsUrl.length,
         protocol: wsUrl.startsWith('wss:') ? 'secure' : 'insecure',
@@ -114,7 +151,7 @@ export class SocketClient implements Disposable {
       
       return new Promise<boolean>((resolve) => {
         const timeoutId = setTimeout(() => {
-          this.logger.error('❌ WebSocket connection attempt timed out', {
+          this.logger.error(`❌ SocketClient #${this.instanceId}: Connection attempt timed out`, {
             timeoutMs: this.options.connectTimeout,
             maskedUrl,
             socketReadyState: this.socket?.readyState
@@ -128,7 +165,7 @@ export class SocketClient implements Disposable {
 
         this.socket!.addEventListener('open', () => {
           clearTimeout(timeoutId);
-          this.logger.info('✅ WebSocket connection established successfully', {
+          this.logger.info(`✅ SocketClient #${this.instanceId}: Connection established successfully`, {
             maskedUrl,
             readyState: this.socket?.readyState,
             extensions: this.socket?.extensions,
@@ -140,7 +177,7 @@ export class SocketClient implements Disposable {
         });
 
         this.socket!.addEventListener('error', (event) => {
-          this.logger.error('❌ WebSocket connection error', { 
+          this.logger.error(`❌ SocketClient #${this.instanceId}: Connection error`, { 
             event,
             maskedUrl,
             readyState: this.socket?.readyState,
@@ -152,7 +189,7 @@ export class SocketClient implements Disposable {
 
         this.socket!.addEventListener('close', (event) => {
           clearTimeout(timeoutId);
-          this.logger.warn('🔌 WebSocket connection closed during connection attempt', {
+          this.logger.warn(`🔌 SocketClient #${this.instanceId}: Connection closed during connection attempt`, {
             code: event.code,
             reason: event.reason,
             wasClean: event.wasClean,
@@ -168,7 +205,7 @@ export class SocketClient implements Disposable {
         this.socket!.addEventListener('message', this.handleMessage);
       });
     } catch (error: any) {
-      this.logger.error('💥 Error initiating WebSocket connection', {
+      this.logger.error(`💥 SocketClient #${this.instanceId}: Error initiating connection`, {
         error: error instanceof Error ? error.message : String(error),
         errorStack: error instanceof Error ? error.stack : undefined,
         errorName: error instanceof Error ? error.name : 'Unknown'
@@ -199,7 +236,7 @@ export class SocketClient implements Disposable {
 
   // Disconnect from the WebSocket server
   public disconnect(reason: string = 'manual'): void {
-    this.logger.info(`Disconnecting WebSocket. Reason: ${reason}`);
+    this.logger.info(`SocketClient #${this.instanceId}: Disconnecting. Reason: ${reason}`);
     if (this.socket) {
       if (this.socket.readyState === WebSocket.OPEN) {
         this.socket.close(1000, reason);
@@ -213,10 +250,11 @@ export class SocketClient implements Disposable {
   // Send a message to the WebSocket server
   public send(data: any): boolean {
     if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
-      this.logger.error('Cannot send message: WebSocket not connected', {
+      this.logger.error(`SocketClient #${this.instanceId}: Cannot send message: WebSocket not connected`, {
         hasSocket: !!this.socket,
         readyState: this.socket?.readyState,
-        readyStateText: this.socket ? this.getReadyStateText(this.socket.readyState) : 'no socket'
+        readyStateText: this.socket ? this.getReadyStateText(this.socket.readyState) : 'no socket',
+        instanceId: this.instanceId
       });
       return false;
     }
@@ -224,13 +262,13 @@ export class SocketClient implements Disposable {
     try {
       const messageStr = typeof data === 'string' ? data : JSON.stringify(data);
       this.socket.send(messageStr);
-      this.logger.debug('📤 WebSocket message sent', {
+      this.logger.debug(`📤 SocketClient #${this.instanceId}: Message sent`, {
         messageType: typeof data === 'object' && data.type ? data.type : 'unknown',
         messageLength: messageStr.length
       });
       return true;
     } catch (error: any) {
-      this.logger.error('Error sending WebSocket message', {
+      this.logger.error(`SocketClient #${this.instanceId}: Error sending message`, {
         error: error instanceof Error ? error.message : String(error),
         messageType: typeof data === 'object' && data.type ? data.type : 'unknown'
       });
@@ -269,7 +307,7 @@ export class SocketClient implements Disposable {
   private handleMessage = (event: MessageEvent): void => {
     try {
       const message = JSON.parse(event.data) as WebSocketMessage;
-      this.logger.debug('📥 WebSocket message received', {
+      this.logger.debug(`📥 SocketClient #${this.instanceId}: Message received`, {
         messageType: message.type,
         timestamp: message.timestamp,
         hasRequestId: !!message.requestId,
@@ -277,7 +315,7 @@ export class SocketClient implements Disposable {
       });
       this.events.emit('message', message);
     } catch (error: any) {
-      this.logger.error('Error parsing WebSocket message', {
+      this.logger.error(`SocketClient #${this.instanceId}: Error parsing message`, {
         error: error instanceof Error ? error.message : String(error),
         data: typeof event.data === 'string' ? event.data.substring(0, 100) : 'non-string data',
         dataType: typeof event.data
@@ -288,7 +326,7 @@ export class SocketClient implements Disposable {
 
   // Handle connection close
   private handleClose = (event: CloseEvent): void => {
-    this.logger.info(`WebSocket connection closed. Code: ${event.code}, Reason: ${event.reason}, Clean: ${event.wasClean}`, {
+    this.logger.info(`SocketClient #${this.instanceId}: Connection closed. Code: ${event.code}, Reason: ${event.reason}, Clean: ${event.wasClean}`, {
       code: event.code,
       reason: event.reason,
       wasClean: event.wasClean,
@@ -306,7 +344,7 @@ export class SocketClient implements Disposable {
   // Clean up WebSocket resources
   private cleanup(): void {
     if (this.socket) {
-      this.logger.debug('🧹 Cleaning up WebSocket resources', {
+      this.logger.debug(`🧹 SocketClient #${this.instanceId}: Cleaning up resources`, {
         readyState: this.getReadyStateText(this.socket.readyState)
       });
       
@@ -321,7 +359,7 @@ export class SocketClient implements Disposable {
         try {
           this.socket.close(1000, 'Client cleanup');
         } catch (e) {
-          this.logger.warn('Error closing WebSocket during cleanup', {
+          this.logger.warn(`SocketClient #${this.instanceId}: Error closing WebSocket during cleanup`, {
             error: e instanceof Error ? e.message : String(e)
           });
         }
@@ -333,7 +371,7 @@ export class SocketClient implements Disposable {
 
   // Implement Disposable interface
   public dispose(): void {
-    this.logger.info('🗑️ Disposing SocketClient');
+    this.logger.info(`🗑️ SocketClient #${this.instanceId}: Disposing`);
     this.disconnect('disposed');
     this.events.clear();
     this.status$.complete();

@@ -1,4 +1,4 @@
-// src/services/simulator-client.ts
+// frontend_dist/packages/websocket/src/services/simulator-client.ts
 import { getLogger } from '@trading-app/logging';
 import { handleError } from '@trading-app/utils';
 
@@ -8,17 +8,44 @@ import { StateManager } from '../types/connection-types';
 
 export class SimulatorClient {
   private logger = getLogger('SimulatorClient');
-  private socketClient: SocketClient;
   private simulatorHandler: SimulatorHandler;
   
-  constructor(socketClient: SocketClient, private stateManager: StateManager) {
-    this.socketClient = socketClient;
-    this.simulatorHandler = new SimulatorHandler(socketClient);
-    this.logger.info('SimulatorClient initialized');
+  constructor(
+    private socketClient: SocketClient, // ✅ Receive the shared instance
+    private stateManager: StateManager
+  ) {
+    // 🚨 FIX: Use the passed socketClient instead of creating new one
+    this.simulatorHandler = new SimulatorHandler(this.socketClient); // ✅ Use shared instance
+    
+    this.logger.info('SimulatorClient initialized with shared SocketClient', {
+      hasSocketClient: !!this.socketClient,
+      socketClientSocket: (this.socketClient as any).socket,
+      simulatorHandlerClient: (this.simulatorHandler as any).client
+    });
+  }
+
+  // 🚨 NEW: Public getter for debugging
+  public getSocketClient(): SocketClient {
+    return this.socketClient;
+  }
+
+  // 🚨 NEW: Debug method
+  public debugSocketClient(): void {
+    console.log('🔍 SIMULATOR CLIENT DEBUG:', {
+      socketClient: this.socketClient,
+      socketClientInfo: this.socketClient.getSocketInfo(), // ✅ Use public getter
+      simulatorHandler: this.simulatorHandler,
+      simulatorHandlerClient: (this.simulatorHandler as any).client,
+      instancesMatch: this.socketClient === (this.simulatorHandler as any).client
+    });
   }
 
   public async startSimulator(): Promise<{ success: boolean; status?: string; error?: string }> {
-    this.logger.info('Starting simulator...');
+    // 🚨 FIXED: Use public getter instead of private property
+    this.logger.info('Starting simulator...', {
+      socketClientInfo: this.socketClient.getSocketInfo(), // ✅ Use public getter
+      socketClientStatus: this.socketClient.getCurrentStatus()
+    });
     
     this.stateManager.updateSimulatorState({
       status: 'STARTING',
@@ -58,7 +85,9 @@ export class SimulatorClient {
       };
     } catch (error: any) {
       this.logger.error('Exception while trying to start simulator', {
-        error: error.message
+        error: error.message,
+        socketClientHasSocket: !!(this.socketClient as any).socket,
+        socketClientStatus: this.socketClient.getCurrentStatus()
       });
       
       this.stateManager.updateSimulatorState({
@@ -76,7 +105,11 @@ export class SimulatorClient {
   }
 
   public async stopSimulator(): Promise<{ success: boolean; status?: string; error?: string }> {
-    this.logger.info('Stopping simulator...');
+    // 🚨 FIXED: Use public getter instead of private property
+    this.logger.info('Stopping simulator...', {
+      socketClientInfo: this.socketClient.getSocketInfo(), // ✅ Use public getter
+      socketClientStatus: this.socketClient.getCurrentStatus()
+    });
     
     this.stateManager.updateSimulatorState({
       status: 'STOPPING',
@@ -96,39 +129,41 @@ export class SimulatorClient {
         });
       } else {
         this.logger.warn(`Simulator stop request failed: ${response.error}`);
-        this.stateManager.updateSimulatorState({
-          status: 'ERROR',
-          isLoading: false,
-          error: response.error
-        });
-        
-        return handleError(
-          response.error || 'Failed to stop simulator',
-          'StopSimulatorFailure',
-          'medium'
-        );
-      }
-      
-      return {
-        success: response.success,
-        error: response.error
-      };
-    } catch (error: any) {
-      this.logger.error('Exception while trying to stop simulator', {
-        error: error.message
-      });
-      
-      this.stateManager.updateSimulatorState({
-        status: 'ERROR',
-        isLoading: false,
-        error: error.message
-      });
-      
-      return handleError(
-        error instanceof Error ? error.message : String(error || 'Failed to stop simulator'),
-        'StopSimulatorException',
-        'high'
-      );
-    }
-  }
+       this.stateManager.updateSimulatorState({
+         status: 'ERROR',
+         isLoading: false,
+         error: response.error
+       });
+       
+       return handleError(
+         response.error || 'Failed to stop simulator',
+         'StopSimulatorFailure',
+         'medium'
+       );
+     }
+     
+     return {
+       success: response.success,
+       error: response.error
+     };
+   } catch (error: any) {
+     this.logger.error('Exception while trying to stop simulator', {
+       error: error.message,
+       socketClientHasSocket: !!(this.socketClient as any).socket,
+       socketClientStatus: this.socketClient.getCurrentStatus()
+     });
+     
+     this.stateManager.updateSimulatorState({
+       status: 'ERROR',
+       isLoading: false,
+       error: error.message
+     });
+     
+     return handleError(
+       error instanceof Error ? error.message : String(error || 'Failed to stop simulator'),
+       'StopSimulatorException',
+       'high'
+     );
+   }
+ }
 }

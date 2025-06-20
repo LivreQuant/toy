@@ -1,4 +1,4 @@
-// src/services/heartbeat.ts
+// frontend_dist/packages/websocket/src/services/heartbeat.ts
 import { getLogger } from '@trading-app/logging';
 import { DeviceIdManager } from '@trading-app/auth';
 import { ConnectionStatus } from '@trading-app/state';
@@ -23,7 +23,7 @@ export class Heartbeat implements Disposable {
   private options: Required<HeartbeatOptions>;
 
   constructor(
-    private client: SocketClient,
+    private client: SocketClient, // ✅ Shared instance
     private stateManager: StateManager,
     options?: Partial<HeartbeatOptions>
   ) {
@@ -33,7 +33,10 @@ export class Heartbeat implements Disposable {
     };
     
     this.options = { ...defaultOptions, ...(options || {}) };
-    this.logger.info('Heartbeat initialized', { options: this.options });
+    this.logger.info('Heartbeat initialized', { 
+      options: this.options,
+      socketClientInstance: (this.client as any).getInstanceId?.() || 'no-id'
+    });
     
     this.client.on('message', (message) => {
       if (message.type === 'heartbeat_ack') {
@@ -52,7 +55,10 @@ export class Heartbeat implements Disposable {
       return;
     }
     
-    this.logger.info('Starting heartbeats...');
+    this.logger.info('Starting heartbeats...', {
+      socketClientInstance: (this.client as any).getInstanceId?.() || 'no-id',
+      socketClientStatus: this.client.getCurrentStatus()
+    });
     this.isStarted = true;
     
     this.sendHeartbeat();
@@ -93,11 +99,16 @@ export class Heartbeat implements Disposable {
     if (!this.isStarted || this.isDisposed) return;
     
     if (this.client.getCurrentStatus() !== ConnectionStatus.CONNECTED) {
-      this.logger.debug('Skipping heartbeat: WebSocket not connected');
+      this.logger.debug('Skipping heartbeat: WebSocket not connected', {
+        clientStatus: this.client.getCurrentStatus(),
+        socketClientInstance: (this.client as any).getInstanceId?.() || 'no-id'
+      });
       return;
     }
     
-    this.logger.debug('Sending heartbeat');
+    this.logger.debug('Sending heartbeat', {
+      socketClientInstance: (this.client as any).getInstanceId?.() || 'no-id'
+    });
     
     const heartbeatMsg = {
       type: 'heartbeat',
@@ -106,16 +117,21 @@ export class Heartbeat implements Disposable {
     };
     
     try {
-      this.client.send(heartbeatMsg);
+      const sent = this.client.send(heartbeatMsg);
       
-      this.clearHeartbeatTimeout();
-      this.heartbeatTimeoutId = window.setTimeout(() => {
-        this.handleHeartbeatTimeout();
-      }, this.options.timeout);
+      if (sent) {
+        this.clearHeartbeatTimeout();
+        this.heartbeatTimeoutId = window.setTimeout(() => {
+          this.handleHeartbeatTimeout();
+        }, this.options.timeout);
+      } else {
+        this.logger.error('Failed to send heartbeat: client.send() returned false');
+      }
       
     } catch (error: any) {
       this.logger.error('Failed to send heartbeat', {
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
+        socketClientInstance: (this.client as any).getInstanceId?.() || 'no-id'
       });
     }
   }
@@ -128,7 +144,8 @@ export class Heartbeat implements Disposable {
       simulatorStatus: message.simulatorStatus,
       clientTimestamp: message.clientTimestamp,
       serverTimestamp: Date.now(),
-      latency: message.clientTimestamp ? (Date.now() - message.clientTimestamp) : -1
+      latency: message.clientTimestamp ? (Date.now() - message.clientTimestamp) : -1,
+      socketClientInstance: (this.client as any).getInstanceId?.() || 'no-id'
     });
     
     this.clearHeartbeatTimeout();
@@ -160,7 +177,9 @@ export class Heartbeat implements Disposable {
   }
 
   private handleHeartbeatTimeout(): void {
-    this.logger.error('Heartbeat timeout detected');
+    this.logger.error('Heartbeat timeout detected', {
+      socketClientInstance: (this.client as any).getInstanceId?.() || 'no-id'
+    });
     this.events.emit('timeout', undefined);
   }
 
@@ -185,5 +204,4 @@ export class Heartbeat implements Disposable {
     this.events.clear();
     this.logger.info('Heartbeat disposed');
   }
-
 }
