@@ -7,7 +7,7 @@ import { useToast } from '../hooks/useToast';
 import { useBookManager } from '../hooks/useBookManager';
 import { Book } from '@trading-app/types-core';
 import ConvictionSubmissionContainer from '../components/Simulator/ConvictionSubmissionContainer';
-import Container from '../components/Dashboard/Container/Container'; // Add this import
+import Container from '../components/Dashboard/Container/core/Container'; // Add this import
 import { Tabs, Tab } from '@mui/material';
 import { 
   Box, 
