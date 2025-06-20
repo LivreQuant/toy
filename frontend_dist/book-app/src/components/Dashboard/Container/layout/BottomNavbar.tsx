@@ -1,4 +1,4 @@
-// frontend_dist/book-app/src/components/Dashboard/Container/BottomNavbar.tsx
+// src/components/Dashboard/Container/layout/BottomNavbar.tsx
 import React from 'react';
 import { Alignment, Button, Navbar } from '@blueprintjs/core';
 
@@ -12,24 +12,40 @@ const BottomNavbar: React.FC<BottomNavbarProps> = ({
   onCancelAllConvictions
 }) => {
   return (
-    <Navbar className="bp3-dark" style={{ 
-      width: '100%', 
-      zIndex: 100,
-      flexShrink: 0
+    <div style={{
+      width: '100%',
+      height: '50px',
+      backgroundColor: 'white',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: '0 20px',
+      zIndex: 1000,
+      flexShrink: 0,
+      borderTop: '1px solid #404854'
     }}>
-      <Navbar.Group align={Alignment.LEFT}>
-        <Navbar.Heading>trader@{bookId}</Navbar.Heading>
-        <Navbar.Divider />
-      </Navbar.Group>
-      <Navbar.Group align={Alignment.RIGHT}>
-        <Button 
-          minimal={true} 
-          icon="delete" 
-          text="Cancel All Desk Convictions" 
-          onClick={onCancelAllConvictions} 
-        />
-      </Navbar.Group>
-    </Navbar>
+      {/* LEFT SIDE - Trading Info */}
+      <div style={{ 
+        color: 'black', 
+        fontSize: '14px',
+        fontWeight: 500
+      }}>
+        Trading Book: {bookId}
+      </div>
+
+      {/* RIGHT SIDE - Actions */}
+      <Button 
+        minimal={true} 
+        icon="delete" 
+        text="Cancel All Convictions" 
+        onClick={onCancelAllConvictions}
+        intent="danger"
+        style={{
+          color: '#ffffff',
+          fontSize: '14px'
+        }}
+      />
+    </div>
   );
 };
 

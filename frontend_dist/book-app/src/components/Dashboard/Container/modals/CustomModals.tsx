@@ -31,6 +31,11 @@ interface CustomModalsProps {
   cancelConvictionsModalOpen: boolean;
   setCancelConvictionsModalOpen: (open: boolean) => void;
   handleCancelConvictionsConfirm: () => void;
+
+  // Back to Main Modal
+  backToMainModalOpen: boolean;
+  setBackToMainModalOpen: (open: boolean) => void;
+  handleBackToMainConfirm: () => void;
 }
 
 const CustomModals: React.FC<CustomModalsProps> = ({
@@ -51,7 +56,10 @@ const CustomModals: React.FC<CustomModalsProps> = ({
   getViewDefaultName,
   cancelConvictionsModalOpen,
   setCancelConvictionsModalOpen,
-  handleCancelConvictionsConfirm
+  handleCancelConvictionsConfirm,
+  backToMainModalOpen,
+  setBackToMainModalOpen,
+  handleBackToMainConfirm
 }) => {
   return (
     <>
@@ -308,6 +316,69 @@ const CustomModals: React.FC<CustomModalsProps> = ({
               }}
             >
               🗑️ Cancel All Convictions
+            </button>
+          </div>
+        </div>
+      </CustomModal>
+
+            {/* Back to Main App Confirmation Modal */}
+            <CustomModal
+        isOpen={backToMainModalOpen}
+        title="🔗 Return to Main App"
+        onClose={() => setBackToMainModalOpen(false)}
+      >
+        <div style={{ padding: '20px' }}>
+          <h4 style={{ margin: '0 0 15px 0', color: '#333' }}>Leave Trading Dashboard?</h4>
+          <p style={{ margin: '0 0 20px 0', color: '#666', lineHeight: '1.5' }}>
+            Are you sure you want to return to the main application? Any unsaved changes to your dashboard layout will be lost.
+          </p>
+          <div style={{ 
+            padding: '12px 16px', 
+            backgroundColor: '#fff3cd', 
+            borderRadius: '6px', 
+            marginBottom: '20px',
+            border: '1px solid #ffeaa7'
+          }}>
+            <div style={{ fontSize: '13px', color: '#856404' }}>
+              <strong>💡 Tip:</strong> Use "Save Layout" before leaving to preserve your dashboard configuration
+            </div>
+          </div>
+          <div style={{ 
+            display: 'flex', 
+            gap: '12px', 
+            justifyContent: 'flex-end',
+            paddingTop: '10px',
+            borderTop: '1px solid #eee'
+          }}>
+            <button 
+              onClick={() => setBackToMainModalOpen(false)}
+              style={{ 
+                padding: '10px 20px', 
+                backgroundColor: '#6c757d', 
+                color: 'white', 
+                border: 'none', 
+                borderRadius: '6px',
+                fontSize: '14px',
+                fontWeight: '500',
+                cursor: 'pointer'
+              }}
+            >
+              Stay Here
+            </button>
+            <button 
+              onClick={handleBackToMainConfirm}
+              style={{ 
+                padding: '10px 20px', 
+                backgroundColor: '#007bff', 
+                color: 'white', 
+                border: 'none', 
+                borderRadius: '6px',
+                fontSize: '14px',
+                fontWeight: '500',
+                cursor: 'pointer'
+              }}
+            >
+              🔗 Go to Main App
             </button>
           </div>
         </div>

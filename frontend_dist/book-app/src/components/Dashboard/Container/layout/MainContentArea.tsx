@@ -9,21 +9,24 @@ interface MainContentAreaProps {
   model: Model;
   factory: (node: any) => React.ReactNode;
   onModelChange: () => void;
+  style?: React.CSSProperties; // ADD THIS
 }
 
 const MainContentArea: React.FC<MainContentAreaProps> = ({
   layoutRef,
   model,
   factory,
-  onModelChange
+  onModelChange,
+  style // ADD THIS
 }) => {
   return (
+    
     <div style={{ 
-      flex: '1 1 0',
+      height: '100%', // FILL THE AVAILABLE SPACE
       width: '100%', 
       position: 'relative', 
       zIndex: 1,
-      minHeight: 0
+      overflow: 'hidden' // NO SCROLL HERE
     }}>
       <Layout 
         ref={layoutRef}

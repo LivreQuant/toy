@@ -8,7 +8,17 @@
 .authenticated-layout .content {
   flex: 1;
   padding-bottom: 30px; /* Match the height of the status bar */
-  /* NEW: Ensure content doesn't overflow viewport */
+  /* Updated: Ensure content doesn't overflow viewport */
   height: calc(100vh - 30px); /* Subtract status bar height from viewport */
   overflow: hidden; /* Prevent scrolling on the main content */
+  
+  /* NEW: Make sure content fits within available space */
+  display: flex;
+  flex-direction: column;
+}
+
+/* NEW: Ensure the page content within AuthenticatedLayout also uses flexbox */
+.authenticated-layout .content > * {
+  flex: 1;
+  overflow: hidden;
 }

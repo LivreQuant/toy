@@ -1,4 +1,4 @@
-/* Container.css - Force Blueprint dialogs to appear on top */
+/* src/components/Dashboard/Container/styles/Container.css */
 
 /* Override ALL Blueprint dialog styles aggressively */
 .bp3-portal,
@@ -54,6 +54,15 @@ div[class*="bp3-dialog"] {
   color: #f5f8fa !important;
 }
 
+/* NEW: Ensure Container component fits within flex layout */
+.dashboard-container {
+  height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 /* Ensure everything else stays below */
 .flexlayout__layout,
 .ag-theme-quartz,
@@ -74,17 +83,4 @@ div[class*="bp3-popover"] {
 .bp3-transition-container,
 div[class*="bp3-transition-container"] {
   z-index: 501 !important;
-}
-
-/* Debug - temporarily add visible borders to see what's happening */
-.bp3-dialog-container {
-  border: 3px solid red !important;
-}
-
-.bp3-dialog {
-  border: 3px solid blue !important;
-}
-
-.bp3-overlay {
-  border: 3px solid green !important;
 }

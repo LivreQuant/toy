@@ -13,6 +13,8 @@ import { createViewFactory } from '../utils/ViewFactory';
 import { ConfigurationService } from '../services/ConfigurationService';
 import ColumnChooserAgGrid from '../../AgGrid/components/dialogs/ColumnChooseAgGrid';
 
+import { config } from '@trading-app/config';
+
 // core
 import { LayoutManager } from './LayoutManager';
 import { Views, ViewInfo } from './layoutTypes';
@@ -75,6 +77,7 @@ const Container = () => {
   const [addViewModalOpen, setAddViewModalOpen] = useState(false);
   const [selectedViewType, setSelectedViewType] = useState<Views | null>(null);
   const [cancelConvictionsModalOpen, setCancelConvictionsModalOpen] = useState(false);
+  const [backToMainModalOpen, setBackToMainModalOpen] = useState(false);
 
   // Initialize ConfigurationService with real API client
   useEffect(() => {
@@ -188,7 +191,20 @@ const Container = () => {
     console.log("All convictions canceled");
     alert("All convictions canceled");
   };
-  
+    
+  // Add this handler with the other handlers:
+  const handleBackToMainConfirm = () => {
+    console.log('🔗 Container: User confirmed back to main app');
+    setBackToMainModalOpen(false);
+    const mainAppUrl = config.gateway.baseUrl + '/app';
+    window.location.href = mainAppUrl;
+  };
+
+  const onBackToMain = () => {
+    console.log('🔗 Container: Back to Main App button clicked - showing confirmation');
+    setBackToMainModalOpen(true);
+  };
+
   // Main handlers
   const onSaveLayout = () => {
     console.log('💾 Container: Save Layout button clicked - using CUSTOM MODAL');
@@ -291,39 +307,65 @@ const Container = () => {
   }
 
   return (
-    <div style={{ height: '100vh', width: '100%', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ 
+      height: 'calc(100vh - 30px)', // SUBTRACT CONNECTION STATUS BAR HEIGHT
+      width: '100%', 
+      display: 'flex', 
+      flexDirection: 'column',
+      overflow: 'hidden'
+    }}>
       
-      {/* Top Navbar */}
-      <TopNavbar
-        onAddView={onAddView}
-        onSaveLayout={onSaveLayout}
-        configServiceReady={!!configService}
-        bookId={bookId} // Add this line
-      />
+      {/* Top Navbar - STICKY */}
+      <div style={{ 
+        position: 'sticky', 
+        top: 0, 
+        zIndex: 1000,
+        flexShrink: 0
+      }}>
+        <TopNavbar
+          onAddView={onAddView}
+          onSaveLayout={onSaveLayout}
+          onBackToMain={onBackToMain} // ADD THIS LINE
+          configServiceReady={!!configService}
+          bookId={bookId}
+        />
+      </div>
       
-      {/* Main Content Area */}
-      <MainContentArea
-        layoutRef={layoutRef}
-        model={model}
-        factory={factory}
-        onModelChange={() => setLayoutUpdate(prev => prev + 1)}
-      />
+      {/* Main Content Area - FILLS REMAINING SPACE */}
+      <div style={{ 
+        flex: 1, 
+        minHeight: 0,
+        overflow: 'hidden'
+      }}>
+        <MainContentArea
+          layoutRef={layoutRef}
+          model={model}
+          factory={factory}
+          onModelChange={() => setLayoutUpdate(prev => prev + 1)}
+        />
+      </div>
       
-      {/* Bottom Navbar - Using extracted component */}
-      <BottomNavbar 
-        bookId={bookId}
-        onCancelAllConvictions={onCancelAllConvictions}
-      />
+      {/* Bottom Navbar - STICKY */}
+      <div style={{ 
+        position: 'sticky', 
+        bottom: 0, 
+        zIndex: 1000,
+        flexShrink: 0
+      }}>
+        <BottomNavbar 
+          bookId={bookId}
+          onCancelAllConvictions={onCancelAllConvictions}
+        />
+      </div>
       
-      {/* Blueprint Dialogs - Keep for column chooser that might still use Blueprint */}
+      {/* Keep all dialogs exactly as before */}
       <DialogOverlay
         questionDialogController={questionDialogController}
         viewNameDialogController={viewNameDialogController}
         columnChooserController={columnChooserController}
         updateLayoutModel={updateLayoutModel}
       />
-
-      {/* Test Custom Modal */}
+  
       <CustomModals
         testModalOpen={testModalOpen}
         setTestModalOpen={setTestModalOpen}
@@ -343,9 +385,12 @@ const Container = () => {
         cancelConvictionsModalOpen={cancelConvictionsModalOpen}
         setCancelConvictionsModalOpen={setCancelConvictionsModalOpen}
         handleCancelConvictionsConfirm={handleCancelConvictionsConfirm}
+        backToMainModalOpen={backToMainModalOpen}
+        setBackToMainModalOpen={setBackToMainModalOpen}
+        handleBackToMainConfirm={handleBackToMainConfirm}
       />
    </div>
- );
+  );
 };
 
 export default Container;
