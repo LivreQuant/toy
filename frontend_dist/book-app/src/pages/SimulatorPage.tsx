@@ -1,134 +1,143 @@
 // src/pages/SimulatorPage.tsx
-import React, { useEffect, useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useConnection } from '../hooks/useConnection';
 import { useRequireAuth } from '../hooks/useRequireAuth';
 import { useToast } from '../hooks/useToast';
-import Container from '../components/Dashboard/Container/core/Container'; // Add this import
-import CsvConvictionUpload from '../components/Simulator/CsvConvictionUpload';
+import Container from '../components/Dashboard/Container/core/Container';
 import './SimulatorPage.css';
 
 const SimulatorPage: React.FC = () => {
   useRequireAuth();
+  const { simulationId } = useParams<{ simulationId: string }>();
   const { connectionManager, connectionState, isConnected } = useConnection();
   const { addToast } = useToast();
   const navigate = useNavigate();
 
-  // Local state for button disabling during API calls
-  const [isSimActionLoading, setIsSimActionLoading] = useState(false);
-
-  // Derived state from context
+  // Get simulator status from connection state
   const simulatorStatus = connectionState?.simulatorStatus || 'UNKNOWN';
   const isSimulatorRunning = simulatorStatus === 'RUNNING';
   const isSimulatorBusy = simulatorStatus === 'STARTING' || simulatorStatus === 'STOPPING';
 
-  // Handler to attempt stopping the simulator
-  const handleStopSimulator = useCallback(async () => {
-      if (!connectionManager || isSimulatorBusy || !isSimulatorRunning) return false; // Return success status
-      setIsSimActionLoading(true);
-       addToast('info', 'Attempting to stop simulator...');
-      let success = false; // Track success
-      try {
-           const result = await connectionManager.stopSimulator();
-           if (result.success) {
-               addToast('success', `Simulator stopped (Status: ${result.status || 'STOPPED'})`);
-               success = true; // Mark as successful
-           } else {
-               addToast('error', `Failed to stop simulator: ${result.error || 'Unknown reason'}`);
-           }
-       } catch (error: any) {
-           addToast('error', `Error stopping simulator: ${error.message}`);
-       } finally {
-          setIsSimActionLoading(false);
-       }
-       return success; // Return success status
-   }, [connectionManager, isSimulatorBusy, isSimulatorRunning, addToast]);
-
-   // Handler to Stop Simulator and Go Home
-   const handleShutdownAndGoHome = useCallback(async () => {
-        // Prevent action if already busy or not running
-        if (isSimulatorBusy || !isSimulatorRunning) return;
-
-        const stopped = await handleStopSimulator(); // Call existing stop logic
-
-        // Navigate home regardless of whether stop succeeded
-        navigate('/home');
-   }, [handleStopSimulator, navigate, isSimulatorBusy, isSimulatorRunning]);
-
-   const handleStartSimulator = useCallback(async () => {
-      if (!connectionManager || isSimulatorBusy || isSimulatorRunning) return;
-      setIsSimActionLoading(true);
-      addToast('info', 'Attempting to start simulator...');
-      try {
-          const result = await connectionManager.startSimulator();
-          if (result.success) {
-              addToast('success', `Simulator started (Status: ${result.status || 'RUNNING'})`);
-          } else {
-              addToast('error', `Failed to start simulator: ${result.error || 'Unknown reason'}`);
-          }
-      } catch (error: any) {
-          addToast('error', `Error starting simulator: ${error.message}`);
-      } finally {
-         setIsSimActionLoading(false);
+  // Monitor simulator status and redirect if not running
+  useEffect(() => {
+    // Only check if we have a connection and the status is stable
+    if (!isConnected) return;
+    
+    // If simulator stopped unexpectedly, redirect back to book details
+    if (simulatorStatus === 'STOPPED' || simulatorStatus === 'ERROR') {
+      console.log(`📡 Simulator status changed to ${simulatorStatus}, redirecting to book details`);
+      addToast('warning', `Simulator ${simulatorStatus.toLowerCase()}. Returning to book details.`);
+      navigate(`/${simulationId}`);
+      return;
+    }
+    
+    // If we've been here a while and simulator never started, redirect
+    const timeoutId = setTimeout(() => {
+      if (!isSimulatorRunning && !isSimulatorBusy) {
+        console.log('📡 Simulator failed to start within timeout, redirecting');
+        addToast('error', 'Simulator failed to start. Returning to book details.');
+        navigate(`/${simulationId}`);
       }
-   }, [connectionManager, isSimulatorBusy, isSimulatorRunning, addToast]);
+    }, 10000); // 10 second timeout
+    
+    return () => clearTimeout(timeoutId);
+  }, [isConnected, simulatorStatus, isSimulatorRunning, isSimulatorBusy, simulationId, navigate, addToast]);
 
-   const handleGoBack = useCallback(() => {
-       navigate(-1); // Navigate back to the previous page (likely HomePage)
-   }, [navigate]);
-
-   const handleManualReconnect = useCallback(() => {
-       if (connectionManager) {
-           addToast('info', 'Attempting manual reconnect...');
-           connectionManager.manualReconnect();
-       }
-   }, [connectionManager, addToast]);
-
-   if (isSimulatorRunning && isConnected) {
+  // Show loading while waiting for connection
+  if (!isConnected) {
     return (
-      <div style={{ height: '100vh', width: '100%', background: 'green', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <h1>DASHBOARD SHOULD BE HERE - Container component loading...</h1>
+      <div style={{ 
+        height: '100vh', 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center',
+        flexDirection: 'column',
+        gap: '20px',
+        backgroundColor: '#1f2836',
+        color: 'white'
+      }}>
+        <div className="loading-spinner" style={{
+          width: '40px',
+          height: '40px',
+          border: '4px solid #333',
+          borderTop: '4px solid #00E5FF',
+          borderRadius: '50%',
+          animation: 'spin 1s linear infinite'
+        }}></div>
+        <h2>Connecting to Trading Platform...</h2>
+        <p>Establishing secure connection...</p>
+      </div>
+    );
+  }
+
+  // Show loading while simulator is starting
+  if (isSimulatorBusy) {
+    return (
+      <div style={{ 
+        height: '100vh', 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center',
+        flexDirection: 'column',
+        gap: '20px',
+        backgroundColor: '#1f2836',
+        color: 'white'
+      }}>
+        <div className="loading-spinner" style={{
+          width: '40px',
+          height: '40px',
+          border: '4px solid #333',
+          borderTop: '4px solid #00E5FF',
+          borderRadius: '50%',
+          animation: 'spin 1s linear infinite'
+        }}></div>
+        <h2>Initializing Trading Simulator...</h2>
+        <p>Status: {simulatorStatus}</p>
+        <p>Please wait while we prepare your trading environment...</p>
+      </div>
+    );
+  }
+
+  // Main case: Simulator is running, show the trading dashboard
+  if (isSimulatorRunning) {
+    return (
+      <div style={{ height: '100vh', width: '100%' }}>
         <Container/>
       </div>
     );
   }
 
-    // CANNOT FIND BOOKID IN CONTAINER.TSX SO IT SHOWS THE LOADING ICON
-
-    return (
-    <div className="simulator-page">
-        <header className="simulator-header">
-            <h1>Trading Simulator</h1>
-            <div className="simulator-controls">
-                {/* Back button */}
-                <button onClick={handleGoBack} className="control-button secondary">Back</button>
-
-                {/* Start Button */}
-                <button
-                    onClick={handleStartSimulator}
-                    disabled={!isConnected || isSimulatorRunning || isSimulatorBusy || isSimActionLoading}
-                    className="control-button start-button"
-                >
-                   {simulatorStatus === 'STARTING' ? 'Starting...' : 'Start Simulator'}
-                </button>
-
-            </div>
-        </header>
-
-        <div className="simulator-content">
-            <div className="conviction-entry-container">
-                <h2 className="conviction-entry-title">Conviction Management</h2>
-                {isConnected && isSimulatorRunning ? (
-                    <CsvConvictionUpload />
-                ) : (
-                    <div className="conviction-form-placeholder">
-                        <p>
-                        {!isConnected ? "Waiting for connection..." : "Simulator not running. Start the simulator to manage convictions."}
-                        </p>
-                    </div>
-                )}
-            </div>
-        </div>
+  // Fallback: Simulator is not running and not starting
+  return (
+    <div style={{ 
+      height: '100vh', 
+      display: 'flex', 
+      alignItems: 'center', 
+      justifyContent: 'center',
+      flexDirection: 'column',
+      gap: '20px',
+      backgroundColor: '#1f2836',
+      color: 'white'
+    }}>
+      <h2>Trading Simulator Unavailable</h2>
+      <p>The trading simulator is not running (Status: {simulatorStatus})</p>
+      <p>Please start the simulator from the book details page.</p>
+      <button 
+        onClick={() => navigate(`/${simulationId}`)}
+        style={{
+          padding: '12px 24px',
+          backgroundColor: '#00E5FF',
+          color: '#0A2A36',
+          border: 'none',
+          borderRadius: '6px',
+          fontSize: '16px',
+          fontWeight: '500',
+          cursor: 'pointer'
+        }}
+      >
+        Return to Book Details
+      </button>
     </div>
   );
 };

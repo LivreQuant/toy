@@ -1,11 +1,13 @@
 // src/components/Dashboard/Container/layout/TopNavbar.tsx
 import React from 'react';
+import { useNavigate } from 'react-router-dom'; // Add this import
 import { Button } from '@blueprintjs/core';
+import { useConnection } from '../../../../hooks/useConnection';
+import { useToast } from '../../../../hooks/useToast';
 
 interface TopNavbarProps {
   onAddView: () => void;
   onSaveLayout: () => void;
-  onBackToMain: () => void; // ADD THIS
   configServiceReady: boolean;
   bookId?: string;
 }
@@ -13,10 +15,47 @@ interface TopNavbarProps {
 const TopNavbar: React.FC<TopNavbarProps> = ({
   onAddView,
   onSaveLayout,
-  onBackToMain, // ADD THIS
   configServiceReady,
   bookId
 }) => {
+  const navigate = useNavigate(); // Add this
+  const { connectionManager, connectionState } = useConnection();
+  const { addToast } = useToast();
+  
+  const isSimulatorRunning = connectionState?.simulatorStatus === 'RUNNING';
+  const isSimulatorBusy = connectionState?.simulatorStatus === 'STARTING' || 
+                         connectionState?.simulatorStatus === 'STOPPING';
+
+  const handleBackToBookDetails = async () => {
+    // If simulator is running, shut it down first
+    if (isSimulatorRunning && connectionManager) {
+      addToast('info', 'Shutting down simulator...');
+      
+      try {
+        const result = await connectionManager.stopSimulator();
+        
+        if (result.success) {
+          addToast('success', 'Simulator shut down successfully');
+        } else {
+          addToast('warning', `Simulator shutdown had issues: ${result.error || 'Unknown error'}`);
+        }
+      } catch (error: any) {
+        addToast('error', `Error shutting down simulator: ${error.message}`);
+      }
+      
+      // Add a small delay to ensure shutdown completes
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+    
+    // Navigate back to book details page
+    if (bookId) {
+      navigate(`/${bookId}`);
+    } else {
+      // Fallback if no bookId
+      navigate(-1); // Go back in history
+    }
+  };
+
   return (
     <div style={{
       width: '100%',
@@ -30,12 +69,13 @@ const TopNavbar: React.FC<TopNavbarProps> = ({
       flexShrink: 0,
       borderBottom: '1px solid #404854'
     }}>
-      {/* LEFT SIDE - Back to Main App */}
+      {/* LEFT SIDE - Back to Book Details */}
       <Button 
         minimal={true} 
         icon="arrow-left" 
-        text="Back to Main App" 
-        onClick={onBackToMain} // CHANGED TO USE CALLBACK
+        text={isSimulatorRunning ? "Shutdown & Exit Dashboard" : "Back to Book Details"}
+        onClick={handleBackToBookDetails}
+        disabled={isSimulatorBusy}
         style={{
           color: '#ffffff',
           fontSize: '14px'

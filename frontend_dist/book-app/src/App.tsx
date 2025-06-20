@@ -276,7 +276,7 @@ const AppRoutes: React.FC = () => {
        } />
 
        {/* Simulator page */}
-       <Route path="/simulator/:simulationId" element={
+       <Route path="/:bookId/simulator" element={
          <ProtectedRoute>
            <AuthenticatedLayout>
              <SimulatorPage />

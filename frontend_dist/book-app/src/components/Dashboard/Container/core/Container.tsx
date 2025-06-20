@@ -325,7 +325,6 @@ const Container = () => {
         <TopNavbar
           onAddView={onAddView}
           onSaveLayout={onSaveLayout}
-          onBackToMain={onBackToMain} // ADD THIS LINE
           configServiceReady={!!configService}
           bookId={bookId}
         />

@@ -27,7 +27,7 @@ import './BookDetailsPage.css';
 const BookDetailsPage: React.FC = () => {
   useRequireAuth();
   const { bookId } = useParams<{ bookId: string }>();
-  const { isConnected, connectionManager } = useConnection();
+  const { isConnected, connectionManager, connectionState } = useConnection();
   const { addToast } = useToast();
   const bookManager = useBookManager();
   const navigate = useNavigate();
@@ -35,7 +35,12 @@ const BookDetailsPage: React.FC = () => {
   const [book, setBook] = useState<Book | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isStartingSimulator, setIsStartingSimulator] = useState(false);
-  const [activeTab, setActiveTab] = useState(0); // Change default to 0 to show dashboard first
+  const [activeTab, setActiveTab] = useState(0);
+
+  // Get simulator status from connection state
+  const simulatorStatus = connectionState?.simulatorStatus || 'UNKNOWN';
+  const isSimulatorRunning = simulatorStatus === 'RUNNING';
+  const isSimulatorBusy = simulatorStatus === 'STARTING' || simulatorStatus === 'STOPPING';
 
   useEffect(() => {
     const fetchBookDetails = async () => {
@@ -76,23 +81,40 @@ const BookDetailsPage: React.FC = () => {
   };
 
   const handleStartSimulator = async () => {
-    if (!bookId || !connectionManager) return;
+    if (!bookId || !connectionManager) {
+      addToast('error', 'Cannot start simulator: Missing book ID or connection');
+      return;
+    }
     
     setIsStartingSimulator(true);
     
     try {
+      console.log('📡 Starting simulator via WebSocket for book:', bookId);
+      addToast('info', 'Starting simulator...');
+      
       const result = await connectionManager.startSimulator();
       
       if (result.success) {
         addToast('success', 'Simulator started successfully');
-        navigate(`/simulator/${bookId}`);
+        console.log('📡 Simulator started, navigating to dashboard');
+        // Navigate to simulator page with bookId
+      navigate(`/${bookId}/simulator/`);
       } else {
         addToast('error', `Failed to start simulator: ${result.error || 'Unknown error'}`);
+        console.error('📡 Simulator start failed:', result);
       }
     } catch (error: any) {
+      console.error('📡 Error starting simulator:', error);
       addToast('error', `Error starting simulator: ${error.message}`);
     } finally {
       setIsStartingSimulator(false);
+    }
+  };
+
+  // If simulator is already running for this book, show option to go to dashboard
+  const handleGoToDashboard = () => {
+    if (bookId) {
+      navigate(`/${bookId}/simulator/`);
     }
   };
 
@@ -116,25 +138,6 @@ const BookDetailsPage: React.FC = () => {
     );
   }
 
-  // ==========================================
-  // TEMPORARY: FULL SCREEN TRADING DASHBOARD
-  // ==========================================
-  // TODO: Remove this section and uncomment the original layout below when debugging is complete
-  /*
-  return (
-    <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <Box sx={{ flex: 1, overflow: 'hidden' }}>
-        <Container />
-      </Box>
-    </Box>
-  );
-  */
-  
-
-  // ==========================================
-  // ORIGINAL LAYOUT (COMMENTED OUT FOR NOW)
-  // ==========================================
-  // TODO: Uncomment this section when ready to revert to the original layout
   return (
     <Box sx={{ maxWidth: 1400, mx: 'auto', p: { xs: 2, md: 4 } }}> 
       {/* Header with ONLY Back Button */}
@@ -174,7 +177,7 @@ const BookDetailsPage: React.FC = () => {
           {/* Main Content - Horizontal Layout */}
           <Box sx={{ p: 3, size: 12 }}>
             <Grid container spacing={0}>
-              {/* Regions *//*}
+              {/* Regions */}
               <Grid {...{component: "div", item: true, xs: 12, md: 2, size: 2} as any} sx={{ pr: 4 }}>
                 <Typography variant="subtitle2" sx={{ mb: 1, textAlign: 'center', color: '#6b7280', fontWeight: 600 }}>
                   Regions
@@ -396,26 +399,52 @@ const BookDetailsPage: React.FC = () => {
         <CardContent sx={{ p: 0 }}>          
           {activeTab === 0 && (
             <Box sx={{ textAlign: 'center', py: 4 }}>
-              <Button 
-                variant="contained" 
-                color="primary"
-                size="large"
-                startIcon={<PlayArrowIcon />}
-                onClick={handleStartSimulator}
-                disabled={isStartingSimulator || !isConnected}
-                sx={{ 
-                  py: 1.5, 
-                  px: 4,
-                  fontSize: '1.1rem',
-                  borderRadius: 2
-                }}
-              >
-                {isStartingSimulator ? 'Starting Simulator...' : 'Start Simulator'}
-              </Button>
+              {/* Show different buttons based on simulator status */}
+              {isSimulatorRunning ? (
+                <Button 
+                  variant="contained" 
+                  color="success"
+                  size="large"
+                  startIcon={<PlayArrowIcon />}
+                  onClick={handleGoToDashboard}
+                  sx={{ 
+                    py: 1.5, 
+                    px: 4,
+                    fontSize: '1.1rem',
+                    borderRadius: 2
+                  }}
+                >
+                  Go to Trading Dashboard
+                </Button>
+              ) : (
+                <Button 
+                  variant="contained" 
+                  color="primary"
+                  size="large"
+                  startIcon={<PlayArrowIcon />}
+                  onClick={handleStartSimulator}
+                  disabled={isStartingSimulator || isSimulatorBusy || !isConnected}
+                  sx={{ 
+                    py: 1.5, 
+                    px: 4,
+                    fontSize: '1.1rem',
+                    borderRadius: 2
+                  }}
+                >
+                  {isStartingSimulator || isSimulatorBusy ? 'Starting Simulator...' : 'Start Simulator'}
+                </Button>
+              )}
 
               <Typography variant="body1" sx={{ mt: 3, maxWidth: 600, mx: 'auto' }}>
-                Launch the simulator to begin trading with this book's settings. 
-                The simulator provides a real-time trading environment to test your convictions.
+                {isSimulatorRunning 
+                  ? 'Your trading simulator is running. Click above to access the dashboard.'
+                  : 'Launch the simulator to begin trading with this book\'s settings. The simulator provides a real-time trading environment to test your convictions.'
+                }
+              </Typography>
+
+              {/* Show simulator status */}
+              <Typography variant="body2" sx={{ mt: 2, color: 'text.secondary' }}>
+                Simulator Status: {simulatorStatus}
               </Typography>
             </Box>
           )}
@@ -432,5 +461,3 @@ const BookDetailsPage: React.FC = () => {
 };
 
 export default BookDetailsPage;
-
-
