@@ -1,7 +1,6 @@
 // frontend_dist/book-app/src/components/Dashboard/Container/DebugPanel.tsx
 import React from 'react';
 import { Views } from './layoutTypes';
-import { AgGridColumnChooserController, QuestionDialogController, ViewNameDialogController } from './Controllers';
 
 interface DebugPanelProps {
   onTestCustomModal: () => void;
