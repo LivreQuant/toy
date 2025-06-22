@@ -1,6 +1,7 @@
 # source/api/websocket/handlers/session_handler.py
 """
 WebSocket handlers for session operations.
+Enhanced with simulator health validation.
 """
 import logging
 import time
@@ -31,7 +32,7 @@ async def handle_session_info(
         tracer: trace.Tracer,
         **kwargs
 ):
-    """Process a session info request."""
+    """Process a session info request with enhanced simulator validation."""
     with optional_trace_span(tracer, "handle_session_info_message") as span:
         span.set_attribute("client_id", client_id)
 
@@ -68,8 +69,22 @@ async def handle_session_info(
                             existing_session_id)
 
                         if simulator and simulator.status in [SimulatorStatus.RUNNING, SimulatorStatus.STARTING]:
-                            logger.info(f"Found active simulator {simulator.simulator_id} to reassign")
-                            simulator_to_reassign = simulator
+                            logger.info(f"Found potential simulator {simulator.simulator_id} to reassign")
+                            
+                            # Validate that the simulator is actually healthy before reassigning
+                            is_healthy, health_error = await session_manager.simulator_manager.validate_simulator_health(
+                                simulator.simulator_id
+                            )
+                            
+                            if is_healthy:
+                                logger.info(f"Simulator {simulator.simulator_id} is healthy and will be reassigned")
+                                simulator_to_reassign = simulator
+                            else:
+                                logger.warning(f"Simulator {simulator.simulator_id} is unhealthy ({health_error}), will not reassign")
+                                # Mark as ERROR since it failed validation
+                                await session_manager.store_manager.simulator_store.update_simulator_status(
+                                    simulator.simulator_id, SimulatorStatus.ERROR
+                                )
 
                         # Update the status to INACTIVE
                         await session_manager.store_manager.session_store.update_session_status(
@@ -88,9 +103,9 @@ async def handle_session_info(
         if success:
             logger.info(f"Successfully created user session {session_id} for user {user_id}")
 
-            # If we have a simulator to reassign, update its session reference
+            # If we have a healthy simulator to reassign, update its session reference
             if simulator_to_reassign:
-                logger.info(f"Reassigning simulator {simulator_to_reassign.simulator_id} to new session {session_id}")
+                logger.info(f"Reassigning validated simulator {simulator_to_reassign.simulator_id} to new session {session_id}")
 
                 # Update simulator in database
                 await session_manager.store_manager.simulator_store.update_simulator_session(
@@ -207,7 +222,20 @@ async def handle_stop_session(
                 # Check if simulator is in an active state
                 active_states = ['CREATING', 'STARTING', 'RUNNING']
                 if simulator_id and simulator_status and simulator_status in active_states:
-                    simulator_running = True
+                    # Validate that the simulator is actually healthy before trying to stop it
+                    is_healthy, health_error = await session_manager.simulator_manager.validate_simulator_health(
+                        simulator_id
+                    )
+                    
+                    if is_healthy:
+                        simulator_running = True
+                        logger.info(f"Simulator {simulator_id} is healthy and will be stopped")
+                    else:
+                        logger.warning(f"Simulator {simulator_id} is not healthy ({health_error}), marking as ERROR")
+                        # Mark as ERROR since it's not reachable anyway
+                        await session_manager.store_manager.simulator_store.update_simulator_status(
+                            simulator_id, SimulatorStatus.ERROR
+                        )
 
                 logger.info(f"Stopping session 3: {simulator_id} {simulator_status} {simulator_running}")
 
@@ -228,7 +256,7 @@ async def handle_stop_session(
                     track_session_operation("cleanup", "error_simulator")
                     return
             else:
-                logger.info(f"No simulator found.")
+                logger.info(f"No healthy simulator found to stop.")
 
             logger.info(f"Stopping session 4")
 
@@ -245,7 +273,7 @@ async def handle_stop_session(
                 'requestId': request_id,
                 'success': True,
                 'message': 'Session resources cleaned up',
-                'simulatorStatus': simulator_running
+                'simulatorStopped': simulator_running
             }
 
             logger.info(f"Stopping session 6")
@@ -275,6 +303,5 @@ async def handle_stop_session(
                 error_code="SESSION_CLOSE_FAILED",
                 message="Failed to close session",
                 request_id=request_id,
-                span=span,
-                exception=e
+                span=span
             )

@@ -18,6 +18,9 @@ import { config } from '@trading-app/config';
 
 import { ConnectionManager } from '@trading-app/websocket';
 
+// ADD THIS IMPORT
+import ServiceManager from '../services/ServiceManager';
+
 const logger = getLogger('AuthContext');
 
 interface AuthContextProps {
@@ -243,6 +246,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({
     }
   }, [authApi]);
 
+  // 🔄 UPDATED LOGOUT FUNCTION WITH SERVICE CLEANUP
   const logout = useCallback(async (): Promise<void> => {
     logger.info('🔌 AUTH: Attempting logout...');
     setIsAuthLoading(true);
@@ -273,6 +277,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({
   
       tokenManager.clearTokens();
       logger.info('Tokens cleared');
+
+      // 🔄 NEW: Clean up all services
+      logger.info('🧹 AUTH: Cleaning up services...');
+      ServiceManager.reset();
+      logger.info('🧹 AUTH: Services cleaned up');
   
       authState.updateState({
         isAuthenticated: false,
@@ -298,6 +307,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({
       toastService.error(`Logout error: ${error instanceof Error ? error.message : 'Unknown error'}`);
       
       tokenManager.clearTokens();
+      
+      // Clean up services even on error
+      ServiceManager.reset();
       
       authState.updateState({
         isAuthenticated: false,
@@ -372,10 +384,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({
   if (showInitialLoading) {
      return <LoadingSpinner message="Initializing session..." />;
   }
-
+ 
   return (
     <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );
-};
+ };

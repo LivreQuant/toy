@@ -71,6 +71,7 @@ class SimulatorManager:
         """
         Create a simulator for the session or reuse an existing one.
         This is the main entry point for getting a simulator for a session.
+        Enhanced with health validation.
 
         Args:
             session_id: Session ID
@@ -83,8 +84,8 @@ class SimulatorManager:
             span.set_attribute("session_id", session_id)
             span.set_attribute("user_id", user_id)
 
-            # First try to find an existing simulator
-            existing_simulator, error = await self.find_simulator(session_id, user_id)
+            # First try to find an existing simulator with health validation
+            existing_simulator, error = await self.find_and_validate_simulator(session_id, user_id)
 
             if existing_simulator:
                 # Update our current simulator tracking
@@ -108,10 +109,10 @@ class SimulatorManager:
                         logger.warning(f"Failed to update simulator session reference: {update_error}")
                         # Continue anyway - this is non-critical
 
-                logger.info(f"Reusing existing simulator {existing_simulator.simulator_id}")
+                logger.info(f"Reusing validated healthy simulator {existing_simulator.simulator_id}")
                 return existing_simulator, ""
 
-            # If no existing simulator was found, create a new one
+            # If no existing healthy simulator was found, create a new one
             return await self.create_simulator(session_id, user_id)
 
     async def find_simulator(self, session_id: str, user_id: str) -> Tuple[Optional[Simulator], str]:
@@ -419,3 +420,111 @@ class SimulatorManager:
 
                 track_simulator_operation("stop", "failure")
                 return False, f"Error stopping simulator: {str(e)}"
+    
+    async def validate_simulator_health(self, simulator_id: str = None) -> Tuple[bool, str]:
+        """
+        Validate that the current simulator is actually healthy and reachable
+        
+        Args:
+            simulator_id: Optional simulator ID (defaults to current)
+            
+        Returns:
+            Tuple of (is_healthy, error_message)
+        """
+        with optional_trace_span(self.tracer, "validate_simulator_health") as span:
+            # Use current simulator ID if none provided
+            simulator_id = simulator_id or self.current_simulator_id
+            if not simulator_id:
+                return True, "No simulator to validate"
+
+            span.set_attribute("simulator_id", simulator_id)
+
+            try:
+                # Get simulator details from database
+                simulator = await self.store_manager.simulator_store.get_simulator(simulator_id)
+                if not simulator:
+                    return False, "Simulator not found in database"
+
+                # Check if status is actually RUNNING
+                if simulator.status != SimulatorStatus.RUNNING:
+                    return False, f"Simulator status is {simulator.status.value}, not RUNNING"
+
+                # Check if we can connect to the endpoint
+                if not simulator.endpoint:
+                    return False, "Simulator has no endpoint"
+
+                # Try to send a heartbeat to verify connectivity
+                try:
+                    heartbeat_result = await self.exchange_client.send_heartbeat(
+                        simulator.endpoint,
+                        simulator.session_id,
+                        f"validation-{simulator_id}"
+                    )
+
+                    if not heartbeat_result.get('success', False):
+                        error = heartbeat_result.get('error', 'Heartbeat failed')
+                        logger.warning(f"Simulator {simulator_id} heartbeat failed: {error}")
+                        
+                        # Update status to ERROR since we can't reach it
+                        await self.store_manager.simulator_store.update_simulator_status(
+                            simulator_id, SimulatorStatus.ERROR
+                        )
+                        
+                        return False, f"Simulator unreachable: {error}"
+
+                except Exception as e:
+                    logger.error(f"Error validating simulator {simulator_id}: {e}")
+                    
+                    # Update status to ERROR since we can't reach it
+                    await self.store_manager.simulator_store.update_simulator_status(
+                        simulator_id, SimulatorStatus.ERROR
+                    )
+                    
+                    return False, f"Connection error: {str(e)}"
+
+                # Simulator is healthy
+                logger.debug(f"Simulator {simulator_id} validation successful")
+                return True, ""
+
+            except Exception as e:
+                logger.error(f"Error validating simulator health: {e}", exc_info=True)
+                span.record_exception(e)
+                return False, f"Validation error: {str(e)}"
+
+    async def find_and_validate_simulator(self, session_id: str, user_id: str) -> Tuple[Optional[Simulator], str]:
+        """
+        Enhanced version of find_simulator that also validates health
+        
+        Args:
+            session_id: Session ID
+            user_id: User ID
+
+        Returns:
+            Tuple of (simulator, error_message)
+        """
+        with optional_trace_span(self.tracer, "find_and_validate_simulator") as span:
+            span.set_attribute("session_id", session_id)
+            span.set_attribute("user_id", user_id)
+
+            # First find a simulator using existing logic
+            existing_simulator, error = await self.find_simulator(session_id, user_id)
+            
+            if not existing_simulator:
+                return None, error
+
+            # Now validate that it's actually healthy
+            is_healthy, health_error = await self.validate_simulator_health(existing_simulator.simulator_id)
+            
+            if is_healthy:
+                logger.info(f"Found and validated healthy simulator {existing_simulator.simulator_id}")
+                return existing_simulator, ""
+            else:
+                logger.warning(f"Found simulator {existing_simulator.simulator_id} but it's unhealthy: {health_error}")
+                
+                # Mark as unhealthy and look for another one
+                await self.store_manager.simulator_store.update_simulator_status(
+                    existing_simulator.simulator_id, SimulatorStatus.ERROR
+                )
+                
+                # Try to find another simulator
+                return await self.find_simulator(session_id, user_id)

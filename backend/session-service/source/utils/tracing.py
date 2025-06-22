@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from opentelemetry.exporter.jaeger.thrift import JaegerExporter
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter  # Changed this line
 from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 from opentelemetry.instrumentation.aiohttp_client import AioHttpClientInstrumentor
 from opentelemetry.instrumentation.asyncpg import AsyncPGInstrumentor
@@ -15,9 +15,8 @@ from source.config import config
 logger = logging.getLogger('tracing')
 
 
-# source/utils/tracing.py
 def setup_tracing():
-    """Initialize OpenTelemetry tracing with Jaeger exporter"""
+    """Initialize OpenTelemetry tracing with OTLP exporter"""
     # Check if tracing is enabled (default to true)
     if not config.tracing.enabled:
         logger.info("Tracing is disabled, using no-op tracer")
@@ -26,7 +25,7 @@ def setup_tracing():
         return True
 
     service_name = config.tracing.service_name
-    jaeger_endpoint = config.tracing.exporter_endpoint
+    otlp_endpoint = config.tracing.exporter_endpoint
 
     try:
         # Set up tracer provider with service name resource
@@ -38,16 +37,17 @@ def setup_tracing():
         trace.set_tracer_provider(provider)
 
         try:
-            # Create Jaeger exporter and add it to the tracer provider
-            jaeger_exporter = JaegerExporter(
-                collector_endpoint=jaeger_endpoint,
+            # Create OTLP exporter and add it to the tracer provider
+            otlp_exporter = OTLPSpanExporter(
+                endpoint=otlp_endpoint,
+                insecure=True  # Use insecure for local development
             )
 
             # Process spans in batches for better performance
-            span_processor = BatchSpanProcessor(jaeger_exporter)
+            span_processor = BatchSpanProcessor(otlp_exporter)
             provider.add_span_processor(span_processor)
         except Exception as export_error:
-            logger.warning(f"Failed to set up Jaeger exporter: {export_error}")
+            logger.warning(f"Failed to set up OTLP exporter: {export_error}")
             # Continue with no-op tracing
             return True
 
@@ -101,4 +101,3 @@ def optional_trace_span(tracer, name, attributes=None):
         # Return dummy span without trying to yield again, which was causing errors
         dummy = DummySpan()
         yield dummy
-        

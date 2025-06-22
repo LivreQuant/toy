@@ -1,7 +1,6 @@
 // frontend_dist/book-app/src/utils/dev-auth-helper.ts
 import { getLogger } from '@trading-app/logging';
-import { AuthFactory } from '@trading-app/auth';
-import { ApiFactory } from '@trading-app/api';
+import ServiceManager from '../services/ServiceManager';
 
 const logger = getLogger('DevAuthHelper');
 
@@ -54,18 +53,13 @@ export async function attemptDevAuthentication(): Promise<boolean> {
   console.log(`🔧 DEV MODE: Username: ${DEV_AUTH_CONFIG.credentials.username}`);
 
   try {
-    // Create auth services
-    const authServices = AuthFactory.createAuthServices();
-    const { tokenManager } = authServices;
-
-    // Create API clients
-    const apiClients = ApiFactory.createClients(tokenManager);
-    tokenManager.setAuthApi(apiClients.auth);
+    const serviceManager = ServiceManager.getInstance();
+    const services = await serviceManager.initialize();
 
     console.log('🔧 DEV MODE: Auth services created, attempting login...');
 
     // Attempt login
-    const response = await apiClients.auth.login(
+    const response = await services.apiClients.auth.login(
       DEV_AUTH_CONFIG.credentials.username, 
       DEV_AUTH_CONFIG.credentials.password
     );
@@ -81,16 +75,16 @@ export async function attemptDevAuthentication(): Promise<boolean> {
         userId: response.userId
       };
       
-      tokenManager.storeTokens(tokenData);
+      services.authServices.tokenManager.storeTokens(tokenData);
       
       console.log('🔧 DEV MODE: Tokens stored successfully');
       console.log('🔧 DEV MODE: Auto-login successful');
       console.log(`🔧 DEV MODE: User ID: ${response.userId}`);
       
       // Verify tokens were stored
-      const storedTokens = tokenManager.getTokens();
+      const storedTokens = services.authServices.tokenManager.getTokens();
       console.log('🔧 DEV MODE: Verification - tokens in storage:', !!storedTokens);
-      console.log('🔧 DEV MODE: Verification - isAuthenticated:', tokenManager.isAuthenticated());
+      console.log('🔧 DEV MODE: Verification - isAuthenticated:', services.authServices.tokenManager.isAuthenticated());
       
       return true;
     } else if (response.requiresVerification) {
@@ -112,7 +106,6 @@ export async function attemptDevAuthentication(): Promise<boolean> {
 export const DEV_NAVIGATION_HELPERS = {
   switchBook: (bookId: string) => {
     console.log(`🔧 DEV MODE: Switching to book: ${bookId}`);
-    // No need for /book prefix since basename="/book" handles it
     window.location.href = `/${bookId}`;
   },
   
@@ -133,7 +126,6 @@ export const DEV_NAVIGATION_HELPERS = {
   
   getCurrentBookId: () => {
     const pathParts = window.location.pathname.split('/');
-    // With basename="/book", path is /bookId
     const bookId = pathParts[1];
     console.log(`🔧 DEV MODE: Current book ID: ${bookId}`);
     return bookId;
@@ -151,20 +143,17 @@ export const DEV_NAVIGATION_HELPERS = {
   }
 };
 
-// Development authentication helpers
+// FIXED: Updated development authentication helpers
 export const DEV_AUTH_HELPERS = {
   manualLogin: async (username?: string, password?: string) => {
     const user = username || prompt('Enter username:');
     const pass = password || prompt('Enter password:');
     if (user && pass) {
       try {
-        // Use the same logic as attemptDevAuthentication
-        const authServices = AuthFactory.createAuthServices();
-        const { tokenManager } = authServices;
-        const apiClients = ApiFactory.createClients(tokenManager);
-        tokenManager.setAuthApi(apiClients.auth);
+        const serviceManager = ServiceManager.getInstance();
+        const services = await serviceManager.initialize();
         
-        const response = await apiClients.auth.login(user, pass);
+        const response = await services.apiClients.auth.login(user, pass);
         console.log('🔧 DEV MODE: Manual login response:', response);
         
         if (response.success && response.accessToken && response.refreshToken && response.userId) {
@@ -174,7 +163,7 @@ export const DEV_AUTH_HELPERS = {
             expiresAt: Date.now() + (response.expiresIn || 3600) * 1000,
             userId: response.userId
           };
-          tokenManager.storeTokens(tokenData);
+          services.authServices.tokenManager.storeTokens(tokenData);
           console.log('🔧 DEV MODE: Manual login successful! Refresh the page.');
           return response;
         }
@@ -188,21 +177,19 @@ export const DEV_AUTH_HELPERS = {
   
   showCurrentAuth: () => {
     try {
-      const authServices = AuthFactory.createAuthServices();
-      const { tokenManager } = authServices;
+      const serviceManager = ServiceManager.getInstance();
+      const connectionManager = serviceManager.getConnectionManager();
       
       console.log('🔍 Current Auth Status:');
-      console.log(`Authenticated: ${tokenManager.isAuthenticated()}`);
-      console.log(`User ID: ${tokenManager.getUserId()}`);
-      console.log(`Tokens:`, tokenManager.getTokens());
-      console.log(`Device ID:`, authServices.deviceIdManager.getDeviceId());
+      console.log('ServiceManager connection manager:', !!connectionManager);
       
-      return {
-        authenticated: tokenManager.isAuthenticated(),
-        userId: tokenManager.getUserId(),
-        tokens: tokenManager.getTokens(),
-        deviceId: authServices.deviceIdManager.getDeviceId()
-      };
+      if (connectionManager) {
+        console.log('Services are initialized, connection manager exists');
+      } else {
+        console.log('Services not yet initialized');
+      }
+      
+      return { hasConnectionManager: !!connectionManager };
     } catch (error: any) {
       console.error('🔧 DEV MODE: Error getting auth status:', error.message);
       return null;
@@ -211,10 +198,8 @@ export const DEV_AUTH_HELPERS = {
   
   clearAuth: () => {
     try {
-      const authServices = AuthFactory.createAuthServices();
-      const { tokenManager } = authServices;
-      tokenManager.clearTokens();
-      console.log('🗑️ Authentication cleared. Refresh the page.');
+      ServiceManager.reset();
+      console.log('🗑️ Authentication and all services cleared. Refresh the page.');
     } catch (error: any) {
       console.error('🔧 DEV MODE: Error clearing auth:', error.message);
     }
@@ -222,12 +207,13 @@ export const DEV_AUTH_HELPERS = {
   
   copyTokens: () => {
     try {
-      const authServices = AuthFactory.createAuthServices();
-      const { tokenManager } = authServices;
-      const tokens = tokenManager.getTokens();
-      const tokenString = JSON.stringify(tokens, null, 2);
-      navigator.clipboard.writeText(tokenString);
-      console.log('🔧 DEV MODE: Tokens copied to clipboard:', tokens);
+      const tokenString = localStorage.getItem('auth_tokens');
+      if (tokenString) {
+        navigator.clipboard.writeText(tokenString);
+        console.log('🔧 DEV MODE: Tokens copied to clipboard');
+      } else {
+        console.log('🔧 DEV MODE: No tokens found');
+      }
     } catch (error: any) {
       console.error('🔧 DEV MODE: Error copying tokens:', error.message);
     }

@@ -9,20 +9,8 @@ import { config, isBookApp, shouldLog } from '@trading-app/config';
 // LOGGING - now from package
 import { initializeLogging, getLogger } from '@trading-app/logging';
 
-// AUTH SERVICES - now from auth package
-import { AuthFactory, DeviceIdManager, TokenManager } from '@trading-app/auth';
-
-// WEBSOCKET SERVICES - now from websocket package
-import { 
- ConnectionManager, 
- createConnectionManagerWithGlobalDeps 
-} from '@trading-app/websocket';
-
-// API SERVICES - now from api package
-import { ApiFactory } from '@trading-app/api';
-
-// SERVICES - keep existing services that aren't API related
-import { ConvictionManager } from './services/convictions/conviction-manager';
+// SERVICES
+import ServiceManager from './services/ServiceManager';
 
 // HOOKS
 import { useConnection } from './hooks/useConnection';
@@ -145,80 +133,62 @@ async function checkAuthenticationStatus(): Promise<{
    }
  }
 
- // Create auth services using factory
- const authServices = AuthFactory.createAuthServices();
- const { deviceIdManager, tokenManager, localStorageService, sessionStorageService } = authServices;
- 
- logger.info('✅ Auth services created', { 
-   hasTokenManager: !!tokenManager,
-   hasDeviceIdManager: !!deviceIdManager 
- });
+ // 🔄 USE SINGLETON PATTERN - Only create services once
+ try {
+   const serviceManager = ServiceManager.getInstance();
+   const services = await serviceManager.initialize();
+   
+   logger.info('✅ Auth services created', { 
+     hasTokenManager: !!services.authServices.tokenManager,
+     hasDeviceIdManager: !!services.authServices.deviceIdManager 
+   });
 
- // 🔒 BOOK APP SECURITY CHECK: Prevent book app from running without main app authentication
- if (!deviceIdManager.hasStoredDeviceId()) {
-   logger.warn('🔒 BOOK APP: No device ID found - user must authenticate in main app first');
-   return { 
-     isValid: false, 
-     reason: 'No device ID found. Please authenticate in the main app first.' 
+   // 🔒 BOOK APP SECURITY CHECK: Prevent book app from running without main app authentication
+   if (!services.authServices.deviceIdManager.hasStoredDeviceId()) {
+     logger.warn('🔒 BOOK APP: No device ID found - user must authenticate in main app first');
+     return { 
+       isValid: false, 
+       reason: 'No device ID found. Please authenticate in the main app first.' 
+     };
+   }
+
+   if (!services.authServices.tokenManager.isAuthenticated()) {
+     logger.warn('🔒 BOOK APP: No valid authentication found - redirecting to main app');
+     return { 
+       isValid: false, 
+       reason: 'Valid authentication required. Taking you to the main app to log in.' 
+     };
+   }
+
+   logger.info('✅ BOOK APP: Authentication validated - proceeding with initialization');
+   logger.info('✅ API clients created with base URL:', config.apiBaseUrl);
+   logger.info('✅ Auth API set on token manager');
+   logger.info('✅ Websocket dependencies created', {
+     hasStateManager: true,
+     hasToastService: true,
+     hasConfigService: true,
+     wsUrl: config.websocket.url
+   });
+   logger.info('✅ ConnectionManager created', { 
+     connectionManager: !!services.connectionManager 
+   });
+   logger.info('✅ ConvictionManager created');
+   logger.info('🎉 All services instantiated successfully');
+
+   return {
+     isValid: true,
+     authServices: services.authServices,
+     apiClients: services.apiClients,
+     connectionManager: services.connectionManager,
+     convictionManager: services.convictionManager
+   };
+ } catch (error: any) {
+   logger.error('❌ Service initialization failed:', error);
+   return {
+     isValid: false,
+     reason: `Service initialization failed: ${error.message}`
    };
  }
-
- if (!tokenManager.isAuthenticated()) {
-   logger.warn('🔒 BOOK APP: No valid authentication found - redirecting to main app');
-   return { 
-     isValid: false, 
-     reason: 'Valid authentication required. Taking you to the main app to log in.' 
-   };
- }
-
- logger.info('✅ BOOK APP: Authentication validated - proceeding with initialization');
-
- // Create API clients using factory
- const apiClients = ApiFactory.createClients(tokenManager);
- logger.info('✅ API clients created with base URL:', config.apiBaseUrl);
-
- // Set the auth API on token manager (important for token refresh!)
- tokenManager.setAuthApi(apiClients.auth);
- logger.info('✅ Auth API set on token manager');
-
- // Initialize connection manager with dependency injection using the new websocket package
- logger.info('🔌 Creating websocket dependencies...');
- const { stateManager, toastService, configService } = createConnectionManagerWithGlobalDeps();
- logger.info('✅ Websocket dependencies created', {
-   hasStateManager: !!stateManager,
-   hasToastService: !!toastService,
-   hasConfigService: !!configService,
-   wsUrl: configService.getWebSocketUrl(),
-   reconnectionConfig: configService.getReconnectionConfig()
- });
-
- logger.info('🔌 Creating ConnectionManager...');
- const connectionManager = new ConnectionManager(
-   tokenManager,
-   stateManager,
-   toastService,
-   configService
- );
- logger.info('✅ ConnectionManager created', { 
-   connectionManager: !!connectionManager 
- });
-
- // Initialize conviction manager (now uses new API client)
- const convictionManager = new ConvictionManager(
-   apiClients.conviction, 
-   tokenManager
- );
- logger.info('✅ ConvictionManager created');
-
- logger.info('🎉 All services instantiated successfully');
-
- return {
-   isValid: true,
-   authServices,
-   apiClients,
-   connectionManager,
-   convictionManager
- };
 }
 
 function DeviceIdInvalidationHandler({ children }: { children: React.ReactNode }) {

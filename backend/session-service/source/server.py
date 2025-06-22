@@ -1,6 +1,7 @@
-# source/api/server.py
+# source/server.py
 """
 Session service main server with dependency injection for single-user mode.
+Enhanced with health checking for the current session's simulator only.
 """
 import logging
 import asyncio
@@ -75,6 +76,7 @@ class SessionServer:
         self.simulator_manager = None
         self.session_manager = None
         self.websocket_manager = None
+        self.health_manager = None
 
     async def initialize(self):
         """Initialize all server components"""
@@ -108,13 +110,21 @@ class SessionServer:
         self.stream_manager = StreamManager()
         self.simulator_manager = SimulatorManager(self.store_manager, self.exchange_client, self.k8s_client)
 
-        # Create session manager with user session ID
+        # Create session manager
         self.session_manager = SessionManager(
             self.store_manager,
             self.exchange_client,
             self.stream_manager,
             self.state_manager,
             self.simulator_manager,
+        )
+
+        # Create health check manager for this session only
+        from source.core.health.manager import HealthCheckManager
+        self.health_manager = HealthCheckManager(
+            self.session_manager,
+            check_interval=30,  # Check every 30 seconds
+            timeout_threshold=120  # Mark unhealthy after 2 minutes
         )
 
         # Create websocket manager
@@ -129,6 +139,7 @@ class SessionServer:
         self.app['session_manager'] = self.session_manager
         self.app['simulator_manager'] = self.simulator_manager
         self.app['websocket_manager'] = self.websocket_manager
+        self.app['health_manager'] = self.health_manager
 
         # Set up routes
         self._setup_routes()
@@ -141,6 +152,10 @@ class SessionServer:
 
     async def start(self):
         """Start the server"""
+        # Start health check manager for this session
+        await self.health_manager.start()
+        logger.info("Session health check manager started")
+        
         # Start web application
         app_runner = web.AppRunner(self.app)
         await app_runner.setup()
@@ -155,6 +170,28 @@ class SessionServer:
     async def shutdown(self):
         """Graceful shutdown"""
         logger.info("Initiating server shutdown")
+        
+        # Stop health check manager
+        if hasattr(self, 'health_manager') and self.health_manager:
+            await self.health_manager.stop()
+            logger.info("Session health check manager stopped")
+        
+        # Stop other components
+        if hasattr(self, 'websocket_manager') and self.websocket_manager:
+            await self.websocket_manager.close_all_connections("Server shutting down")
+            
+        if hasattr(self, 'session_manager') and self.session_manager:
+            await self.session_manager.cleanup_session()
+            
+        if hasattr(self, 'exchange_client') and self.exchange_client:
+            await self.exchange_client.close()
+            
+        if hasattr(self, 'k8s_client') and self.k8s_client:
+            await self.k8s_client.close()
+            
+        if hasattr(self, 'store_manager') and self.store_manager:
+            await self.store_manager.close()
+        
         # Perform cleanup tasks
         self.shutdown_event.set()
 
@@ -171,6 +208,10 @@ class SessionServer:
         self.app.router.add_get('/health', health_check)
         self.app.router.add_get('/readiness', self.readiness_check)
         self.app.router.add_get('/metrics', metrics_endpoint)
+        
+        # Add health check endpoints for this session's simulator only
+        self.app.router.add_post('/api/health/check-current-simulator', self.check_current_simulator)
+        self.app.router.add_get('/api/health/simulator-status', self.get_simulator_status)
 
         logger.info("All routes configured")
 
@@ -183,9 +224,8 @@ class SessionServer:
         cors_options = aiohttp_cors.ResourceOptions(
             allow_credentials=True,
             expose_headers="*",
-            #allow_headers=("X-Requested-With", "Content-Type", "Authorization", "X-CSRF-Token"),
-            allow_headers="*",  # Be more specific in production if possible
-            allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"]  # Include common methods
+            allow_headers="*",
+            allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"]
         )
         defaults = {origin: cors_options for origin in origins}
 
@@ -204,12 +244,12 @@ class SessionServer:
         Checks:
         - Database connectivity
         - Session state
-        - External service dependencies
+        - Health manager status
         """
         checks = {
             'database': 'DOWN',
             'session_state': 'DOWN',
-            'external_services': {}
+            'health_manager': 'DOWN'
         }
         
         all_ready = True
@@ -218,7 +258,6 @@ class SessionServer:
         try:
             db_ready = await self.store_manager.check_connection()
             checks['database'] = 'UP' if db_ready else 'DOWN'
-            logger.warning(f"Check database: {db_ready}")
             if not db_ready:
                 all_ready = False
                 logger.warning("Database connection check failed!")
@@ -228,9 +267,7 @@ class SessionServer:
 
         # Check session state
         try:
-            # Use state manager to check readiness
             session_ready = self.session_manager.state_manager.is_ready()
-            logger.warning(f"Check session state: {session_ready}")
             checks['session_state'] = 'UP' if session_ready else 'DOWN'
             if not session_ready:
                 all_ready = False
@@ -238,11 +275,66 @@ class SessionServer:
             logger.error(f"Session state check error: {e}")
             all_ready = False
 
-        logger.warning(f"Check send: {all_ready}")
-        status_code = 200 if all_ready else 503  # Service Unavailable if not ready
+        # Check health manager
+        try:
+            health_manager_ready = self.health_manager and self.health_manager.running
+            checks['health_manager'] = 'UP' if health_manager_ready else 'DOWN'
+            if not health_manager_ready:
+                all_ready = False
+        except Exception as e:
+            logger.error(f"Health manager check error: {e}")
+            all_ready = False
+
+        status_code = 200 if all_ready else 503
         return web.json_response({
             'status': 'READY' if all_ready else 'NOT READY',
             'timestamp': time.time(),
             'pod': config.kubernetes.pod_name,
             'checks': checks
         }, status=status_code)
+
+    async def check_current_simulator(self, request):
+        """Force health check on the current session's simulator"""
+        try:
+            health_manager = request.app['health_manager']
+            if not health_manager:
+                return web.json_response({
+                    'error': 'Health manager not available'
+                }, status=503)
+
+            is_healthy, reason = await health_manager.force_check_current_simulator()
+            
+            return web.json_response({
+                'healthy': is_healthy,
+                'reason': reason,
+                'timestamp': time.time(),
+                'pod': config.kubernetes.pod_name
+            })
+        except Exception as e:
+            logger.error(f"Error in current simulator health check: {e}")
+            return web.json_response({
+                'error': str(e),
+                'healthy': False,
+                'timestamp': time.time()
+            }, status=500)
+
+    async def get_simulator_status(self, request):
+        """Get status of the current session's simulator"""
+        try:
+            health_manager = request.app['health_manager']
+            if not health_manager:
+                return web.json_response({
+                    'error': 'Health manager not available'
+                }, status=503)
+
+            status = health_manager.get_current_simulator_status()
+            status['timestamp'] = time.time()
+            status['pod'] = config.kubernetes.pod_name
+            
+            return web.json_response(status)
+        except Exception as e:
+            logger.error(f"Error getting simulator status: {e}")
+            return web.json_response({
+                'error': str(e),
+                'timestamp': time.time()
+            }, status=500)
