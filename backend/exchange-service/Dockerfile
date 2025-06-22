@@ -12,7 +12,7 @@ RUN apt-get -o Acquire::Check-Valid-Until=false \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# --- Added Step ---
+# Upgrade pip and tools
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel
 
 # Copy requirements first to leverage Docker cache
@@ -29,11 +29,11 @@ ENV PYTHONUNBUFFERED=1 \
     MARKET_DATA_SERVICE_URL=market-data-service:50060
 
 # Expose REST & METRIC port
-EXPOSE 50055 9090
+EXPOSE 50055 50056 9090
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD python -c "import grpc; grpc.insecure_channel('localhost:50055')" || exit 1
+    CMD curl -f http://localhost:50056/health || exit 1
 
 # Run the application
 CMD ["python", "source/main.py"]

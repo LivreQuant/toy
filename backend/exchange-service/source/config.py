@@ -23,7 +23,7 @@ class MetricsConfig(BaseModel):
 class TracingConfig(BaseModel):
     enabled: bool = Field(default=True)
     service_name: str = Field(default="exchange-simulator")
-    jaeger_endpoint: str = Field(default="http://jaeger-collector:14268/api/traces")
+    otlp_endpoint: str = Field(default="http://jaeger-collector:4317")  # Updated to OTLP
 
 
 class DatabaseConfig(BaseModel):
@@ -61,7 +61,12 @@ class Config(BaseModel):
             log_level=os.getenv('LOG_LEVEL', 'INFO'),
             environment=os.getenv('ENVIRONMENT', 'development'),
             db=DatabaseConfig(),
-            market_data=MarketDataConfig()
+            market_data=MarketDataConfig(),
+            tracing=TracingConfig(
+                enabled=os.getenv('ENABLE_TRACING', 'true').lower() == 'true',
+                otlp_endpoint=os.getenv('OTEL_EXPORTER_OTLP_ENDPOINT', 'http://jaeger-collector:4317'),
+                service_name=os.getenv('OTEL_SERVICE_NAME', 'exchange-simulator')
+            )
         )
 
 

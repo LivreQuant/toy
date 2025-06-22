@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter  # Changed this line
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 from opentelemetry.instrumentation.aiohttp_client import AioHttpClientInstrumentor
 from opentelemetry.instrumentation.asyncpg import AsyncPGInstrumentor
@@ -17,7 +17,7 @@ logger = logging.getLogger('tracing')
 
 def setup_tracing():
     """Initialize OpenTelemetry tracing with OTLP exporter"""
-    # Check if tracing is enabled (default to true)
+    # Check if tracing is enabled
     if not config.tracing.enabled:
         logger.info("Tracing is disabled, using no-op tracer")
         provider = TracerProvider()
@@ -46,14 +46,20 @@ def setup_tracing():
             # Process spans in batches for better performance
             span_processor = BatchSpanProcessor(otlp_exporter)
             provider.add_span_processor(span_processor)
+            
+            logger.info(f"OTLP exporter configured for endpoint: {otlp_endpoint}")
         except Exception as export_error:
             logger.warning(f"Failed to set up OTLP exporter: {export_error}")
             # Continue with no-op tracing
             return True
 
         # Instrument HTTP client and database
-        AioHttpClientInstrumentor().instrument()
-        AsyncPGInstrumentor().instrument()
+        try:
+            AioHttpClientInstrumentor().instrument()
+            AsyncPGInstrumentor().instrument()
+            logger.info("Auto-instrumentation enabled for aiohttp and asyncpg")
+        except Exception as inst_error:
+            logger.warning(f"Failed to set up auto-instrumentation: {inst_error}")
 
         logger.info(f"Tracing initialized for service {service_name}")
         return True
@@ -98,6 +104,6 @@ def optional_trace_span(tracer, name, attributes=None):
         if str(e) != "No TracerProvider configured":
             logger.debug(f"Tracing disabled or failed: {e}")
         
-        # Return dummy span without trying to yield again, which was causing errors
+        # Return dummy span
         dummy = DummySpan()
         yield dummy

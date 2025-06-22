@@ -71,7 +71,7 @@ class SimulatorManager:
         """
         Create a simulator for the session or reuse an existing one.
         This is the main entry point for getting a simulator for a session.
-        Enhanced with health validation.
+        Enhanced with health validation and single-simulator enforcement.
 
         Args:
             session_id: Session ID
@@ -84,7 +84,7 @@ class SimulatorManager:
             span.set_attribute("session_id", session_id)
             span.set_attribute("user_id", user_id)
 
-            # First try to find an existing simulator with health validation
+            # First try to find and validate existing simulators
             existing_simulator, error = await self.find_and_validate_simulator(session_id, user_id)
 
             if existing_simulator:
@@ -117,56 +117,55 @@ class SimulatorManager:
 
     async def find_simulator(self, session_id: str, user_id: str) -> Tuple[Optional[Simulator], str]:
         """
-        Find an existing simulator for the user.
-        Handles checking both the current session and other sessions for this user.
-
-        Args:
-            session_id: Session ID
-            user_id: User ID
-
-        Returns:
-            Tuple of (simulator, error_message)
+        Find an existing simulator for the user (updated to be user-centric, not session-centric)
         """
         with optional_trace_span(self.tracer, "find_simulator") as span:
             span.set_attribute("session_id", session_id)
             span.set_attribute("user_id", user_id)
 
-            # First check if we have a simulator in the current session
-            existing_simulator = await self.store_manager.simulator_store.get_simulator_by_session(session_id)
+            logger.info(f"Looking for existing simulators for user {user_id}")
 
-            if existing_simulator and existing_simulator.status in [
-                SimulatorStatus.RUNNING, SimulatorStatus.STARTING, SimulatorStatus.CREATING
-            ]:
-                logger.info(f"Found active simulator {existing_simulator.simulator_id} for session {session_id}")
-                return existing_simulator, ""
+            # Look for ANY active simulator for this user (not just current session)
+            try:
+                pool = await self.store_manager.simulator_store._get_pool()
+                async with pool.acquire() as conn:
+                    row = await conn.fetchrow('''
+                        SELECT * FROM simulator.instances
+                        WHERE user_id = $1 
+                        AND status IN ('RUNNING', 'STARTING', 'CREATING')
+                        ORDER BY created_at DESC
+                        LIMIT 1
+                    ''', user_id)
 
-            # If no simulator found for current session, look for any active simulator for this user
-            if self.k8s_client:
-                try:
-                    user_simulators = await self.k8s_client.list_user_simulators(user_id)
-
-                    # Find running simulators
-                    running_simulators = [s for s in user_simulators if s.get('status') == 'RUNNING']
-
-                    if running_simulators:
-                        # Use the most recently created simulator
-                        # Sort by created_at descending
-                        running_simulators.sort(key=lambda x: x.get('created_at', 0), reverse=True)
-                        simulator_data = running_simulators[0]
-                        simulator_id = simulator_data.get('simulator_id')
-
-                        # Get full simulator details from database
-                        simulator = await self.store_manager.simulator_store.get_simulator(simulator_id)
-
+                    if row:
+                        simulator = self.store_manager.simulator_store._row_to_entity(row)
                         if simulator:
-                            logger.info(f"Found active simulator {simulator_id} for user {user_id}")
+                            logger.info(f"Found existing simulator {simulator.simulator_id} for user {user_id}")
                             return simulator, ""
-                except Exception as e:
-                    error_msg = f"Error finding simulators for user {user_id}: {str(e)}"
-                    logger.error(error_msg)
-                    return None, error_msg
 
-            return None, "No active simulator found"
+                # Fallback to Kubernetes check
+                if self.k8s_client:
+                    try:
+                        user_simulators = await self.k8s_client.list_user_simulators(user_id)
+                        running_simulators = [s for s in user_simulators if s.get('status') == 'RUNNING']
+                        
+                        if running_simulators:
+                            running_simulators.sort(key=lambda x: x.get('created_at', 0), reverse=True)
+                            simulator_data = running_simulators[0]
+                            simulator_id = simulator_data.get('simulator_id')
+                            
+                            simulator = await self.store_manager.simulator_store.get_simulator(simulator_id)
+                            if simulator:
+                                logger.info(f"Found K8s simulator {simulator_id} for user {user_id}")
+                                return simulator, ""
+                    except Exception as e:
+                        logger.error(f"Error checking K8s simulators: {e}")
+
+                return None, "No active simulator found"
+
+            except Exception as e:
+                logger.error(f"Error finding simulator: {e}", exc_info=True)
+                return None, f"Database error: {str(e)}"
 
     async def create_simulator(self, session_id: str, user_id: str) -> Tuple[Optional[Simulator], str]:
         """
@@ -295,7 +294,7 @@ class SimulatorManager:
                 if hasattr(standardized_data, 'timestamp') and hasattr(standardized_data, 'update_id'):
                     data_id = f"{standardized_data.timestamp}-{standardized_data.update_id}"
                 else:
-                    data_id = f"{time.time()}-{uuid.uuid4()}"
+                    data_id = f"{time.time()}-{id(standardized_data)}"
                     
                 logger.info(f"Received exchange data [ID: {data_id}] from simulator at {endpoint}")
 
@@ -445,9 +444,9 @@ class SimulatorManager:
                 if not simulator:
                     return False, "Simulator not found in database"
 
-                # Check if status is actually RUNNING
-                if simulator.status != SimulatorStatus.RUNNING:
-                    return False, f"Simulator status is {simulator.status.value}, not RUNNING"
+                # Check if status is actually RUNNING or STARTING
+                if simulator.status not in [SimulatorStatus.RUNNING, SimulatorStatus.STARTING]:
+                    return False, f"Simulator status is {simulator.status.value}, not active"
 
                 # Check if we can connect to the endpoint
                 if not simulator.endpoint:
@@ -493,7 +492,7 @@ class SimulatorManager:
 
     async def find_and_validate_simulator(self, session_id: str, user_id: str) -> Tuple[Optional[Simulator], str]:
         """
-        Enhanced version of find_simulator that also validates health
+        Enhanced version that enforces one simulator per user policy and validates health
         
         Args:
             session_id: Session ID
@@ -506,25 +505,144 @@ class SimulatorManager:
             span.set_attribute("session_id", session_id)
             span.set_attribute("user_id", user_id)
 
-            # First find a simulator using existing logic
-            existing_simulator, error = await self.find_simulator(session_id, user_id)
-            
-            if not existing_simulator:
-                return None, error
+            logger.info(f"Looking for existing simulators for user {user_id}")
 
-            # Now validate that it's actually healthy
-            is_healthy, health_error = await self.validate_simulator_health(existing_simulator.simulator_id)
-            
-            if is_healthy:
-                logger.info(f"Found and validated healthy simulator {existing_simulator.simulator_id}")
-                return existing_simulator, ""
-            else:
-                logger.warning(f"Found simulator {existing_simulator.simulator_id} but it's unhealthy: {health_error}")
+            try:
+                # Get ALL active simulators for this user from database
+                pool = await self.store_manager.simulator_store._get_pool()
+                async with pool.acquire() as conn:
+                    rows = await conn.fetch('''
+                        SELECT * FROM simulator.instances
+                        WHERE user_id = $1 
+                        AND status IN ('RUNNING', 'STARTING', 'CREATING')
+                        ORDER BY created_at DESC
+                    ''', user_id)
+                    
+                    active_simulators = []
+                    for row in rows:
+                        simulator = self.store_manager.simulator_store._row_to_entity(row)
+                        if simulator:
+                            active_simulators.append(simulator)
+
+                if not active_simulators:
+                    logger.info(f"No active simulators found for user {user_id}")
+                    return None, "No active simulators found"
+
+                logger.info(f"Found {len(active_simulators)} active simulators for user {user_id}")
+
+                # Validate health of all active simulators
+                healthy_simulators = []
+                unhealthy_simulators = []
                 
-                # Mark as unhealthy and look for another one
-                await self.store_manager.simulator_store.update_simulator_status(
-                    existing_simulator.simulator_id, SimulatorStatus.ERROR
-                )
-                
-                # Try to find another simulator
-                return await self.find_simulator(session_id, user_id)
+                for sim in active_simulators:
+                    logger.info(f"Validating health of simulator {sim.simulator_id} (status: {sim.status.value})")
+                    
+                    is_healthy, health_error = await self.validate_simulator_health(sim.simulator_id)
+                    
+                    if is_healthy:
+                        logger.info(f"Simulator {sim.simulator_id} is healthy")
+                        healthy_simulators.append(sim)
+                    else:
+                        logger.warning(f"Simulator {sim.simulator_id} is unhealthy: {health_error}")
+                        unhealthy_simulators.append(sim)
+
+                # Clean up all unhealthy simulators
+                for sim in unhealthy_simulators:
+                    logger.info(f"Marking unhealthy simulator {sim.simulator_id} as ERROR and cleaning up")
+                    
+                    # Mark as ERROR in database
+                    await self.store_manager.simulator_store.update_simulator_status(
+                        sim.simulator_id, SimulatorStatus.ERROR
+                    )
+                    
+                    # Clean up Kubernetes resources
+                    try:
+                        await self.k8s_client.delete_simulator_deployment(sim.simulator_id)
+                        logger.info(f"Cleaned up K8s resources for unhealthy simulator {sim.simulator_id}")
+                    except Exception as e:
+                        logger.error(f"Error cleaning up K8s for unhealthy simulator {sim.simulator_id}: {e}")
+
+                # If NO healthy simulators found, clean up everything and return None
+                if len(healthy_simulators) == 0:
+                    logger.warning(f"No healthy simulators found for user {user_id}. All simulators were unhealthy and have been cleaned up.")
+                    
+                    # Also clean up any remaining simulators that might be in other states
+                    try:
+                        async with pool.acquire() as conn:
+                            # Get any remaining simulators for this user that might be in limbo
+                            remaining_rows = await conn.fetch('''
+                                SELECT * FROM simulator.instances
+                                WHERE user_id = $1 
+                                AND status NOT IN ('STOPPED', 'ERROR')
+                            ''', user_id)
+                            
+                            for row in remaining_rows:
+                                sim_id = row['simulator_id']
+                                logger.info(f"Cleaning up remaining simulator {sim_id} in status {row['status']}")
+                                
+                                # Mark as STOPPED
+                                await conn.execute('''
+                                    UPDATE simulator.instances 
+                                    SET status = 'STOPPED' 
+                                    WHERE simulator_id = $1
+                                ''', sim_id)
+                                
+                                # Clean up K8s resources
+                                try:
+                                    await self.k8s_client.delete_simulator_deployment(sim_id)
+                                    logger.info(f"Cleaned up K8s resources for remaining simulator {sim_id}")
+                                except Exception as e:
+                                    logger.error(f"Error cleaning up K8s for remaining simulator {sim_id}: {e}")
+                    
+                    except Exception as e:
+                        logger.error(f"Error during final cleanup for user {user_id}: {e}")
+                    
+                    return None, "No healthy simulators found - all cleaned up"
+
+                # Enforce single simulator rule for healthy simulators
+                if len(healthy_simulators) > 1:
+                    logger.warning(f"User {user_id} has {len(healthy_simulators)} healthy simulators - enforcing single simulator rule")
+                    
+                    # Sort by preference: STARTING > RUNNING, then by newest
+                    healthy_simulators.sort(key=lambda s: (
+                        0 if s.status == SimulatorStatus.STARTING else 1,
+                        -s.created_at
+                    ))
+                    
+                    # Keep the first one, mark others as STOPPED
+                    chosen_simulator = healthy_simulators[0]
+                    excess_simulators = healthy_simulators[1:]
+                    
+                    for sim in excess_simulators:
+                        logger.info(f"Marking excess healthy simulator {sim.simulator_id} as STOPPED (keeping {chosen_simulator.simulator_id})")
+                        await self.store_manager.simulator_store.update_simulator_status(
+                            sim.simulator_id, SimulatorStatus.STOPPED
+                        )
+                        
+                        # Clean up Kubernetes resources
+                        try:
+                            await self.k8s_client.delete_simulator_deployment(sim.simulator_id)
+                            logger.info(f"Cleaned up K8s resources for excess simulator {sim.simulator_id}")
+                        except Exception as e:
+                            logger.error(f"Error cleaning up K8s for excess simulator {sim.simulator_id}: {e}")
+
+                    return chosen_simulator, ""
+
+                elif len(healthy_simulators) == 1:
+                    chosen = healthy_simulators[0]
+                    logger.info(f"Using single validated healthy simulator {chosen.simulator_id}")
+                    
+                    # Update session reference if needed
+                    if chosen.session_id != session_id:
+                        logger.info(f"Updating simulator {chosen.simulator_id} session reference to {session_id}")
+                        await self.store_manager.simulator_store.update_simulator_session(
+                            chosen.simulator_id, session_id
+                        )
+                        chosen.session_id = session_id
+                    
+                    return chosen, ""
+
+            except Exception as e:
+                logger.error(f"Error in find_and_validate_simulator: {e}", exc_info=True)
+                span.record_exception(e)
+                return None, f"Error during validation: {str(e)}"

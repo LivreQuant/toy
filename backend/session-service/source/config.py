@@ -92,7 +92,7 @@ class KubernetesConfig(BaseModel):
 class TracingConfig(BaseModel):
     """Tracing configuration"""
     enabled: bool = Field(default=True)
-    exporter_endpoint: str = Field(default="http://jaeger-collector:14268/api/traces")
+    exporter_endpoint: str = Field(default="http://jaeger-collector:4317")  # Changed to gRPC port
     service_name: str = Field(default="session-service")
 
 
@@ -167,8 +167,7 @@ class Config(BaseModel):
             ),
             tracing=TracingConfig(
                 enabled=os.getenv('ENABLE_TRACING', 'false').lower() == 'true',
-                exporter_endpoint=os.getenv('OTEL_EXPORTER_JAEGER_ENDPOINT',
-                                            'http://jaeger-collector:14268/api/traces'),
+                exporter_endpoint=os.getenv('OTEL_EXPORTER_OTLP_ENDPOINT', 'http://jaeger-collector:4317'),  # Use standard OTLP env var
                 service_name=os.getenv('OTEL_SERVICE_NAME', 'session-service')
             ),
             metrics=MetricsConfig(
