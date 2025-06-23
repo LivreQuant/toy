@@ -14,8 +14,8 @@ class BaseClient:
     """Base client with circuit breaker functionality."""
 
     def __init__(self, service_name: str,
-                 failure_threshold: int = 3,
-                 reset_timeout_ms: int = 30000):
+                 failure_threshold: int = 5,
+                 reset_timeout_ms: int = 60000):
         """
         Initialize the base client.
 

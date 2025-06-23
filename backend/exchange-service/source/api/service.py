@@ -79,6 +79,8 @@ class ExchangeSimulatorService(SessionExchangeSimulatorServicer, ConvictionExcha
     async def Heartbeat(self, request: HeartbeatRequest, context) -> HeartbeatResponse:
         """Handle heartbeat to maintain connection with enhanced status"""
         try:
+            logger.error(f"HEARTBEAT RECEIVED! From client, timestamp: {request.client_timestamp}")  # ADD THIS LINE
+            
             self.heartbeat_counter += 1
             current_time = int(time.time() * 1000)
 

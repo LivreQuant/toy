@@ -279,7 +279,7 @@ class ExchangeClient(BaseClient):
             logger.info(f"Sending heartbeat to simulator at {endpoint} for session {session_id}")
             response = await stub.Heartbeat(
                 request,
-                timeout=10,
+                timeout=30,
                 wait_for_ready=True
             )
 
