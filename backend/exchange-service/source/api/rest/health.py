@@ -1,8 +1,9 @@
-# source/api/rest/health.py - Enhanced version
+# backend/exchange-service/source/api/rest/health.py - Enhanced version
 
 import logging
 import asyncio
 import time
+import grpc
 from aiohttp import web
 
 logger = logging.getLogger('health_service')
@@ -87,11 +88,11 @@ class HealthService:
 
     async def readiness_check(self, request):
         """
-        Enhanced readiness probe handler
+        Enhanced readiness probe handler that ensures gRPC is ready
         Maps to simulator status progression:
         - Starting: Basic service running but not all components ready
         - Spinning: Components initializing
-        - Running: All components ready and operational
+        - Running: All components ready and operational including gRPC
         """
         current_time = time.time()
         uptime = current_time - self.startup_time
@@ -113,9 +114,11 @@ class HealthService:
                 status_code = 200  # Ready
                 self.initialization_complete = True
         else:
-            # Fully initialized - do health checks
+            # Fully initialized - do health checks including gRPC
             is_healthy = await self._check_component_health()
-            if is_healthy:
+            grpc_ready = await self._check_grpc_readiness()
+            
+            if is_healthy and grpc_ready:
                 status = "RUNNING"
                 status_code = 200
             else:
@@ -130,8 +133,32 @@ class HealthService:
             'initialization_complete': self.initialization_complete,
             'services': self.services_ready.copy(),
             'ready_services': sum(1 for ready in self.services_ready.values() if ready),
-            'total_services': len(self.services_ready)
+            'total_services': len(self.services_ready),
+            'grpc_ready': await self._check_grpc_readiness() if self.initialization_complete else False
         }, status=status_code)
+
+    async def _check_grpc_readiness(self) -> bool:
+        """Check if gRPC server is actually ready to accept connections"""
+        try:
+            # Quick self-check of gRPC server
+            channel = grpc.aio.insecure_channel('localhost:50055')
+            
+            # Wait for the channel to be ready with timeout
+            try:
+                await asyncio.wait_for(channel.channel_ready(), timeout=2.0)
+                grpc_ready = True
+                logger.debug("gRPC server readiness check passed")
+            except asyncio.TimeoutError:
+                logger.warning("gRPC server readiness check timed out")
+                grpc_ready = False
+            finally:
+                await channel.close()
+                
+            return grpc_ready
+            
+        except Exception as e:
+            logger.warning(f"gRPC server readiness check failed: {e}")
+            return False
 
     async def detailed_status(self, request):
         """
@@ -148,7 +175,8 @@ class HealthService:
             'uptime_seconds': uptime,
             'initialization_complete': self.initialization_complete,
             'startup_time': self.startup_time,
-            'services': self.services_ready.copy()
+            'services': self.services_ready.copy(),
+            'grpc_ready': await self._check_grpc_readiness()
         }
 
         # Add exchange manager status if available

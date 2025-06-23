@@ -31,13 +31,14 @@ class CircuitOpenError(Exception):
 class CircuitBreaker:
     """
     Implements the circuit breaker pattern for service-to-service communication.
+    Enhanced with better gRPC error handling.
     """
 
     def __init__(
             self,
             name: str,
             failure_threshold: int = 5,
-            reset_timeout_ms: int = 30000,  # 30 seconds
+            reset_timeout_ms: int = 60000,  # 60 seconds - increased for gRPC startup
             half_open_max_calls: int = 1,
             exclude_exceptions: List[type] = None
     ):
@@ -106,7 +107,13 @@ class CircuitBreaker:
                     # Notify listeners
                     info = self.get_state()
                     for listener in self._state_change_listeners:
-                        asyncio.create_task(listener(self.name, old_state, self.state, info))
+                        try:
+                            if asyncio.iscoroutinefunction(listener):
+                                await listener(self.name, old_state, self.state, info)
+                            else:
+                                listener(self.name, old_state, self.state, info)
+                        except Exception as e:
+                            logger.error(f"Error in circuit breaker listener: {e}")
 
                     logger.info(f"Circuit {self.name} transitioning from OPEN to HALF_OPEN")
                 else:
@@ -150,7 +157,13 @@ class CircuitBreaker:
                         # Notify listeners
                         info = self.get_state()
                         for listener in self._state_change_listeners:
-                            asyncio.create_task(listener(self.name, old_state, self.state, info))
+                            try:
+                                if asyncio.iscoroutinefunction(listener):
+                                    await listener(self.name, old_state, self.state, info)
+                                else:
+                                    listener(self.name, old_state, self.state, info)
+                            except Exception as e:
+                                logger.error(f"Error in circuit breaker listener: {e}")
 
                         logger.info(f"Circuit {self.name} test call succeeded, closing circuit")
                 elif self.state == CircuitState.CLOSED:
@@ -160,10 +173,18 @@ class CircuitBreaker:
             return result
 
         except Exception as e:
-            # Check if this exception should be counted as a failure
+            # Enhanced error handling for gRPC and connection issues
             is_excluded = any(isinstance(e, exc_type) for exc_type in self.exclude_exceptions)
+            
+            # Don't count certain gRPC startup errors as failures
+            is_startup_error = (
+                "DNS resolution failed" in str(e) or
+                "Channel connectivity" in str(e) or
+                "UNAVAILABLE" in str(e) or
+                "connection refused" in str(e).lower()
+            )
 
-            if not is_excluded:
+            if not is_excluded and not is_startup_error:
                 async with self._lock:
                     # Record failure
                     self.consecutive_failures += 1
@@ -177,7 +198,13 @@ class CircuitBreaker:
                         # Notify listeners
                         info = self.get_state()
                         for listener in self._state_change_listeners:
-                            asyncio.create_task(listener(self.name, old_state, self.state, info))
+                            try:
+                                if asyncio.iscoroutinefunction(listener):
+                                    await listener(self.name, old_state, self.state, info)
+                                else:
+                                    listener(self.name, old_state, self.state, info)
+                            except Exception as listener_e:
+                                logger.error(f"Error in circuit breaker listener: {listener_e}")
 
                         logger.warning(
                             f"Circuit {self.name} tripped after {self.consecutive_failures} consecutive failures"
@@ -190,9 +217,17 @@ class CircuitBreaker:
                         # Notify listeners
                         info = self.get_state()
                         for listener in self._state_change_listeners:
-                            asyncio.create_task(listener(self.name, old_state, self.state, info))
+                            try:
+                                if asyncio.iscoroutinefunction(listener):
+                                    await listener(self.name, old_state, self.state, info)
+                                else:
+                                    listener(self.name, old_state, self.state, info)
+                            except Exception as listener_e:
+                                logger.error(f"Error in circuit breaker listener: {listener_e}")
 
                         logger.warning(f"Circuit {self.name} test call failed, reopening circuit")
+            else:
+                logger.debug(f"Circuit {self.name}: Ignoring startup/excluded error: {e}")
 
             # Re-raise the original exception
             raise

@@ -72,8 +72,8 @@ class BackgroundSimulatorManager:
         
         # Start worker tasks
         for i in range(self.worker_count):
-            worker = asyncio.create_task(self._worker(f"simulator-worker-{i}"))
-            worker.set_name(f"simulator-worker-{i}")
+            worker = asyncio.create_task(self._worker(f"simulator-worker-{i+1}"))
+            worker.set_name(f"simulator-worker-{i+1}")
             self.workers.append(worker)
             
         logger.info(f"Started {self.worker_count} background simulator management workers")
@@ -401,30 +401,33 @@ class BackgroundSimulatorManager:
         self.session_status[session_id] = "STARTING"
         self.session_endpoints[session_id] = simulator.endpoint
         
-        # PROPER STARTUP WAITING - Check both Kubernetes readiness AND gRPC
-        max_startup_wait = 120  # 2 minutes max startup time
+        # ENHANCED STARTUP WAITING - Check both Kubernetes readiness AND gRPC
+        max_startup_wait = 180  # 3 minutes max startup time
         check_interval = 5      # Check every 5 seconds
         elapsed = 0
         
-        readiness_ready = False
+        k8s_ready = False
         grpc_ready = False
         
-        while elapsed < max_startup_wait and not (readiness_ready and grpc_ready):
+        while elapsed < max_startup_wait and not (k8s_ready and grpc_ready):
             try:
-                # 1. Check Kubernetes readiness probe first
-                if not readiness_ready:
+                # 1. Check Kubernetes readiness first
+                if not k8s_ready:
                     try:
                         # Use the k8s client to check pod readiness
                         k8s_status = await self.simulator_manager.k8s_client.check_simulator_status(simulator.simulator_id)
                         if k8s_status == "RUNNING":
-                            readiness_ready = True
+                            k8s_ready = True
                             logger.info(f"Worker {worker_name}: Simulator {simulator.simulator_id} Kubernetes readiness OK")
                     except Exception as e:
                         logger.debug(f"Worker {worker_name}: K8s readiness check failed: {e}")
                 
-                # 2. If K8s is ready, test gRPC connection
-                if readiness_ready and not grpc_ready:
+                # 2. Only test gRPC once K8s is ready  
+                if k8s_ready and not grpc_ready:
                     try:
+                        # Add a small delay to let the gRPC service fully start
+                        await asyncio.sleep(2)
+                        
                         heartbeat_result = await self.simulator_manager.exchange_client.send_heartbeat(
                             simulator.endpoint, session_id, f"startup-check-{elapsed}"
                         )
@@ -439,7 +442,7 @@ class BackgroundSimulatorManager:
                             break
                             
                     except Exception as e:
-                        logger.debug(f"Worker {worker_name}: gRPC check failed: {e}")
+                        logger.debug(f"Worker {worker_name}: gRPC check failed (expected during startup): {e}")
                 
             except Exception as e:
                 logger.warning(f"Worker {worker_name}: Readiness check error: {e}")
@@ -450,17 +453,17 @@ class BackgroundSimulatorManager:
             
             # Log progress every 15 seconds
             if elapsed % 15 == 0:
-                logger.info(f"Worker {worker_name}: Waiting for simulator {simulator.simulator_id}... ({elapsed}s elapsed, K8s: {readiness_ready}, gRPC: {grpc_ready})")
+                logger.info(f"Worker {worker_name}: Waiting for simulator {simulator.simulator_id}... ({elapsed}s elapsed, K8s: {k8s_ready}, gRPC: {grpc_ready})")
         
         # Check final status
-        if readiness_ready and grpc_ready:
+        if k8s_ready and grpc_ready:
             logger.info(f"Worker {worker_name}: Simulator {simulator.simulator_id} is fully ready after {elapsed}s")
             
             # Start ongoing health monitoring
             await self._start_health_monitoring(
                 session_id, simulator.simulator_id, simulator.endpoint
-            )
-            
+            )       
+           
             # Notify success with actual status
             if task.callback:
                 await task.callback({
@@ -471,7 +474,7 @@ class BackgroundSimulatorManager:
                 })
         else:
             # Startup timeout - mark as error and clean up
-            logger.error(f"Worker {worker_name}: Simulator {simulator.simulator_id} failed to become ready within {max_startup_wait}s (K8s: {readiness_ready}, gRPC: {grpc_ready})")
+            logger.error(f"Worker {worker_name}: Simulator {simulator.simulator_id} failed to become ready within {max_startup_wait}s (K8s: {k8s_ready}, gRPC: {grpc_ready})")
             
             self.session_status[session_id] = "ERROR"
             

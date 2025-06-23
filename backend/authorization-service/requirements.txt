@@ -25,6 +25,6 @@ prometheus-client>=0.16.0
 # JAEGER TRACING
 opentelemetry-api>=1.18.0
 opentelemetry-sdk>=1.18.0
-opentelemetry-exporter-jaeger>=1.18.0
 opentelemetry-instrumentation-aiohttp-client>=0.40b0
 opentelemetry-instrumentation-asyncpg>=0.40b0
+opentelemetry-exporter-otlp-proto-grpc>=1.18.0

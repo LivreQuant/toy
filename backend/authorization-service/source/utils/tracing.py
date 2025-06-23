@@ -6,28 +6,26 @@ from contextlib import contextmanager
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from opentelemetry.exporter.jaeger.thrift import JaegerExporter
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 from opentelemetry.instrumentation.aiohttp_client import AioHttpClientInstrumentor
 from opentelemetry.instrumentation.asyncpg import AsyncPGInstrumentor
 
 from source.config import Config
 
-
 logger = logging.getLogger('tracing')
 
 def setup_tracing():
-    """Initialize OpenTelemetry tracing with Jaeger exporter"""
-    # Check if tracing is enabled (default to true)
+    """Initialize OpenTelemetry tracing with OTLP exporter"""
+    # Check if tracing is enabled
     if not Config.ENABLE_TRACING:
         logger.info("Tracing is disabled, using no-op tracer")
-        # Set up a no-op tracer provider
         provider = TracerProvider()
         trace.set_tracer_provider(provider)
         return True
     
     service_name = os.getenv('OTEL_SERVICE_NAME', 'auth-service')
-    jaeger_endpoint = os.getenv('OTEL_EXPORTER_JAEGER_ENDPOINT', 'http://jaeger-collector:14268/api/traces')
+    otlp_endpoint = os.getenv('OTEL_EXPORTER_OTLP_ENDPOINT', 'http://jaeger-collector:4317')
     
     try:
         # Set up tracer provider with service name resource
@@ -38,20 +36,32 @@ def setup_tracing():
         provider = TracerProvider(resource=resource)
         trace.set_tracer_provider(provider)
         
-        # Create Jaeger exporter and add it to the tracer provider
-        jaeger_exporter = JaegerExporter(
-            collector_endpoint=jaeger_endpoint,
-        )
-        
-        # Process spans in batches for better performance
-        span_processor = BatchSpanProcessor(jaeger_exporter)
-        provider.add_span_processor(span_processor)
+        try:
+            # Create OTLP exporter and add it to the tracer provider
+            otlp_exporter = OTLPSpanExporter(
+                endpoint=otlp_endpoint,
+                insecure=True  # Use insecure for local development
+            )
+            
+            # Process spans in batches for better performance
+            span_processor = BatchSpanProcessor(otlp_exporter)
+            provider.add_span_processor(span_processor)
+            
+            logger.info(f"OTLP exporter configured for endpoint: {otlp_endpoint}")
+        except Exception as export_error:
+            logger.warning(f"Failed to set up OTLP exporter: {export_error}")
+            # Continue with no-op tracing
+            return True
         
         # Instrument HTTP client and database
-        AioHttpClientInstrumentor().instrument()
-        AsyncPGInstrumentor().instrument()
+        try:
+            AioHttpClientInstrumentor().instrument()
+            AsyncPGInstrumentor().instrument()
+            logger.info("Auto-instrumentation enabled for aiohttp and asyncpg")
+        except Exception as inst_error:
+            logger.warning(f"Failed to set up auto-instrumentation: {inst_error}")
         
-        logger.info(f"Tracing initialized for service {service_name}, exporting to {jaeger_endpoint}")
+        logger.info(f"Tracing initialized for service {service_name}")
         return True
     except Exception as e:
         logger.error(f"Failed to initialize tracing: {e}")
@@ -75,6 +85,12 @@ def optional_trace_span(tracer, name, attributes=None):
             # Do work
             span.set_attribute("key", "value")  # No-op if tracing disabled
     """
+    class DummySpan:
+        def set_attribute(self, key, value): pass
+        def record_exception(self, exception): pass
+        def add_event(self, name, attributes=None): pass
+        def set_status(self, status): pass
+
     try:
         with tracer.start_as_current_span(name) as span:
             # Set initial attributes if provided
@@ -83,23 +99,10 @@ def optional_trace_span(tracer, name, attributes=None):
                     span.set_attribute(key, value)
             yield span
     except Exception as e:
-        # If tracing fails or is disabled, return a dummy span object
-        class DummySpan:
-            def set_attribute(self, key, value):
-                pass
-            
-            def record_exception(self, exception):
-                pass
-                
-            def add_event(self, name, attributes=None):
-                pass
-                
-            def set_status(self, status):
-                pass
-        
-        # Log only if it's an unexpected error, not if tracing is just disabled
+        # Log only if it's an unexpected error
         if str(e) != "No TracerProvider configured":
             logger.debug(f"Tracing disabled or failed: {e}")
-            
+        
+        # Return dummy span
         dummy = DummySpan()
         yield dummy

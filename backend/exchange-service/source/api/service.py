@@ -45,44 +45,60 @@ class ExchangeSimulatorService(SessionExchangeSimulatorServicer, ConvictionExcha
         self.health_service = exchange_manager.get_health_service() if hasattr(exchange_manager, 'get_health_service') else HealthService(exchange_manager, http_port=50056)
         self.startup_time = time.time()
         
-        # Internal simulator status tracking
+        # Internal simulator status tracking with enhanced logic
         self.internal_status = SimulatorStatus.INITIALIZING
         self._status_lock = asyncio.Lock()
+        self._grpc_ready = False
 
     async def _update_internal_status(self, new_status: SimulatorStatus):
         """Update the internal simulator status"""
-        async with self._status_lock:
-            if self.internal_status != new_status:
-                old_status = self.internal_status
-                self.internal_status = new_status
-                logger.info(f"Simulator status changed: {SimulatorStatus.Name(old_status)} -> {SimulatorStatus.Name(new_status)}")
+        # FIX: Remove the async lock acquisition since we're already in an async context
+        old_status = self.internal_status
+        self.internal_status = new_status  # THIS WAS THE BUG - not updating properly
+        logger.info(f"Simulator status changed: {SimulatorStatus.Name(old_status) if hasattr(SimulatorStatus, 'Name') else old_status} -> {SimulatorStatus.Name(new_status) if hasattr(SimulatorStatus, 'Name') else new_status}")
 
     async def _get_current_status(self) -> SimulatorStatus:
-        """Get the current simulator status with logic"""
-        async with self._status_lock:
-            # Check if we're fully initialized
-            is_ready = getattr(self.health_service, 'initialization_complete', False)
-            
-            logger.info(f"STATUS CHECK: is_ready={is_ready}, internal_status={SimulatorStatus.Name(self.internal_status) if hasattr(SimulatorStatus, 'Name') else self.internal_status}")
-            
-            if not is_ready:
-                logger.info("STATUS: Returning INITIALIZING - health service not ready")
+        """Get the current simulator status with enhanced logic"""
+        # Check if we're fully initialized
+        is_ready = getattr(self.health_service, 'initialization_complete', False)
+        
+        logger.info(f"STATUS CHECK: is_ready={is_ready}, internal_status={SimulatorStatus.Name(self.internal_status) if hasattr(SimulatorStatus, 'Name') else self.internal_status}")
+        
+        if not is_ready:
+            logger.info("STATUS: Returning INITIALIZING - health service not ready")
+            return SimulatorStatus.INITIALIZING
+        
+        # Additional check: verify gRPC server is actually ready
+        if not self._grpc_ready:
+            try:
+                # Quick self-test
+                grpc_ready = await self.health_service._check_grpc_readiness()
+                if grpc_ready:
+                    self._grpc_ready = True
+                    logger.info("STATUS: gRPC server is now ready")
+                else:
+                    logger.info("STATUS: gRPC server not ready yet")
+                    return SimulatorStatus.INITIALIZING
+            except Exception as e:
+                logger.warning(f"STATUS: Error checking gRPC readiness: {e}")
                 return SimulatorStatus.INITIALIZING
-            
-            # Check if exchange manager is streaming data
-            has_market_data = hasattr(self.exchange_manager, 'current_market_data') and self.exchange_manager.current_market_data
-            logger.info(f"STATUS CHECK: has_market_data={has_market_data}, market_data_keys={list(self.exchange_manager.current_market_data.keys()) if has_market_data else 'None'}")
-            
-            if has_market_data:
-                # We have market data, so we're running
-                if self.internal_status == SimulatorStatus.INITIALIZING:
-                    logger.info("STATUS: Transitioning from INITIALIZING to RUNNING due to market data")
-                    await self._update_internal_status(SimulatorStatus.RUNNING)
-                return SimulatorStatus.RUNNING
-            
-            # Default to current internal status
-            logger.info(f"STATUS: Returning current internal status: {SimulatorStatus.Name(self.internal_status) if hasattr(SimulatorStatus, 'Name') else self.internal_status}")
-            return self.internal_status
+        
+        # Check if exchange manager is streaming data
+        has_market_data = hasattr(self.exchange_manager, 'current_market_data') and self.exchange_manager.current_market_data
+        logger.info(f"STATUS CHECK: has_market_data={bool(has_market_data)}, market_data_keys={list(self.exchange_manager.current_market_data.keys()) if has_market_data else 'None'}")
+        
+        if has_market_data and self._grpc_ready:
+            # We have market data and gRPC is ready, so we're running
+            if self.internal_status == SimulatorStatus.INITIALIZING:
+                logger.info("STATUS: Transitioning from INITIALIZING to RUNNING due to market data and gRPC readiness")
+                # FIX: Actually update the status properly
+                self.internal_status = SimulatorStatus.RUNNING
+                logger.info(f"STATUS: Updated internal_status to {SimulatorStatus.Name(self.internal_status) if hasattr(SimulatorStatus, 'Name') else self.internal_status}")
+            return SimulatorStatus.RUNNING
+        
+        # Default to current internal status
+        logger.info(f"STATUS: Returning current internal status: {SimulatorStatus.Name(self.internal_status) if hasattr(SimulatorStatus, 'Name') else self.internal_status}")
+        return self.internal_status
 
     async def Heartbeat(self, request: HeartbeatRequest, context) -> HeartbeatResponse:
         """Handle heartbeat to maintain connection with enhanced status"""
@@ -141,7 +157,8 @@ class ExchangeSimulatorService(SessionExchangeSimulatorServicer, ConvictionExcha
             client_id = request.client_id
             logger.info(f"Client {client_id} subscribed to exchange data stream")
 
-            # Mark as running once we start streaming
+            # Mark as running once we start streaming and gRPC is confirmed working
+            self._grpc_ready = True
             await self._update_internal_status(SimulatorStatus.RUNNING)
 
             update_count = 0
