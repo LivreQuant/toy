@@ -181,49 +181,95 @@ class BackgroundSimulatorManager:
                 )
                 
                 if heartbeat_result.get('success', False):
-                    # Get status from heartbeat response
+                    # Heartbeat successful - update status
                     grpc_status = heartbeat_result.get('status', 'UNKNOWN')
-                    
-                    # Update our tracking
                     old_status = self.session_status.get(session_id, 'UNKNOWN')
                     self.session_status[session_id] = grpc_status
                     self.session_endpoints[session_id] = endpoint
                     
-                    # Log status changes
                     if old_status != grpc_status:
                         logger.info(f"Session {session_id} simulator status: {old_status} -> {grpc_status}")
                         
-                        # Notify callback if status changed to RUNNING
                         if grpc_status == 'RUNNING' and old_status != 'RUNNING':
-                            # Notify that simulator is now running
                             await self._notify_status_change(session_id, simulator_id, grpc_status, endpoint)
                     
                 else:
-                    # Heartbeat failed
+                    # ✅ ENHANCED: Heartbeat failed - comprehensive cleanup
                     error = heartbeat_result.get('error', 'Unknown error')
                     logger.warning(f"Heartbeat failed for session {session_id}: {error}")
                     
-                    # Mark as error and stop monitoring
-                    self.session_status[session_id] = 'ERROR'
-                    await self._notify_status_change(session_id, simulator_id, 'ERROR', endpoint)
+                    # Determine if this is a pod termination (DNS/connection errors)
+                    is_pod_terminated = any(term in error.lower() for term in [
+                        'name or service not known', 'dns resolution failed', 
+                        'connection refused', 'socket closed', 'unavailable'
+                    ])
+                    
+                    if is_pod_terminated:
+                        logger.info(f"Detected pod termination for simulator {simulator_id}, performing comprehensive cleanup")
+                        await self._handle_pod_termination(session_id, simulator_id)
+                    else:
+                        # Regular failure
+                        self.session_status[session_id] = 'ERROR'
+                        await self._notify_status_change(session_id, simulator_id, 'ERROR', endpoint)
+                    
                     break
-                
+                    
                 # Wait before next heartbeat
-                await asyncio.sleep(10)  # Check every 10 seconds
-                
+                await asyncio.sleep(10)
+                    
             except asyncio.CancelledError:
                 logger.info(f"Health monitor cancelled for session {session_id}")
                 break
             except Exception as e:
                 logger.error(f"Error in health monitor for session {session_id}: {e}")
-                self.session_status[session_id] = 'ERROR'
-                await asyncio.sleep(5)  # Wait before retrying
-                
+                # ✅ ADD: Handle unexpected errors as pod termination
+                await self._handle_pod_termination(session_id, simulator_id)
+                break
+                    
         # Clean up
         if session_id in self.health_monitors:
             del self.health_monitors[session_id]
         logger.info(f"Health monitor stopped for session {session_id}")
+
+    async def _handle_pod_termination(self, session_id: str, simulator_id: str):
+        """Handle comprehensive cleanup when pod is terminated"""
+        logger.info(f"Handling pod termination for session {session_id}, simulator {simulator_id}")
         
+        try:
+            # 1. Update database status to STOPPED (not ERROR, since pod was terminated externally)
+            await self.simulator_manager.store_manager.simulator_store.update_simulator_status(
+                simulator_id, SimulatorStatus.STOPPED
+            )
+            logger.info(f"Updated simulator {simulator_id} status to STOPPED in database")
+        except Exception as e:
+            logger.error(f"Failed to update simulator status in database: {e}")
+        
+        # 2. Clear simulator manager tracking
+        if self.simulator_manager.current_simulator_id == simulator_id:
+            self.simulator_manager.current_simulator_id = None
+            self.simulator_manager.current_endpoint = None
+            logger.info(f"Cleared simulator manager tracking for terminated simulator {simulator_id}")
+        
+        # 3. Reset session status to NONE
+        self.session_status[session_id] = 'NONE'
+        self.session_endpoints.pop(session_id, None)
+        logger.info(f"Reset session {session_id} status to NONE")
+        
+        # 4. Notify clients of termination
+        await self._notify_status_change(session_id, simulator_id, 'STOPPED', None)
+        
+        # 5. Stop any active streams
+        try:
+            if hasattr(self, 'websocket_manager') and self.websocket_manager:
+                # Get session manager to stop streams
+                if hasattr(self.websocket_manager, 'session_manager'):
+                    session_manager = self.websocket_manager.session_manager
+                    if session_manager.stream_manager:
+                        await session_manager.stream_manager.stop_stream(session_id)
+                        logger.info(f"Stopped streams for session {session_id}")
+        except Exception as e:
+            logger.error(f"Failed to stop streams: {e}")
+            
     async def _notify_status_change(self, session_id: str, simulator_id: str, status: str, endpoint: str):
         """Notify about simulator status changes"""
         try:

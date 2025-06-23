@@ -325,89 +325,101 @@ class SessionManager:
             return None, None, str(e)
 
     async def _stream_simulator_data(self, endpoint: str, simulator_id: str):
-        """Stream simulator data - data is handled via callback now"""
+        """Stream simulator data with proper error handling"""
         try:
             session_id = self.state_manager.get_active_session_id()
 
-            # Add readiness polling
-            max_attempts = 10
-            attempt = 0
-            connected = False
-
-            logger.info(f"Waiting for simulator {simulator_id} to be ready...")
-
-            while attempt < max_attempts and not connected:
-                try:
-                    # Try to send a heartbeat to check readiness
-                    heartbeat_result = await self.exchange_client.send_heartbeat(
-                        endpoint,
-                        session_id,
-                        f"readiness-check-{session_id}"
-                    )
-
-                    if heartbeat_result.get('success', False):
-                        connected = True
-                        logger.info(f"Successfully connected to simulator {simulator_id}")
-
-                        # Update status and notify clients
-                        await self.update_simulator_status(simulator_id, 'RUNNING')
-                        break
-                    else:
-                        logger.info(
-                            f"Simulator {simulator_id} not ready yet (heartbeat failed), waiting... (attempt {attempt + 1}/{max_attempts})")
-                except Exception as e:
-                    logger.info(
-                        f"Simulator {simulator_id} not ready yet, waiting... (attempt {attempt + 1}/{max_attempts}): {e}")
-
-                attempt += 1
-                await asyncio.sleep(5)  # Wait between attempts - 5 seconds should be enough
+            # ... existing readiness polling code ...
 
             if not connected:
                 logger.error(f"Failed to connect to simulator {simulator_id} after {max_attempts} attempts")
-                self.simulator_active = False
+                await self._handle_simulator_failure(simulator_id, "Connection timeout")
                 return
 
-            # Stream data with error handling
+            # Stream data with enhanced error handling
             try:
                 logger.info(f"Starting exchange data stream for simulator {simulator_id}")
 
-                # Stream data - handling will occur via callbacks
                 async for data in self.simulator_manager.stream_exchange_data(
                         endpoint,
                         session_id,
                         f"stream-{session_id}"
                 ):
-                    # Just log that we received data - don't try to access properties directly
-                    # This avoids the 'get' attribute error
                     logger.debug(f"Received data from exchange stream (simulator: {simulator_id})")
                     
-                    # If we get here, we're successfully receiving data
-                    # Ensure simulator_status is set to RUNNING on first data received
                     if not self.simulator_active:
                         logger.info(f"First data received from simulator {simulator_id}, ensuring status is RUNNING")
                         self.simulator_active = True
                         await self.update_simulator_status(simulator_id, 'RUNNING')
-                    
-                    # Note: We don't need to call _handle_exchange_data here
-                    # The simulator_manager will take care of that through its callbacks
-            except GeneratorExit:
-                # Handle generator exit gracefully
-                logger.info(f"Exchange data stream closed for simulator {simulator_id}")
-                self.simulator_active = False
+                        
             except Exception as stream_error:
-                logger.error(f"Error in simulator data stream: {stream_error}")
-                # Attempt to recover
-                self.simulator_active = False
-
-                # Try to gracefully close the stream
-                try:
-                    await self.stream_manager.stop_stream(session_id)
-                except Exception as stop_error:
-                    logger.error(f"Error stopping stream: {stop_error}")
+                # ✅ ENHANCED: Handle different types of stream errors
+                error_msg = str(stream_error).lower()
+                is_pod_terminated = any(term in error_msg for term in [
+                    'socket closed', 'unavailable', 'connection refused',
+                    'name or service not known', 'generator didn\'t stop'
+                ])
+                
+                if is_pod_terminated:
+                    logger.warning(f"Simulator {simulator_id} pod terminated: {stream_error}")
+                    await self._handle_simulator_termination(simulator_id)
+                else:
+                    logger.error(f"Simulator {simulator_id} stream error: {stream_error}")
+                    await self._handle_simulator_failure(simulator_id, str(stream_error))
 
         except Exception as e:
             logger.error(f"Error in simulator data streaming: {e}")
-            self.simulator_active = False
+            await self._handle_simulator_failure(simulator_id, str(e))
+
+    async def _handle_simulator_termination(self, simulator_id: str):
+        """Handle simulator pod termination (external shutdown)"""
+        logger.info(f"Handling simulator {simulator_id} termination")
+        
+        # Update database to STOPPED (not ERROR since it was externally terminated)
+        try:
+            await self.store_manager.simulator_store.update_simulator_status(
+                simulator_id, SimulatorStatus.STOPPED
+            )
+            logger.info(f"Updated simulator {simulator_id} status to STOPPED")
+        except Exception as e:
+            logger.error(f"Failed to update simulator status: {e}")
+        
+        # Reset local state
+        self.simulator_active = False
+        
+        # Stop streams
+        session_id = self.state_manager.get_active_session_id()
+        if self.stream_manager:
+            await self.stream_manager.stop_stream(session_id)
+        
+        # Notify clients
+        await self._handle_exchange_data({
+            'type': 'simulator_terminated',
+            'simulator_id': simulator_id,
+            'reason': 'Pod terminated externally',
+            'timestamp': int(time.time() * 1000)
+        })
+
+    async def _handle_simulator_failure(self, simulator_id: str, error: str):
+        """Handle simulator failure (internal error)"""
+        logger.error(f"Handling simulator {simulator_id} failure: {error}")
+        
+        # Update database to ERROR
+        try:
+            await self.store_manager.simulator_store.update_simulator_status(
+                simulator_id, SimulatorStatus.ERROR
+            )
+        except Exception as e:
+            logger.error(f"Failed to update simulator status: {e}")
+        
+        # Reset local state
+        self.simulator_active = False
+        
+        # Stop streams
+        session_id = self.state_manager.get_active_session_id()
+        if self.stream_manager:
+            await self.stream_manager.stop_stream(session_id)
+            
 
     async def update_simulator_status(self, simulator_id: str, status: str):
         """

@@ -255,18 +255,7 @@ class SimulatorManager:
         client_id: str,
         exchange_type: ExchangeType = None
     ):
-        """
-        Stream exchange data with retry mechanism and adapter support.
-
-        Args:
-            endpoint: The simulator endpoint
-            session_id: The session ID
-            client_id: The client ID
-            exchange_type: Type of exchange to use adapter for
-
-        Yields:
-            Standardized ExchangeDataUpdate objects
-        """
+        """Stream exchange data with proper error handling for pod termination"""
         if not self.exchange_client:
             logger.error("Exchange client not available")
             raise ValueError("Exchange client not available")
@@ -283,58 +272,82 @@ class SimulatorManager:
                 logger.info(f"Simulator {self.current_simulator_id} now RUNNING")
             except Exception as e:
                 logger.error(f"Error updating simulator status: {e}")
-                # Continue despite the error - this is non-critical
 
         async def _stream_data():
-            # Pass the exchange type to the exchange client
-            async for standardized_data in self.exchange_client.stream_exchange_data(
-                    endpoint, session_id, client_id, exchange_type
-            ):
-                # Generate a data ID safely without using .get()
-                if hasattr(standardized_data, 'timestamp') and hasattr(standardized_data, 'update_id'):
-                    data_id = f"{standardized_data.timestamp}-{standardized_data.update_id}"
-                else:
-                    data_id = f"{time.time()}-{id(standardized_data)}"
-                    
-                logger.info(f"Received exchange data [ID: {data_id}] from simulator at {endpoint}")
+            try:
+                # Pass the exchange type to the exchange client
+                async for standardized_data in self.exchange_client.stream_exchange_data(
+                        endpoint, session_id, client_id, exchange_type
+                ):
+                    # Generate a data ID safely
+                    if hasattr(standardized_data, 'timestamp') and hasattr(standardized_data, 'update_id'):
+                        data_id = f"{standardized_data.timestamp}-{standardized_data.update_id}"
+                    else:
+                        data_id = f"{time.time()}-{id(standardized_data)}"
+                        
+                    logger.info(f"Received exchange data [ID: {data_id}] from simulator at {endpoint}")
 
-                # Call the callback function if set - pass standardized data directly
-                if self.data_callback:
-                    try:
-                        # Check if callback is a coroutine function and await it properly
-                        if asyncio.iscoroutinefunction(self.data_callback):
-                            await self.data_callback(standardized_data)
-                        else:
-                            self.data_callback(standardized_data)
-                    except Exception as e:
-                        logger.error(f"Error in data callback: {e}", exc_info=True)
+                    # Call the callback function if set
+                    if self.data_callback:
+                        try:
+                            if asyncio.iscoroutinefunction(self.data_callback):
+                                await self.data_callback(standardized_data)
+                            else:
+                                self.data_callback(standardized_data)
+                        except Exception as e:
+                            logger.error(f"Error in data callback: {e}", exc_info=True)
 
-                # Always yield the standardized data
-                yield standardized_data
+                    yield standardized_data
+            except Exception as e:
+                logger.error(f"Stream data error: {e}")
+                # ✅ ADD: Clean up simulator state on stream failure
+                await self._handle_stream_failure(e)
+                raise
 
-        # Use retry generator to handle connection issues
+        # ✅ IMPROVED: Better error handling with cleanup
         try:
             async for data in retry_with_backoff_generator(
                     _stream_data,
-                    max_attempts=5,
-                    retriable_exceptions=(ConnectionError, TimeoutError)
+                    max_attempts=3,  # Reduce attempts for faster failure detection
+                    retriable_exceptions=(ConnectionError, TimeoutError)  # Don't retry gRPC UNAVAILABLE
             ):
                 yield data
         except GeneratorExit:
-            # Handle generator exit gracefully
-            logger.info(f"Exchange data stream for {session_id} closed")
+            logger.info(f"Exchange data stream for {session_id} closed gracefully")
+            await self._handle_stream_closure()
         except Exception as e:
             logger.error(f"Unhandled error in simulator data stream: {e}", exc_info=True)
-            # Update status if possible
-            if self.current_simulator_id:
-                try:
-                    await self.store_manager.simulator_store.update_simulator_status(
-                        self.current_simulator_id, SimulatorStatus.ERROR
-                    )
-                except Exception:
-                    pass  # Ignore errors when trying to update status during an error
-            raise  # Re-raise to let caller handle
+            await self._handle_stream_failure(e)
+            raise
 
+    async def _handle_stream_failure(self, error):
+        """Handle stream failure - clean up state and update database"""
+        logger.info(f"Handling stream failure for simulator {self.current_simulator_id}: {error}")
+        
+        if self.current_simulator_id:
+            try:
+                # Update database status to ERROR
+                await self.store_manager.simulator_store.update_simulator_status(
+                    self.current_simulator_id, SimulatorStatus.ERROR
+                )
+                logger.info(f"Updated simulator {self.current_simulator_id} status to ERROR in database")
+            except Exception as db_error:
+                logger.error(f"Failed to update simulator status in database: {db_error}")
+            
+            # Clear local tracking
+            old_simulator_id = self.current_simulator_id
+            self.current_simulator_id = None
+            self.current_endpoint = None
+            logger.info(f"Cleared local tracking for failed simulator {old_simulator_id}")
+
+    async def _handle_stream_closure(self):
+        """Handle graceful stream closure"""
+        logger.info(f"Handling graceful stream closure for simulator {self.current_simulator_id}")
+        # Don't update status to ERROR for graceful closure, just clear tracking
+        if self.current_simulator_id:
+            self.current_simulator_id = None
+            self.current_endpoint = None
+            
     async def stop_simulator(self, simulator_id: str = None, force: bool = False) -> Tuple[bool, Optional[str]]:
         """
         Stop the current simulator

@@ -165,46 +165,29 @@ class ExchangeClient(BaseClient):
                 return {'success': False, 'error': str(e), 'status': 'ERROR'}
 
     async def stream_exchange_data(
-            self,
-            endpoint: str,
-            session_id: str,
-            client_id: str,
-            exchange_type: ExchangeType = None,
+        self,
+        endpoint: str,
+        session_id: str,
+        client_id: str,
+        exchange_type: ExchangeType = None,
     ) -> AsyncGenerator[ExchangeDataUpdate, None]:
-        """
-        Stream exchange data (market, portfolio, orders) with adapter conversion
+        """Stream exchange data with better error handling for pod termination"""
         
-        Args:
-            endpoint: The endpoint of the simulator
-            session_id: The session ID
-            client_id: The client ID
-            exchange_type: Type of exchange to use adapter for
-            
-        Yields:
-            Standardized ExchangeDataUpdate objects
-        """
         with optional_trace_span(self.tracer, "stream_exchange_data_rpc") as span:
             span.set_attribute("session_id", session_id)
             span.set_attribute("client_id", client_id)
             span.set_attribute("endpoint", endpoint)
             
-            # Use the specified exchange type or default
             exchange_type = exchange_type or self.default_exchange_type
             span.set_attribute("exchange_type", exchange_type.value)
             
-            # Get the appropriate adapter
             adapter = ExchangeAdapterFactory.get_adapter(exchange_type)
 
             try:
-                # Get channel and stub
                 channel, stub = await self.get_channel(endpoint)
                 
-                # Create stream request
-                request = StreamRequest(
-                    client_id=client_id,
-                )
+                request = StreamRequest(client_id=client_id)
 
-                # Initiate streaming RPC
                 try:
                     stream = stub.StreamExchangeData(request, wait_for_ready=True)
                     logger.info("Initiated StreamExchangeData RPC")
@@ -213,22 +196,26 @@ class ExchangeClient(BaseClient):
                     span.record_exception(rpc_init_error)
                     raise
 
-                # Stream processing with direct adapter conversion
                 try:
                     async for data in stream:
                         logger.debug(f"Received raw exchange data update")
-                        
-                        # Direct conversion in one step
                         standardized_data = await adapter.convert_from_protobuf(data)
-                        
-                        # Set exchange type explicitly if needed
                         standardized_data.exchange_type = exchange_type
-                        
-                        # Yield the standardized data
                         yield standardized_data
                         
                 except Exception as stream_error:
-                    logger.error(f"Error in stream processing: {stream_error}")
+                    # ✅ IMPROVED: Better error categorization
+                    error_msg = str(stream_error).lower()
+                    is_pod_terminated = any(term in error_msg for term in [
+                        'socket closed', 'unavailable', 'connection refused',
+                        'name or service not known', 'dns resolution failed'
+                    ])
+                    
+                    if is_pod_terminated:
+                        logger.warning(f"Pod terminated for endpoint {endpoint}: {stream_error}")
+                    else:
+                        logger.error(f"Stream processing error: {stream_error}")
+                    
                     span.record_exception(stream_error)
                     raise
 
@@ -237,6 +224,7 @@ class ExchangeClient(BaseClient):
                 span.record_exception(e)
                 span.set_attribute("error", str(e))
                 raise
+            
 
     async def _close_endpoint_channel(self, endpoint: str):
         """
