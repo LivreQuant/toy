@@ -5,7 +5,7 @@ from typing import Dict, List, Any, Optional, Tuple
 
 from source.models.enums import OrderSide
 from source.core.market_data_manager import MarketDataClient
-from source.core.order_manager import OrderManager
+from source.core.order_manager import ConvictionManager  # Updated import
 from source.db.database import DatabaseManager
 from source.api.rest.health import HealthService
 
@@ -23,7 +23,7 @@ class ExchangeManager:
 
         # Core components
         self.market_data_client = MarketDataClient(self, self.default_symbols)
-        self.order_manager = OrderManager(self)
+        self.conviction_manager = ConvictionManager(self)  # Updated name
         self.database_manager = DatabaseManager()
 
         # Market data storage
@@ -32,7 +32,7 @@ class ExchangeManager:
         # Exchange state
         self.cash_balance = initial_cash
         self.positions: Dict[str, Dict] = {}
-        self.orders: Dict[str, Dict] = {}
+        self.orders: Dict[str, Dict] = {}  # Keep for backward compatibility
 
         # Add a queue for market data update notifications
         self.market_data_updates = asyncio.Queue()
@@ -40,6 +40,11 @@ class ExchangeManager:
         # Add health service for status tracking
         self.health_service = HealthService(self, http_port=50056)
 
+    # Backward compatibility property
+    @property
+    def order_manager(self):
+        """Backward compatibility property"""
+        return self.conviction_manager
     
     def get_health_service(self):
         """Get the health service instance"""
@@ -78,11 +83,11 @@ class ExchangeManager:
                 self.positions = historical_data.get('positions', {})
                 logger.info("✓ Historical state restored")
 
-            # Initialize order manager
-            await self.order_manager.initialize()
-            if getattr(self.order_manager, 'connected', False):
+            # Initialize conviction manager
+            await self.conviction_manager.initialize()
+            if getattr(self.conviction_manager, 'connected', False):
                 self.health_service.mark_service_ready('order_manager', True)
-                logger.info("✓ Order manager connected")
+                logger.info("✓ Conviction manager connected")
 
             # Start the market data client
             await self.market_data_client.start()
@@ -106,8 +111,8 @@ class ExchangeManager:
         - Stop market data client
         """
         try:
-            # Clean up order manager
-            await self.order_manager.cleanup()
+            # Clean up conviction manager
+            await self.conviction_manager.cleanup()
 
             # Stop the market data client
             await self.market_data_client.stop()
@@ -186,16 +191,16 @@ class ExchangeManager:
             ]
         }
 
-        # Generate order updates
+        # Generate order updates (from convictions)
         order_updates = [
             {
-                'order_id': order_id,
-                'symbol': order['symbol'],
-                'status': order['status'],
-                'filled_quantity': order.get('filled_quantity', 0),
-                'average_price': order.get('average_price', 0)
+                'order_id': conviction_id,
+                'symbol': conviction['symbol'],
+                'status': conviction['status'],
+                'filled_quantity': conviction.get('filled_quantity', 0),
+                'average_price': conviction.get('average_price', 0)
             }
-            for order_id, order in self.orders.items()
+            for conviction_id, conviction in self.conviction_manager.convictions.items()
         ]
 
         return market_data, portfolio_data, order_updates
@@ -207,27 +212,31 @@ class ExchangeManager:
             quantity: float,
             order_type: str,
             price: Optional[float] = None,
-            request_id: Optional[str] = None
+            request_id: Optional[str] = None,
+            **conviction_params  # Additional conviction parameters
     ) -> Dict[str, Any]:
-        """Submit a trading order through the order manager"""
+        """Submit a trading conviction through the conviction manager"""
         try:
             # Convert string enums to proper enum types
             side_enum = OrderSide.BUY if side == "BUY" else OrderSide.SELL
+            from source.models.enums import OrderType
             order_type_enum = OrderType.MARKET if order_type == "MARKET" else OrderType.LIMIT
 
-            # Submit through order manager
-            order = await self.order_manager.submit_order(
+            # Submit through conviction manager
+            order = await self.conviction_manager.submit_conviction(
                 symbol=symbol,
                 side=side_enum,
                 quantity=quantity,
                 order_type=order_type_enum,
-                price=price
+                price=price,
+                **conviction_params
             )
 
+            from source.models.enums import OrderStatus
             if order.status == OrderStatus.REJECTED:
                 return {
                     'success': False,
-                    'error_message': order.error_message or 'Order rejected'
+                    'error_message': order.error_message or 'Conviction rejected'
                 }
 
             # Update our portfolio if the order was successful
@@ -240,7 +249,7 @@ class ExchangeManager:
             }
 
         except Exception as e:
-            logger.error(f"Order submission error: {e}")
+            logger.error(f"Conviction submission error: {e}")
             return {'success': False, 'error_message': str(e)}
 
     def _process_order(self, **kwargs):
@@ -297,17 +306,17 @@ class ExchangeManager:
                     del self.positions[symbol]
 
     async def cancel_order(self, order_id: str) -> Dict[str, Any]:
-        """Cancel an existing order through the order manager"""
+        """Cancel an existing conviction through the conviction manager"""
         try:
-            success = await self.order_manager.cancel_order(order_id)
+            success = await self.conviction_manager.cancel_conviction(order_id)
 
             if success:
                 return {'success': True}
             else:
-                return {'success': False, 'error_message': 'Order cancellation failed'}
+                return {'success': False, 'error_message': 'Conviction cancellation failed'}
 
         except Exception as e:
-            logger.error(f"Order cancellation error: {e}")
+            logger.error(f"Conviction cancellation error: {e}")
             return {'success': False, 'error_message': str(e)}
 
     def _update_portfolio_from_order(self, order):

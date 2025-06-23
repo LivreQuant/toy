@@ -22,19 +22,22 @@ from source.api.grpc.session_exchange_interface_pb2 import (
     SimulatorStatus
 )
 from source.api.grpc.session_exchange_interface_pb2_grpc import SessionExchangeSimulatorServicer
-from source.api.grpc.order_exchange_interface_pb2 import (
-    OrderResponse,
-    BatchOrderResponse,
+
+# Import conviction protobuf classes (replacing order classes)
+from source.api.grpc.conviction_exchange_interface_pb2 import (
+    ConvictionResponse,
+    BatchConvictionResponse,
     CancelResult,
     BatchCancelResponse
 )
-from source.api.grpc.order_exchange_interface_pb2_grpc import OrderExchangeSimulatorServicer
+from source.api.grpc.conviction_exchange_interface_pb2_grpc import ConvictionExchangeSimulatorServicer
+
 from source.api.rest.health import HealthService
 
 logger = logging.getLogger('exchange_simulator')
 
 
-class ExchangeSimulatorService(SessionExchangeSimulatorServicer, OrderExchangeSimulatorServicer):
+class ExchangeSimulatorService(SessionExchangeSimulatorServicer, ConvictionExchangeSimulatorServicer):
     def __init__(self, exchange_manager: ExchangeManager):
         self.exchange_manager = exchange_manager
         self.last_heartbeat = time.time()
@@ -150,17 +153,30 @@ class ExchangeSimulatorService(SessionExchangeSimulatorServicer, OrderExchangeSi
                     ]
                 }
 
-                # Get order updates
+                # Get conviction updates (mapped to orders for compatibility)
                 orders_data = [
                     {
-                        'order_id': order_id,
-                        'symbol': order['symbol'],
-                        'status': order['status'],
-                        'filled_quantity': order.get('filled_quantity', 0),
-                        'average_price': order.get('average_price', 0)
+                        'order_id': conviction_id,
+                        'symbol': conviction['symbol'],
+                        'status': conviction['status'],
+                        'filled_quantity': conviction.get('filled_quantity', 0),
+                        'average_price': conviction.get('average_price', 0)
                     }
-                    for order_id, order in self.exchange_manager.orders.items()
+                    for conviction_id, conviction in getattr(self.exchange_manager, 'conviction_manager', self.exchange_manager.order_manager).convictions.items() if hasattr(getattr(self.exchange_manager, 'conviction_manager', self.exchange_manager.order_manager), 'convictions')
                 ]
+
+                # Fallback to orders if convictions not available
+                if not orders_data and hasattr(self.exchange_manager, 'orders'):
+                    orders_data = [
+                        {
+                            'order_id': order_id,
+                            'symbol': order['symbol'],
+                            'status': order['status'],
+                            'filled_quantity': order.get('filled_quantity', 0),
+                            'average_price': order.get('average_price', 0)
+                        }
+                        for order_id, order in self.exchange_manager.orders.items()
+                    ]
 
                 # Create and send initial update
                 update = ExchangeDataUpdate(
@@ -244,17 +260,30 @@ class ExchangeSimulatorService(SessionExchangeSimulatorServicer, OrderExchangeSi
                         ]
                     }
 
-                    # Get order updates
+                    # Get conviction updates (mapped to orders for compatibility)
                     orders_data = [
                         {
-                            'order_id': order_id,
-                            'symbol': order['symbol'],
-                            'status': order['status'],
-                            'filled_quantity': order.get('filled_quantity', 0),
-                            'average_price': order.get('average_price', 0)
+                            'order_id': conviction_id,
+                            'symbol': conviction['symbol'],
+                            'status': conviction['status'],
+                            'filled_quantity': conviction.get('filled_quantity', 0),
+                            'average_price': conviction.get('average_price', 0)
                         }
-                        for order_id, order in self.exchange_manager.orders.items()
+                        for conviction_id, conviction in getattr(self.exchange_manager, 'conviction_manager', self.exchange_manager.order_manager).convictions.items() if hasattr(getattr(self.exchange_manager, 'conviction_manager', self.exchange_manager.order_manager), 'convictions')
                     ]
+
+                    # Fallback to orders if convictions not available
+                    if not orders_data and hasattr(self.exchange_manager, 'orders'):
+                        orders_data = [
+                            {
+                                'order_id': order_id,
+                                'symbol': order['symbol'],
+                                'status': order['status'],
+                                'filled_quantity': order.get('filled_quantity', 0),
+                                'average_price': order.get('average_price', 0)
+                            }
+                            for order_id, order in self.exchange_manager.orders.items()
+                        ]
 
                     # Create and send update
                     update = ExchangeDataUpdate(
@@ -331,17 +360,30 @@ class ExchangeSimulatorService(SessionExchangeSimulatorServicer, OrderExchangeSi
                         ]
                     }
 
-                    # Get order updates
+                    # Get conviction updates
                     orders_data = [
                         {
-                            'order_id': order_id,
-                            'symbol': order['symbol'],
-                            'status': order['status'],
-                            'filled_quantity': order.get('filled_quantity', 0),
-                            'average_price': order.get('average_price', 0)
+                            'order_id': conviction_id,
+                            'symbol': conviction['symbol'],
+                            'status': conviction['status'],
+                            'filled_quantity': conviction.get('filled_quantity', 0),
+                            'average_price': conviction.get('average_price', 0)
                         }
-                        for order_id, order in self.exchange_manager.orders.items()
+                        for conviction_id, conviction in getattr(self.exchange_manager, 'conviction_manager', self.exchange_manager.order_manager).convictions.items() if hasattr(getattr(self.exchange_manager, 'conviction_manager', self.exchange_manager.order_manager), 'convictions')
                     ]
+
+                    # Fallback to orders if convictions not available
+                    if not orders_data and hasattr(self.exchange_manager, 'orders'):
+                        orders_data = [
+                            {
+                                'order_id': order_id,
+                                'symbol': order['symbol'],
+                                'status': order['status'],
+                                'filled_quantity': order.get('filled_quantity', 0),
+                                'average_price': order.get('average_price', 0)
+                            }
+                            for order_id, order in self.exchange_manager.orders.items()
+                        ]
 
                     # Create and send update
                     update = ExchangeDataUpdate(
@@ -399,38 +441,36 @@ class ExchangeSimulatorService(SessionExchangeSimulatorServicer, OrderExchangeSi
             context.set_code(grpc.StatusCode.INTERNAL)
             context.set_details(str(e))
 
-    async def SubmitOrders(self, request, context):
-        """Handle batch order submissions"""
+    async def SubmitConvictions(self, request, context):
+        """Handle batch conviction submissions"""
         try:
             # Create response object
-            response = BatchOrderResponse(
+            response = BatchConvictionResponse(
                 success=True,
                 results=[]
             )
 
             # Log the batch request
-            logger.info(f"Received batch order submission with {len(request.orders)} orders")
+            logger.info(f"Received batch conviction submission with {len(request.convictions)} convictions")
 
-            # Process each order in the batch
-            for order_request in request.orders:
-                # Extract order parameters
-                symbol = order_request.symbol
-                side = "BUY" if order_request.side == 0 else "SELL"
-                quantity = order_request.quantity
-                price = order_request.price if order_request.type == 1 else None  # Only for LIMIT
-                order_type = "MARKET" if order_request.type == 0 else "LIMIT"
-                request_id = order_request.request_id
+            # Process each conviction in the batch
+            for conviction_request in request.convictions:
+                # Extract conviction parameters
+                symbol = conviction_request.instrument_id
+                side = "BUY" if conviction_request.side == 0 else "SELL"
+                quantity = conviction_request.quantity
+                conviction_id = conviction_request.conviction_id
 
-                # Generate a unique order ID
-                order_id = str(uuid.uuid4())
+                # Generate a unique broker ID
+                broker_id = str(uuid.uuid4())
 
-                # Create a successful result for this order (just logging, not actually processing)
-                result = OrderResponse(
+                # Create a successful result for this conviction (just logging, not actually processing)
+                result = ConvictionResponse(
                     success=True,
-                    order_id=order_id
+                    broker_id=broker_id
                 )
 
-                logger.info(f"Processed order: {symbol} {side} {quantity} {order_type} -> {order_id}")
+                logger.info(f"Processed conviction: {symbol} {side} {quantity} -> {broker_id}")
 
                 # Add the result to our batch response
                 response.results.append(result)
@@ -438,17 +478,17 @@ class ExchangeSimulatorService(SessionExchangeSimulatorServicer, OrderExchangeSi
             return response
 
         except Exception as e:
-            logger.error(f"Error processing batch order submission: {e}")
+            logger.error(f"Error processing batch conviction submission: {e}")
 
             # Return error response
-            return BatchOrderResponse(
+            return BatchConvictionResponse(
                 success=False,
                 error_message=f"Server error: {str(e)}",
                 results=[]
             )
 
-    async def CancelOrders(self, request, context):
-        """Handle batch order cancellations"""
+    async def CancelConvictions(self, request, context):
+        """Handle batch conviction cancellations"""
         try:
             # Create response object
             response = BatchCancelResponse(
@@ -457,16 +497,16 @@ class ExchangeSimulatorService(SessionExchangeSimulatorServicer, OrderExchangeSi
             )
 
             # Log the batch cancellation request
-            logger.info(f"Received batch order cancellation for {len(request.order_ids)} orders")
+            logger.info(f"Received batch conviction cancellation for {len(request.conviction_id)} convictions")
 
-            # Process each order ID in the batch
-            for order_id in request.order_ids:
+            # Process each conviction ID in the batch
+            for conviction_id in request.conviction_id:
                 # Just log the cancellation, not actually processing
-                logger.info(f"Cancelling order: {order_id}")
+                logger.info(f"Cancelling conviction: {conviction_id}")
 
                 # Create result for this cancellation
                 result = CancelResult(
-                    order_id=order_id,
+                    broker_id=conviction_id,
                     success=True
                 )
 
@@ -475,7 +515,7 @@ class ExchangeSimulatorService(SessionExchangeSimulatorServicer, OrderExchangeSi
             return response
 
         except Exception as e:
-            logger.error(f"Error processing batch order cancellation: {e}")
+            logger.error(f"Error processing batch conviction cancellation: {e}")
 
             # Return error response
             return BatchCancelResponse(

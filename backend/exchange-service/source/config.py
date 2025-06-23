@@ -40,8 +40,8 @@ class MarketDataConfig(BaseModel):
     service_url: str = Field(default=os.getenv('MARKET_DATA_SERVICE_URL', 'market-data-service:50060'))
 
 
-class OrderExchangeConfig(BaseModel):
-    service_url: str = Field(default=os.getenv('ORDER_EXCHANGE_SERVICE_URL', 'order-exchange-service:50057'))
+class ConvictionExchangeConfig(BaseModel):  # Renamed from OrderExchangeConfig
+    service_url: str = Field(default=os.getenv('CONVICTION_EXCHANGE_SERVICE_URL', 'conviction-exchange-service:50057'))
 
 
 class Config(BaseModel):
@@ -51,7 +51,9 @@ class Config(BaseModel):
     tracing: TracingConfig = Field(default_factory=TracingConfig)
     db: DatabaseConfig = Field(default_factory=DatabaseConfig)
     market_data: MarketDataConfig = Field(default_factory=MarketDataConfig)
-    order_exchange: OrderExchangeConfig = Field(default_factory=OrderExchangeConfig)
+    conviction_exchange: ConvictionExchangeConfig = Field(default_factory=ConvictionExchangeConfig)  # Updated
+    # Backward compatibility
+    order_exchange: ConvictionExchangeConfig = Field(default_factory=ConvictionExchangeConfig)
     log_level: str = Field(default="INFO")
     environment: str = Field(default="development")
 
@@ -62,6 +64,7 @@ class Config(BaseModel):
             environment=os.getenv('ENVIRONMENT', 'development'),
             db=DatabaseConfig(),
             market_data=MarketDataConfig(),
+            conviction_exchange=ConvictionExchangeConfig(),
             tracing=TracingConfig(
                 enabled=os.getenv('ENABLE_TRACING', 'true').lower() == 'true',
                 otlp_endpoint=os.getenv('OTEL_EXPORTER_OTLP_ENDPOINT', 'http://jaeger-collector:4317'),
