@@ -140,7 +140,8 @@ class ExchangeManager:
 
             # Notify listeners about the update
             await self.market_data_updates.put(True)
-            logger.debug(f"Received market data for {len(market_data_list)} symbols")
+            logger.info(f"MARKET DATA: Received market data for {len(market_data_list)} symbols: {[md.get('symbol') for md in market_data_list]}")
+            logger.info(f"MARKET DATA: Total symbols in cache: {list(self.current_market_data.keys())}")
 
             return True
         except Exception as e:

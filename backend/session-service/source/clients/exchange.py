@@ -52,59 +52,51 @@ class ExchangeClient(BaseClient):
         # Default exchange type
         self.default_exchange_type = ExchangeType.EQUITIES
 
-    async def get_channel(self, endpoint: str) -> tuple[grpc.aio.Channel, SessionExchangeSimulatorStub]:
-        """
-        Get or create a gRPC channel to the endpoint.
+    async def get_channel(self, endpoint: str) -> Tuple[grpc.aio.Channel, ExchangeSimulatorStub]:
+        """Get or create gRPC channel for the given endpoint."""
+        logger.info(f"DEBUG: get_channel called with endpoint: {endpoint}")
+        
+        if endpoint in self._channels:
+            channel, stub = self._channels[endpoint]
+            logger.info(f"DEBUG: Reusing existing channel for {endpoint}")
+            
+            # CHECK IF CHANNEL IS ACTUALLY HEALTHY
+            try:
+                # Test the channel state
+                state = channel.get_state()
+                logger.info(f"DEBUG: Channel state for {endpoint}: {state}")
+                
+                if state == grpc.ChannelConnectivity.TRANSIENT_FAILURE or state == grpc.ChannelConnectivity.SHUTDOWN:
+                    logger.warning(f"DEBUG: Channel {endpoint} is in bad state {state}, recreating...")
+                    await channel.close()
+                    del self._channels[endpoint]
+                else:
+                    return channel, stub
+                    
+            except Exception as e:
+                logger.error(f"DEBUG: Error checking channel state for {endpoint}: {e}")
+                del self._channels[endpoint]
 
-        Args:
-            endpoint: The simulator endpoint
+        logger.info(f"DEBUG: Creating NEW gRPC channel for {endpoint}")
+        
+        # Force DNS resolution check
+        import socket
+        try:
+            host = endpoint.split(':')[0]
+            port = int(endpoint.split(':')[1])
+            logger.info(f"DEBUG: Testing DNS resolution for {host}:{port}")
+            socket.getaddrinfo(host, port)
+            logger.info(f"DEBUG: DNS resolution successful for {host}")
+        except Exception as e:
+            logger.error(f"DEBUG: DNS resolution failed for {endpoint}: {e}")
 
-        Returns:
-            Tuple of (channel, stub)
-        """
-        async with self._conn_lock:
-            if endpoint in self.channels:
-                try:
-                    # Check channel state
-                    state = self.channels[endpoint].get_state(try_to_connect=False)
-                    # Basic check - if not explicitly shut down, assume OK for now
-                    if state != grpc.ChannelConnectivity.SHUTDOWN:
-                        return self.channels[endpoint], self.stubs[endpoint]
-                except Exception:
-                    logger.warning(f"Channel to {endpoint} not usable, recreating")
-                    await self._close_endpoint_channel(endpoint)
-
-            # Create new channel if needed
-            logger.info(f"Creating new gRPC channel to {endpoint}")
-
-            # Update channel options to include backoff parameters
-            options = self.default_channel_options + [
-                ('grpc.enable_retries', 1),
-                ('grpc.initial_reconnect_backoff_ms', 1000),  # Start with 1 second
-                ('grpc.max_reconnect_backoff_ms', 10000),  # Max of 10 seconds
-                ('grpc.service_config', json.dumps({
-                    'methodConfig': [{
-                        'name': [{}],  # Apply to all methods
-                        'retryPolicy': {
-                            'maxAttempts': 5,
-                            'initialBackoff': '1s',
-                            'maxBackoff': '10s',
-                            'backoffMultiplier': 2.0,
-                            'retryableStatusCodes': ['UNAVAILABLE']
-                        }
-                    }]
-                }))
-            ]
-
-            # Create channel with enhanced options
-            channel = grpc.aio.insecure_channel(endpoint, options=options)
-            stub = SessionExchangeSimulatorStub(channel)
-
-            # Store for reuse
-            self.channels[endpoint] = channel
-            self.stubs[endpoint] = stub
-
-            return channel, stub
+        channel = grpc.aio.insecure_channel(endpoint)
+        stub = ExchangeSimulatorStub(channel)
+        
+        self._channels[endpoint] = (channel, stub)
+        logger.info(f"DEBUG: Stored new channel for {endpoint} in cache")
+        
+        return channel, stub
 
     async def close(self):
         """Close all gRPC channels."""
@@ -257,17 +249,9 @@ class ExchangeClient(BaseClient):
             del self.stubs[endpoint]
 
     async def _heartbeat_request(self, endpoint: str, session_id: str, client_id: str) -> Dict[str, Any]:
-        """
-        Make the actual heartbeat request.
-
-        Args:
-            endpoint: The endpoint of the simulator
-            session_id: The session ID
-            client_id: The client ID
-
-        Returns:
-            Dict with heartbeat results including status
-        """
+        """Make the actual heartbeat request."""
+        logger.info(f"DEBUG: About to send heartbeat to {endpoint} for session {session_id}")
+        
         _, stub = await self.get_channel(endpoint)
 
         request = HeartbeatRequest(
@@ -275,11 +259,10 @@ class ExchangeClient(BaseClient):
         )
 
         try:
-            # Add wait_for_ready=True and increase timeout to 10 seconds
-            logger.info(f"Sending heartbeat to simulator at {endpoint} for session {session_id}")
+            logger.info(f"DEBUG: Actually calling stub.Heartbeat for {endpoint}")
             response = await stub.Heartbeat(
                 request,
-                timeout=30,
+                timeout=10,  # Reduced timeout
                 wait_for_ready=True
             )
 
@@ -287,7 +270,7 @@ class ExchangeClient(BaseClient):
             status_str = SimulatorStatus.Name(response.status) if response.status else 'UNKNOWN'
 
             logger.info(
-                f"Received heartbeat response from simulator: success={response.success}, "
+                f"DEBUG: Got heartbeat response from {endpoint}: success={response.success}, "
                 f"timestamp={response.server_timestamp}, status={status_str}"
             )
 
@@ -297,7 +280,6 @@ class ExchangeClient(BaseClient):
                 'status': status_str
             }
         except grpc.aio.AioRpcError as e:
-            logger.debug(f"gRPC error sending heartbeat ({e.code()}): {e.details()}")
-            track_circuit_breaker_failure
+            logger.error(f"DEBUG: gRPC error sending heartbeat to {endpoint} ({e.code()}): {e.details()}")
             raise
         

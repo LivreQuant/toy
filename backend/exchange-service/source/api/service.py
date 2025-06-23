@@ -63,42 +63,56 @@ class ExchangeSimulatorService(SessionExchangeSimulatorServicer, ConvictionExcha
             # Check if we're fully initialized
             is_ready = getattr(self.health_service, 'initialization_complete', False)
             
+            logger.info(f"STATUS CHECK: is_ready={is_ready}, internal_status={SimulatorStatus.Name(self.internal_status) if hasattr(SimulatorStatus, 'Name') else self.internal_status}")
+            
             if not is_ready:
+                logger.info("STATUS: Returning INITIALIZING - health service not ready")
                 return SimulatorStatus.INITIALIZING
             
             # Check if exchange manager is streaming data
-            if hasattr(self.exchange_manager, 'current_market_data') and self.exchange_manager.current_market_data:
+            has_market_data = hasattr(self.exchange_manager, 'current_market_data') and self.exchange_manager.current_market_data
+            logger.info(f"STATUS CHECK: has_market_data={has_market_data}, market_data_keys={list(self.exchange_manager.current_market_data.keys()) if has_market_data else 'None'}")
+            
+            if has_market_data:
                 # We have market data, so we're running
                 if self.internal_status == SimulatorStatus.INITIALIZING:
+                    logger.info("STATUS: Transitioning from INITIALIZING to RUNNING due to market data")
                     await self._update_internal_status(SimulatorStatus.RUNNING)
                 return SimulatorStatus.RUNNING
             
             # Default to current internal status
+            logger.info(f"STATUS: Returning current internal status: {SimulatorStatus.Name(self.internal_status) if hasattr(SimulatorStatus, 'Name') else self.internal_status}")
             return self.internal_status
 
     async def Heartbeat(self, request: HeartbeatRequest, context) -> HeartbeatResponse:
         """Handle heartbeat to maintain connection with enhanced status"""
         try:
-            logger.error(f"HEARTBEAT RECEIVED! From client, timestamp: {request.client_timestamp}")  # ADD THIS LINE
+            logger.info(f"HEARTBEAT RECEIVED! From client, timestamp: {request.client_timestamp}")
             
             self.heartbeat_counter += 1
             current_time = int(time.time() * 1000)
 
-            # Get current status
+            # Get current status with detailed logging
+            logger.info("HEARTBEAT: About to get current status...")
             current_status = await self._get_current_status()
+            logger.info(f"HEARTBEAT: Got status={SimulatorStatus.Name(current_status) if hasattr(SimulatorStatus, 'Name') else current_status}")
             
             # Log periodic heartbeats with status
             if self.heartbeat_counter % 10 == 0:
                 uptime = time.time() - self.startup_time
-                logger.info(f"Heartbeat #{self.heartbeat_counter} - Status: {SimulatorStatus.Name(current_status)} - Uptime: {uptime:.1f}s")
+                logger.info(f"Heartbeat #{self.heartbeat_counter} - Status: {SimulatorStatus.Name(current_status) if hasattr(SimulatorStatus, 'Name') else current_status} - Uptime: {uptime:.1f}s")
 
-            return HeartbeatResponse(
+            response = HeartbeatResponse(
                 success=True,
                 server_timestamp=current_time,
                 status=current_status
             )
+            
+            logger.info(f"HEARTBEAT: Sending response with status={SimulatorStatus.Name(current_status) if hasattr(SimulatorStatus, 'Name') else current_status}")
+            return response
+            
         except Exception as e:
-            logger.error(f"Heartbeat error: {e}")
+            logger.error(f"Heartbeat error: {e}", exc_info=True)
             context.set_code(grpc.StatusCode.INTERNAL)
             context.set_details(str(e))
             return HeartbeatResponse(

@@ -69,7 +69,10 @@ class HealthService:
             if all(self.services_ready.values()) and not self.initialization_complete:
                 self.initialization_complete = True
                 logger.info("All service components are ready - simulator fully operational")
-
+                logger.info(f"HEALTH SERVICE: Setting initialization_complete=True, services_ready={self.services_ready}")
+            else:
+                logger.info(f"HEALTH SERVICE: initialization_complete={self.initialization_complete}, all_ready={all(self.services_ready.values())}, services_ready={self.services_ready}")
+                
     async def health_check(self, request):
         """
         Simple liveness probe handler
