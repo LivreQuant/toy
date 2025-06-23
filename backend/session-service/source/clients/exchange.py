@@ -8,7 +8,7 @@ import asyncio
 import time
 import json
 import grpc
-from typing import Any, AsyncGenerator, Dict
+from typing import Any, AsyncGenerator, Dict, Tuple
 
 from source.utils.circuit_breaker import CircuitOpenError
 from source.utils.metrics import track_circuit_breaker_failure
@@ -22,7 +22,8 @@ from source.api.grpc.session_exchange_interface_pb2 import (
     StreamRequest,
     ExchangeDataUpdate,
     HeartbeatRequest,
-    SimulatorStatus
+    SimulatorStatus,
+    ExchangeSimulatorStub
 )
 from source.api.grpc.session_exchange_interface_pb2_grpc import SessionExchangeSimulatorStub
 
