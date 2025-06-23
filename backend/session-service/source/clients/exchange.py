@@ -1,4 +1,4 @@
-# source/clients/exchange_client.py
+# backend/session-service/source/clients/exchange.py
 """
 Exchange service gRPC client.
 Handles communication with the exchange simulator service using gRPC.
@@ -22,6 +22,7 @@ from source.api.grpc.session_exchange_interface_pb2 import (
     StreamRequest,
     ExchangeDataUpdate,
     HeartbeatRequest,
+    SimulatorStatus
 )
 from source.api.grpc.session_exchange_interface_pb2_grpc import SessionExchangeSimulatorStub
 
@@ -129,7 +130,7 @@ class ExchangeClient(BaseClient):
 
     async def send_heartbeat(self, endpoint: str, session_id: str, client_id: str) -> Dict[str, Any]:
         """
-        Send heartbeat to the simulator.
+        Send heartbeat to the simulator and get detailed status.
         
         Args:
             endpoint: The endpoint of the simulator
@@ -137,7 +138,7 @@ class ExchangeClient(BaseClient):
             client_id: The client ID
             
         Returns:
-            Dict with heartbeat results
+            Dict with heartbeat results including status
         """
         with optional_trace_span(self.tracer, "heartbeat_rpc") as span:
             span.set_attribute("rpc.service", "ExchangeSimulator")
@@ -150,17 +151,18 @@ class ExchangeClient(BaseClient):
                     self._heartbeat_request, endpoint, session_id, client_id
                 )
                 span.set_attribute("app.success", response.get('success', False))
+                span.set_attribute("app.simulator_status", response.get('status', 'UNKNOWN'))
                 return response
             except CircuitOpenError:
                 logger.debug(f"Circuit open for exchange service (heartbeat)")
                 span.set_attribute("error.message", "Exchange service unavailable (Circuit Open)")
                 span.set_attribute("app.circuit_open", True)
-                return {'success': False, 'error': 'Exchange service unavailable'}
+                return {'success': False, 'error': 'Exchange service unavailable', 'status': 'UNKNOWN'}
             except Exception as e:
                 logger.warning(f"Error sending heartbeat via gRPC: {e}")
                 span.record_exception(e)
                 span.set_attribute("error.message", str(e))
-                return {'success': False, 'error': str(e)}
+                return {'success': False, 'error': str(e), 'status': 'ERROR'}
 
     async def stream_exchange_data(
             self,
@@ -264,7 +266,7 @@ class ExchangeClient(BaseClient):
             client_id: The client ID
 
         Returns:
-            Dict with heartbeat results
+            Dict with heartbeat results including status
         """
         _, stub = await self.get_channel(endpoint)
 
@@ -281,18 +283,21 @@ class ExchangeClient(BaseClient):
                 wait_for_ready=True
             )
 
+            # Convert status enum to string
+            status_str = SimulatorStatus.Name(response.status) if response.status else 'UNKNOWN'
+
             logger.info(
-                f"Received heartbeat response from simulator: success={response.success}, timestamp={response.server_timestamp}")
+                f"Received heartbeat response from simulator: success={response.success}, "
+                f"timestamp={response.server_timestamp}, status={status_str}"
+            )
 
             return {
                 'success': response.success,
-                'server_timestamp': response.server_timestamp
+                'server_timestamp': response.server_timestamp,
+                'status': status_str
             }
         except grpc.aio.AioRpcError as e:
             logger.debug(f"gRPC error sending heartbeat ({e.code()}): {e.details()}")
-            track_circuit_breaker_failure("exchange_service")
+            track_circuit_breaker_failure
             raise
-        except Exception as e:
-            logger.warning(f"Unexpected error in _heartbeat_request: {e}")
-            track_circuit_breaker_failure("exchange_service")
-            raise
+        

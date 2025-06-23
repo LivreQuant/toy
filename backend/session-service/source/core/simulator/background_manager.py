@@ -1,6 +1,7 @@
+# backend/session-service/source/core/simulator/background_manager.py
 """
 Background simulator management that doesn't block session operations.
-Handles all simulator lifecycle operations asynchronously.
+Uses gRPC heartbeat to determine real simulator status.
 """
 import asyncio
 import logging
@@ -37,7 +38,7 @@ class SimulatorTask:
 class BackgroundSimulatorManager:
     """
     Manages simulator operations in the background without blocking session service.
-    Uses a priority queue and worker tasks to handle simulator lifecycle.
+    Uses gRPC heartbeat to determine real simulator status instead of database status.
     """
     
     def __init__(self, simulator_manager, websocket_manager):
@@ -48,13 +49,19 @@ class BackgroundSimulatorManager:
         self.task_queue = asyncio.PriorityQueue()
         self.workers = []
         self.running = False
-        self.worker_count = 2  # Number of background workers
+        self.worker_count = 2
         
         # Track active tasks to avoid duplicates
         self.active_tasks: Dict[str, SimulatorTask] = {}
         
-        # Status tracking for sessions
+        # Real-time status tracking based on gRPC heartbeats
         self.session_status: Dict[str, str] = {}
+        self.session_endpoints: Dict[str, str] = {}
+        
+        # Health monitoring tasks
+        self.health_monitors: Dict[str, asyncio.Task] = {}
+        
+        logger.info("Background simulator manager initialized with gRPC status tracking")
         
     async def start(self):
         """Start the background simulator management workers"""
@@ -72,11 +79,20 @@ class BackgroundSimulatorManager:
         logger.info(f"Started {self.worker_count} background simulator management workers")
         
     async def stop(self):
-        """Stop all background workers"""
+        """Stop all background workers and health monitors"""
         if not self.running:
             return
             
         self.running = False
+        
+        # Cancel all health monitoring tasks
+        for session_id, task in self.health_monitors.items():
+            logger.info(f"Stopping health monitor for session {session_id}")
+            task.cancel()
+        
+        if self.health_monitors:
+            await asyncio.gather(*self.health_monitors.values(), return_exceptions=True)
+        self.health_monitors.clear()
         
         # Cancel all workers
         for worker in self.workers:
@@ -90,22 +106,15 @@ class BackgroundSimulatorManager:
         
     def queue_simulator_check(self, session_id: str, user_id: str, 
                             callback: Optional[Callable] = None) -> str:
-        """
-        Queue a task to check for existing simulators for a session.
-        Returns immediately without blocking.
-        
-        Returns:
-            task_id for tracking
-        """
+        """Queue a task to check for existing simulators"""
         task = SimulatorTask(
             SimulatorTaskType.CHECK_EXISTING,
             session_id,
             user_id,
             callback,
-            priority=1  # High priority
+            priority=1
         )
         
-        # Avoid duplicate tasks
         task_key = f"{task.task_type}_{session_id}"
         if task_key in self.active_tasks:
             logger.debug(f"Task {task_key} already active, skipping duplicate")
@@ -114,7 +123,6 @@ class BackgroundSimulatorManager:
         self.active_tasks[task_key] = task
         self.session_status[session_id] = "CHECKING"
         
-        # Queue the task (priority queue uses tuple: (priority, task))
         self.task_queue.put_nowait((task.priority, task))
         
         logger.info(f"Queued simulator check task for session {session_id}")
@@ -128,7 +136,7 @@ class BackgroundSimulatorManager:
             session_id,
             user_id,
             callback,
-            priority=2  # Medium priority
+            priority=2
         )
         
         task_key = f"{task.task_type}_{session_id}"
@@ -144,8 +152,97 @@ class BackgroundSimulatorManager:
         return task.task_id
         
     def get_session_status(self, session_id: str) -> str:
-        """Get current simulator status for a session"""
+        """Get current simulator status for a session (from gRPC heartbeat)"""
         return self.session_status.get(session_id, "NONE")
+        
+    async def _start_health_monitoring(self, session_id: str, simulator_id: str, endpoint: str):
+        """Start continuous health monitoring for a simulator via gRPC heartbeat"""
+        if session_id in self.health_monitors:
+            # Cancel existing monitor
+            self.health_monitors[session_id].cancel()
+        
+        monitor_task = asyncio.create_task(
+            self._health_monitor_loop(session_id, simulator_id, endpoint)
+        )
+        monitor_task.set_name(f"health-monitor-{session_id}")
+        self.health_monitors[session_id] = monitor_task
+        
+        logger.info(f"Started health monitoring for session {session_id}, simulator {simulator_id}")
+        
+    async def _health_monitor_loop(self, session_id: str, simulator_id: str, endpoint: str):
+        """Continuous health monitoring loop using gRPC heartbeat"""
+        logger.info(f"Health monitor started for session {session_id}")
+        
+        while self.running:
+            try:
+                # Send heartbeat via exchange client
+                heartbeat_result = await self.simulator_manager.exchange_client.send_heartbeat(
+                    endpoint, session_id, f"health-monitor-{session_id}"
+                )
+                
+                if heartbeat_result.get('success', False):
+                    # Get status from heartbeat response
+                    grpc_status = heartbeat_result.get('status', 'UNKNOWN')
+                    
+                    # Update our tracking
+                    old_status = self.session_status.get(session_id, 'UNKNOWN')
+                    self.session_status[session_id] = grpc_status
+                    self.session_endpoints[session_id] = endpoint
+                    
+                    # Log status changes
+                    if old_status != grpc_status:
+                        logger.info(f"Session {session_id} simulator status: {old_status} -> {grpc_status}")
+                        
+                        # Notify callback if status changed to RUNNING
+                        if grpc_status == 'RUNNING' and old_status != 'RUNNING':
+                            # Notify that simulator is now running
+                            await self._notify_status_change(session_id, simulator_id, grpc_status, endpoint)
+                    
+                else:
+                    # Heartbeat failed
+                    error = heartbeat_result.get('error', 'Unknown error')
+                    logger.warning(f"Heartbeat failed for session {session_id}: {error}")
+                    
+                    # Mark as error and stop monitoring
+                    self.session_status[session_id] = 'ERROR'
+                    await self._notify_status_change(session_id, simulator_id, 'ERROR', endpoint)
+                    break
+                
+                # Wait before next heartbeat
+                await asyncio.sleep(10)  # Check every 10 seconds
+                
+            except asyncio.CancelledError:
+                logger.info(f"Health monitor cancelled for session {session_id}")
+                break
+            except Exception as e:
+                logger.error(f"Error in health monitor for session {session_id}: {e}")
+                self.session_status[session_id] = 'ERROR'
+                await asyncio.sleep(5)  # Wait before retrying
+                
+        # Clean up
+        if session_id in self.health_monitors:
+            del self.health_monitors[session_id]
+        logger.info(f"Health monitor stopped for session {session_id}")
+        
+    async def _notify_status_change(self, session_id: str, simulator_id: str, status: str, endpoint: str):
+        """Notify about simulator status changes"""
+        try:
+            # Notify WebSocket clients
+            notification = {
+                'type': 'simulator_status_update',
+                'session_id': session_id,
+                'simulator_id': simulator_id,
+                'status': status,
+                'endpoint': endpoint,
+                'timestamp': int(time.time() * 1000)
+            }
+            
+            # Send to all connected clients
+            if self.websocket_manager:
+                await self.websocket_manager.broadcast_to_session(notification)
+                
+        except Exception as e:
+            logger.error(f"Error notifying status change: {e}")
         
     async def _worker(self, worker_name: str):
         """Background worker that processes simulator tasks"""
@@ -211,60 +308,92 @@ class BackgroundSimulatorManager:
                     logger.error(f"Callback error: {cb_error}")
                     
     async def _check_existing_simulators(self, task: SimulatorTask, worker_name: str):
-        """Check for existing simulators and validate their health"""
+        """Check for existing simulators and validate their health via gRPC"""
         session_id = task.session_id
         user_id = task.user_id
         
         logger.info(f"Worker {worker_name}: Checking existing simulators for user {user_id}")
         
-        # This can take time, but doesn't block the main session service
+        # Find existing simulators in database
         existing_simulator, error = await self.simulator_manager.find_and_validate_simulator(
             session_id, user_id
         )
         
-        if existing_simulator:
-            logger.info(f"Worker {worker_name}: Found healthy simulator {existing_simulator.simulator_id}")
+        if existing_simulator and existing_simulator.endpoint:
+            logger.info(f"Worker {worker_name}: Found simulator {existing_simulator.simulator_id}, testing gRPC connection")
             
-            # Update tracking
-            self.simulator_manager.current_simulator_id = existing_simulator.simulator_id
-            self.simulator_manager.current_endpoint = existing_simulator.endpoint
-            self.session_status[session_id] = "RUNNING"
-            
-            # Notify via callback
-            if task.callback:
-                await task.callback({
-                    'session_id': session_id,
-                    'status': 'RUNNING',
-                    'simulator_id': existing_simulator.simulator_id,
-                    'endpoint': existing_simulator.endpoint
-                })
+            # Test gRPC connection with heartbeat
+            try:
+                heartbeat_result = await self.simulator_manager.exchange_client.send_heartbeat(
+                    existing_simulator.endpoint, session_id, f"check-{session_id}"
+                )
                 
-        else:
-            logger.info(f"Worker {worker_name}: No healthy simulators found, will need to create new one")
-            self.session_status[session_id] = "NONE"
-            
-            # Notify that we need to create a new simulator
-            if task.callback:
-                await task.callback({
-                    'session_id': session_id,
-                    'status': 'NONE',
-                    'message': 'No healthy simulators found'
-                })
+                if heartbeat_result.get('success', False):
+                    grpc_status = heartbeat_result.get('status', 'UNKNOWN')
+                    
+                    logger.info(f"Worker {worker_name}: Simulator {existing_simulator.simulator_id} is reachable, status: {grpc_status}")
+                    
+                    # Update tracking
+                    self.simulator_manager.current_simulator_id = existing_simulator.simulator_id
+                    self.simulator_manager.current_endpoint = existing_simulator.endpoint
+                    self.session_status[session_id] = grpc_status
+                    self.session_endpoints[session_id] = existing_simulator.endpoint
+                    
+                    # Start health monitoring
+                    await self._start_health_monitoring(
+                        session_id, existing_simulator.simulator_id, existing_simulator.endpoint
+                    )
+                    
+                    # Notify via callback
+                    if task.callback:
+                        await task.callback({
+                            'session_id': session_id,
+                            'status': grpc_status,
+                            'simulator_id': existing_simulator.simulator_id,
+                            'endpoint': existing_simulator.endpoint
+                        })
+                    return
+                else:
+                    logger.warning(f"Worker {worker_name}: Simulator {existing_simulator.simulator_id} not responding to heartbeat")
+                    
+            except Exception as e:
+                logger.error(f"Worker {worker_name}: Error testing simulator {existing_simulator.simulator_id}: {e}")
+        
+        # No healthy simulator found
+        logger.info(f"Worker {worker_name}: No healthy simulators found, will need to create new one")
+        self.session_status[session_id] = "NONE"
+        
+        # Notify that we need to create a new simulator
+        if task.callback:
+            await task.callback({
+                'session_id': session_id,
+                'status': 'NONE',
+                'message': 'No healthy simulators found'
+            })
                 
     async def _create_new_simulator(self, task: SimulatorTask, worker_name: str):
-        """Create a new simulator"""
+        """Create a new simulator and start health monitoring"""
         session_id = task.session_id
         user_id = task.user_id
         
         logger.info(f"Worker {worker_name}: Creating new simulator for session {session_id}")
         
-        # This includes K8s operations which can take time
+        # Create simulator via simulator manager
         simulator, error = await self.simulator_manager.create_simulator(session_id, user_id)
         
-        if simulator:
+        if simulator and simulator.endpoint:
             logger.info(f"Worker {worker_name}: Successfully created simulator {simulator.simulator_id}")
             
+            # Update tracking
+            self.simulator_manager.current_simulator_id = simulator.simulator_id
+            self.simulator_manager.current_endpoint = simulator.endpoint
             self.session_status[session_id] = "STARTING"
+            self.session_endpoints[session_id] = simulator.endpoint
+            
+            # Start health monitoring to track when it becomes RUNNING
+            await self._start_health_monitoring(
+                session_id, simulator.simulator_id, simulator.endpoint
+            )
             
             # Notify success
             if task.callback:
@@ -291,6 +420,11 @@ class BackgroundSimulatorManager:
         """Clean up simulators"""
         logger.info(f"Worker {worker_name}: Cleaning up simulators for session {task.session_id}")
         
-        # Implement cleanup logic here
-        # This can also take time with K8s operations
-        pass
+        # Stop health monitoring
+        if task.session_id in self.health_monitors:
+            self.health_monitors[task.session_id].cancel()
+            del self.health_monitors[task.session_id]
+        
+        # Clean up status tracking
+        self.session_status.pop(task.session_id, None)
+        self.session_endpoints.pop(task.session_id, None)

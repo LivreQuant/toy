@@ -1,4 +1,7 @@
-# source/api/websocket/manager.py
+# backend/session-service/source/api/websocket/manager.py
+"""
+WebSocket manager with enhanced status tracking via gRPC.
+"""
 import json
 import logging
 import time
@@ -33,9 +36,7 @@ class WebSocketManager:
         self.session_manager.register_exchange_data_callback(self.broadcast_exchange_data)
 
     async def handle_connection(self, request: web.Request) -> web.WebSocketResponse:
-        """
-        Handle WebSocket connection lifecycle
-        """
+        """Handle WebSocket connection lifecycle"""
         self.logger.info(f"WebSocket connection request received from {request.remote}")
         self.logger.info(f"Headers: {dict(request.headers)}")
         self.logger.info(f"Query params: {dict(request.query)}")
@@ -107,15 +108,6 @@ class WebSocketManager:
 
             # Connection handler
             try:
-                # Send connected message
-                """
-                await connection_emitter.send_connected(
-                    ws,
-                    client_id=client_id,
-                    device_id=device_id
-                )
-                """
-
                 # Process messages - use the existing method name from your codebase
                 await self._connection_loop(ws, user_id, device_id, client_id)
             except Exception as e:
@@ -250,39 +242,12 @@ class WebSocketManager:
                 try:
                     await ws.send_json(payload)
                     sent_count += 1
+                    self.logger.debug(f"Sent status update to device {device_id}: {payload.get('type', 'unknown')}")
                 except Exception as e:
                     self.logger.error(f"Error sending to device {device_id}: {e}")
 
         track_websocket_message("sent_broadcast", payload.get('type', 'unknown'))
         return sent_count
-
-    async def _cleanup(self, ws: web.WebSocketResponse, device_id: str):
-        """Cleanup resources when connection closes"""
-        if device_id in self.active_connections and self.active_connections[device_id] is ws:
-            del self.active_connections[device_id]
-            if device_id in self.connection_metadata:
-                del self.connection_metadata[device_id]
-
-        self.logger.info(
-            f"WebSocket connection for device {device_id} closed, remaining connections: {len(self.active_connections)}")
-
-        # If all connections are closed, reset the session state so pod can be reused
-        if len(self.active_connections) == 0:
-            self.logger.info("All connections closed, resetting session state to ready")
-            try:
-                # First stop any active streams
-                if self.session_manager.stream_manager:
-                    try:
-                        session_id = self.session_manager.state_manager.get_active_session_id()
-                        if session_id:
-                            await self.session_manager.stream_manager.stop_stream(session_id)
-                    except Exception as e:
-                        self.logger.error(f"Error stopping streams during cleanup: {e}")
-
-                # Reset session state
-                await self.session_manager.state_manager.close()
-            except Exception as e:
-                self.logger.error(f"Error resetting session state during connection cleanup: {e}")
 
     def _reject_connection(self, reason: str) -> web.Response:
         """Reject WebSocket connection"""
@@ -335,14 +300,6 @@ class WebSocketManager:
         close_tasks = []
         for device_id, ws in list(self.active_connections.items()):
             if not ws.closed:
-                # Send shutdown message
-                """
-                try:
-                    await connection_emitter.send_shutdown(ws, reason)
-                except Exception:
-                    pass
-                """
-
                 # Add close task
                 close_tasks.append(ws.close(code=1000, message=reason.encode('utf-8')))
 

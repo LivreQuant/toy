@@ -1,4 +1,4 @@
-# source/api/service.py
+# backend/exchange-service/source/api/service.py
 import logging
 import time
 import grpc
@@ -18,7 +18,8 @@ from source.api.grpc.session_exchange_interface_pb2 import (
     MarketData,
     OrderData,
     Position,
-    PortfolioStatus
+    PortfolioStatus,
+    SimulatorStatus
 )
 from source.api.grpc.session_exchange_interface_pb2_grpc import SessionExchangeSimulatorServicer
 from source.api.grpc.order_exchange_interface_pb2 import (
@@ -33,7 +34,6 @@ from source.api.rest.health import HealthService
 logger = logging.getLogger('exchange_simulator')
 
 
-
 class ExchangeSimulatorService(SessionExchangeSimulatorServicer, OrderExchangeSimulatorServicer):
     def __init__(self, exchange_manager: ExchangeManager):
         self.exchange_manager = exchange_manager
@@ -41,6 +41,37 @@ class ExchangeSimulatorService(SessionExchangeSimulatorServicer, OrderExchangeSi
         self.heartbeat_counter = 0
         self.health_service = exchange_manager.get_health_service() if hasattr(exchange_manager, 'get_health_service') else HealthService(exchange_manager, http_port=50056)
         self.startup_time = time.time()
+        
+        # Internal simulator status tracking
+        self.internal_status = SimulatorStatus.INITIALIZING
+        self._status_lock = asyncio.Lock()
+
+    async def _update_internal_status(self, new_status: SimulatorStatus):
+        """Update the internal simulator status"""
+        async with self._status_lock:
+            if self.internal_status != new_status:
+                old_status = self.internal_status
+                self.internal_status = new_status
+                logger.info(f"Simulator status changed: {SimulatorStatus.Name(old_status)} -> {SimulatorStatus.Name(new_status)}")
+
+    async def _get_current_status(self) -> SimulatorStatus:
+        """Get the current simulator status with logic"""
+        async with self._status_lock:
+            # Check if we're fully initialized
+            is_ready = getattr(self.health_service, 'initialization_complete', False)
+            
+            if not is_ready:
+                return SimulatorStatus.INITIALIZING
+            
+            # Check if exchange manager is streaming data
+            if hasattr(self.exchange_manager, 'current_market_data') and self.exchange_manager.current_market_data:
+                # We have market data, so we're running
+                if self.internal_status == SimulatorStatus.INITIALIZING:
+                    await self._update_internal_status(SimulatorStatus.RUNNING)
+                return SimulatorStatus.RUNNING
+            
+            # Default to current internal status
+            return self.internal_status
 
     async def Heartbeat(self, request: HeartbeatRequest, context) -> HeartbeatResponse:
         """Handle heartbeat to maintain connection with enhanced status"""
@@ -48,63 +79,38 @@ class ExchangeSimulatorService(SessionExchangeSimulatorServicer, OrderExchangeSi
             self.heartbeat_counter += 1
             current_time = int(time.time() * 1000)
 
-            # Check if we're fully initialized
-            is_ready = getattr(self.health_service, 'initialization_complete', False)
+            # Get current status
+            current_status = await self._get_current_status()
             
             # Log periodic heartbeats with status
             if self.heartbeat_counter % 10 == 0:
-                status = "RUNNING" if is_ready else "SPINNING"
                 uptime = time.time() - self.startup_time
-                logger.debug(f"Heartbeat #{self.heartbeat_counter} - Status: {status} - Uptime: {uptime:.1f}s")
+                logger.info(f"Heartbeat #{self.heartbeat_counter} - Status: {SimulatorStatus.Name(current_status)} - Uptime: {uptime:.1f}s")
 
             return HeartbeatResponse(
                 success=True,
-                server_timestamp=current_time
+                server_timestamp=current_time,
+                status=current_status
             )
         except Exception as e:
             logger.error(f"Heartbeat error: {e}")
             context.set_code(grpc.StatusCode.INTERNAL)
             context.set_details(str(e))
-            return HeartbeatResponse(success=False)
+            return HeartbeatResponse(
+                success=False,
+                server_timestamp=int(time.time() * 1000),
+                status=SimulatorStatus.ERROR
+            )
 
-    def log_status_transition(component: str, old_status: str, new_status: str, details: str = ""):
-        """Log status transitions with structured data"""
-        logger.info(
-            f"Status transition: {component}",
-            extra={
-                "component": component,
-                "old_status": old_status,
-                "new_status": new_status,
-                "details": details,
-                "timestamp": time.time()
-            }
-        )
-        
-    # Add this method to the class
     async def start_health_service(self):
         """Start the health check HTTP server"""
         await self.health_service.setup()
 
-    # Add this method as well
     async def stop_health_service(self):
         """Stop the health check HTTP server"""
         await self.health_service.shutdown()
-
-    async def receive_market_data(self, market_data_list):
-        """
-        Process received market data from distributor
-        
-        Args:
-            market_data_list: List of market data updates
-        """
-        try:
-            # Update the exchange manager with the new market data
-            await self.exchange_manager.update_market_data(market_data_list)
-            logger.info(f"Received market data for {len(market_data_list)} symbols")
-            return True
-        except Exception as e:
-            logger.error(f"Error processing market data: {e}")
-            return False
+        # Update status to stopping
+        await self._update_internal_status(SimulatorStatus.STOPPING)
 
     async def StreamExchangeData(
             self,
@@ -115,6 +121,9 @@ class ExchangeSimulatorService(SessionExchangeSimulatorServicer, OrderExchangeSi
         try:
             client_id = request.client_id
             logger.info(f"Client {client_id} subscribed to exchange data stream")
+
+            # Mark as running once we start streaming
+            await self._update_internal_status(SimulatorStatus.RUNNING)
 
             update_count = 0
 
@@ -135,8 +144,7 @@ class ExchangeSimulatorService(SessionExchangeSimulatorServicer, OrderExchangeSi
                             'symbol': symbol,
                             'quantity': position['quantity'],
                             'average_cost': position['average_cost'],
-                            'market_value': position['quantity'] * self.exchange_manager._get_current_price(symbol,
-                                                                                                            market_data)
+                            'market_value': position['quantity'] * self.exchange_manager._get_current_price(symbol, market_data)
                         }
                         for symbol, position in self.exchange_manager.positions.items()
                     ]
@@ -204,10 +212,9 @@ class ExchangeSimulatorService(SessionExchangeSimulatorServicer, OrderExchangeSi
             while True:
                 try:
                     # Wait for notification of new market data (with timeout)
-                    # The timeout ensures we still send periodic updates even if no market data arrives
                     await asyncio.wait_for(
                         self.exchange_manager.market_data_updates.get(),
-                        timeout=60  # Still maintain a 60-second maximum interval
+                        timeout=60
                     )
 
                     # Get symbols from the current market data
@@ -385,15 +392,15 @@ class ExchangeSimulatorService(SessionExchangeSimulatorServicer, OrderExchangeSi
 
         except asyncio.CancelledError:
             logger.info(f"Stream data generation cancelled for client {client_id}")
+            await self._update_internal_status(SimulatorStatus.STOPPING)
         except Exception as e:
             logger.error(f"Stream data error: {e}")
+            await self._update_internal_status(SimulatorStatus.ERROR)
             context.set_code(grpc.StatusCode.INTERNAL)
             context.set_details(str(e))
 
     async def SubmitOrders(self, request, context):
-        """
-        Handle batch order submissions
-        """
+        """Handle batch order submissions"""
         try:
             # Create response object
             response = BatchOrderResponse(
@@ -441,9 +448,7 @@ class ExchangeSimulatorService(SessionExchangeSimulatorServicer, OrderExchangeSi
             )
 
     async def CancelOrders(self, request, context):
-        """
-        Handle batch order cancellations
-        """
+        """Handle batch order cancellations"""
         try:
             # Create response object
             response = BatchCancelResponse(

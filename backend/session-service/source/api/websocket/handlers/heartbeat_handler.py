@@ -1,7 +1,7 @@
-# websocket/handlers/heartbeat_handler.py
+# backend/session-service/source/api/websocket/handlers/heartbeat_handler.py
 """
 Handler for the 'heartbeat' WebSocket message type.
-Simplified for singleton session mode.
+Now uses gRPC status from background simulator manager.
 """
 import logging
 import time
@@ -96,15 +96,17 @@ async def handle_heartbeat(
         # Device is still active - update session activity timestamp
         await session_manager.update_session_activity()
 
-        # Get simulator status from database
+        # Get simulator status from background simulator manager (REAL-TIME via gRPC)
         simulator_status_server = "NONE"
-        if session_manager.simulator_manager.current_simulator_id:
-            # Directly query the simulator status from the store
-            simulator = await session_manager.store_manager.simulator_store.get_simulator(
-                session_manager.simulator_manager.current_simulator_id)
-            if simulator and simulator.status:
-                # Use the actual simulator status from the database
-                simulator_status_server = simulator.status.value
+        session_id = session_manager.state_manager.get_active_session_id()
+        
+        if session_manager.background_simulator_manager:
+            # Get real-time status from background simulator manager
+            simulator_status_server = session_manager.background_simulator_manager.get_session_status(session_id)
+            
+            logger.debug(f"Heartbeat: Session {session_id} simulator status from gRPC: {simulator_status_server}")
+        else:
+            logger.warning("Background simulator manager not available for heartbeat")
 
         # Prepare response
         response = {

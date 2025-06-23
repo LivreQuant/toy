@@ -1,6 +1,7 @@
+# backend/session-service/source/api/websocket/handlers/session_handler.py
 """
 WebSocket handlers for session operations.
-Enhanced with non-blocking simulator management.
+Enhanced with non-blocking simulator management using gRPC status.
 """
 import logging
 import time
@@ -122,7 +123,7 @@ async def handle_session_info(
            'requestId': request_id,
            'deviceId': details.get('device_id', device_id),
            'expiresAt': session.expires_at,
-           'simulatorStatus': simulator_status  # Will be updated via callback
+           'simulatorStatus': simulator_status  # Will be updated via callback/health monitoring
        }
 
        try:
@@ -149,15 +150,6 @@ async def handle_stop_session(
    """
    Process a session stop request.
    In singleton mode, we don't actually end the session, just clean up resources.
-   
-   Args:
-       ws: The WebSocket connection.
-       user_id: User ID.
-       client_id: Client ID.
-       device_id: Device ID.
-       message: The parsed message dictionary.
-       session_manager: Direct access to SessionManager.
-       tracer: OpenTelemetry Tracer instance.
    """
    with optional_trace_span(tracer, "handle_stop_session_message") as span:
        span.set_attribute("client_id", client_id)
@@ -170,35 +162,19 @@ async def handle_stop_session(
        session_id = session_manager.state_manager.get_active_session_id()
 
        try:
-           # Check if there's a simulator running
-           simulator = await session_manager.store_manager.simulator_store.get_simulator_by_session(session_id)
+           # Check if there's a simulator running via background manager
            simulator_running = False
            simulator_id = None
-
-           if simulator:
-               simulator_id = simulator.simulator_id
-               simulator_status = simulator.status.value
-
-               # Check if simulator is in an active state
-               active_states = ['CREATING', 'STARTING', 'RUNNING']
-               if simulator_id and simulator_status and simulator_status in active_states:
-                   # Validate that the simulator is actually healthy before trying to stop it
-                   is_healthy, health_error = await session_manager.simulator_manager.validate_simulator_health(
-                       simulator_id
-                   )
-                   
-                   if is_healthy:
-                       simulator_running = True
-                       logger.info(f"Simulator {simulator_id} is healthy and will be stopped")
-                   else:
-                       logger.warning(f"Simulator {simulator_id} is not healthy ({health_error}), marking as ERROR")
-                       # Mark as ERROR since it's not reachable anyway
-                       await session_manager.store_manager.simulator_store.update_simulator_status(
-                           simulator_id, SimulatorStatus.ERROR
-                       )
+           
+           if session_manager.background_simulator_manager:
+               current_status = session_manager.background_simulator_manager.get_session_status(session_id)
+               if current_status in ['INITIALIZING', 'RUNNING', 'STARTING', 'CREATING']:
+                   simulator_id = session_manager.simulator_manager.current_simulator_id
+                   simulator_running = True
+                   logger.info(f"Session {session_id} has active simulator {simulator_id} with status {current_status}")
 
            # Stop simulator if running
-           if simulator_running:
+           if simulator_running and simulator_id:
                logger.info(f"Stopping simulator {simulator_id} for session")
                success, error = await session_manager.stop_simulator(simulator_id=simulator_id, force=True)
 
@@ -214,7 +190,7 @@ async def handle_stop_session(
                    track_session_operation("cleanup", "error_simulator")
                    return
            else:
-               logger.info(f"No healthy simulator found to stop.")
+               logger.info(f"No active simulator found to stop.")
 
            # Update session state but don't actually end it in singleton mode
            await session_manager.update_session_details({
