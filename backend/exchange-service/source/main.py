@@ -1,3 +1,5 @@
+# source/main.py - Enhanced with status reporting
+
 import asyncio
 import logging
 import grpc
@@ -23,6 +25,7 @@ class ExchangeSimulator:
     def __init__(self):
         self.exchange_manager = None
         self.grpc_server = None
+        self.health_service = None
 
     async def initialize_exchange(self):
         """
@@ -43,7 +46,10 @@ class ExchangeSimulator:
                 desk_id=desk_id
             )
 
-            # Perform initial setup
+            # Create health service first (so it can track initialization)
+            self.health_service = self.exchange_manager.get_health_service() if hasattr(self.exchange_manager, 'get_health_service') else None
+
+            # Perform initial setup with status reporting
             await self.exchange_manager.initialize()
 
             logger.info(f"Exchange initialized for User ID: {user_id}")
@@ -77,6 +83,10 @@ class ExchangeSimulator:
         listen_addr = f'{config.server.host}:{config.server.grpc_port}'
         self.grpc_server.add_insecure_port(listen_addr)
 
+        # Mark gRPC server as ready
+        if self.health_service:
+            self.health_service.mark_service_ready('grpc_server', True)
+
         return self.grpc_server, listen_addr
 
     async def setup_observability(self):
@@ -88,7 +98,7 @@ class ExchangeSimulator:
 
     async def start(self):
         """
-        Full startup sequence for the exchange simulator
+        Full startup sequence for the exchange simulator with status reporting
         """
         try:
             # Setup logging
@@ -98,18 +108,24 @@ class ExchangeSimulator:
             # Setup observability
             await self.setup_observability()
 
-            # Initialize exchange
+            # Initialize exchange (this will create health service internally)
             await self.initialize_exchange()
 
             # Create gRPC server
             server, listen_addr = await self.create_grpc_server()
 
-            # Start HTTP health server (add this line)
+            # Start HTTP health server
             await self.simulator_service.start_health_service()
             
-            # Start server
+            # Start gRPC server
             await server.start()
             logger.info(f"gRPC Exchange Simulator started on {listen_addr}")
+
+            # Mark all initialization as complete
+            if hasattr(self.simulator_service, 'health_service'):
+                # Final health check to mark as fully ready
+                await asyncio.sleep(1)  # Brief delay to ensure everything is settled
+                logger.info("Exchange Simulator fully operational and ready for connections")
 
             # Keep server running
             await server.wait_for_termination()

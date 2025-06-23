@@ -1,7 +1,6 @@
-# source/server.py
 """
 Session service main server with dependency injection for single-user mode.
-Enhanced with health checking for the current session's simulator only.
+Enhanced with background simulator management.
 """
 import logging
 import asyncio
@@ -19,6 +18,7 @@ from source.core.state.manager import StateManager
 from source.core.stream.manager import StreamManager
 from source.core.session.manager import SessionManager
 from source.core.simulator.manager import SimulatorManager
+from source.core.simulator.background_manager import BackgroundSimulatorManager
 
 from source.clients.exchange import ExchangeClient
 from source.clients.k8s import KubernetesClient
@@ -77,6 +77,7 @@ class SessionServer:
         self.session_manager = None
         self.websocket_manager = None
         self.health_manager = None
+        self.background_simulator_manager = None
 
     async def initialize(self):
         """Initialize all server components"""
@@ -119,6 +120,18 @@ class SessionServer:
             self.simulator_manager,
         )
 
+        # Create websocket manager
+        self.websocket_manager = WebSocketManager(self.session_manager)
+
+        # Create background simulator manager
+        self.background_simulator_manager = BackgroundSimulatorManager(
+            self.simulator_manager,
+            self.websocket_manager
+        )
+
+        # Wire up the background simulator manager to session manager
+        self.session_manager.set_background_simulator_manager(self.background_simulator_manager)
+
         # Create health check manager for this session only
         from source.core.health.manager import HealthCheckManager
         self.health_manager = HealthCheckManager(
@@ -126,9 +139,6 @@ class SessionServer:
             check_interval=30,  # Check every 30 seconds
             timeout_threshold=120  # Mark unhealthy after 2 minutes
         )
-
-        # Create websocket manager
-        self.websocket_manager = WebSocketManager(self.session_manager)
 
         # Store components in app context
         self.app['store_manager'] = self.store_manager
@@ -140,6 +150,7 @@ class SessionServer:
         self.app['simulator_manager'] = self.simulator_manager
         self.app['websocket_manager'] = self.websocket_manager
         self.app['health_manager'] = self.health_manager
+        self.app['background_simulator_manager'] = self.background_simulator_manager
 
         # Set up routes
         self._setup_routes()
@@ -152,6 +163,10 @@ class SessionServer:
 
     async def start(self):
         """Start the server"""
+        # Start background simulator manager
+        await self.background_simulator_manager.start()
+        logger.info("Background simulator manager started")
+        
         # Start health check manager for this session
         await self.health_manager.start()
         logger.info("Session health check manager started")
@@ -170,6 +185,11 @@ class SessionServer:
     async def shutdown(self):
         """Graceful shutdown"""
         logger.info("Initiating server shutdown")
+        
+        # Stop background simulator manager
+        if hasattr(self, 'background_simulator_manager') and self.background_simulator_manager:
+            await self.background_simulator_manager.stop()
+            logger.info("Background simulator manager stopped")
         
         # Stop health check manager
         if hasattr(self, 'health_manager') and self.health_manager:
@@ -245,11 +265,13 @@ class SessionServer:
         - Database connectivity
         - Session state
         - Health manager status
+        - Background simulator manager status
         """
         checks = {
             'database': 'DOWN',
             'session_state': 'DOWN',
-            'health_manager': 'DOWN'
+            'health_manager': 'DOWN',
+            'background_simulator_manager': 'DOWN'
         }
         
         all_ready = True
@@ -283,6 +305,16 @@ class SessionServer:
                 all_ready = False
         except Exception as e:
             logger.error(f"Health manager check error: {e}")
+            all_ready = False
+
+        # Check background simulator manager
+        try:
+            bg_sim_ready = self.background_simulator_manager and self.background_simulator_manager.running
+            checks['background_simulator_manager'] = 'UP' if bg_sim_ready else 'DOWN'
+            if not bg_sim_ready:
+                all_ready = False
+        except Exception as e:
+            logger.error(f"Background simulator manager check error: {e}")
             all_ready = False
 
         status_code = 200 if all_ready else 503
@@ -322,12 +354,22 @@ class SessionServer:
         """Get status of the current session's simulator"""
         try:
             health_manager = request.app['health_manager']
+            background_sim_manager = request.app['background_simulator_manager']
+            
             if not health_manager:
                 return web.json_response({
                     'error': 'Health manager not available'
                 }, status=503)
 
             status = health_manager.get_current_simulator_status()
+            
+            # Add background simulator manager status
+            if background_sim_manager:
+                session_id = status.get('active_session_id')
+                if session_id:
+                    bg_status = background_sim_manager.get_session_status(session_id)
+                    status['background_status'] = bg_status
+                    
             status['timestamp'] = time.time()
             status['pod'] = config.kubernetes.pod_name
             

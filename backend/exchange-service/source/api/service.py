@@ -33,32 +33,29 @@ from source.api.rest.health import HealthService
 logger = logging.getLogger('exchange_simulator')
 
 
+
 class ExchangeSimulatorService(SessionExchangeSimulatorServicer, OrderExchangeSimulatorServicer):
     def __init__(self, exchange_manager: ExchangeManager):
         self.exchange_manager = exchange_manager
         self.last_heartbeat = time.time()
         self.heartbeat_counter = 0
-        self.health_service = HealthService(exchange_manager, http_port=50056)
-
-    # Add this method to the class
-    async def start_health_service(self):
-        """Start the health check HTTP server"""
-        await self.health_service.setup()
-
-    # Add this method as well
-    async def stop_health_service(self):
-        """Stop the health check HTTP server"""
-        await self.health_service.shutdown()
+        self.health_service = exchange_manager.get_health_service() if hasattr(exchange_manager, 'get_health_service') else HealthService(exchange_manager, http_port=50056)
+        self.startup_time = time.time()
 
     async def Heartbeat(self, request: HeartbeatRequest, context) -> HeartbeatResponse:
-        """Handle heartbeat to maintain connection"""
+        """Handle heartbeat to maintain connection with enhanced status"""
         try:
             self.heartbeat_counter += 1
             current_time = int(time.time() * 1000)
 
-            # Log periodic heartbeats
+            # Check if we're fully initialized
+            is_ready = getattr(self.health_service, 'initialization_complete', False)
+            
+            # Log periodic heartbeats with status
             if self.heartbeat_counter % 10 == 0:
-                logger.debug(f"Received heartbeat #{self.heartbeat_counter}")
+                status = "RUNNING" if is_ready else "SPINNING"
+                uptime = time.time() - self.startup_time
+                logger.debug(f"Heartbeat #{self.heartbeat_counter} - Status: {status} - Uptime: {uptime:.1f}s")
 
             return HeartbeatResponse(
                 success=True,
@@ -69,6 +66,29 @@ class ExchangeSimulatorService(SessionExchangeSimulatorServicer, OrderExchangeSi
             context.set_code(grpc.StatusCode.INTERNAL)
             context.set_details(str(e))
             return HeartbeatResponse(success=False)
+
+    def log_status_transition(component: str, old_status: str, new_status: str, details: str = ""):
+        """Log status transitions with structured data"""
+        logger.info(
+            f"Status transition: {component}",
+            extra={
+                "component": component,
+                "old_status": old_status,
+                "new_status": new_status,
+                "details": details,
+                "timestamp": time.time()
+            }
+        )
+        
+    # Add this method to the class
+    async def start_health_service(self):
+        """Start the health check HTTP server"""
+        await self.health_service.setup()
+
+    # Add this method as well
+    async def stop_health_service(self):
+        """Stop the health check HTTP server"""
+        await self.health_service.shutdown()
 
     async def receive_market_data(self, market_data_list):
         """

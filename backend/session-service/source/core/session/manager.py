@@ -67,7 +67,14 @@ class SessionManager:
         self._recent_data_cache = {}
         self._cache_max_size = 100  # Adjust as needed
 
+        # Background simulator manager reference (set by server)
+        self.background_simulator_manager = None
+
         logger.info(f"Session manager initialized!")
+
+    def set_background_simulator_manager(self, bg_manager):
+        """Set the background simulator manager reference"""
+        self.background_simulator_manager = bg_manager
 
     # ----- Callback management -----
 
@@ -208,41 +215,114 @@ class SessionManager:
         if session_id:
             return await self.store_manager.session_store.update_session_details(session_id, details_updates)
 
-    # ----- Simulator operations -----
+    # ----- Non-blocking simulator operations -----
+
+    async def request_simulator_check(self, user_id: str) -> str:
+        """
+        Request a simulator check without blocking.
+        Returns task_id for tracking.
+        """
+        if not self.background_simulator_manager:
+            raise RuntimeError("Background simulator manager not initialized")
+            
+        session_id = self.state_manager.get_active_session_id()
+        
+        # Create callback to handle results
+        async def simulator_result_callback(result):
+            await self._handle_simulator_result(result)
+            
+        return self.background_simulator_manager.queue_simulator_check(
+            session_id, user_id, simulator_result_callback
+        )
+        
+    async def request_simulator_creation(self, user_id: str) -> str:
+        """Request simulator creation without blocking"""
+        if not self.background_simulator_manager:
+            raise RuntimeError("Background simulator manager not initialized")
+            
+        session_id = self.state_manager.get_active_session_id()
+        
+        async def simulator_result_callback(result):
+            await self._handle_simulator_result(result)
+            
+        return self.background_simulator_manager.queue_simulator_creation(
+            session_id, user_id, simulator_result_callback
+        )
+
+    async def _handle_simulator_result(self, result: Dict):
+        """Handle results from background simulator operations"""
+        session_id = result['session_id']
+        status = result['status']
+        
+        logger.info(f"Received simulator result for {session_id}: {status}")
+        
+        # Update simulator manager state if successful
+        if status in ['RUNNING', 'STARTING'] and 'simulator_id' in result:
+            self.simulator_manager.current_simulator_id = result['simulator_id']
+            self.simulator_manager.current_endpoint = result.get('endpoint')
+            
+            # Start data streaming if simulator is running
+            if status == 'RUNNING' and result.get('endpoint'):
+                await self._start_data_streaming(result['simulator_id'], result['endpoint'])
+        
+        # Notify WebSocket clients
+        await self._notify_simulator_status_change(result)
+
+    async def _start_data_streaming(self, simulator_id: str, endpoint: str):
+        """Start exchange data streaming for a simulator"""
+        try:
+            session_id = self.state_manager.get_active_session_id()
+            
+            # Create the exchange data stream task
+            stream_task = asyncio.create_task(
+                self._stream_simulator_data(endpoint, simulator_id)
+            )
+            stream_task.set_name(f"stream-{simulator_id}")
+
+            # Register with stream manager
+            if stream_task and self.stream_manager:
+                self.stream_manager.register_stream(session_id, stream_task)
+                
+            self.simulator_active = True
+            logger.info(f"Started data streaming for simulator {simulator_id}")
+            
+        except Exception as e:
+            logger.error(f"Failed to start data streaming: {e}", exc_info=True)
+        
+    async def _notify_simulator_status_change(self, result: Dict):
+        """Notify WebSocket clients of simulator status changes"""
+        notification = {
+            'type': 'simulator_status_update',
+            'session_id': result['session_id'],
+            'status': result['status'],
+            'simulator_id': result.get('simulator_id'),
+            'timestamp': int(time.time() * 1000)
+        }
+        
+        if 'error' in result:
+            notification['error'] = result['error']
+            
+        # Send to all registered callbacks (including WebSocket manager)
+        await self._handle_exchange_data(notification)
+
+    # ----- Legacy simulator operations (now delegated to background manager) -----
 
     async def start_simulator(self, user_id=None):
-        """Start a simulator for the session"""
+        """Start a simulator for the session - now uses background manager"""
         # Use user ID from the session if not specified
         if not user_id:
             session = await self.get_session()
             user_id = session.user_id if session else "default-user"
 
-        # Start the simulator
-        session_id = self.state_manager.get_active_session_id()
-        simulator, error = await self.simulator_manager.create_or_reuse_simulator(session_id, user_id)
-
-        if simulator and not error:
-            # Set flag for active simulator
-            self.simulator_active = True
-
-            # Start exchange stream if simulator created successfully
-            try:
-                # Create the exchange data stream task
-                stream_task = asyncio.create_task(
-                    self._stream_simulator_data(simulator.endpoint, simulator.simulator_id)
-                )
-                stream_task.set_name(f"stream-{simulator.simulator_id}")
-
-                # Register with stream manager
-                if stream_task and self.stream_manager:
-                    self.stream_manager.register_stream(session_id, stream_task)
-
-            except Exception as e:
-                logger.error(f"Failed to start exchange stream: {e}", exc_info=True)
-
-            return simulator.simulator_id, simulator.endpoint, ""
-
-        return None, None, error
+        try:
+            task_id = await self.request_simulator_creation(user_id)
+            logger.info(f"Requested simulator creation, task_id: {task_id}")
+            
+            # Return placeholder values - actual values will come via callback
+            return "pending", "pending", ""
+        except Exception as e:
+            logger.error(f"Failed to request simulator creation: {e}")
+            return None, None, str(e)
 
     async def _stream_simulator_data(self, endpoint: str, simulator_id: str):
         """Stream simulator data - data is handled via callback now"""

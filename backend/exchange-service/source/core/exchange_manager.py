@@ -7,6 +7,7 @@ from source.models.enums import OrderSide
 from source.core.market_data_manager import MarketDataClient
 from source.core.order_manager import OrderManager
 from source.db.database import DatabaseManager
+from source.api.rest.health import HealthService
 
 logger = logging.getLogger('exchange_manager')
 
@@ -36,29 +37,36 @@ class ExchangeManager:
         # Add a queue for market data update notifications
         self.market_data_updates = asyncio.Queue()
 
+        # Add health service for status tracking
+        self.health_service = HealthService(self, http_port=50056)
+
+    
+    def get_health_service(self):
+        """Get the health service instance"""
+        return self.health_service
+
     async def initialize(self):
         """
-        Initialize the exchange state
-        - Load historical positions
-        - Restore previous state if applicable
-        - Connect to market data service
+        Initialize the exchange state with status reporting
         """
         try:
+            logger.info("Initializing exchange components...")
+            
+            # Initialize database connection
             try:
-                # Attempt to connect to the database
                 await self.database_manager.connect()
-
-                # Verify connection
                 connection_healthy = await self.database_manager.check_connection()
-                if not connection_healthy:
+                if connection_healthy:
+                    self.health_service.mark_service_ready('database', True)
+                    logger.info("✓ Database connection established")
+                else:
                     logger.warning("Database connection established but not responding to queries")
-
+                    
             except Exception as e:
                 logger.error(f"Failed to initialize database connection: {e}")
-                # Decide how to handle: retry, exit, or continue with limited functionality
                 raise
 
-            # Load historical data for user
+            # Load historical data
             historical_data = await self.database_manager.load_user_exchange_state(
                 user_id=self.user_id,
                 desk_id=self.desk_id
@@ -68,14 +76,24 @@ class ExchangeManager:
             if historical_data:
                 self.cash_balance = historical_data.get('cash_balance', self.initial_cash)
                 self.positions = historical_data.get('positions', {})
+                logger.info("✓ Historical state restored")
 
-            # Initialize order manager after database connection
+            # Initialize order manager
             await self.order_manager.initialize()
+            if getattr(self.order_manager, 'connected', False):
+                self.health_service.mark_service_ready('order_manager', True)
+                logger.info("✓ Order manager connected")
 
             # Start the market data client
             await self.market_data_client.start()
+            # Give it a moment to establish connection
+            await asyncio.sleep(2)
+            if getattr(self.market_data_client, 'running', False):
+                self.health_service.mark_service_ready('market_data', True)
+                logger.info("✓ Market data client started")
 
-            logger.info(f"Exchange initialized for User {self.user_id}")
+            logger.info(f"✓ Exchange initialized for User {self.user_id}")
+            
         except Exception as e:
             logger.error(f"Exchange initialization failed: {e}")
             raise

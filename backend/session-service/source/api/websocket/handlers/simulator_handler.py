@@ -1,6 +1,6 @@
-# source/api/websocket/handlers/simulator_handler.py
 """
 WebSocket handlers for simulator operations.
+Enhanced with non-blocking simulator management.
 """
 import logging
 import time
@@ -29,7 +29,7 @@ async def handle_start_simulator(
         **kwargs
 ):
     """
-    Process a start simulator request.
+    Process a start simulator request using non-blocking background management.
     
     Args:
         ws: The WebSocket connection.
@@ -47,32 +47,58 @@ async def handle_start_simulator(
         request_id = message.get('requestId', f'start-sim-{time.time_ns()}')
         span.set_attribute("request_id", request_id)
 
-        # Start simulator (using user ID from validated token)
-        simulator_id, endpoint, error = await session_manager.start_simulator(user_id)
+        # Check if we already have a simulator
+        current_status = "NONE"
+        if session_manager.background_simulator_manager:
+            session_id = session_manager.state_manager.get_active_session_id()
+            current_status = session_manager.background_simulator_manager.get_session_status(session_id)
 
-        # Set span attributes for tracing
-        span.set_attribute("simulator_id", simulator_id or "none")
-        span.set_attribute("endpoint", endpoint or "none")
-
-        if error:
-            span.set_attribute("error", error)
-            await error_emitter.send_error(
-                ws=ws,
-                error_code="SIMULATOR_START_FAILED",
-                message=error,
-                request_id=request_id,
-                span=span
-            )
-            track_simulator_operation("start", "error_validation")
-            return
-
-        # Send success response
-        response = {
-            'type': 'simulator_started',
-            'requestId': request_id,
-            'success': True,
-            'simulatorStatus': 'STARTING',
-        }
+        if current_status in ["CHECKING", "CREATING", "STARTING", "RUNNING"]:
+            # Already have a simulator in progress or running
+            response = {
+                'type': 'simulator_started',
+                'requestId': request_id,
+                'success': True,
+                'simulatorStatus': current_status,
+                'message': f'Simulator already {current_status.lower()}'
+            }
+        else:
+            # Start simulator creation in background
+            try:
+                if session_manager.background_simulator_manager:
+                    task_id = await session_manager.request_simulator_creation(user_id)
+                    logger.info(f"Requested simulator creation, task_id: {task_id}")
+                    
+                    response = {
+                        'type': 'simulator_started',
+                        'requestId': request_id,
+                        'success': True,
+                        'simulatorStatus': 'CREATING',
+                        'message': 'Simulator creation started'
+                    }
+                else:
+                    logger.error("Background simulator manager not available")
+                    await error_emitter.send_error(
+                        ws=ws,
+                        error_code="SIMULATOR_START_FAILED",
+                        message="Simulator management not available",
+                        request_id=request_id,
+                        span=span
+                    )
+                    track_simulator_operation("start", "error_no_manager")
+                    return
+                    
+            except Exception as e:
+                logger.error(f"Failed to request simulator creation: {e}")
+                await error_emitter.send_error(
+                    ws=ws,
+                    error_code="SIMULATOR_START_FAILED",
+                    message=str(e),
+                    request_id=request_id,
+                    span=span
+                )
+                track_simulator_operation("start", "error_request")
+                return
 
         try:
             if not ws.closed:
@@ -150,4 +176,3 @@ async def handle_stop_simulator(
         except Exception as e:
             logger.error(f"Failed to send simulator_stopped for client {client_id}: {e}")
             span.record_exception(e)
-            
