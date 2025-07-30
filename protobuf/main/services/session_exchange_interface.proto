@@ -1,28 +1,151 @@
-// protobuf/main/services/session_exchange_interface.proto
 syntax = "proto3";
-
 package session_exchange;
 
 service SessionExchangeSimulator {
-  // Single unified stream for all exchange data
+  // Single unified stream for all exchange data - user-aware with broadcasting
   rpc StreamExchangeData(StreamRequest) returns (stream ExchangeDataUpdate);
-  
-  // Heartbeat to verify connection
+
+  // Enhanced heartbeat with session status information
   rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+
+  // Health check with service and user status
+  rpc GetHealth(HealthRequest) returns (HealthResponse);
+
+  // New: Get session connection status for a user
+  rpc GetSessionStatus(SessionStatusRequest) returns (SessionStatusResponse);
 }
 
+// Enhanced stream request with connection metadata
 message StreamRequest {
   string client_id = 1;
+  string user_id = 2;  // User to stream data for
+  int64 connection_timestamp = 3;  // When this connection was established
+  string session_instance_id = 4;  // Unique identifier for this session instance
+  bool request_initial_state = 5;  // Whether to send initial state snapshot
 }
 
+// Enhanced exchange data update with broadcasting metadata
 message ExchangeDataUpdate {
   int64 timestamp = 1;
-  repeated MarketData market_data = 2;
-  repeated OrderData orders_data = 3;
-  PortfolioStatus portfolio = 4;
+  string user_id = 2;  // Which user this update belongs to
+  int64 sequence_number = 3;  // Sequential number for this user's updates
+  string broadcast_id = 4;  // Unique ID for this broadcast batch
+  bool is_initial_state = 5;  // Whether this is initial state data
+  bool is_replay_data = 6;  // Whether this is historical replay data
+
+  // Session metadata
+  SessionMetadata session_metadata = 7;
+
+  // Data payload (existing fields)
+  repeated EquityData equity_data = 8;
+  repeated OrderData orders_data = 9;
+  PortfolioStatus portfolio = 10;
+  AccountStatus accounts = 11;
+  FXStatus fx_rates = 12;
+  ImpactStatus impact = 13;
+  ReturnsStatus returns = 14;
+  RiskStatus risk = 15;
+  UniverseStatus universe = 16;
+  repeated Trade trades = 17;
 }
 
-message MarketData {
+// New: Session metadata for tracking broadcast information
+message SessionMetadata {
+  int32 active_connections = 1;  // Number of active connections for this user
+  int64 last_broadcast_timestamp = 2;  // Last broadcast timestamp
+  string source_instance_id = 3;  // Which exchange instance sent this
+  ProcessingStatus processing_status = 4;  // Processing state information
+}
+
+// New: Processing status information
+message ProcessingStatus {
+  string current_bin = 1;  // Current time bin being processed
+  string next_bin = 2;  // Next expected time bin
+  int32 updates_sent = 3;  // Number of updates sent in this session
+  int32 live_updates = 4;  // Number of live updates sent
+  int32 replay_updates = 5;  // Number of replay updates sent
+  double processing_latency_ms = 6;  // Processing latency
+}
+
+// Enhanced heartbeat with session information
+message HeartbeatRequest {
+  string client_id = 1;
+  string user_id = 2;
+  string session_instance_id = 3;  // Session instance requesting heartbeat
+  int64 last_received_sequence = 4;  // Last sequence number received
+}
+
+message HeartbeatResponse {
+  string status = 1;
+  int64 timestamp = 2;
+  string current_bin = 3;
+  string next_bin = 4;
+  string market_state = 5;
+  SessionConnectionInfo connection_info = 6;  // Connection status for this user
+}
+
+// New: Session connection information
+message SessionConnectionInfo {
+  int32 active_connections = 1;  // Number of active connections for this user
+  int64 next_expected_sequence = 2;  // Next sequence number to be sent
+  int64 last_sent_timestamp = 3;  // Last data sent timestamp
+  bool is_primary_connection = 4;  // Whether this is the primary connection
+  repeated string connected_instances = 5;  // List of connected session instance IDs
+}
+
+// Enhanced health request
+message HealthRequest {
+  string client_id = 1;
+  string user_id = 2;
+  string session_instance_id = 3;
+  bool include_session_stats = 4;  // Whether to include session statistics
+}
+
+// Enhanced health response with session information
+message HealthResponse {
+  string status = 1;
+  int64 timestamp = 2;
+  string market_state = 3;
+  map<string, ServiceMetrics> services = 4;
+  SessionServiceStats session_stats = 5;  // Session service statistics
+}
+
+// New: Session service statistics
+message SessionServiceStats {
+  int32 total_active_users = 1;  // Total number of users with active sessions
+  int32 total_active_connections = 2;  // Total number of active connections
+  map<string, UserSessionStats> user_stats = 3;  // Per-user session statistics
+  int64 total_updates_sent = 4;  // Total updates sent across all users
+  double average_latency_ms = 5;  // Average processing latency
+}
+
+// New: Per-user session statistics
+message UserSessionStats {
+  string user_id = 1;
+  int32 active_connections = 2;  // Number of active connections for this user
+  int64 updates_sent = 3;  // Total updates sent to this user
+  int64 last_activity_timestamp = 4;  // Last activity timestamp
+  repeated string session_instances = 5;  // Connected session instance IDs
+  int64 last_sequence_sent = 6;  // Last sequence number sent
+}
+
+// New: Session status request/response
+message SessionStatusRequest {
+  string user_id = 1;
+  string session_instance_id = 2;
+}
+
+message SessionStatusResponse {
+  string user_id = 1;
+  bool is_connected = 2;
+  int32 connection_count = 3;  // Number of connections for this user
+  int64 last_update_timestamp = 4;
+  int64 next_sequence_number = 5;
+  repeated string active_session_instances = 6;
+}
+
+// Existing data structures (kept for compatibility)
+message EquityData {
   string symbol = 1;
   double open = 2;
   double high = 3;
@@ -31,42 +154,195 @@ message MarketData {
   int32 volume = 6;
   int32 trade_count = 7;
   double vwap = 8;
+  string exchange = 9;
+  string currency = 10;
+  double vwas = 11;
+  double vwav = 12;
+}
+
+enum OrderStateEnum {
+  WORKING = 0;
+  COMPLETED = 1;
+  CANCELLED = 2;
+}
+
+message Trade {
+  string trade_id = 1;
+  string order_id = 2;
+  string cl_order_id = 3;
+  string symbol = 4;
+  string side = 5;
+  string currency = 6;
+  double price = 7;
+  double quantity = 8;
+  double remaining_qty = 9;
+  double completed_qty = 10;
+  string detail = 11;
+  int64 start_timestamp = 12;
+  int64 end_timestamp = 13;
 }
 
 message OrderData {
   string order_id = 1;
-  string symbol = 2;
-  string status = 3;
-  int32 filled_quantity = 4;
-  double average_price = 5;
+  string cl_order_id = 2;
+  string symbol = 3;
+  string side = 4;
+  double original_qty = 5;
+  double remaining_qty = 6;
+  double completed_qty = 7;
+  string currency = 8;
+  double price = 9;
+  string order_type = 10;
+  double participation_rate = 11;
+  OrderStateEnum order_state = 12;
+  int64 submit_timestamp = 13;
+  int64 start_timestamp = 14;
+  repeated Trade trades = 15;
+}
+
+message Position {
+  string symbol = 1;
+  double quantity = 2;
+  double target_quantity = 3;
+  string currency = 4;
+  double average_cost = 5;
+  double market_value = 6;
+  double sod_realized_pnl = 7;
+  double itd_realized_pnl = 8;
+  double realized_pnl = 9;
+  double unrealized_pnl = 10;
 }
 
 message PortfolioStatus {
   repeated Position positions = 1;
   double cash_balance = 2;
   double total_value = 3;
+  double total_pnl = 4;
+  double unrealized_pnl = 5;
+  double realized_pnl = 6;
 }
 
-message Position {
+message AccountBalance {
+  string type = 1;
+  string currency = 2;
+  double amount = 3;
+}
+
+message AccountStatus {
+  repeated AccountBalance balances = 1;
+  double nav = 2;
+  string base_currency = 3;
+}
+
+message FXRate {
+  string from_currency = 1;
+  string to_currency = 2;
+  double rate = 3;
+}
+
+message FXStatus {
+  repeated FXRate rates = 1;
+}
+
+message ImpactData {
   string symbol = 1;
-  int32 quantity = 2;
-  double average_cost = 3;
-  double market_value = 4;
+  double current_impact = 2;
+  string currency = 3;
+  double base_price = 4;
+  double impacted_price = 5;
+  int64 cumulative_volume = 6;
+  int64 trade_volume = 7;
 }
 
-message HeartbeatRequest {
-  int64 client_timestamp = 3;
+message ImpactStatus {
+  repeated ImpactData impacts = 1;
 }
 
-message HeartbeatResponse {
-  bool success = 1;
-  int64 server_timestamp = 2;
-  SimulatorStatus status = 3;
+message ReturnData {
+  string symbol = 1;
+  double return_value = 2;
+  string currency = 3;
+  string category = 4;
+  string subcategory = 5;
+  double emv = 6;
+  double bmv = 7;
+  double bmv_book = 8;
+  double cf = 9;
+  double periodic_return_subcategory = 10;
+  double cumulative_return_subcategory = 11;
+  double contribution_percentage = 12;
+  double periodic_return_contribution = 13;
+  double cumulative_return_contribution = 14;
+}
+
+message ReturnsStatus {
+  repeated ReturnData returns = 1;
+}
+
+message EquityRiskData {
+  string symbol = 1;
+  double var = 2;
+  double expected_shortfall = 3;
+  string currency = 4;
+}
+
+message PortfolioRiskData {
+  double portfolio_var = 1;
+  double portfolio_expected_shortfall = 2;
+  string currency = 3;
+}
+
+message RiskExposures {
+  map<string, double> sector_exposures = 1;
+  map<string, double> country_exposures = 2;
+  map<string, double> currency_exposures = 3;
+}
+
+message RiskMetrics {
+  double beta = 1;
+  double alpha = 2;
+  double sharpe_ratio = 3;
+  double sortino_ratio = 4;
+}
+
+message RiskStatus {
+  repeated string symbols = 1;
+  repeated EquityRiskData equity_risk = 2;
+  PortfolioRiskData portfolio_risk = 3;
+  RiskExposures exposures = 4;
+  RiskMetrics metrics = 5;
+}
+
+message UniverseData {
+  string symbol = 1;
+  string company_name = 2;
+  string sector = 3;
+  string industry = 4;
+  double market_cap = 5;
+  string country = 6;
+  string currency = 7;
+  int64 avg_daily_volume = 8;
+  double beta = 9;
+  map<string, double> exposures = 10;
+  map<string, string> custom_attributes = 11;
+}
+
+message UniverseStatus {
+  repeated UniverseData symbols = 1;
+}
+
+message ServiceMetrics {
+  bool running = 1;
+  int32 errors = 2;
+  int64 uptime_seconds = 3;
+  string last_error = 4;
+  int64 requests_processed = 5;
 }
 
 enum SimulatorStatus {
-  INITIALIZING = 0;  // Loading data, catching up
-  RUNNING = 1;       // Caught up to real time, streaming data
-  ERROR = 2;         // Something crashed, no data expected
-  STOPPING = 3;      // Shutting down gracefully
+  INITIALIZING = 0;
+  RUNNING = 1;
+  PAUSED = 2;
+  STOPPED = 3;
+  ERROR = 4;
 }

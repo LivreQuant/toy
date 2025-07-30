@@ -24,20 +24,44 @@ class SessionExchangeSimulatorStub(object):
                 request_serializer=main_dot_services_dot_session__exchange__interface__pb2.HeartbeatRequest.SerializeToString,
                 response_deserializer=main_dot_services_dot_session__exchange__interface__pb2.HeartbeatResponse.FromString,
                 )
+        self.GetHealth = channel.unary_unary(
+                '/session_exchange.SessionExchangeSimulator/GetHealth',
+                request_serializer=main_dot_services_dot_session__exchange__interface__pb2.HealthRequest.SerializeToString,
+                response_deserializer=main_dot_services_dot_session__exchange__interface__pb2.HealthResponse.FromString,
+                )
+        self.GetSessionStatus = channel.unary_unary(
+                '/session_exchange.SessionExchangeSimulator/GetSessionStatus',
+                request_serializer=main_dot_services_dot_session__exchange__interface__pb2.SessionStatusRequest.SerializeToString,
+                response_deserializer=main_dot_services_dot_session__exchange__interface__pb2.SessionStatusResponse.FromString,
+                )
 
 
 class SessionExchangeSimulatorServicer(object):
     """Missing associated documentation comment in .proto file."""
 
     def StreamExchangeData(self, request, context):
-        """Single unified stream for all exchange data
+        """Single unified stream for all exchange data - user-aware with broadcasting
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def Heartbeat(self, request, context):
-        """Heartbeat to verify connection
+        """Enhanced heartbeat with session status information
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetHealth(self, request, context):
+        """Health check with service and user status
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetSessionStatus(self, request, context):
+        """New: Get session connection status for a user
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -55,6 +79,16 @@ def add_SessionExchangeSimulatorServicer_to_server(servicer, server):
                     servicer.Heartbeat,
                     request_deserializer=main_dot_services_dot_session__exchange__interface__pb2.HeartbeatRequest.FromString,
                     response_serializer=main_dot_services_dot_session__exchange__interface__pb2.HeartbeatResponse.SerializeToString,
+            ),
+            'GetHealth': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetHealth,
+                    request_deserializer=main_dot_services_dot_session__exchange__interface__pb2.HealthRequest.FromString,
+                    response_serializer=main_dot_services_dot_session__exchange__interface__pb2.HealthResponse.SerializeToString,
+            ),
+            'GetSessionStatus': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetSessionStatus,
+                    request_deserializer=main_dot_services_dot_session__exchange__interface__pb2.SessionStatusRequest.FromString,
+                    response_serializer=main_dot_services_dot_session__exchange__interface__pb2.SessionStatusResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -97,5 +131,39 @@ class SessionExchangeSimulator(object):
         return grpc.experimental.unary_unary(request, target, '/session_exchange.SessionExchangeSimulator/Heartbeat',
             main_dot_services_dot_session__exchange__interface__pb2.HeartbeatRequest.SerializeToString,
             main_dot_services_dot_session__exchange__interface__pb2.HeartbeatResponse.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def GetHealth(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/session_exchange.SessionExchangeSimulator/GetHealth',
+            main_dot_services_dot_session__exchange__interface__pb2.HealthRequest.SerializeToString,
+            main_dot_services_dot_session__exchange__interface__pb2.HealthResponse.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def GetSessionStatus(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/session_exchange.SessionExchangeSimulator/GetSessionStatus',
+            main_dot_services_dot_session__exchange__interface__pb2.SessionStatusRequest.SerializeToString,
+            main_dot_services_dot_session__exchange__interface__pb2.SessionStatusResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
