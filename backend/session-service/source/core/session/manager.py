@@ -18,6 +18,7 @@ from source.core.state.manager import StateManager
 from source.core.simulator.manager import SimulatorManager
 
 from source.core.session.connection import Connection
+from source.models.simulator import SimulatorStatus
 
 logger = logging.getLogger('session_manager')
 
@@ -325,11 +326,42 @@ class SessionManager:
             return None, None, str(e)
 
     async def _stream_simulator_data(self, endpoint: str, simulator_id: str):
-        """Stream simulator data with proper error handling"""
+        """Stream simulator data - data is handled via callback now"""
         try:
             session_id = self.state_manager.get_active_session_id()
 
-            # ... existing readiness polling code ...
+            # Add readiness polling
+            max_attempts = 10
+            attempt = 0
+            connected = False
+
+            logger.info(f"Waiting for simulator {simulator_id} to be ready...")
+
+            while attempt < max_attempts and not connected:
+                try:
+                    # Try to send a heartbeat to check readiness
+                    heartbeat_result = await self.exchange_client.send_heartbeat(
+                        endpoint,
+                        session_id,
+                        f"readiness-check-{session_id}"
+                    )
+
+                    if heartbeat_result.get('success', False):
+                        connected = True
+                        logger.info(f"Successfully connected to simulator {simulator_id}")
+
+                        # Update status and notify clients
+                        await self.update_simulator_status(simulator_id, 'RUNNING')
+                        break
+                    else:
+                        logger.info(
+                            f"Simulator {simulator_id} not ready yet (heartbeat failed), waiting... (attempt {attempt + 1}/{max_attempts})")
+                except Exception as e:
+                    logger.info(
+                        f"Simulator {simulator_id} not ready yet, waiting... (attempt {attempt + 1}/{max_attempts}): {e}")
+
+                attempt += 1
+                await asyncio.sleep(5)  # Wait between attempts - 5 seconds should be enough
 
             if not connected:
                 logger.error(f"Failed to connect to simulator {simulator_id} after {max_attempts} attempts")
