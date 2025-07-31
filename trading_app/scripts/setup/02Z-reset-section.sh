@@ -3,7 +3,7 @@ SECTION=$1
 
 if [ -z "$SECTION" ]; then
     echo "Usage: $0 <section>"
-    echo "Sections: storage databases pgbouncer db-init minio auth session fund simulator market jaeger ingress monitor algorand all"
+    echo "Sections: storage databases pgbouncer db-init minio auth session fund simulator exch-us-equities jaeger ingress monitor algorand all"
     exit 1
 fi
 
@@ -67,10 +67,10 @@ case $SECTION in
         kubectl delete deployment -l app=exchange-simulator --ignore-not-found=true
         kubectl delete service -l app=exchange-simulator --ignore-not-found=true
         ;;
-    market)
-        echo "Resetting market data service..."
-        kubectl delete service market-data-service
-        kubectl delete deployment market-data-service
+    exch-us-equities)
+        echo "Resetting exch-us-equities market data service..."
+        kubectl delete service exch-us-equities-market-data
+        kubectl delete deployment exch-us-equities-market-data
         ;;
     ingress)
         echo "Resetting ingress..."

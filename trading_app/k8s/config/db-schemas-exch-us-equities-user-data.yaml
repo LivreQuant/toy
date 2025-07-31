@@ -1,0 +1,248 @@
+# k8s/config/db-schemas-exch-us-equities-user-data.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: db-schemas-exch-us-equities-user-data
+data:
+  exch-us-equities-user-data.sql: |
+    -- OpenTP Exchange Service Database Schema - User Data Tables
+
+    -- =====================================================================================
+    -- EXCHANGE METADATA TABLE
+    -- =====================================================================================
+    CREATE TABLE IF NOT EXISTS exch_us_equity.metadata (
+      exch_id UUID PRIMARY KEY,
+      exchange_type VARCHAR(50) NOT NULL DEFAULT 'EXCH_US_EQUITIES',
+
+      -- KUBERNETES LOOKUP
+      endpoint VARCHAR(255) NOT NULL,
+      pod_name VARCHAR(100) NOT NULL,
+      namespace VARCHAR(50) NOT NULL DEFAULT 'default',
+
+      -- EXCHANGE METADATA
+      timezone VARCHAR(50) NOT NULL,
+      exchanges TEXT[] NOT NULL,
+      last_snap TIMESTAMP WITH TIME ZONE NOT NULL,
+      pre_market_open TIME NOT NULL,
+      market_open TIME NOT NULL,
+      market_close TIME NOT NULL,
+      post_market_close TIME NOT NULL,
+      updated_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE INDEX idx_metadata_exch_id ON exch_us_equity.metadata(exch_id);
+    CREATE UNIQUE INDEX idx_metadata_exch_id_unique ON exch_us_equity.metadata(exch_id);
+
+    -- =====================================================================================
+    -- USERS TABLE
+    -- =====================================================================================
+    CREATE TABLE IF NOT EXISTS exch_us_equity.users (
+      user_id UUID NOT NULL REFERENCES auth.users(user_id) ON DELETE CASCADE UNIQUE,
+      exch_id UUID NOT NULL REFERENCES exch_us_equity.metadata(exch_id) ON DELETE CASCADE,
+      base_currency VARCHAR(10) NOT NULL,
+      timezone VARCHAR(50) NOT NULL
+    );
+
+    CREATE INDEX idx_users_exch_id ON exch_us_equity.users(exch_id);
+
+    -- =====================================================================================
+    -- USER CASH FLOW DATA TABLE
+    -- =====================================================================================
+    CREATE TABLE IF NOT EXISTS exch_us_equity.cash_flow_data (
+      user_id VARCHAR(50) NOT NULL REFERENCES exch_us_equity.users(user_id) ON DELETE CASCADE,
+      timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
+      flow_type VARCHAR(50) NOT NULL,
+      from_account VARCHAR(100) NOT NULL,
+      from_currency VARCHAR(3) NOT NULL,
+      from_fx DECIMAL(12,6) NOT NULL,
+      from_amount DECIMAL(15,4) NOT NULL,
+      to_account VARCHAR(100) NOT NULL,
+      to_currency VARCHAR(3) NOT NULL,
+      to_fx DECIMAL(12,6) NOT NULL,
+      to_amount DECIMAL(15,4) NOT NULL,
+      instrument VARCHAR(50),
+      trade_id VARCHAR(100),
+      description TEXT
+    );
+
+    CREATE INDEX idx_cash_flow_data_user_id ON exch_us_equity.cash_flow_data(user_id);
+    CREATE INDEX idx_cash_flow_data_timestamp ON exch_us_equity.cash_flow_data(timestamp);
+    CREATE INDEX idx_cash_flow_data_flow_type ON exch_us_equity.cash_flow_data(flow_type);
+    CREATE INDEX idx_cash_flow_data_trade_id ON exch_us_equity.cash_flow_data(trade_id);
+    CREATE INDEX idx_cash_flow_data_from_account ON exch_us_equity.cash_flow_data(from_account);
+    CREATE INDEX idx_cash_flow_data_to_account ON exch_us_equity.cash_flow_data(to_account);
+    CREATE UNIQUE INDEX idx_cash_flow_data_unique ON exch_us_equity.cash_flow_data(user_id, timestamp, flow_type, from_account, to_account, trade_id);
+
+    -- =====================================================================================
+    -- USER PORTFOLIO RISK DATA TABLE
+    -- =====================================================================================
+    CREATE TABLE IF NOT EXISTS exch_us_equity.portfolio_risk_data (
+      user_id VARCHAR(50) NOT NULL REFERENCES exch_us_equity.users(user_id) ON DELETE CASCADE,
+      timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
+      total_exposure DECIMAL(15,4) NOT NULL,
+      net_exposure DECIMAL(15,4) NOT NULL,
+      gross_exposure DECIMAL(15,4) NOT NULL,
+      leverage DECIMAL(10,4) NOT NULL,
+      concentration DECIMAL(10,4) NOT NULL,
+      sector_weights JSONB,
+      country_weights JSONB
+    );
+
+    CREATE INDEX idx_portfolio_risk_data_user_id ON exch_us_equity.portfolio_risk_data(user_id);
+    CREATE INDEX idx_portfolio_risk_data_timestamp ON exch_us_equity.portfolio_risk_data(timestamp);
+    CREATE INDEX idx_portfolio_risk_data_sector_weights ON exch_us_equity.portfolio_risk_data USING GIN(sector_weights);
+    CREATE INDEX idx_portfolio_risk_data_country_weights ON exch_us_equity.portfolio_risk_data USING GIN(country_weights);
+    CREATE UNIQUE INDEX idx_portfolio_risk_data_unique ON exch_us_equity.portfolio_risk_data(user_id, timestamp);
+
+    -- =====================================================================================
+    -- USER PORTFOLIO DATA TABLE
+    -- =====================================================================================
+    CREATE TABLE IF NOT EXISTS exch_us_equity.portfolio_data (
+      user_id VARCHAR(50) NOT NULL REFERENCES exch_us_equity.users(user_id) ON DELETE CASCADE,
+      timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
+      symbol VARCHAR(20) NOT NULL,
+      quantity DECIMAL(12,4) NOT NULL,
+      currency VARCHAR(3) NOT NULL,
+      avg_price DECIMAL(12,4) NOT NULL,
+      mtm_value DECIMAL(12,4) NOT NULL,
+      sod_realized_pnl DECIMAL(12,2) NOT NULL,
+      itd_realized_pnl DECIMAL(12,2) NOT NULL,
+      realized_pnl DECIMAL(12,2) NOT NULL,
+      unrealized_pnl DECIMAL(12,2) NOT NULL
+    );
+
+    CREATE INDEX idx_portfolio_data_user_id ON exch_us_equity.portfolio_data(user_id);
+    CREATE INDEX idx_portfolio_data_timestamp ON exch_us_equity.portfolio_data(timestamp);
+    CREATE INDEX idx_portfolio_data_symbol ON exch_us_equity.portfolio_data(symbol);
+    CREATE UNIQUE INDEX idx_portfolio_data_unique ON exch_us_equity.portfolio_data(user_id, timestamp, symbol);
+
+    -- =====================================================================================
+    -- USER ACCOUNTS DATA TABLE
+    -- =====================================================================================
+    CREATE TABLE IF NOT EXISTS exch_us_equity.account_data (
+      user_id VARCHAR(50) NOT NULL REFERENCES exch_us_equity.users(user_id) ON DELETE CASCADE,
+      timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
+      type VARCHAR(50) NOT NULL,
+      currency VARCHAR(3) NOT NULL,
+      amount DECIMAL(12,2) NOT NULL,
+      previous_amount DECIMAL(12,2) NOT NULL,
+      change DECIMAL(12,2) NOT NULL
+    );
+
+    CREATE INDEX idx_account_data_user_id ON exch_us_equity.account_data(user_id);
+    CREATE INDEX idx_account_data_timestamp ON exch_us_equity.account_data(timestamp);
+    CREATE INDEX idx_account_data_type ON exch_us_equity.account_data(type);
+    CREATE UNIQUE INDEX idx_account_data_unique ON exch_us_equity.account_data(user_id, timestamp, type, currency);
+
+    -- =====================================================================================
+    -- USER IMPACT DATA TABLE
+    -- =====================================================================================
+    CREATE TABLE IF NOT EXISTS exch_us_equity.impact_data (
+      user_id VARCHAR(50) NOT NULL REFERENCES exch_us_equity.users(user_id) ON DELETE CASCADE,
+      timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
+      symbol VARCHAR(20) NOT NULL,
+      trade_id VARCHAR(100) NOT NULL,
+      previous_impact DECIMAL(12,6) NOT NULL,
+      current_impact DECIMAL(12,6) NOT NULL,
+      currency VARCHAR(3) NOT NULL,
+      base_price DECIMAL(12,4) NOT NULL,
+      impacted_price DECIMAL(12,4) NOT NULL,
+      cumulative_volume DECIMAL(12,4) NOT NULL,
+      trade_volume DECIMAL(12,4) NOT NULL,
+      start_timestamp TIMESTAMP WITH TIME ZONE,
+      end_timestamp TIMESTAMP WITH TIME ZONE,
+      impact_type VARCHAR(50) NOT NULL
+    );
+
+    CREATE INDEX idx_impact_data_user_id ON exch_us_equity.impact_data(user_id);
+    CREATE INDEX idx_impact_data_timestamp ON exch_us_equity.impact_data(timestamp);
+    CREATE INDEX idx_impact_data_symbol ON exch_us_equity.impact_data(symbol);
+    CREATE UNIQUE INDEX idx_impact_data_unique ON exch_us_equity.impact_data(user_id, timestamp, symbol, trade_id);
+
+    -- =====================================================================================
+    -- USER ORDERS DATA TABLE
+    -- =====================================================================================
+    CREATE TABLE IF NOT EXISTS exch_us_equity.order_data (
+      user_id VARCHAR(50) NOT NULL REFERENCES exch_us_equity.users(user_id) ON DELETE CASCADE,
+      timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
+      order_id VARCHAR(100) NOT NULL,
+      cl_order_id VARCHAR(100) NOT NULL,
+      symbol VARCHAR(20) NOT NULL,
+      side VARCHAR(10) NOT NULL,
+      original_qty DECIMAL(12,4) NOT NULL,
+      remaining_qty DECIMAL(12,4) NOT NULL,
+      completed_qty DECIMAL(12,4) NOT NULL,
+      currency VARCHAR(3) NOT NULL,
+      price DECIMAL(12,4) NOT NULL,
+      order_type VARCHAR(100) NOT NULL,
+      participation_rate VARCHAR(100) NOT NULL,
+      order_state VARCHAR(100) NOT NULL,
+      submit_timestamp TIMESTAMP WITH TIME ZONE,
+      start_timestamp TIMESTAMP WITH TIME ZONE,
+      tag VARCHAR(100),
+      conviction_id VARCHAR(100)
+    );
+
+    CREATE INDEX idx_order_data_user_id ON exch_us_equity.order_data(user_id);
+    CREATE INDEX idx_order_data_timestamp ON exch_us_equity.order_data(timestamp);
+    CREATE INDEX idx_order_data_order_id ON exch_us_equity.order_data(order_id);
+    CREATE INDEX idx_order_data_symbol ON exch_us_equity.order_data(symbol);
+    CREATE UNIQUE INDEX idx_order_data_unique ON exch_us_equity.order_data(user_id, timestamp, order_id);
+
+    -- =====================================================================================
+    -- USER RETURNS DATA TABLE
+    -- =====================================================================================
+    CREATE TABLE IF NOT EXISTS exch_us_equity.return_data (
+      user_id VARCHAR(50) NOT NULL REFERENCES exch_us_equity.users(user_id) ON DELETE CASCADE,
+      timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
+      return_id VARCHAR(100) NOT NULL,
+      category VARCHAR(100) NOT NULL,
+      subcategory VARCHAR(100) NOT NULL,
+      emv DECIMAL(18,6) NOT NULL,
+      bmv DECIMAL(18,6) NOT NULL,
+      bmv_book DECIMAL(18,6) NOT NULL,
+      cf DECIMAL(18,6) NOT NULL,
+      periodic_return_subcategory DECIMAL(18,6) NOT NULL,
+      cumulative_return_subcategory DECIMAL(18,6) NOT NULL,
+      contribution_percentage DECIMAL(18,6) NOT NULL,
+      periodic_return_contribution DECIMAL(18,6) NOT NULL,
+      cumulative_return_contribution DECIMAL(18,6) NOT NULL
+    );
+
+    CREATE INDEX idx_return_data_user_id ON exch_us_equity.return_data(user_id);
+    CREATE INDEX idx_return_data_timestamp ON exch_us_equity.return_data(timestamp);
+    CREATE INDEX idx_return_data_return_id ON exch_us_equity.return_data(return_id);
+    CREATE UNIQUE INDEX idx_return_data_unique ON exch_us_equity.return_data(user_id, timestamp, return_id);
+
+    -- =====================================================================================
+    -- USER TRADES DATA TABLE
+    -- =====================================================================================
+    CREATE TABLE IF NOT EXISTS exch_us_equity.trade_data (
+      user_id VARCHAR(50) NOT NULL REFERENCES exch_us_equity.users(user_id) ON DELETE CASCADE,
+      start_timestamp TIMESTAMP WITH TIME ZONE,
+      end_timestamp TIMESTAMP WITH TIME ZONE,
+      trade_id VARCHAR(100) NOT NULL,
+      order_id VARCHAR(100) NOT NULL,
+      cl_order_id VARCHAR(100) NOT NULL,
+      symbol VARCHAR(20) NOT NULL,
+      side VARCHAR(10) NOT NULL,
+      currency VARCHAR(3) NOT NULL,
+      price DECIMAL(12,4) NOT NULL,
+      quantity DECIMAL(12,4) NOT NULL,
+      detail VARCHAR(100)
+    );
+
+    CREATE INDEX idx_trade_data_user_id ON exch_us_equity.trade_data(user_id);
+    CREATE INDEX idx_trade_data_end_timestamp ON exch_us_equity.trade_data(end_timestamp);
+    CREATE INDEX idx_trade_data_trade_id ON exch_us_equity.trade_data(trade_id);
+    CREATE INDEX idx_trade_data_symbol ON exch_us_equity.trade_data(symbol);
+    CREATE UNIQUE INDEX idx_trade_data_unique ON exch_us_equity.trade_data(user_id, end_timestamp, trade_id);
+
+    -- =====================================================================================
+    -- GRANT PERMISSIONS
+    -- =====================================================================================
+    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA exch_us_equity TO opentp;
+    GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA exch_us_equity TO opentp;
+
+    -- Print success message
+    SELECT 'User data schema created successfully!' as status;

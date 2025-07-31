@@ -1,28 +1,54 @@
 {
-    "config_name": "Basic Controlled Test",
-    "timezone": "America/New_York", 
-    "start_time": "2024-01-09T19:33:00+00:00",
-    "time_increment_minutes": 1,
-    "server_port": 50051,
-    "equity": [
+  "config_name": "Dynamic Market Hours Test Configuration",
+  "server_port": 50060,
+  "time_increment_minutes": 1,
+  "timezone": "America/New_York", 
+  "market_hours": {
+      "pre_market_start": 4,
+      "pre_market_start_min": 0,
+      "market_open": 9,
+      "market_open_min": 30,
+      "market_close": 16,
+      "market_close_min": 0,
+      "after_hours_end": 20,
+      "after_hours_end_min": 0
+  },
+  "equity": [
       {
-        "symbol": "AAPL",
-        "currency": "USD",
-        "starting_price": 100.0,
-        "price_change_per_minute": 1.0,
-        "base_volume": 100000,
-        "trade_count": 100,
-        "vwas": 0.001,
-        "vwav": 0.002,
-        "exchange": "NASDAQ"
-      }
-    ],
-    "fx": [
+          "symbol": "AAPL",
+          "currency": "USD",
+          "starting_price": 100.0,
+          "price_change_per_minute": 1.0,
+          "base_volume": 100000,
+          "trade_count": 100,
+          "vwas": 0.001,
+          "vwav": 0.002,
+          "exchange": "NASDAQ"
+      },
       {
-        "from_currency": "USD",
-        "to_currency": "USD",
-        "starting_rate": 1.0,
-        "rate_change_per_minute": 0.0
+          "symbol": "MSFT",
+          "currency": "USD",
+          "starting_price": 200.0,
+          "price_change_per_minute": 0.5,
+          "base_volume": 75000,
+          "trade_count": 80,
+          "vwas": 0.002,
+          "vwav": 0.003,
+          "exchange": "NASDAQ"
       }
-    ]
-  }
+  ],
+  "fx": [
+      {
+          "from_currency": "USD",
+          "to_currency": "EUR",
+          "starting_rate": 0.85,
+          "rate_change_per_minute": 0.0001
+      },
+      {
+          "from_currency": "USD",
+          "to_currency": "GBP",
+          "starting_rate": 0.75,
+          "rate_change_per_minute": 0.00005
+      }
+  ]
+}

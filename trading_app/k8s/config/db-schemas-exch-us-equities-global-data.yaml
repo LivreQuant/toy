@@ -1,0 +1,91 @@
+# k8s/config/db-schemas-exch-us-equities-global-data.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: db-schemas-exch-us-equities-global-data
+data:
+  exch-us-equities-global-data.sql: |
+    -- OpenTP Exchange Service Database Schema - Global Data Tables
+
+    -- =====================================================================================
+    -- UNIVERSE DATA TABLE
+    -- =====================================================================================
+    CREATE TABLE IF NOT EXISTS exch_us_equity.universe_data (
+        date DATE NOT NULL,
+        symbol VARCHAR(20) NOT NULL,
+        sector VARCHAR(100),
+        industry VARCHAR(100),
+        market_cap BIGINT,
+        country VARCHAR(2),
+        currency VARCHAR(3) NOT NULL,
+        avg_daily_volume BIGINT,
+        beta DECIMAL(10,4),
+        primary_exchange VARCHAR(10),
+        shares_outstanding BIGINT
+    );
+
+    CREATE INDEX idx_universe_data_date ON exch_us_equity.universe_data(date);
+    CREATE INDEX idx_universe_data_symbol ON exch_us_equity.universe_data(symbol);
+    CREATE UNIQUE INDEX idx_universe_data_unique ON exch_us_equity.universe_data(date, symbol);
+
+    -- =====================================================================================
+    -- RISK DATA TABLE (FACTOR MODEL)
+    -- =====================================================================================
+    CREATE TABLE IF NOT EXISTS exch_us_equity.risk_factor_data (
+        date DATE NOT NULL,
+        symbol VARCHAR(20) NOT NULL,
+        type VARCHAR(100),
+        name VARCHAR(100),
+        value DECIMAL(12,6)
+    );
+
+    CREATE INDEX idx_risk_factor_data_date ON exch_us_equity.risk_factor_data(date);
+    CREATE INDEX idx_risk_factor_data_symbol ON exch_us_equity.risk_factor_data(symbol);
+    CREATE UNIQUE INDEX idx_risk_factor_data_unique ON exch_us_equity.risk_factor_data(date, symbol, type, name);
+
+    -- =====================================================================================
+    -- RISK DATA TABLE (SYMBOL LEVEL)
+    -- =====================================================================================
+    CREATE TABLE IF NOT EXISTS exch_us_equity.risk_symbol_data (
+        date DATE NOT NULL,
+        symbol VARCHAR(20) NOT NULL,
+        sector VARCHAR(100),
+        industry VARCHAR(100),
+        market_cap BIGINT,
+        country VARCHAR(2),
+        currency VARCHAR(3) NOT NULL,
+        avg_daily_volume BIGINT,
+        beta DECIMAL(10,4),
+        growth DECIMAL(10,4),
+        momentum DECIMAL(10,4),
+        quality DECIMAL(10,4),
+        value DECIMAL(10,4),
+        size DECIMAL(10,4),
+        volatility DECIMAL(10,4),
+        volatility_1d DECIMAL(10,4),
+        volatility_5d DECIMAL(10,4),
+        volatility_30d DECIMAL(10,4),
+        var_95 DECIMAL(10,4),
+        cvar_95 DECIMAL(10,4),
+        tracking_error DECIMAL(10,4),
+        sharpe_ratio DECIMAL(10,4),
+        information_ratio DECIMAL(10,4),
+        max_drawdown DECIMAL(10,4),
+        weight DECIMAL(10,4),
+        pnl DECIMAL(12,4)
+    );
+
+    CREATE INDEX idx_risk_symbol_data_date ON exch_us_equity.risk_symbol_data(date);
+    CREATE INDEX idx_risk_symbol_data_symbol ON exch_us_equity.risk_symbol_data(symbol);
+    CREATE INDEX idx_risk_symbol_data_sector ON exch_us_equity.risk_symbol_data(sector);
+    CREATE INDEX idx_risk_symbol_data_industry ON exch_us_equity.risk_symbol_data(industry);
+    CREATE UNIQUE INDEX idx_risk_symbol_data_unique ON exch_us_equity.risk_symbol_data(date, symbol);
+
+    -- =====================================================================================
+    -- GRANT PERMISSIONS
+    -- =====================================================================================
+    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA exch_us_equity TO opentp;
+    GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA exch_us_equity TO opentp;
+
+    -- Print success message
+    SELECT 'Global data schema created successfully!' as status;

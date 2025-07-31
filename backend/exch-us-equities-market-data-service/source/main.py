@@ -1,4 +1,4 @@
-# source/main.py (updated to remove update_interval parameter)
+# source/main.py
 import asyncio
 import logging
 import signal
@@ -16,7 +16,7 @@ from source.service.health import HealthService
 
 async def shutdown(service, server, health_service):
     """Gracefully shut down all services"""
-    logging.info("🛑 Shutting down minute bar market data service...")
+    logging.info("🛑 Shutting down 24/7/365 market data service...")
     
     # Stop the service first
     if service:
@@ -33,10 +33,11 @@ async def shutdown(service, server, health_service):
     logging.info("✅ Shutdown complete")
 
 async def main():
-    """Main entry point for the minute bar market data service"""
+    """Main entry point for the 24/7/365 market data service"""
     # Setup logging
     logger = setup_logging()
-    logger.info("🚀 Starting minute bar market data service")
+    logger.info("🚀 Starting 24/7/365 market data service for Kubernetes")
+    logger.info("🔄 Service runs continuously - data provided based on exchange parameters")
     
     service = None
     server = None
@@ -50,7 +51,18 @@ async def main():
         logger.info(f"📈 Tracking {len(market_config['equity'])} equity symbols")
         logger.info(f"💱 Tracking {len(market_config['fx'])} FX pairs")
         logger.info(f"💾 Storage: PostgreSQL only (exch_us_equity schema)")
-        logger.info(f"🕐 Generation: Automatic minute bars at real-time boundaries")
+        logger.info(f"🕐 Time source: Current UTC time converted to market timezone")
+        logger.info(f"⏰ Generation: Automatic minute bars at real-time boundaries")
+        logger.info(f"🏗️ Kubernetes: Continuous 24/7/365 operation")
+        
+        # Log market hours configuration
+        market_hours = market_config.get('market_hours', {})
+        timezone = market_config.get('timezone', 'UTC')
+        logger.info(f"🏪 Market hours configuration ({timezone}):")
+        logger.info(f"   Pre-market: {market_hours.get('pre_market_start', 4):02d}:{market_hours.get('pre_market_start_min', 0):02d} - {market_hours.get('market_open', 9):02d}:{market_hours.get('market_open_min', 30):02d}")
+        logger.info(f"   Regular:    {market_hours.get('market_open', 9):02d}:{market_hours.get('market_open_min', 30):02d} - {market_hours.get('market_close', 16):02d}:{market_hours.get('market_close_min', 0):02d}")
+        logger.info(f"   After-hrs:  {market_hours.get('market_close', 16):02d}:{market_hours.get('market_close_min', 0):02d} - {market_hours.get('after_hours_end', 20):02d}:{market_hours.get('after_hours_end_min', 0):02d}")
+        logger.info(f"   Data policy: Live during market hours, last available during weekends/holidays/closed hours")
         
         # Create the controlled market data generator
         generator = ControlledMarketDataGenerator(market_config)
@@ -58,7 +70,7 @@ async def main():
         # Create database manager
         db_manager = DatabaseManager()
         
-        # Create the service (no update_interval needed - uses minute boundaries)
+        # Create the service
         service = MarketDataService(
             generator=generator,
             db_manager=db_manager
@@ -77,9 +89,16 @@ async def main():
         server.add_insecure_port(server_addr)
         await server.start()
         
-        logger.info(f"✅ Minute bar market data server started on {server_addr}")
+        # Log current market status
+        is_trading, market_status = generator.get_market_status()
+        current_utc = generator.get_current_time()
+        current_market = generator.get_current_market_time()
+        
+        logger.info(f"✅ 24/7/365 market data server started on {server_addr}")
         logger.info(f"🏥 Health check server started on http://0.0.0.0:50061")
-        logger.info(f"⏰ Minute bars will generate at: XX:XX:00 (every minute boundary)")
+        logger.info(f"⏰ Current UTC time: {current_utc.strftime('%Y-%m-%d %H:%M:%S')} UTC")
+        logger.info(f"🌍 Current market time: {current_market.strftime('%Y-%m-%d %H:%M:%S %Z')} ({current_market.strftime('%A')})")
+        logger.info(f"📊 Current market status: {market_status.upper()} {'(LIVE DATA)' if is_trading else '(LAST AVAILABLE DATA)'}")
         logger.info(f"💾 Database: {config.db.host}:{config.db.port}/{config.db.database}")
         logger.info(f"📊 Tables: exch_us_equity.equity_data, exch_us_equity.fx_data")
         
@@ -95,9 +114,11 @@ async def main():
         # Start the service
         await service.start()
         
-        logger.info("🎯 Minute bar market data service is ready")
+        logger.info("🎯 24/7/365 market data service is ready for Kubernetes")
         logger.info("📡 Exchange simulators can now subscribe to receive minute bars")
         logger.info("💾 All minute bar data will be stored in PostgreSQL exch_us_equity schema")
+        logger.info("🕐 Service runs continuously - provides live data during market hours, last available data otherwise")
+        logger.info("🏗️ Kubernetes pod will restart automatically if needed - no manual intervention required")
         logger.info("⏰ Next minute bar will generate at the next minute boundary")
         
         # Keep the server running

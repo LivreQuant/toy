@@ -1,39 +1,132 @@
-# kubernetes/deployment.yaml
+# deployment/exchange-service.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: exchange-service
 spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: exchange-service
   template:
+    metadata:
+      labels:
+        app: exchange-service
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
     spec:
       containers:
       - name: exchange-service
-        image: your-registry/exchange-service:latest
+        image: opentp/exchange-service:latest
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 50055  # gRPC service port
+        - containerPort: 50056  # HTTP health check port
+        - containerPort: 9090   # Metrics port
         env:
-        # Required: Exchange identification
-        - name: EXCH_ID
-          value: "123e4567-e89b-12d3-a456-426614174000"  # UUID for this exchange instance
+        # Database configuration
+        - name: DB_HOST
+          value: pgbouncer
+        - name: DB_PORT
+          value: "5432"
+        - name: DB_NAME
+          value: opentp
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: username
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: password
         
+        # Service configuration
+        - name: ENVIRONMENT
+          value: "production"
+        - name: LOG_LEVEL
+          value: "INFO"
+        - name: EXCHANGE_ID
+          value: "ABC"
         - name: EXCHANGE_TYPE
           value: "EXCH_US_EQUITIES"
-          
-        # Required: Kubernetes metadata
-        - name: POD_NAMESPACE
-          valueFrom:
-            fieldRef:
-              fieldPath: metadata.namespace
-              
-        - name: NODE_NAME
-          valueFrom:
-            fieldRef:
-              fieldPath: spec.nodeName
-              
-        - name: SERVICE_NAME
-          value: "exchange-service"  # Name of the Kubernetes service
-          
+        - name: EXCH_ID
+          value: "123e4567-e89b-12d3-a456-426614174000"
+        
+        # Service ports
         - name: GRPC_SERVICE_PORT
           value: "50055"
+        - name: HEALTH_SERVICE_PORT
+          value: "50056"
+        - name: HOST
+          value: "0.0.0.0"
+        
+        # Feature flags
+        - name: ENABLE_METRICS
+          value: "true"
+        - name: ENABLE_TRACING
+          value: "true"
+        - name: ENABLE_SESSION_SERVICE
+          value: "true"
+        - name: ENABLE_CONVICTION_SERVICE
+          value: "false"
+        
+        # Service URLs
+        - name: MARKET_DATA_SERVICE_URL
+          value: "exch-us-equities-market-data-service:50060"
+        - name: AUTH_SERVICE_URL
+          value: "auth-service:8000"
+        
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+            
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 50056
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
           
-        # Optional: Cluster identification
-        - name: CLUSTER_NAME
-          value: "production-cluster"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 50056
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+          
+        initContainers:
+        - name: wait-for-db
+          image: postgres:13
+          command: ['sh', '-c', 'until pg_isready -h pgbouncer -p 5432; do echo waiting for database; sleep 2; done;']
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: exchange-service
+spec:
+  selector:
+    app: exchange-service
+  ports:
+  - port: 50055
+    targetPort: 50055
+    name: grpc
+  - port: 50056
+    targetPort: 50056
+    name: http
+  - port: 9090
+    targetPort: 9090
+    name: metrics
+  type: ClusterIP

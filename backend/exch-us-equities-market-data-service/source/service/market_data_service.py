@@ -17,7 +17,9 @@ logger = logging.getLogger(__name__)
 class MarketDataService(MarketDataServiceServicer):
     """
     Market data service that generates minute bar data automatically at each minute boundary.
-    Simulates real-time market data feed with minute bars.
+    Runs 24/7/365 in Kubernetes - provides live data during market hours, last available data otherwise.
+    Uses current UTC time and converts to market timezone for hour determination.
+    Always provides data regardless of weekends, holidays, or time of day.
     """
     
     def __init__(self, generator: ControlledMarketDataGenerator, db_manager: DatabaseManager):
@@ -33,9 +35,12 @@ class MarketDataService(MarketDataServiceServicer):
         self.batch_count = 0
         self.database_saves = 0
         self.database_errors = 0
+        self.market_hours_updates = 0
+        self.closed_hours_updates = 0
+        self.weekend_updates = 0
         
-        logger.info(f"Market data service initialized for minute bar generation")
-        logger.info(f"Will generate data at each minute boundary (real-time simulation)")
+        logger.info(f"Market data service initialized for 24/7/365 Kubernetes operation")
+        logger.info(f"Always provides data - live during market hours, last available otherwise")
     
     async def start(self):
         """Start the market data broadcast service"""
@@ -46,7 +51,7 @@ class MarketDataService(MarketDataServiceServicer):
         await self.db_manager.connect()
         
         self.running = True
-        logger.info("✅ Market data service started - minute bar generation enabled")
+        logger.info("✅ Market data service started - 24/7/365 Kubernetes operation")
         
         # Start the broadcast task
         self.broadcast_task = asyncio.create_task(self._minute_bar_loop())
@@ -74,10 +79,10 @@ class MarketDataService(MarketDataServiceServicer):
     async def _minute_bar_loop(self):
         """
         Main loop that generates minute bar data at each minute boundary.
-        This simulates real-time market data feed behavior.
+        Runs 24/7/365 - always provides data based on market hours and exchange parameters.
         """
         try:
-            logger.info("🕐 Starting minute bar generation loop")
+            logger.info("🕐 Starting 24/7/365 minute bar generation loop for Kubernetes")
             
             while self.running:
                 # Wait until the next minute boundary
@@ -86,7 +91,7 @@ class MarketDataService(MarketDataServiceServicer):
                 if not self.running:
                     break
                 
-                # Generate minute bar data
+                # Generate minute bar data (always generates data based on market hours)
                 await self._generate_minute_bar()
                 
         except asyncio.CancelledError:
@@ -100,7 +105,7 @@ class MarketDataService(MarketDataServiceServicer):
     
     async def _wait_for_next_minute(self):
         """Wait until the next minute boundary (e.g., 10:31:00, 10:32:00, etc.)"""
-        now = datetime.now()
+        now = datetime.utcnow()
         
         # Calculate next minute boundary
         next_minute = (now.replace(second=0, microsecond=0) + timedelta(minutes=1))
@@ -109,26 +114,30 @@ class MarketDataService(MarketDataServiceServicer):
         wait_seconds = (next_minute - now).total_seconds()
         
         if wait_seconds > 0:
-            logger.debug(f"⏰ Waiting {wait_seconds:.2f} seconds until next minute: {next_minute.strftime('%H:%M:%S')}")
+            logger.debug(f"⏰ Waiting {wait_seconds:.2f} seconds until next minute: {next_minute.strftime('%H:%M:%S')} UTC")
             await asyncio.sleep(wait_seconds)
         
         # Log the minute bar timing
-        actual_time = datetime.now()
-        logger.info(f"🕐 Minute bar trigger at {actual_time.strftime('%H:%M:%S.%f')[:-3]}")
+        actual_time = datetime.utcnow()
+        logger.debug(f"🕐 Minute bar trigger at {actual_time.strftime('%H:%M:%S.%f')[:-3]} UTC")
     
     async def _generate_minute_bar(self):
-        """Generate and broadcast minute bar data"""
+        """Generate and broadcast minute bar data - always provides data based on exchange parameters"""
         try:
-            # Update controlled prices and generate data
+            # Update controlled prices and generate data (includes market hours logic)
             self.generator.update_prices()
             market_data = self.generator.get_market_data()
             
-            current_time = self.generator.get_current_time()
-            real_time = datetime.now()
+            utc_time = market_data['current_time']
+            market_time = market_data['market_time']
+            is_trading = market_data['is_trading_hours']
+            market_status = market_data['market_status']
+            is_weekend = market_data['is_weekend']
+            weekday = market_data['weekday']
             
-            # Save to PostgreSQL database
-            equity_saved = await self.db_manager.save_equity_data(market_data['equity'], current_time)
-            fx_saved = await self.db_manager.save_fx_data(market_data['fx'], current_time)
+            # Save to PostgreSQL database (always save - Kubernetes runs 24/7/365)
+            equity_saved = await self.db_manager.save_equity_data(market_data['equity'], utc_time)
+            fx_saved = await self.db_manager.save_fx_data(market_data['fx'], utc_time)
             
             if equity_saved and fx_saved:
                 self.database_saves += 1
@@ -137,31 +146,57 @@ class MarketDataService(MarketDataServiceServicer):
                 self.database_errors += 1
                 logger.error("❌ Failed to save minute bar to PostgreSQL")
             
-            # Broadcast to all subscribers
+            # Broadcast to all subscribers (always broadcast - data depends on exchange parameters)
             if self.subscribers:
                 await self._broadcast_market_data(market_data)
                 self.updates_sent += 1
             
+            # Update metrics
+            if is_trading:
+                self.market_hours_updates += 1
+            elif is_weekend:
+                self.weekend_updates += 1
+            else:
+                self.closed_hours_updates += 1
+            
             self.batch_count += 1
             
-            # Log minute bar generation
-            sim_time_str = current_time.strftime('%H:%M:%S')
-            real_time_str = real_time.strftime('%H:%M:%S')
+            # Log minute bar generation with comprehensive status
+            utc_time_str = utc_time.strftime('%H:%M:%S')
+            market_time_str = market_time.strftime('%H:%M:%S %Z')
             prices = [f"{eq['symbol']}=${eq['close']:.2f}" for eq in market_data['equity']]
             fx_rates = [f"{fx['from_currency']}/{fx['to_currency']}={fx['rate']:.4f}" for fx in market_data['fx']]
             
-            logger.info(f"📊 MINUTE BAR #{self.batch_count} | Sim: {sim_time_str} | Real: {real_time_str}")
-            logger.info(f"💰 Prices: {', '.join(prices)}")
+            status_emoji = {
+                'pre_market': '🌅',
+                'regular_hours': '📈', 
+                'after_hours': '🌆',
+                'closed_hours': '🌙',
+                'closed_weekend': '🏖️'
+            }.get(market_status, '❓')
+            
+            data_type = "LIVE" if is_trading else "LAST"
+            
+            logger.info(f"📊 {status_emoji} MINUTE BAR #{self.batch_count} ({market_status.upper()}) | {weekday} | UTC: {utc_time_str} | Market: {market_time_str}")
+            logger.info(f"💰 {data_type} Prices: {', '.join(prices)}")
             if fx_rates:
-                logger.info(f"💱 FX: {', '.join(fx_rates)}")
-            logger.info(f"💾 Saved to exch_us_equity schema")
+                logger.info(f"💱 {data_type} FX: {', '.join(fx_rates)}")
+            logger.info(f"💾 Saved to exch_us_equity schema | K8s: Always Running")
+            
+            if not is_trading:
+                reason = "Weekend" if is_weekend else "Closed Hours"
+                logger.debug(f"🔄 {reason} - providing last available market data")
             
         except Exception as e:
             logger.error(f"Error generating minute bar: {e}", exc_info=True)
     
     async def _broadcast_market_data(self, market_data):
-        """Broadcast minute bar data to all subscribers"""
-        logger.debug(f"📡 Broadcasting minute bar for {len(market_data['equity'])} symbols to {len(self.subscribers)} subscribers")
+        """Broadcast minute bar data to all subscribers - always broadcasts based on exchange parameters"""
+        is_trading = market_data['is_trading_hours']
+        market_status = market_data['market_status']
+        is_weekend = market_data['is_weekend']
+        
+        logger.debug(f"📡 Broadcasting {market_status} minute bar for {len(market_data['equity'])} symbols to {len(self.subscribers)} subscribers")
         
         # Convert equity data to gRPC format
         symbol_data_list = []
@@ -189,7 +224,8 @@ class MarketDataService(MarketDataServiceServicer):
         for client_id, context in self.subscribers.items():
             try:
                 await context.write(update)
-                logger.debug(f"✅ Sent minute bar to {client_id}")
+                data_type = "live" if is_trading else ("weekend last" if is_weekend else "last market")
+                logger.debug(f"✅ Sent {data_type} minute bar to {client_id}")
             except Exception as e:
                 logger.warning(f"⚠️ Failed to send minute bar to {client_id}: {e}")
                 dead_subscribers.append(client_id)
@@ -204,6 +240,7 @@ class MarketDataService(MarketDataServiceServicer):
     async def SubscribeMarketData(self, request, context):
         """
         Handle subscription request from an exchange simulator.
+        Always provides data - live during market hours, last available otherwise.
         """
         client_id = request.subscriber_id
         symbols = request.symbols
@@ -216,12 +253,15 @@ class MarketDataService(MarketDataServiceServicer):
         
         # Generate initial market data
         market_data = self.generator.get_market_data()
-        
+        is_trading = market_data['is_trading_hours']
+        market_status = market_data['market_status']
+        is_weekend = market_data['is_weekend']
+       
         # Filter for requested symbols if specified
         equity_data = market_data['equity']
         if symbols:
             equity_data = [eq for eq in equity_data if eq['symbol'] in symbols]
-        
+       
         # Convert to gRPC format
         symbol_data_list = []
         for eq in equity_data:
@@ -242,9 +282,10 @@ class MarketDataService(MarketDataServiceServicer):
             data=symbol_data_list
         )
         
-        # Send initial update
+        # Send initial update with market status info
         await context.write(initial_update)
-        logger.info(f"📤 Sent initial minute bar to {client_id}")
+        data_type = "live" if is_trading else ("weekend last" if is_weekend else "last market")
+        logger.info(f"📤 Sent initial {data_type} minute bar to {client_id} (market: {market_status})")
         
         # Keep the stream open until client disconnects or we shut down
         try:
@@ -262,9 +303,12 @@ class MarketDataService(MarketDataServiceServicer):
         return None
 
     def get_stats(self) -> Dict[str, Any]:
-        """Get service statistics"""
+        """Get service statistics including 24/7/365 operation info"""
         current_prices = self.generator.get_current_prices()
         current_fx_rates = self.generator.get_current_fx_rates()
+        is_trading, market_status = self.generator.get_market_status()
+        utc_time = self.generator.get_current_time()
+        market_time = self.generator.get_current_market_time()
         
         return {
             'batch_count': self.batch_count,
@@ -272,12 +316,28 @@ class MarketDataService(MarketDataServiceServicer):
             'database_saves': self.database_saves,
             'database_errors': self.database_errors,
             'subscribers_count': self.subscribers_count,
-            'current_time': self.generator.get_current_time().isoformat(),
-            'real_time': datetime.now().isoformat(),
+            'market_hours_updates': self.market_hours_updates,
+            'closed_hours_updates': self.closed_hours_updates,
+            'weekend_updates': self.weekend_updates,
+            'utc_time': utc_time.isoformat() + 'Z',
+            'market_time': market_time.strftime('%Y-%m-%d %H:%M:%S %Z'),
+            'market_status': market_status,
+            'is_trading_hours': is_trading,
+            'is_weekend': market_time.weekday() >= 5,
+            'weekday': market_time.strftime('%A'),
             'symbols': self.generator.get_symbols(),
             'fx_pairs': [f"{pair[0]}/{pair[1]}" for pair in self.generator.get_fx_pairs()],
             'current_prices': current_prices,
             'current_fx_rates': {f"{pair[0]}/{pair[1]}": rate for pair, rate in current_fx_rates.items()},
             'storage_type': 'PostgreSQL only',
-            'generation_type': 'Minute bar (real-time boundaries)'
+            'generation_type': '24/7/365 Kubernetes operation - always provides data',
+            'timezone': self.generator.timezone_name,
+            'data_policy': 'Live during market hours, last available otherwise',
+            'kubernetes_operation': 'Continuous 24/7/365',
+            'market_hours_config': {
+                'pre_market': f"{self.generator.pre_market_start_hour:02d}:{self.generator.pre_market_start_minute:02d}-{self.generator.market_open_hour:02d}:{self.generator.market_open_minute:02d}",
+                'regular': f"{self.generator.market_open_hour:02d}:{self.generator.market_open_minute:02d}-{self.generator.market_close_hour:02d}:{self.generator.market_close_minute:02d}",
+                'after_hours': f"{self.generator.market_close_hour:02d}:{self.generator.market_close_minute:02d}-{self.generator.after_hours_end_hour:02d}:{self.generator.after_hours_end_minute:02d}",
+                'timezone': self.generator.timezone_name
+            }
         }

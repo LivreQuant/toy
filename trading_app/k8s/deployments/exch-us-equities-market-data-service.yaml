@@ -1,0 +1,94 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: exch-us-equities-market-data
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: exch-us-equities-market-data
+  template:
+    metadata:
+      labels:
+        app: exch-us-equities-market-data
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "50061"  # Changed from 9090 to 50061
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: exch-us-equities-market-data
+          image: opentp/exch-us-equities-market-data-service:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 50060 # gRPC service port
+            - containerPort: 50061 # HTTP health check port
+          env:
+            - name: DB_HOST
+              value: pgbouncer
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              value: opentp
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: db-credentials
+                  key: username
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-credentials
+                  key: password
+            - name: API_HOST
+              value: "0.0.0.0"
+            - name: API_PORT
+              value: "50060"
+            - name: CONFIG_FILE  # New: Specify which JSON config to use
+              value: "test_0.json"
+            - name: LOG_LEVEL
+              value: "INFO"
+            # Removed SYMBOLS and UPDATE_INTERVAL - now configured via JSON
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"  # Increased for 24/7 operation
+              cpu: "300m"      # Increased for continuous processing
+          readinessProbe:
+            httpGet:
+              path: /kubernetes  # Use new Kubernetes-specific endpoint
+              port: 50061
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 50061
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+      initContainers:
+        - name: wait-for-db
+          image: postgres:13
+          command: ['sh', '-c', 'until pg_isready -h pgbouncer -p 5432; do echo waiting for database; sleep 2; done;']
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: exch-us-equities-market-data-service
+spec:
+  selector:
+    app: exch-us-equities-market-data-service
+  ports:
+    - port: 50060
+      targetPort: 50060
+      name: grpc
+    - port: 50061
+      targetPort: 50061
+      name: http
+  type: ClusterIP

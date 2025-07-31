@@ -26,11 +26,11 @@ ENV PYTHONUNBUFFERED=1 \
     API_HOST="0.0.0.0" \
     API_PORT="50060" \
     # Database Configuration
-    DB_HOST="pgbouncer" \
+    DB_HOST="postgres" \
     DB_PORT="5432" \
-    DB_NAME="exch_us_equity" \
-    DB_USER="postgres" \
-    DB_PASSWORD="postgres" \
+    DB_NAME="opentp" \
+    DB_USER="opentp" \
+    DB_PASSWORD="samaral" \
     # Logging Configuration
     LOG_LEVEL="INFO"
 

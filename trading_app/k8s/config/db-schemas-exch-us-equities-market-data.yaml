@@ -1,0 +1,55 @@
+# k8s/config/db-schemas-exch-us-equities-market-data.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: db-schemas-exch-us-equities-market-data
+data:
+  exch-us-equities-market-data.sql: |
+    -- OpenTP Exchange Service Database Schema - Market Data Tables
+
+    CREATE SCHEMA IF NOT EXISTS exch_us_equity;
+
+    -- =====================================================================================
+    -- EQUITY DATA TABLE
+    -- =====================================================================================
+    CREATE TABLE IF NOT EXISTS exch_us_equity.equity_data (
+      timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
+      symbol VARCHAR(20) NOT NULL,
+      currency VARCHAR(3) NOT NULL,
+      open DECIMAL(12,4) NOT NULL,
+      high DECIMAL(12,4) NOT NULL,
+      low DECIMAL(12,4) NOT NULL,
+      close DECIMAL(12,4) NOT NULL,
+      vwap DECIMAL(12,4) NOT NULL,
+      vwas DECIMAL(12,4) NOT NULL,
+      vwav DECIMAL(12,4) NOT NULL,
+      volume BIGINT NOT NULL,
+      count INTEGER NOT NULL
+    );
+
+    CREATE INDEX idx_equity_data_timestamp ON exch_us_equity.equity_data(timestamp);
+    CREATE INDEX idx_equity_data_symbol ON exch_us_equity.equity_data(symbol);
+    CREATE UNIQUE INDEX idx_equity_data_unique ON exch_us_equity.equity_data(timestamp, symbol);
+
+    -- =====================================================================================
+    -- FX DATA TABLE
+    -- =====================================================================================
+    CREATE TABLE IF NOT EXISTS exch_us_equity.fx_data (
+      timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
+      from_currency VARCHAR(3) NOT NULL,
+      to_currency VARCHAR(3) NOT NULL,
+      rate DECIMAL(12,6) NOT NULL
+    );
+
+    CREATE INDEX idx_fx_data_timestamp ON exch_us_equity.fx_data(timestamp);
+    CREATE INDEX idx_fx_data_currencies ON exch_us_equity.fx_data(from_currency, to_currency);
+    CREATE UNIQUE INDEX idx_fx_data_unique ON exch_us_equity.fx_data(timestamp, from_currency, to_currency);
+
+    -- =====================================================================================
+    -- GRANT PERMISSIONS
+    -- =====================================================================================
+    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA exch_us_equity TO opentp;
+    GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA exch_us_equity TO opentp;
+
+    -- Print success message
+    SELECT 'Global data schema created successfully!' as status;

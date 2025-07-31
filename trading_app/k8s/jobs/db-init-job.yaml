@@ -23,6 +23,9 @@ spec:
             ls -la /schemas-fund/ || echo "No schemas-fund directory" 
             ls -la /schemas-crypto/ || echo "No schemas-crypto directory"
             ls -la /schemas-conv/ || echo "No schemas-conv directory"
+            ls -la /schemas-exch-us-equities-market-data/ || echo "No schemas-exch-us-equities-market-data directory"
+            ls -la /schemas-exch-us-equities-global-data/ || echo "No schemas-exch-us-equities-global-data directory"
+            ls -la /schemas-exch-us-equities-user-data/ || echo "No schemas-exch-us-equities-user-data directory"
             ls -la /schemas/ || echo "No schemas directory"
             
             # Wait for database to be fully ready
@@ -115,6 +118,48 @@ spec:
                 echo "WARNING: File /schemas-conv/$schema not found"
               fi
             done
+
+            echo "Applying exch-us-equities market schema files..."
+            for schema in exch-us-equities-market-data.sql; do
+              echo "Applying $schema..."
+              if [ -f "/schemas-exch-us-equities-market-data/$schema" ]; then
+                PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -f /schemas-exch-us-equities-market-data/$schema
+                if [ $? -ne 0 ]; then
+                  echo "Error applying $schema"
+                  exit 1
+                fi
+              else
+                echo "WARNING: File /schemas-exch-us-equities-market-data/$schema not found"
+              fi
+            done
+
+            echo "Applying exch-us-equities global schema files..."
+            for schema in exch-us-equities-global-data.sql; do
+              echo "Applying $schema..."
+              if [ -f "/schemas-exch-us-equities-global-data/$schema" ]; then
+                PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -f /schemas-exch-us-equities-global-data/$schema
+                if [ $? -ne 0 ]; then
+                  echo "Error applying $schema"
+                  exit 1
+                fi
+              else
+                echo "WARNING: File /schemas-exch-us-equities-global-data/$schema not found"
+              fi
+            done
+
+            echo "Applying exch-us-equities user schema files..."
+            for schema in exch-us-equities-user-data.sql; do
+              echo "Applying $schema..."
+              if [ -f "/schemas-exch-us-equities-user-data/$schema" ]; then
+                PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -f /schemas-exch-us-equities-user-data/$schema
+                if [ $? -ne 0 ]; then
+                  echo "Error applying $schema"
+                  exit 1
+                fi
+              else
+                echo "WARNING: File /schemas-exch-us-equities-user-data/$schema not found"
+              fi
+            done
             
             # Verify the function exists
             echo "Verifying session.cleanup_expired_sessions exists..."
@@ -149,6 +194,12 @@ spec:
           mountPath: /schemas-crypto
         - name: db-schemas-conv
           mountPath: /schemas-conv
+        - name: db-schemas-exch-us-equities-market-data
+          mountPath: /schemas-exch-us-equities-market-data
+        - name: db-schemas-exch-us-equities-global-data
+          mountPath: /schemas-exch-us-equities-global-data
+        - name: db-schemas-exch-us-equities-user-data
+          mountPath: /schemas-exch-us-equities-user-data
         - name: db-credentials
           mountPath: /db-credentials
           readOnly: true
@@ -168,6 +219,15 @@ spec:
       - name: db-schemas-conv
         configMap:
           name: db-schemas-conv
+      - name: db-schemas-exch-us-equities-market-data
+        configMap:
+          name: db-schemas-exch-us-equities-market-data
+      - name: db-schemas-exch-us-equities-global-data
+        configMap:
+          name: db-schemas-exch-us-equities-global-data
+      - name: db-schemas-exch-us-equities-user-data
+        configMap:
+          name: db-schemas-exch-us-equities-user-data
       - name: db-credentials
         secret:
           secretName: db-credentials

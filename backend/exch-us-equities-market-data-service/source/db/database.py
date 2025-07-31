@@ -108,12 +108,19 @@ class DatabaseManager:
             self.pool = None
             logger.info("Closed database connections")
 
+    def _truncate_to_minute(self, dt: datetime) -> datetime:
+        """Truncate datetime to exact minute boundary (remove seconds and microseconds)"""
+        return dt.replace(second=0, microsecond=0)
+
     async def save_equity_data(self, equity_data: List[Dict[str, Any]], timestamp: datetime):
-        """Save equity data to the exch_us_equity.equity_data table"""
+        """Save equity data to the exch_us_equity.equity_data table with exact minute timestamps"""
         if not self.pool:
             logger.error("Cannot save equity data: database not connected")
             return False
             
+        # Truncate timestamp to exact minute
+        exact_minute_timestamp = self._truncate_to_minute(timestamp)
+        
         try:
             async with self.pool.acquire() as conn:
                 async with conn.transaction():
@@ -137,7 +144,7 @@ class DatabaseManager:
                     records = [
                         (
                             uuid.uuid4(),
-                            timestamp,
+                            exact_minute_timestamp,  # Use truncated timestamp
                             eq['symbol'],
                             eq['currency'],
                             float(eq['open']),
@@ -155,7 +162,7 @@ class DatabaseManager:
                     
                     await stmt.executemany(records)
                     
-                logger.info(f"Saved {len(equity_data)} equity records to database")
+                logger.info(f"Saved {len(equity_data)} equity records to database with exact minute timestamp: {exact_minute_timestamp}")
                 return True
                 
         except Exception as e:
@@ -163,11 +170,14 @@ class DatabaseManager:
             return False
 
     async def save_fx_data(self, fx_data: List[Dict[str, Any]], timestamp: datetime):
-        """Save FX data to the exch_us_equity.fx_data table"""
+        """Save FX data to the exch_us_equity.fx_data table with exact minute timestamps"""
         if not self.pool:
             logger.error("Cannot save FX data: database not connected")
             return False
             
+        # Truncate timestamp to exact minute
+        exact_minute_timestamp = self._truncate_to_minute(timestamp)
+        
         try:
             async with self.pool.acquire() as conn:
                 async with conn.transaction():
@@ -182,7 +192,7 @@ class DatabaseManager:
                     records = [
                         (
                             uuid.uuid4(),
-                            timestamp,
+                            exact_minute_timestamp,  # Use truncated timestamp
                             fx['from_currency'],
                             fx['to_currency'],
                             float(fx['rate'])
@@ -192,7 +202,7 @@ class DatabaseManager:
                     
                     await stmt.executemany(records)
                     
-                logger.info(f"Saved {len(fx_data)} FX records to database")
+                logger.info(f"Saved {len(fx_data)} FX records to database with exact minute timestamp: {exact_minute_timestamp}")
                 return True
                 
         except Exception as e:
