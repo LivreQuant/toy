@@ -1,0 +1,221 @@
+# source/conviction_engine/alpha_engines/target_weight/params.yaml
+
+# Engine metadata
+engine:
+  name: "target_weight_engine"
+  version: "1.0.0"
+  description: "Target portfolio weight engine with minimal optimization"
+
+# Alpha processing configuration
+alpha_processor:
+  validation:
+    max_individual_weight: 1.0
+    min_position_size: 0.001
+    max_total_gross_exposure: 2.0
+    max_leverage_deviation: 0.05
+    require_urgency: true
+    valid_urgency_levels: ["HIGH", "MEDIUM", "LOW"]
+
+  signal_processing:
+    allow_duplicate_symbols: false
+    duplicate_action: "use_last"  # Options: "use_last", "use_first", "error"
+    filter_tiny_positions: true
+
+  logging:
+    log_level: "INFO"
+    log_validation_issues: true
+    log_filtered_positions: true
+
+# Operational constraints configuration
+constraint_manager:
+  operational:
+    aum: 100000000  # $100M
+    target_leverage: 1.0
+    max_position_size: 0.10
+    max_sector_exposure: 0.30
+    max_days_to_liquidate: 5
+
+  constraints:
+    enable_position_limits: true
+    enable_sector_limits: false
+    enable_liquidity_limits: true
+    enable_concentration_limits: false
+
+  liquidity:
+    max_adv_participation: 0.05
+    min_market_cap: 1000000000
+    min_daily_volume_usd: 10000000
+
+  position_sizing:
+    method: "fixed_limit"  # Options: "fixed_limit", "risk_parity", "volatility_scaled"
+
+# Risk management configuration
+risk_manager:
+  firm_risk:
+    max_single_position: 0.05
+    enable_firm_limits: true
+
+  sector_limits:
+    enable: false
+    technology: 0.40
+    financials: 0.30
+    healthcare: 0.25
+    energy: 0.15
+    utilities: 0.10
+    consumer_discretionary: 0.35
+    consumer_staples: 0.20
+    industrials: 0.25
+    materials: 0.15
+    real_estate: 0.10
+    communication_services: 0.30
+
+  concentration_limits:
+    enable: false
+    max_single_issuer: 0.05
+    max_single_country: 0.60
+    max_currency_exposure: 0.80
+
+  factor_limits:
+    enable: false
+    max_beta_exposure: 0.20
+    max_momentum_exposure: 0.15
+    max_value_exposure: 0.15
+    max_quality_exposure: 0.15
+    max_size_exposure: 0.10
+
+  risk_model:
+    type: "statistical"  # Options: "statistical", "fama_french", "barra", "custom"
+    correlation_matrix: "uniform"  # Options: "uniform", "historical", "factor_based"
+    uniform_correlation: 0.30
+    volatility_estimation: "historical"  # Options: "historical", "ewma", "garch"
+    estimation_window_days: 252
+
+# Solver configuration
+solver:
+  method: "analytical"  # Options: "analytical", "quadratic_programming", "linear_programming"
+
+  leverage_normalization:
+    enable: true
+    tolerance: 0.001
+    method: "proportional"  # Options: "proportional", "optimization"
+
+  position_cleanup:
+    enable: true
+    min_position_threshold: 0.001
+    rounding_decimals: 6
+
+  optimization:
+    solver_type: "osqp"  # Options: "osqp", "cvxpy", "scipy"
+    max_iterations: 1000
+    tolerance: 1e-6
+
+# Order generation configuration
+order_generator:
+  execution:
+    order_type: "VWAP_A_ALGO"
+    min_trade_size: 10000
+    enable_dynamic_participation: true
+    max_market_impact_bps: 50
+
+  urgency_parameters:
+    HIGH:
+      participation_rate: 0.30
+      max_duration_hours: 4
+      priority: 1
+      market_impact_tolerance: 100  # bps
+    MEDIUM:
+      participation_rate: 0.15
+      max_duration_hours: 8
+      priority: 2
+      market_impact_tolerance: 50   # bps
+    LOW:
+      participation_rate: 0.05
+      max_duration_hours: 24
+      priority: 3
+      market_impact_tolerance: 25   # bps
+
+  order_sizing:
+    method: "fixed_participation"  # Options: "fixed_participation", "arrival_price", "implementation_shortfall"
+    chunk_size_method: "time_based"  # Options: "time_based", "volume_based", "adaptive"
+
+  execution_schedule:
+    start_immediately: true
+    market_hours_only: true
+    avoid_close_auction: true
+    avoid_open_auction: false
+
+# Attribution and reporting configuration
+attribution:
+  enable_constraint_attribution: true
+  enable_performance_attribution: true
+  track_implementation_efficiency: true
+
+  metrics:
+    calculate_similarity: true
+    similarity_method: "manhattan"  # Options: "manhattan", "euclidean", "correlation"
+    track_turnover: true
+    track_exposure_changes: true
+
+  alerts:
+    large_constraint_impact_threshold: 0.02
+    low_implementation_efficiency_threshold: 0.90
+    high_turnover_threshold: 0.20
+    enable_email_alerts: false
+    enable_log_alerts: true
+
+# Market data configuration
+market_data:
+  required_fields:
+    - "price"
+    - "volume"
+    - "market_cap"
+
+  optional_fields:
+    - "sector"
+    - "industry"
+    - "country"
+    - "currency"
+    - "avg_daily_volume_usd"
+    - "volatility"
+    - "beta"
+
+  data_validation:
+    require_prices: true
+    require_volumes: true
+    min_market_cap: 100000000
+    max_price_change_pct: 0.50  # 50% max daily change
+
+  missing_data_handling:
+    price_missing_action: "error"  # Options: "error", "skip", "use_previous"
+    volume_missing_action: "skip"
+    sector_missing_action: "default"
+    default_sector: "Unknown"
+
+# Logging and monitoring
+logging:
+  level: "INFO"  # Options: "DEBUG", "INFO", "WARNING", "ERROR"
+  enable_performance_logging: true
+  enable_constraint_logging: true
+  enable_order_logging: true
+
+  log_format: "detailed"  # Options: "simple", "detailed", "json"
+  log_timestamps: true
+  log_component_names: true
+
+# Testing and validation
+testing:
+  enable_backtesting_mode: false
+  validate_inputs: true
+  validate_outputs: true
+  dry_run_mode: false
+
+  performance_benchmarks:
+    max_processing_time_ms: 1000
+    max_memory_usage_mb: 500
+
+# Feature flags
+features:
+  enable_experimental_features: false
+  enable_advanced_risk_models: false
+  enable_machine_learning_sizing: false
+  enable_real_time_risk_monitoring: false

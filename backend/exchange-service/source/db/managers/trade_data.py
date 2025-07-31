@@ -1,0 +1,118 @@
+# source/db/managers/trade_data.py
+from typing import Dict, List
+from datetime import datetime
+from decimal import Decimal
+from source.db.managers.base_manager import BaseTableManager
+
+
+class TradeDataManager(BaseTableManager):
+    """Manager for trade data table operations"""
+
+    async def load_user_data(self, user_id: str, timestamp_str: str) -> List[Dict]:
+        """Load user trades data from PostgreSQL using normalized schema"""
+        await self.ensure_connection()
+
+        try:
+            async with self.pool.acquire() as conn:
+                # Query the normalized trade_data table
+                query = """
+                    SELECT trade_pk, user_id, start_timestamp, end_timestamp, trade_id,
+                           order_id, cl_order_id, symbol, side, currency, price,
+                           quantity, detail
+                    FROM exch_us_equity.trade_data 
+                    WHERE user_id = $1 AND DATE(end_timestamp) = DATE($2::timestamp)
+                    ORDER BY end_timestamp DESC
+                """
+
+                # Parse timestamp string to get the date
+                try:
+                    timestamp_date = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+                except ValueError:
+                    timestamp_date = datetime.strptime(timestamp_str[:10], '%Y-%m-%d')
+
+                rows = await conn.fetch(query, user_id, timestamp_date)
+
+                trades_data = []
+                for row in rows:
+                    trades_data.append({
+                        'trade_pk': str(row['trade_pk']),
+                        'user_id': row['user_id'],
+                        'start_timestamp': row['start_timestamp'],
+                        'end_timestamp': row['end_timestamp'],
+                        'trade_id': row['trade_id'],
+                        'order_id': row['order_id'],
+                        'cl_order_id': row['cl_order_id'],
+                        'symbol': row['symbol'],
+                        'side': row['side'],
+                        'currency': row['currency'],
+                        'price': float(row['price']),
+                        'quantity': float(row['quantity']),
+                        'detail': row['detail']
+                    })
+
+                self.logger.info(f"✅ Loaded trades data for {user_id}: {len(trades_data)} trades")
+                return trades_data
+
+        except Exception as e:
+            self.logger.error(f"❌ Error loading trades data for {user_id}: {e}")
+            import traceback
+            self.logger.error(f"❌ Full traceback: {traceback.format_exc()}")
+            return []
+
+    async def insert_simulation_data(self, data: List[Dict], user_id: str, timestamp: datetime) -> int:
+        """Insert trade simulation data into normalized table"""
+        await self.ensure_connection()
+
+        if not data:
+            return 0
+
+        try:
+            async with self.pool.acquire() as conn:
+                # Insert into normalized trade_data table
+                query = """
+                    INSERT INTO exch_us_equity.trade_data (
+                        trade_pk, user_id, start_timestamp, end_timestamp, trade_id,
+                        order_id, cl_order_id, symbol, side, currency, price,
+                        quantity, detail
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+                    ON CONFLICT (user_id, end_timestamp, trade_id) DO UPDATE SET
+                        start_timestamp = EXCLUDED.start_timestamp,
+                        order_id = EXCLUDED.order_id,
+                        cl_order_id = EXCLUDED.cl_order_id,
+                        symbol = EXCLUDED.symbol,
+                        side = EXCLUDED.side,
+                        currency = EXCLUDED.currency,
+                        price = EXCLUDED.price,
+                        quantity = EXCLUDED.quantity,
+                        detail = EXCLUDED.detail
+                """
+
+                import uuid
+                records = []
+                for record in data:
+                    records.append((
+                        uuid.uuid4(),
+                        user_id,
+                        record.get('start_timestamp', timestamp),
+                        record.get('end_timestamp', timestamp),
+                        record.get('trade_id', f"TRADE_{uuid.uuid4().hex[:8]}"),
+                        record.get('order_id', ''),
+                        record.get('cl_order_id', ''),
+                        record['symbol'],
+                        record.get('side', 'BUY'),
+                        record.get('currency', 'USD'),
+                        Decimal(str(record.get('price', 0))),
+                        Decimal(str(record.get('quantity', 0))),
+                        record.get('detail', '')
+                    ))
+
+                await conn.executemany(query, records)
+
+                self.logger.info(f"✅ Inserted {len(records)} trade records for {user_id}")
+                return len(records)
+
+        except Exception as e:
+            self.logger.error(f"❌ Error inserting trade simulation data: {e}")
+            import traceback
+            self.logger.error(f"❌ Full traceback: {traceback.format_exc()}")
+            return 0

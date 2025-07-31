@@ -1,0 +1,102 @@
+# source/db/managers/impact_data.py
+from typing import Dict, List
+from datetime import datetime
+from decimal import Decimal
+from source.simulation.managers.impact import ImpactState
+from source.db.managers.base_manager import BaseTableManager
+
+
+class ImpactDataManager(BaseTableManager):
+    """Manager for impact data table"""
+
+    async def load_user_data(self, user_id: str, timestamp_str: str) -> Dict[str, ImpactState]:
+        """Load user impact data from PostgreSQL"""
+        await self.ensure_connection()
+
+        try:
+            async with self.pool.acquire() as conn:
+                query = """
+                    SELECT impact_id, user_id, timestamp, symbol, trade_id, previous_impact,
+                           current_impact, currency, base_price, impacted_price, cumulative_volume,
+                           trade_volume, start_timestamp, end_timestamp, impact_type
+                    FROM exch_us_equity.impact_data 
+                    WHERE user_id = $1 AND timestamp::text LIKE $2
+                """
+
+                rows = await conn.fetch(query, user_id, f"{timestamp_str}%")
+
+                impact_data = {}
+                for row in rows:
+                    symbol = row['symbol']
+                    impact_data[symbol] = ImpactState(
+                        symbol=symbol,
+                        previous_impact=float(row['previous_impact']),
+                        current_impact=float(row['current_impact']),
+                        currency=row['currency'],
+                        base_price=float(row['base_price']),
+                        impacted_price=float(row['impacted_price']),
+                        cumulative_volume=float(row['cumulative_volume']),
+                        trade_volume=float(row['trade_volume']),
+                        start_timestamp=row['start_timestamp'],
+                        end_timestamp=row['end_timestamp'],
+                        impact_type=row['impact_type']
+                    )
+
+                self.logger.info(f"✅ Loaded impact data for {user_id}: {len(impact_data)} symbols")
+                return impact_data
+
+        except Exception as e:
+            self.logger.error(f"❌ Error loading impact data for {user_id}: {e}")
+            return {}
+
+    async def insert_simulation_data(self, data: List[Dict], user_id: str, timestamp: datetime) -> int:
+        """Insert impact simulation data"""
+        await self.ensure_connection()
+
+        if not data:
+            return 0
+
+        try:
+            async with self.pool.acquire() as conn:
+                query = """
+                    INSERT INTO exch_us_equity.impact_data (
+                        impact_id, user_id, timestamp, symbol, trade_id, previous_impact,
+                        current_impact, currency, base_price, impacted_price, cumulative_volume,
+                        trade_volume, start_timestamp, end_timestamp, impact_type
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+                """
+
+                import uuid
+                records = []
+                for record in data:
+                    if record.get('previous_impact', 0) == 0 and record.get('current_impact', 0) == 0:
+                        continue
+                    records.append((
+                        uuid.uuid4(),
+                        user_id,
+                        timestamp,
+                        record['symbol'],
+                        record.get('trade_id', ''),
+                        Decimal(str(record.get('previous_impact', 0))),
+                        Decimal(str(record.get('current_impact', 0))),
+                        record.get('currency', 'USD'),
+                        Decimal(str(record.get('base_price', 0))),
+                        Decimal(str(record.get('impacted_price', 0))),
+                        Decimal(str(record.get('cumulative_volume', 0))),
+                        Decimal(str(record.get('trade_volume', 0))),
+                        datetime.fromisoformat(record.get('start_timestamp')) if record.get('start_timestamp') else None,
+                        datetime.fromisoformat(record.get('end_timestamp')) if record.get('end_timestamp') else None,
+                        record.get('impact_type', '')
+                    ))
+
+                if not records:
+                    return 0
+
+                await conn.executemany(query, records)
+
+                self.logger.info(f"✅ Inserted {len(records)} impact records for {user_id}")
+                return len(records)
+
+        except Exception as e:
+            self.logger.error(f"❌ Error inserting impact data: {e}")
+            return 0

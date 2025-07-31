@@ -1,76 +1,101 @@
-# source/config.py (updated)
+# source/config.py
 import os
-from pydantic import BaseModel, Field
+from dataclasses import dataclass
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 
-class SimulatorConfig(BaseModel):
-    user_id: str = Field(default=os.getenv('USER_ID', 'test'))
-    desk_id: str = Field(default=os.getenv('DESK_ID', 'test'))
-    default_symbols: list = Field(default=['AAPL', 'GOOGL', 'MSFT', 'AMZN'])
+@dataclass
+class DatabaseConfig:
+    """Database configuration"""
+    host: str
+    port: int
+    database: str
+    user: str
+    password: str
+    min_connections: int
+    max_connections: int
+
+    @property
+    def connection_string(self) -> str:
+        return f"postgresql://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}"
 
 
-class ServerConfig(BaseModel):
-    host: str = Field(default="0.0.0.0")
-    grpc_port: int = Field(default=50055)
-    http_port: int = Field(default=50056)
+class Config:
+    """Application configuration."""
 
+    def __init__(self):
+        self.environment = os.getenv('ENVIRONMENT', 'development')
 
-class MetricsConfig(BaseModel):
-    enabled: bool = Field(default=True)
-    port: int = Field(default=9090)
+        # FORCE the data directory to be relative to project root, not source/
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        self.data_directory = os.path.join(project_root, 'data')
 
+        self.log_level = os.getenv('LOG_LEVEL', 'INFO')
 
-class TracingConfig(BaseModel):
-    enabled: bool = Field(default=True)
-    service_name: str = Field(default="exchange-simulator")
-    otlp_endpoint: str = Field(default="http://jaeger-collector:4317")  # Updated to OTLP
+        # Database configuration
+        self.database = self._get_database_config()
 
+        # SIMPLE RULE: Production = Database, Development = Files
+        if self.is_production:
+            self.use_database_storage = True
+        else:
+            self.use_database_storage = False
 
-class DatabaseConfig(BaseModel):
-    host: str = Field(default=os.getenv('DB_HOST', 'postgres'))
-    port: int = Field(default=int(os.getenv('DB_PORT', '5432')))
-    database: str = Field(default=os.getenv('DB_NAME', 'opentp'))
-    user: str = Field(default=os.getenv('DB_USER', 'opentp'))
-    password: str = Field(default=os.getenv('DB_PASSWORD', 'samaral'))
-    min_connections: int = Field(default=1)
-    max_connections: int = Field(default=5)
+        # Log the configuration
+        print(f"🔧 Environment: {self.environment}")
+        print(f"🔧 Storage: {'DATABASE' if self.use_database_storage else 'FILES'}")
 
+        # Rest of config...
+        self.rest_port = int(os.getenv('REST_PORT', '8001'))
+        self.host = os.getenv('HOST', '0.0.0.0')
+        self.auth_service_url = os.getenv('AUTH_SERVICE_URL', 'http://auth-service:8000')
+        self.request_timeout = int(os.getenv('REQUEST_TIMEOUT', '30'))
+        self.enable_metrics = os.getenv('ENABLE_METRICS', 'true').lower() == 'true'
+        self.enable_tracing = os.getenv('ENABLE_TRACING', 'true').lower() == 'true'
 
-class MarketDataConfig(BaseModel):
-    service_url: str = Field(default=os.getenv('MARKET_DATA_SERVICE_URL', 'market-data-service:50060'))
+        self.algod_token = os.getenv('ALGOD_TOKEN', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')
+        self.algod_server = os.getenv('ALGOD_SERVER', 'http://localhost')
+        self.algod_port = os.getenv('ALGOD_PORT', '4001')
+        self.indexer_token = os.getenv('INDEXER_TOKEN', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')
+        self.indexer_server = os.getenv('INDEXER_SERVER', 'http://localhost')
+        self.indexer_port = os.getenv('INDEXER_PORT', '8980')
+        self.admin_mnemonic = os.getenv('ADMIN_MNEMONIC')
+        self.secret_pass_phrase = os.getenv('SECRET_PASS_PHRASE')
+        self.encrypt_wallets = True if self.secret_pass_phrase else False
+        self.encrypt_private_keys = True if self.secret_pass_phrase else False
+        self.default_funding_amount = 1_000_000
+        self.default_params_str = "region:NA|asset_class:EQUITIES|instrument_class:STOCKS"
 
-
-class ConvictionExchangeConfig(BaseModel):  # Renamed from OrderExchangeConfig
-    service_url: str = Field(default=os.getenv('CONVICTION_EXCHANGE_SERVICE_URL', 'conviction-exchange-service:50057'))
-
-
-class Config(BaseModel):
-    simulator: SimulatorConfig = Field(default_factory=SimulatorConfig)
-    server: ServerConfig = Field(default_factory=ServerConfig)
-    metrics: MetricsConfig = Field(default_factory=MetricsConfig)
-    tracing: TracingConfig = Field(default_factory=TracingConfig)
-    db: DatabaseConfig = Field(default_factory=DatabaseConfig)
-    market_data: MarketDataConfig = Field(default_factory=MarketDataConfig)
-    conviction_exchange: ConvictionExchangeConfig = Field(default_factory=ConvictionExchangeConfig)  # Updated
-    # Backward compatibility
-    order_exchange: ConvictionExchangeConfig = Field(default_factory=ConvictionExchangeConfig)
-    log_level: str = Field(default="INFO")
-    environment: str = Field(default="development")
-
-    @classmethod
-    def from_env(cls):
-        return cls(
-            log_level=os.getenv('LOG_LEVEL', 'INFO'),
-            environment=os.getenv('ENVIRONMENT', 'development'),
-            db=DatabaseConfig(),
-            market_data=MarketDataConfig(),
-            conviction_exchange=ConvictionExchangeConfig(),
-            tracing=TracingConfig(
-                enabled=os.getenv('ENABLE_TRACING', 'true').lower() == 'true',
-                otlp_endpoint=os.getenv('OTEL_EXPORTER_OTLP_ENDPOINT', 'http://jaeger-collector:4317'),
-                service_name=os.getenv('OTEL_SERVICE_NAME', 'exchange-simulator')
-            )
+    def _get_database_config(self) -> DatabaseConfig:
+        """Get database configuration"""
+        return DatabaseConfig(
+            host=os.getenv('DB_HOST', 'localhost'),
+            port=int(os.getenv('DB_PORT', '5432')),
+            database=os.getenv('DB_NAME', 'opentp'),
+            user=os.getenv('DB_USER', 'opentp'),
+            password=os.getenv('DB_PASSWORD', 'samaral'),
+            min_connections=int(os.getenv('DB_MIN_CONNECTIONS', '5')),
+            max_connections=int(os.getenv('DB_MAX_CONNECTIONS', '20'))
         )
 
+    @property
+    def db_connection_string(self) -> str:
+        """Get database connection string for backward compatibility"""
+        return self.database.connection_string
 
-config = Config.from_env()
+    @property
+    def is_development(self) -> bool:
+        """Check if running in development environment"""
+        return self.environment.lower() == 'development'
+
+    @property
+    def is_production(self) -> bool:
+        """Check if running in production environment"""
+        return self.environment.lower() == 'production'
+
+
+# Global configuration instance
+app_config = Config()

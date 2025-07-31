@@ -1,4 +1,4 @@
-# source/main.py
+# source/main.py (updated to remove update_interval parameter)
 import asyncio
 import logging
 import signal
@@ -16,7 +16,7 @@ from source.service.health import HealthService
 
 async def shutdown(service, server, health_service):
     """Gracefully shut down all services"""
-    logging.info("Shutting down market data service...")
+    logging.info("🛑 Shutting down minute bar market data service...")
     
     # Stop the service first
     if service:
@@ -30,18 +30,27 @@ async def shutdown(service, server, health_service):
     if server:
         await server.stop(5)  # 5 seconds grace period
     
-    logging.info("Shutdown complete")
+    logging.info("✅ Shutdown complete")
 
 async def main():
-    """Main entry point for the controlled market data service"""
+    """Main entry point for the minute bar market data service"""
     # Setup logging
     logger = setup_logging()
-    logger.info("Starting controlled market data service")
+    logger.info("🚀 Starting minute bar market data service")
+    
+    service = None
+    server = None
+    health_service = None
     
     try:
         # Load market configuration from JSON
         market_config = config.load_market_config()
-        logger.info(f"Loaded market config: {market_config['config_name']}")
+        logger.info(f"📋 Loaded market config: {market_config['config_name']}")
+        logger.info(f"🌍 Market timezone: {market_config.get('timezone', 'UTC')}")
+        logger.info(f"📈 Tracking {len(market_config['equity'])} equity symbols")
+        logger.info(f"💱 Tracking {len(market_config['fx'])} FX pairs")
+        logger.info(f"💾 Storage: PostgreSQL only (exch_us_equity schema)")
+        logger.info(f"🕐 Generation: Automatic minute bars at real-time boundaries")
         
         # Create the controlled market data generator
         generator = ControlledMarketDataGenerator(market_config)
@@ -49,15 +58,14 @@ async def main():
         # Create database manager
         db_manager = DatabaseManager()
         
-        # Create the service with configurable update interval
-        update_interval = market_config.get("time_increment_minutes", 1) * 60  # Convert to seconds
+        # Create the service (no update_interval needed - uses minute boundaries)
         service = MarketDataService(
             generator=generator,
-            db_manager=db_manager,
-            update_interval=update_interval
+            db_manager=db_manager
         )
-                
-        health_service = HealthService(http_port=50061)
+        
+        # Create health service with reference to market data service        
+        health_service = HealthService(market_data_service=service, http_port=50061)
         await health_service.setup()
 
         # Create gRPC server
@@ -69,9 +77,11 @@ async def main():
         server.add_insecure_port(server_addr)
         await server.start()
         
-        logger.info(f"Controlled market data server started on {server_addr}")
-        logger.info(f"Market timezone: {market_config.get('timezone', 'UTC')}")
-        logger.info(f"Update interval: {update_interval} seconds")
+        logger.info(f"✅ Minute bar market data server started on {server_addr}")
+        logger.info(f"🏥 Health check server started on http://0.0.0.0:50061")
+        logger.info(f"⏰ Minute bars will generate at: XX:XX:00 (every minute boundary)")
+        logger.info(f"💾 Database: {config.db.host}:{config.db.port}/{config.db.database}")
+        logger.info(f"📊 Tables: exch_us_equity.equity_data, exch_us_equity.fx_data")
         
         # Set up shutdown handler
         loop = asyncio.get_running_loop()
@@ -85,17 +95,21 @@ async def main():
         # Start the service
         await service.start()
         
+        logger.info("🎯 Minute bar market data service is ready")
+        logger.info("📡 Exchange simulators can now subscribe to receive minute bars")
+        logger.info("💾 All minute bar data will be stored in PostgreSQL exch_us_equity schema")
+        logger.info("⏰ Next minute bar will generate at the next minute boundary")
+        
         # Keep the server running
         await server.wait_for_termination()
         
     except KeyboardInterrupt:
-        logger.info("Interrupted by user")
+        logger.info("🛑 Interrupted by user")
     except Exception as e:
-        logger.error(f"Unhandled exception: {e}", exc_info=True)
+        logger.error(f"💥 Unhandled exception: {e}", exc_info=True)
+        sys.exit(1)
     finally:
-        await shutdown(service if 'service' in locals() else None, 
-                       server if 'server' in locals() else None, 
-                       health_service if 'health_service' in locals() else None)
+        await shutdown(service, server, health_service)
 
 if __name__ == "__main__":
     asyncio.run(main())
