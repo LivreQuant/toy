@@ -2,25 +2,47 @@
 import os
 from dataclasses import dataclass
 from dotenv import load_dotenv
+from pydantic import BaseModel, Field
 
 # Load environment variables
 load_dotenv()
 
+class ServerConfig(BaseModel):
+    host: str = Field(default="0.0.0.0")
+    grpc_port: int = Field(default=50055)
+    http_port: int = Field(default=50056)
 
-@dataclass
-class DatabaseConfig:
-    """Database configuration"""
-    host: str
-    port: int
-    database: str
-    user: str
-    password: str
-    min_connections: int
-    max_connections: int
+
+class MetricsConfig(BaseModel):
+    enabled: bool = Field(default=True)
+    port: int = Field(default=9090)
+
+
+class TracingConfig(BaseModel):
+    enabled: bool = Field(default=True)
+    service_name: str = Field(default="exchange-simulator")
+    otlp_endpoint: str = Field(default="http://jaeger-collector:4317")  # Updated to OTLP
+
+
+class DatabaseConfig(BaseModel):
+    host: str = Field(default=os.getenv('DB_HOST', 'postgres'))
+    port: int = Field(default=int(os.getenv('DB_PORT', '5432')))
+    database: str = Field(default=os.getenv('DB_NAME', 'opentp'))
+    user: str = Field(default=os.getenv('DB_USER', 'opentp'))
+    password: str = Field(default=os.getenv('DB_PASSWORD', 'samaral'))
+    min_connections: int = Field(default=1)
+    max_connections: int = Field(default=5)
 
     @property
     def connection_string(self) -> str:
         return f"postgresql://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}"
+
+class MarketDataConfig(BaseModel):
+    service_url: str = Field(default=os.getenv('MARKET_DATA_SERVICE_URL', 'market-data-service:50060'))
+
+
+class ConvictionExchangeConfig(BaseModel):  # Renamed from OrderExchangeConfig
+    service_url: str = Field(default=os.getenv('CONVICTION_EXCHANGE_SERVICE_URL', 'conviction-exchange-service:50057'))
 
 
 class Config:

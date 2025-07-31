@@ -2,7 +2,7 @@
 """Client and server classes corresponding to protobuf-defined services."""
 import grpc
 
-from source.proto import conviction_exchange_interface_pb2 as main_dot_services_dot_conviction__exchange__interface__pb2
+from api.grpc import conviction_exchange_interface_pb2 as main_dot_services_dot_conviction__exchange__interface__pb2
 
 
 class ConvictionExchangeSimulatorStub(object):

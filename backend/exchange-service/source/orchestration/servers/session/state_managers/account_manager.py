@@ -5,7 +5,7 @@ Extracted from session_server_impl.py to reduce file size
 """
 
 import logging
-from source.proto.session_exchange_interface_pb2 import ExchangeDataUpdate, AccountStatus, AccountBalance
+from source.api.grpc.session_exchange_interface_pb2 import ExchangeDataUpdate, AccountStatus, AccountBalance
 
 
 class AccountStateManager:

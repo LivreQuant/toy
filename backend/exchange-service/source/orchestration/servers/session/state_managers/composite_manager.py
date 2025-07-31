@@ -5,7 +5,7 @@ Coordinates all individual state managers including the missing ones
 """
 
 import logging
-from source.proto.session_exchange_interface_pb2 import ExchangeDataUpdate
+from source.api.grpc.session_exchange_interface_pb2 import ExchangeDataUpdate
 from .trade_manager import TradeStateManager
 from .order_manager import OrderStateManager
 from .portfolio_manager import PortfolioStateManager

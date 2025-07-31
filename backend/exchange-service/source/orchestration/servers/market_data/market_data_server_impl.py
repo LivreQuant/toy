@@ -14,8 +14,8 @@ from source.simulation.managers.fx import FXRate
 from source.orchestration.replay.replay_manager import ReplayManager, ReplayModeState
 from source.orchestration.processors.market_data_processor import MarketDataProcessor
 
-from source.proto.market_data_interface_pb2 import SubscriptionRequest, MarketDataStream
-from source.proto.market_data_interface_pb2_grpc import MarketDataServiceStub
+from source.api.grpc.market_data_interface_pb2 import SubscriptionRequest, MarketDataStream
+from source.api.grpc.market_data_interface_pb2_grpc import MarketDataServiceStub
 
 from source.utils.timezone_utils import ensure_utc
 

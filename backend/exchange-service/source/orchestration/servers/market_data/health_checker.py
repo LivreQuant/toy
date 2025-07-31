@@ -7,8 +7,8 @@ from datetime import datetime
 from typing import Optional, Callable
 from threading import Thread, Event
 
-from source.proto.market_data_interface_pb2 import SubscriptionRequest
-from source.proto.market_data_interface_pb2_grpc import MarketDataServiceStub
+from source.api.grpc.market_data_interface_pb2 import SubscriptionRequest
+from source.api.grpc.market_data_interface_pb2_grpc import MarketDataServiceStub
 
 
 class MarketDataHealthChecker:

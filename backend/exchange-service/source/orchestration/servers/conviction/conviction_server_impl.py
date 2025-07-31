@@ -8,12 +8,12 @@ from typing import Dict
 from source.orchestration.servers.utils import BaseServiceImpl
 from source.orchestration.app_state.state_manager import app_state
 
-from source.proto.conviction_exchange_interface_pb2 import (
+from source.api.grpc.conviction_exchange_interface_pb2 import (
     BatchConvictionRequest, BatchConvictionResponse, ConvictionResponse,
     BatchCancelRequest, BatchCancelResponse, CancelResult,
     Side as ConvictionSide, ParticipationRate
 )
-from source.proto.conviction_exchange_interface_pb2_grpc import ConvictionExchangeSimulatorServicer
+from source.api.grpc.conviction_exchange_interface_pb2_grpc import ConvictionExchangeSimulatorServicer
 
 class ConvictionServiceImpl(ConvictionExchangeSimulatorServicer, BaseServiceImpl):
     def __init__(self):

@@ -12,7 +12,7 @@ from typing import Dict
 from concurrent import futures
 
 from source.orchestration.servers.utils import BaseServiceImpl
-from source.proto.session_exchange_interface_pb2 import (
+from source.api.grpc.session_exchange_interface_pb2 import (
     ExchangeDataUpdate, StreamRequest, HeartbeatRequest, HeartbeatResponse,
     HealthRequest, HealthResponse, ServiceMetrics, SimulatorStatus,
     EquityData, OrderData, Trade, PortfolioStatus, Position,
@@ -21,7 +21,7 @@ from source.proto.session_exchange_interface_pb2 import (
     RiskStatus, EquityRiskData, PortfolioRiskData, RiskExposures, RiskMetrics,
     UniverseStatus, UniverseData, OrderStateEnum
 )
-from source.proto.session_exchange_interface_pb2_grpc import SessionExchangeSimulatorServicer, \
+from source.api.grpc.session_exchange_interface_pb2_grpc import SessionExchangeSimulatorServicer, \
     add_SessionExchangeSimulatorServicer_to_server
 
 # Import the new state managers
