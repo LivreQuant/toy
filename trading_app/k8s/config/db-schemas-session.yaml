@@ -67,34 +67,3 @@ data:
     GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA session TO opentp;
     ALTER DEFAULT PRIVILEGES IN SCHEMA session GRANT ALL ON TABLES TO opentp;
     ALTER DEFAULT PRIVILEGES IN SCHEMA session GRANT ALL ON SEQUENCES TO opentp;
-
-  simulator_sessions.sql: |
-    -- Simulator Schema
-    CREATE SCHEMA IF NOT EXISTS simulator;
-
-    CREATE TABLE IF NOT EXISTS simulator.instances (
-      simulator_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-      session_id UUID NOT NULL REFERENCES session.active_sessions(session_id) ON DELETE CASCADE,
-      user_id UUID NOT NULL REFERENCES auth.users(user_id) ON DELETE CASCADE,
-      status VARCHAR(20) NOT NULL DEFAULT 'RUNNING',
-      endpoint VARCHAR(255) NOT NULL,
-      pod_name VARCHAR(100) NOT NULL,
-      namespace VARCHAR(50) NOT NULL DEFAULT 'default',
-      exch_id UUID NOT NULL,
-      exchange_type VARCHAR(50) NOT NULL DEFAULT 'EXCH_US_EQUITIES'
-      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-      last_active TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-    );
-
-    -- Indexes for performance
-    CREATE INDEX IF NOT EXISTS idx_simulator_session_id ON simulator.instances(session_id);
-    CREATE INDEX IF NOT EXISTS idx_simulator_user_id ON simulator.instances(user_id);
-    CREATE INDEX IF NOT EXISTS idx_simulator_exch_id ON simulator.instances(exch_id);
-    CREATE INDEX IF NOT EXISTS idx_simulator_status ON simulator.instances(status);
-
-    -- Grant permissions for simulator schema
-    GRANT USAGE ON SCHEMA simulator TO opentp;
-    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA simulator TO opentp;
-    GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA simulator TO opentp;
-    ALTER DEFAULT PRIVILEGES IN SCHEMA simulator GRANT ALL ON TABLES TO opentp;
-    ALTER DEFAULT PRIVILEGES IN SCHEMA simulator GRANT ALL ON SEQUENCES TO opentp;

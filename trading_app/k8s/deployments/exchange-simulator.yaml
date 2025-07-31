@@ -1,6 +1,39 @@
-# k8s/deployments/exchange-simulator.yaml
-apiVersion: v1
-kind: ServiceAccount
+# kubernetes/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
 metadata:
-  name: exchange-simulator-account
-  namespace: default
+  name: exchange-service
+spec:
+  template:
+    spec:
+      containers:
+      - name: exchange-service
+        image: your-registry/exchange-service:latest
+        env:
+        # Required: Exchange identification
+        - name: EXCH_ID
+          value: "123e4567-e89b-12d3-a456-426614174000"  # UUID for this exchange instance
+        
+        - name: EXCHANGE_TYPE
+          value: "EXCH_US_EQUITIES"
+          
+        # Required: Kubernetes metadata
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+              
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+              
+        - name: SERVICE_NAME
+          value: "exchange-service"  # Name of the Kubernetes service
+          
+        - name: GRPC_SERVICE_PORT
+          value: "50055"
+          
+        # Optional: Cluster identification
+        - name: CLUSTER_NAME
+          value: "production-cluster"

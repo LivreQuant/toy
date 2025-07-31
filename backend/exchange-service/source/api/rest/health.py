@@ -1,34 +1,41 @@
-# backend/exchange-service/source/api/rest/health.py - Enhanced version
-
+# source/api/rest/health.py - Updated for orchestration architecture
 import logging
 import asyncio
 import time
 import grpc
 from aiohttp import web
+from typing import Optional, Dict, Any
 
 logger = logging.getLogger('health_service')
 
-class HealthService:
-    def __init__(self, exchange_manager=None, http_port=50056):
+class OrchestrationHealthService:
+    def __init__(self, 
+                 exchange_group_manager=None, 
+                 service_manager=None,
+                 http_port=50056):
         """
-        Initialize health check service
+        Initialize health check service for orchestration architecture
         
         Args:
-            exchange_manager: Reference to exchange manager for status checks
+            exchange_group_manager: Reference to exchange group manager
+            service_manager: Reference to CoreExchangeServiceManager
             http_port: HTTP port for health server (separate from gRPC port)
         """
-        self.exchange_manager = exchange_manager
+        self.exchange_group_manager = exchange_group_manager
+        self.service_manager = service_manager
         self.http_port = http_port
         self.app = None
         self.runner = None
         self.site = None
         self.startup_time = time.time()
         self.initialization_complete = False
+        
+        # Track orchestration services
         self.services_ready = {
-            'database': False,
-            'market_data': False,
-            'order_manager': False,
-            'grpc_server': False
+            'core_exchange': False,
+            'market_data_client': False,
+            'session_service': False,
+            'conviction_service': False
         }
 
     async def setup(self):
@@ -39,13 +46,13 @@ class HealthService:
         self.app.router.add_get('/health', self.health_check)
         self.app.router.add_get('/readiness', self.readiness_check)
         self.app.router.add_get('/metrics', self.metrics_endpoint)
-        self.app.router.add_get('/status', self.detailed_status)  # New detailed status endpoint
+        self.app.router.add_get('/status', self.detailed_status)
         
         # Create and start the app
         self.runner = web.AppRunner(self.app)
         await self.runner.setup()
         
-        # Bind to a different port than the gRPC server
+        # Bind to health check port
         self.site = web.TCPSite(self.runner, '0.0.0.0', self.http_port)
         await self.site.start()
         
@@ -69,172 +76,108 @@ class HealthService:
             # Check if all services are ready
             if all(self.services_ready.values()) and not self.initialization_complete:
                 self.initialization_complete = True
-                logger.info("All service components are ready - simulator fully operational")
-                logger.info(f"HEALTH SERVICE: Setting initialization_complete=True, services_ready={self.services_ready}")
-            else:
-                logger.info(f"HEALTH SERVICE: initialization_complete={self.initialization_complete}, all_ready={all(self.services_ready.values())}, services_ready={self.services_ready}")
-                
+                logger.info("All service components are ready - exchange fully operational")
+        else:
+            logger.warning(f"Unknown service component: {service_name}")
+
     async def health_check(self, request):
         """
-        Simple liveness probe handler
-        Returns 200 OK if the basic service is running
+        Simple liveness probe handler - returns 200 if service is running
         """
         return web.json_response({
             'status': 'UP',
-            'service': 'exchange-simulator',
+            'service': 'exchange-orchestration',
             'timestamp': time.time(),
             'uptime_seconds': time.time() - self.startup_time
         })
 
     async def readiness_check(self, request):
         """
-        Enhanced readiness probe handler that ensures gRPC is ready
-        Maps to simulator status progression:
-        - Starting: Basic service running but not all components ready
-        - Spinning: Components initializing
-        - Running: All components ready and operational including gRPC
+        Enhanced readiness probe for orchestration services
         """
         current_time = time.time()
         uptime = current_time - self.startup_time
         
-        # Determine readiness status
-        if not self.initialization_complete:
-            # Still initializing - check individual components
-            ready_count = sum(1 for ready in self.services_ready.values() if ready)
-            total_count = len(self.services_ready)
-            
-            if ready_count == 0:
-                status = "STARTING"
-                status_code = 503  # Service Unavailable
-            elif ready_count < total_count:
-                status = "SPINNING"  
-                status_code = 503  # Service Unavailable
-            else:
-                status = "RUNNING"
-                status_code = 200  # Ready
-                self.initialization_complete = True
-        else:
-            # Fully initialized - do health checks including gRPC
-            is_healthy = await self._check_component_health()
-            grpc_ready = await self._check_grpc_readiness()
-            
-            if is_healthy and grpc_ready:
-                status = "RUNNING"
-                status_code = 200
-            else:
-                status = "ERROR"
-                status_code = 503
-
+        # Check core components
+        core_ready = self._check_core_exchange_ready()
+        market_data_ready = self._check_market_data_ready()
+        services_ready = self._check_optional_services_ready()
+        
+        # Determine overall readiness
+        is_ready = core_ready and (market_data_ready or uptime > 60)  # Allow startup time
+        status_code = 200 if is_ready else 503
+        
+        status = "RUNNING" if is_ready else "STARTING"
+        
         return web.json_response({
             'status': status,
-            'service': 'exchange-simulator',
+            'service': 'exchange-orchestration',
             'timestamp': current_time,
             'uptime_seconds': uptime,
-            'initialization_complete': self.initialization_complete,
+            'core_exchange_ready': core_ready,
+            'market_data_connected': market_data_ready,
             'services': self.services_ready.copy(),
-            'ready_services': sum(1 for ready in self.services_ready.values() if ready),
-            'total_services': len(self.services_ready),
-            'grpc_ready': await self._check_grpc_readiness() if self.initialization_complete else False
+            'enabled_services': list(self.service_manager.enabled_services) if self.service_manager else [],
+            'user_count': len(self.exchange_group_manager.get_all_users()) if self.exchange_group_manager else 0
         }, status=status_code)
 
-    async def _check_grpc_readiness(self) -> bool:
-        """Check if gRPC server is actually ready to accept connections"""
-        try:
-            # Quick self-check of gRPC server
-            channel = grpc.aio.insecure_channel('localhost:50055')
-            
-            # Wait for the channel to be ready with timeout
-            try:
-                await asyncio.wait_for(channel.channel_ready(), timeout=2.0)
-                grpc_ready = True
-                logger.debug("gRPC server readiness check passed")
-            except asyncio.TimeoutError:
-                logger.warning("gRPC server readiness check timed out")
-                grpc_ready = False
-            finally:
-                await channel.close()
-                
-            return grpc_ready
-            
-        except Exception as e:
-            logger.warning(f"gRPC server readiness check failed: {e}")
-            return False
+    async def metrics_endpoint(self, request):
+        """Metrics endpoint for monitoring"""
+        metrics = {
+            'uptime_seconds': time.time() - self.startup_time,
+            'users_count': len(self.exchange_group_manager.get_all_users()) if self.exchange_group_manager else 0,
+            'enabled_services_count': len(self.service_manager.enabled_services) if self.service_manager else 0,
+            'core_exchange_ready': self._check_core_exchange_ready(),
+            'market_data_connected': self._check_market_data_ready(),
+            'services_ready': self.services_ready.copy()
+        }
+        
+        return web.json_response(metrics)
 
     async def detailed_status(self, request):
-        """
-        Detailed status endpoint for debugging and monitoring
-        """
-        current_time = time.time()
-        uptime = current_time - self.startup_time
-        
-        # Gather detailed status information
-        status_info = {
-            'service': 'exchange-simulator',
-            'status': 'RUNNING' if self.initialization_complete else 'INITIALIZING',
-            'timestamp': current_time,
-            'uptime_seconds': uptime,
+        """Detailed status for debugging"""
+        status = {
+            'timestamp': time.time(),
+            'uptime_seconds': time.time() - self.startup_time,
             'initialization_complete': self.initialization_complete,
-            'startup_time': self.startup_time,
+            'core_exchange': {
+                'ready': self._check_core_exchange_ready(),
+                'users': self.exchange_group_manager.get_all_users() if self.exchange_group_manager else [],
+                'last_snap_time': str(self.exchange_group_manager.last_snap_time) if self.exchange_group_manager else None
+            },
+            'market_data': {
+                'connected': self._check_market_data_ready(),
+                'host': getattr(self.service_manager, 'market_data_host', 'unknown') if self.service_manager else 'unknown',
+                'port': getattr(self.service_manager, 'market_data_port', 'unknown') if self.service_manager else 'unknown'
+            },
             'services': self.services_ready.copy(),
-            'grpc_ready': await self._check_grpc_readiness()
+            'enabled_services': list(self.service_manager.enabled_services) if self.service_manager else []
         }
+        
+        return web.json_response(status)
 
-        # Add exchange manager status if available
-        if self.exchange_manager:
-            try:
-                status_info['exchange_manager'] = {
-                    'user_id': getattr(self.exchange_manager, 'user_id', 'unknown'),
-                    'desk_id': getattr(self.exchange_manager, 'desk_id', 'unknown'),
-                    'cash_balance': getattr(self.exchange_manager, 'cash_balance', 0),
-                    'positions_count': len(getattr(self.exchange_manager, 'positions', {})),
-                    'orders_count': len(getattr(self.exchange_manager, 'orders', {})),
-                    'market_data_symbols': len(getattr(self.exchange_manager, 'current_market_data', {}))
-                }
-            except Exception as e:
-                status_info['exchange_manager'] = {'error': str(e)}
-
-        return web.json_response(status_info)
-
-    async def _check_component_health(self) -> bool:
-        """Check health of all components"""
+    def _check_core_exchange_ready(self) -> bool:
+        """Check if core exchange is ready"""
+        if not self.exchange_group_manager:
+            return False
+        
         try:
-            # Check database connection
-            if self.exchange_manager and hasattr(self.exchange_manager, 'database_manager'):
-                db_healthy = await self.exchange_manager.database_manager.check_connection()
-                if not db_healthy:
-                    return False
-
-            # Check market data client
-            if self.exchange_manager and hasattr(self.exchange_manager, 'market_data_client'):
-                if not getattr(self.exchange_manager.market_data_client, 'running', False):
-                    return False
-
-            # Check order manager
-            if self.exchange_manager and hasattr(self.exchange_manager, 'order_manager'):
-                if not getattr(self.exchange_manager.order_manager, 'connected', False):
-                    return False
-
-            return True
-        except Exception as e:
-            logger.error(f"Error checking component health: {e}")
+            users = self.exchange_group_manager.get_all_users()
+            return len(users) > 0 and self.exchange_group_manager.last_snap_time is not None
+        except Exception:
             return False
 
-    async def metrics_endpoint(self, request):
-        """
-        Metrics endpoint for monitoring
-        Returns Prometheus metrics if metrics are enabled
-        """
-        try:
-            from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
-            
-            metrics_data = generate_latest()
-            return web.Response(
-                body=metrics_data,
-                content_type=CONTENT_TYPE_LATEST
-            )
-        except Exception as e:
-            logger.error(f"Error generating metrics: {e}")
-            return web.Response(
-                status=500,
-                text=f"Error generating metrics: {str(e)}"
-            )
+    def _check_market_data_ready(self) -> bool:
+        """Check if market data connection is ready"""
+        if not self.service_manager:
+            return False
+        
+        return getattr(self.service_manager, 'market_data_connected', False)
+
+    def _check_optional_services_ready(self) -> bool:
+        """Check if optional services are ready"""
+        if not self.service_manager:
+            return True  # No optional services to check
+        
+        # Optional services don't block readiness, just report status
+        return True

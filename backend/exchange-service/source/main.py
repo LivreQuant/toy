@@ -1,4 +1,4 @@
-# source/main.py - Updated market data connection logic
+# source/main.py - Complete orchestration with health service integration
 
 import asyncio
 import os
@@ -7,17 +7,23 @@ import signal
 import traceback
 from typing import Optional, Set
 
+# Core dependencies
 from source.db.db_manager import DatabaseManager
-
 from source.exchange_logging.config import ExchangeLoggingConfig
 from source.exchange_logging.utils import get_exchange_logger
 
+# Orchestration components
 from source.orchestration.coordination.exchange_manager import EnhancedExchangeGroupManager
+from source.orchestration.coordination.exchange_registry import ExchangeRegistration, exchange_registry
 from source.orchestration.persistence.snapshot_manager import SnapshotManager
 
+# Server implementations
 from source.orchestration.servers.market_data.market_data_server_impl import EnhancedMultiUserMarketDataClient
 from source.orchestration.servers.session.session_server_impl import MultiUserSessionServiceImpl
 from source.orchestration.servers.conviction.conviction_server_impl import ConvictionServiceImpl
+
+# Health service integration
+from source.api.rest.health import OrchestrationHealthService
 
 # Setup detailed logging
 logging_config = ExchangeLoggingConfig.setup_exchange_logging()
@@ -25,7 +31,18 @@ logger = get_exchange_logger(__name__)
 
 
 class CoreExchangeServiceManager:
-    """Core exchange service manager with persistent market data connection"""
+    """
+    Core exchange service manager with comprehensive health monitoring.
+    
+    This class orchestrates all exchange services and provides health monitoring
+    for Kubernetes integration. It manages:
+    
+    1. Core exchange simulation
+    2. Market data connections
+    3. Optional gRPC services (session, conviction)
+    4. Health monitoring HTTP server
+    5. Graceful shutdown handling
+    """
 
     def __init__(self, exchange_group_manager):
         self.exchange_group_manager = exchange_group_manager
@@ -37,381 +54,536 @@ class CoreExchangeServiceManager:
         self.market_data_connected = False
         self.market_data_connection_task: Optional[asyncio.Task] = None
 
-        # Optional services
+        # Optional gRPC services
         self.session_service: Optional[MultiUserSessionServiceImpl] = None
         self.conviction_service: Optional[ConvictionServiceImpl] = None
 
-        # Track which services are enabled
+        # Track which services are enabled and running
         self.enabled_services: Set[str] = set()
 
-        # database
+        # Database manager
         self.db_manager = DatabaseManager
 
-        # Shutdown flag
+        # Exchange registration tracking
+        self.exchange_registration: Optional[ExchangeRegistration] = None
+
+        # Health service integration - CRITICAL for Kubernetes
+        self.health_service: Optional[OrchestrationHealthService] = None
+
+        # Shutdown coordination
         self.shutdown_requested = False
 
-        # Market data connection settings
+        # Market data connection settings from environment
         self.market_data_host = os.environ.get("MARKET_DATA_HOST", "localhost")
         self.market_data_port = int(os.environ.get("MARKET_DATA_PORT", "50051"))
         self.market_data_retry_interval = int(os.environ.get("MARKET_DATA_RETRY_SECONDS", "5"))
 
+
+    async def register_exchange_service(self):
+        """Register exchange service with Kubernetes metadata"""
+        try:
+            self.logger.info("🔧 Registering exchange service in database...")
+            
+            # Update Kubernetes metadata for service discovery
+            self.exchange_registration = await exchange_registry.update_kubernetes_metadata()
+            
+            # Mark as ready in health service
+            if self.health_service:
+                self.health_service.mark_service_ready('exchange_registration', True)
+                
+        except Exception as e:
+            self.logger.error(f"❌ Exchange service registration failed: {e}")
+            if self.health_service:
+                self.health_service.mark_service_ready('exchange_registration', False)
+            raise
+
+
+    async def start_health_service(self):
+        """
+        Start health monitoring HTTP server - MUST BE FIRST SERVICE STARTED
+        
+        This service provides Kubernetes-compatible health check endpoints:
+        - /health (liveness probe) - basic service availability
+        - /readiness (readiness probe) - all components ready
+        - /metrics (monitoring) - operational metrics
+        - /status (debugging) - detailed status information
+        
+        The health service runs on a separate HTTP port (50056) from gRPC services.
+        """
+        try:
+            self.logger.info("🏥 Starting Health Service")
+            
+            # Get health service port from environment
+            health_port = int(os.environ.get("HEALTH_SERVICE_PORT", "50056"))
+            
+            # Create health service with references to manager components
+            self.health_service = OrchestrationHealthService(
+                exchange_group_manager=self.exchange_group_manager,
+                service_manager=self,  # Pass self for service status monitoring
+                http_port=health_port
+            )
+            
+            # Start the aiohttp server for health endpoints
+            await self.health_service.setup()
+            
+            self.logger.info(f"✅ Health Service: STARTED on port {health_port}")
+            self.logger.info("🏥 Health endpoints available:")
+            self.logger.info(f"   - Liveness:  http://0.0.0.0:{health_port}/health")
+            self.logger.info(f"   - Readiness: http://0.0.0.0:{health_port}/readiness")
+            self.logger.info(f"   - Metrics:   http://0.0.0.0:{health_port}/metrics")
+            self.logger.info(f"   - Status:    http://0.0.0.0:{health_port}/status")
+            
+        except Exception as e:
+            self.logger.error(f"❌ Health Service failed to start: {e}")
+            # Health service failure is critical - cannot monitor without it
+            raise
+
     async def start_core_exchange(self):
-        """Start the core exchange simulation - this always runs"""
+        """
+        Start the core exchange simulation - THE FOUNDATION OF ALL SERVICES
+        
+        This initializes the core exchange simulation that all other services depend on.
+        It validates that user contexts are loaded and exchange state is ready.
+        
+        Core exchange must be running before any gRPC services can operate.
+        """
         try:
             self.logger.info("🏦 Starting CORE EXCHANGE SERVICE")
 
-            # Initialize all user contexts in exchange group manager
+            # Validate exchange group manager is properly initialized
+            if not self.exchange_group_manager:
+                raise RuntimeError("Exchange group manager not initialized")
+
+            # Get user contexts to validate initialization
             users = self.exchange_group_manager.get_all_users()
+            if not users:
+                raise RuntimeError("No users found in exchange group manager")
+
+            # Validate last snap time is set (required for market timing)
+            if not self.exchange_group_manager.last_snap_time:
+                raise RuntimeError("Last snap time not set in exchange group manager")
+
             self.logger.info(f"👥 Core exchange initialized for {len(users)} users: {users}")
+            self.logger.info(f"📅 Market time: {self.exchange_group_manager.last_snap_time}")
 
-            # Set exchange group manager in all user equity managers
-            for user_context in self.exchange_group_manager.user_contexts.values():
-                user_context.app_state.equity_manager.set_exchange_group_manager(self.exchange_group_manager)
+            # Mark core exchange as ready in health service
+            if self.health_service:
+                self.health_service.mark_service_ready('core_exchange', True)
 
-            self.running = True
-            self.logger.info("✅ CORE EXCHANGE SERVICE is running independently")
+            return True
 
         except Exception as e:
-            self.logger.error(f"❌ Failed to start core exchange: {e}")
+            self.logger.error(f"❌ Core exchange failed to start: {e}")
+            # Mark as failed in health service
+            if self.health_service:
+                self.health_service.mark_service_ready('core_exchange', False)
             raise
 
     async def start_persistent_market_data_connection(self):
-        """Start persistent market data connection with auto-retry"""
-        self.logger.info(
-            f"📡 Starting PERSISTENT Market Data Connection to {self.market_data_host}:{self.market_data_port}")
-        self.logger.info(f"🔄 Will retry every {self.market_data_retry_interval} seconds if connection fails")
+        """
+        Start persistent market data connection with automatic retry logic.
+        
+        This creates a persistent connection to the external market data service.
+        Key features:
+        - Automatic reconnection on failure
+        - Health status tracking for readiness probes
+        - Non-blocking startup (core exchange continues if market data is unavailable)
+        - Configurable retry intervals
+        """
+        try:
+            self.logger.info("📡 Starting Market Data Client")
+            self.logger.info(f"📍 Target: {self.market_data_host}:{self.market_data_port}")
+            
+            # Create market data client
+            self.market_data_client = EnhancedMultiUserMarketDataClient(
+                self.exchange_group_manager,
+                host=self.market_data_host,
+                port=self.market_data_port
+            )
 
-        # Start the connection task
-        self.market_data_connection_task = asyncio.create_task(self._market_data_connection_loop())
+            # Start persistent connection monitoring task
+            # This task runs continuously and handles reconnections
+            self.market_data_connection_task = asyncio.create_task(
+                self._monitor_market_data_connection()
+            )
 
-    async def _market_data_connection_loop(self):
-        """Continuous loop to maintain market data connection"""
-        attempt = 0
+            self.logger.info(f"📡 Market Data Client: Connection monitoring started")
+            self.logger.info(f"⏱️  Retry interval: {self.market_data_retry_interval} seconds")
 
-        while self.running and not self.shutdown_requested:
-            attempt += 1
+        except Exception as e:
+            self.logger.error(f"❌ Market Data Client failed to start: {e}")
+            # Mark as failed in health service
+            if self.health_service:
+                self.health_service.mark_service_ready('market_data_client', False)
+            # Don't re-raise - market data is optional for core functionality
 
+    async def _monitor_market_data_connection(self):
+        """
+        Continuous monitoring task for market data connection.
+        
+        This background task:
+        1. Attempts initial connection
+        2. Monitors connection health
+        3. Handles reconnections on failure
+        4. Updates health service status
+        5. Respects shutdown signals
+        """
+        retry_count = 0
+        
+        while not self.shutdown_requested:
             try:
                 if not self.market_data_connected:
-                    self.logger.info(f"📡 Market Data Connection Attempt #{attempt}")
-
-                    # Create new market data client
-                    self.market_data_client = EnhancedMultiUserMarketDataClient(
-                        exchange_group_manager=self.exchange_group_manager,
-                        host=self.market_data_host,
-                        port=self.market_data_port
-                    )
-
-                    # Try to connect
-                    self.market_data_client.start()
-
-                    # Link replay manager
-                    self.exchange_group_manager.set_replay_manager(self.market_data_client.replay_manager)
-
+                    self.logger.info(f"📡 Attempting market data connection (attempt {retry_count + 1})")
+                    
+                    # Attempt connection
+                    await self.market_data_client.connect_and_run()
+                    
+                    # Connection successful
                     self.market_data_connected = True
-                    self.enabled_services.add("market_data")
-
-                    self.logger.info(f"✅ Market Data Service: CONNECTED on attempt #{attempt}")
-                    self.logger.info(
-                        f"📡 Market Data: Receiving live data from {self.market_data_host}:{self.market_data_port}")
-
-                    # Reset attempt counter on successful connection
-                    attempt = 0
-
-                # Check if connection is still alive
-                if self.market_data_connected and self.market_data_client:
-                    if not self._is_market_data_healthy():
-                        self.logger.warning("📡 Market Data connection lost, will reconnect...")
-                        self._cleanup_market_data_connection()
-                        continue
-
-                # Wait before next check/retry
-                await asyncio.sleep(self.market_data_retry_interval)
-
+                    retry_count = 0
+                    
+                    # Update health service
+                    if self.health_service:
+                        self.health_service.mark_service_ready('market_data_client', True)
+                    
+                    self.logger.info("✅ Market Data: CONNECTED")
+                else:
+                    # Connection is active, just wait
+                    await asyncio.sleep(1)
+                    
             except Exception as e:
-                self.logger.error(f"❌ Market Data Connection Attempt #{attempt} failed: {e}")
-                self._cleanup_market_data_connection()
-
+                # Connection failed or lost
+                if self.market_data_connected:
+                    self.logger.warning(f"📡 Market Data connection lost: {e}")
+                else:
+                    self.logger.debug(f"📡 Market Data connection attempt {retry_count + 1} failed: {e}")
+                
+                # Update state
+                self.market_data_connected = False
+                retry_count += 1
+                
+                # Update health service
+                if self.health_service:
+                    self.health_service.mark_service_ready('market_data_client', False)
+                
                 # Wait before retry
+                self.logger.info(f"⏳ Retrying market data connection in {self.market_data_retry_interval} seconds...")
                 await asyncio.sleep(self.market_data_retry_interval)
-
-    def _is_market_data_healthy(self) -> bool:
-        """Check if market data connection is healthy"""
-        try:
-            # Add your health check logic here
-            # For now, just check if client exists and has required attributes
-            return (self.market_data_client is not None and
-                    hasattr(self.market_data_client, 'replay_manager'))
-        except Exception:
-            return False
-
-    def _cleanup_market_data_connection(self):
-        """Clean up failed market data connection"""
-        try:
-            if self.market_data_client and hasattr(self.market_data_client, 'stop'):
-                self.market_data_client.stop()
-        except Exception as e:
-            self.logger.error(f"❌ Error cleaning up market data connection: {e}")
-
-        self.market_data_client = None
-        self.market_data_connected = False
-        self.enabled_services.discard("market_data")
 
     async def start_optional_session_service(self):
-        """Start optional session service for up to N users"""
+        """
+        Start session gRPC service for client connections.
+        
+        The session service provides real-time streaming of exchange data to clients.
+        This is optional and controlled by ENABLE_SESSION_SERVICE environment variable.
+        
+        Service features:
+        - Multi-user streaming support
+        - Real-time exchange data updates
+        - Health monitoring integration
+        """
         try:
             self.logger.info("🔗 Starting Session Service")
 
+            # Create session service implementation
             self.session_service = MultiUserSessionServiceImpl(self.exchange_group_manager)
 
+            # Get port from environment
             session_port = int(os.environ.get("SESSION_SERVICE_PORT", "50050"))
-            self.session_service.start_sync_server(port=session_port)
+            
+            # Start gRPC server
+            await self.session_service.start_server(port=session_port)
 
+            # Track service state
             users = self.exchange_group_manager.get_all_users()
             self.enabled_services.add("session")
+
+            # Update health service
+            if self.health_service:
+                self.health_service.mark_service_ready('session_service', True)
 
             self.logger.info(f"✅ Session Service: STARTED on port {session_port}")
             self.logger.info(f"🔗 Session Service: Ready for up to {len(users)} concurrent user connections")
 
         except Exception as e:
             self.logger.error(f"❌ Session Service failed to start: {e}")
+            # Mark as failed in health service
+            if self.health_service:
+                self.health_service.mark_service_ready('session_service', False)
+            # Continue without session service - it's optional
             self.logger.info("🏦 Core exchange continues without session service")
 
     async def start_optional_conviction_service(self):
-        """Start optional conviction service for up to N users"""
+        """
+        Start conviction gRPC service for order processing.
+        
+        The conviction service handles order submission and conviction processing.
+        This is optional and controlled by ENABLE_CONVICTION_SERVICE environment variable.
+        
+        Service features:
+        - Batch order processing
+        - Conviction management
+        - Health monitoring integration
+        """
         try:
             self.logger.info("⚖️ Starting Conviction Service")
 
+            # Create conviction service implementation
             self.conviction_service = ConvictionServiceImpl(self.exchange_group_manager)
 
+            # Get port from environment
             conviction_port = int(os.environ.get("CONVICTION_SERVICE_PORT", "50052"))
+            
+            # Start gRPC server
             await self.conviction_service.start_server(port=conviction_port)
 
+            # Track service state
             users = self.exchange_group_manager.get_all_users()
             self.enabled_services.add("conviction")
+
+            # Update health service
+            if self.health_service:
+                self.health_service.mark_service_ready('conviction_service', True)
 
             self.logger.info(f"✅ Conviction Service: STARTED on port {conviction_port}")
             self.logger.info(f"⚖️ Conviction Service: Ready for up to {len(users)} concurrent user connections")
 
         except Exception as e:
             self.logger.error(f"❌ Conviction Service failed to start: {e}")
+            # Mark as failed in health service
+            if self.health_service:
+                self.health_service.mark_service_ready('conviction_service', False)
+            # Continue without conviction service - it's optional
             self.logger.info("🏦 Core exchange continues without conviction service")
 
     async def start_all_services(self):
-        """Start core exchange and all services"""
+        """
+        Orchestrated startup of all services in the correct order.
+        
+        Startup sequence (ORDER IS CRITICAL):
+        1. Health service (must be first for Kubernetes monitoring)
+        2. Core exchange (foundation for all other services)
+        3. Market data connection (background task)
+        4. Optional services based on environment variables
+        
+        This method ensures proper dependency ordering and error handling.
+        """
         try:
-            # Always start core exchange first
+            # STEP 1: Start health service FIRST
+            # This is critical - Kubernetes needs health endpoints during startup
+            await self.start_health_service()
+
+            # STEP 2: Start core exchange (required foundation)
             await self.start_core_exchange()
 
-            # Start persistent market data connection (always attempt)
+            # Register exchange service for service discovery
+            await self.register_exchange_service()
+
+            # STEP 3: Start market data connection (background task)
             await self.start_persistent_market_data_connection()
 
-            # Start optional services based on environment
+            # STEP 4: Start optional services based on environment configuration
+            
+            # Session service (for client streaming)
             if os.environ.get("ENABLE_SESSION_SERVICE", "true").lower() in ['true', '1', 'yes']:
                 await self.start_optional_session_service()
             else:
                 self.logger.info("🔗 Session Service: DISABLED by environment variable")
 
+            # Conviction service (for order processing)
             if os.environ.get("ENABLE_CONVICTION_SERVICE", "false").lower() in ['true', '1', 'yes']:
                 await self.start_optional_conviction_service()
             else:
                 self.logger.info("⚖️ Conviction Service: DISABLED by environment variable")
 
-            self.logger.info("=" * 80)
-            self.logger.info("🎯 EXCHANGE SERVICE STARTUP COMPLETE")
-            self.logger.info(f"🏦 Core Exchange: RUNNING ({len(self.exchange_group_manager.get_all_users())} users)")
-            self.logger.info(
-                f"📡 Market Data: {'CONNECTING' if not self.market_data_connected else 'CONNECTED'} (persistent retry enabled)")
-            self.logger.info(f"🔗 Session Service: {'ENABLED' if 'session' in self.enabled_services else 'DISABLED'}")
-            self.logger.info(
-                f"⚖️ Conviction Service: {'ENABLED' if 'conviction' in self.enabled_services else 'DISABLED'}")
-            self.logger.info("=" * 80)
+            # Log startup completion summary
+            self._log_startup_summary()
 
         except Exception as e:
             self.logger.error(f"❌ Failed to start services: {e}")
             raise
 
-    async def stop_all_services(self):
-        """Stop all services gracefully"""
-        try:
-            self.logger.info("🛑 STOPPING ALL SERVICES")
-            self.shutdown_requested = True
+    def _log_startup_summary(self):
+        """Log comprehensive startup summary for operations visibility."""
+        users = self.exchange_group_manager.get_all_users()
+        
+        self.logger.info("=" * 80)
+        self.logger.info("🎯 EXCHANGE SERVICE STARTUP COMPLETE")
+        self.logger.info("=" * 80)
+        self.logger.info(f"🏦 Core Exchange: RUNNING ({len(users)} users)")
+        self.logger.info(f"👥 Users: {', '.join(users)}")
+        self.logger.info(f"📅 Market Time: {self.exchange_group_manager.last_snap_time}")
+        self.logger.info(f"📡 Market Data: {'CONNECTING' if not self.market_data_connected else 'CONNECTED'}")
+        self.logger.info(f"   - Host: {self.market_data_host}:{self.market_data_port}")
+        self.logger.info(f"   - Retry: {self.market_data_retry_interval}s intervals")
+        self.logger.info(f"🔗 Session Service: {'ENABLED' if 'session' in self.enabled_services else 'DISABLED'}")
+        self.logger.info(f"⚖️ Conviction Service: {'ENABLED' if 'conviction' in self.enabled_services else 'DISABLED'}")
+        self.logger.info(f"🏥 Health Service: RUNNING on port {self.health_service.http_port}")
+        self.logger.info("   Health Endpoints:")
+        self.logger.info(f"   - Liveness:  http://0.0.0.0:{self.health_service.http_port}/health")
+        self.logger.info(f"   - Readiness: http://0.0.0.0:{self.health_service.http_port}/readiness")
+        self.logger.info(f"   - Metrics:   http://0.0.0.0:{self.health_service.http_port}/metrics")
+        self.logger.info("=" * 80)
 
-            # Stop market data connection task
-            if self.market_data_connection_task:
+    async def stop_all_services(self):
+        """
+        Graceful shutdown of all services in reverse dependency order.
+        
+        Shutdown sequence:
+        1. Optional services (conviction, session)
+        2. Market data connection
+        3. Core exchange components
+        4. Health service (last, so monitoring works during shutdown)
+        
+        This ensures clean shutdown without service interdependency issues.
+        """
+        self.logger.info("=" * 80)
+        self.logger.info("🛑 STOPPING ALL SERVICES")
+        self.logger.info("=" * 80)
+
+        # Stop optional services first (reverse order of startup)
+        services_to_stop = [
+            ("conviction", self.conviction_service),
+            ("session", self.session_service),
+        ]
+
+        for service_name, service in services_to_stop:
+            if service:
+                try:
+                    self.logger.info(f"🛑 Stopping {service_name} service...")
+                    if hasattr(service, 'stop_server'):
+                        await service.stop_server()
+                    elif hasattr(service, 'shutdown'):
+                        await service.shutdown()
+                    self.logger.info(f"✅ {service_name} service stopped")
+                except Exception as e:
+                    self.logger.error(f"❌ Error stopping {service_name} service: {e}")
+
+        # Stop market data connection task
+        if self.market_data_connection_task:
+            try:
+                self.logger.info("🛑 Stopping market data connection...")
                 self.market_data_connection_task.cancel()
                 try:
                     await self.market_data_connection_task
                 except asyncio.CancelledError:
-                    pass
-                self.logger.info("✅ Market Data Connection Task: STOPPED")
+                    pass  # Expected when cancelling
+                self.logger.info("✅ Market data connection stopped")
+            except Exception as e:
+                self.logger.error(f"❌ Error stopping market data task: {e}")
 
-            # Stop session service
-            if self.session_service and hasattr(self.session_service, 'stop'):
-                try:
-                    self.session_service.stop()
-                    self.logger.info("✅ Session Service: STOPPED")
-                except Exception as e:
-                    self.logger.error(f"❌ Error stopping session service: {e}")
+        # Stop market data client
+        if self.market_data_client:
+            try:
+                if hasattr(self.market_data_client, 'shutdown'):
+                    await self.market_data_client.shutdown()
+            except Exception as e:
+                self.logger.error(f"❌ Error stopping market data client: {e}")
 
-            # Stop conviction service
-            if self.conviction_service and hasattr(self.conviction_service, 'stop_server'):
-                try:
-                    await self.conviction_service.stop_server()
-                    self.logger.info("✅ Conviction Service: STOPPED")
-                except Exception as e:
-                    self.logger.error(f"❌ Error stopping conviction service: {e}")
+        # Stop health service LAST (so monitoring works during shutdown)
+        if self.health_service:
+            try:
+                self.logger.info("🛑 Stopping health service...")
+                await self.health_service.shutdown()
+                self.logger.info("✅ Health service stopped")
+            except Exception as e:
+                self.logger.error(f"❌ Error stopping health service: {e}")
 
-            # Clean up market data connection
-            self._cleanup_market_data_connection()
-            self.logger.info("✅ Market Data Service: STOPPED")
-
-            # Stop core exchange
-            self.running = False
-            self.logger.info("✅ Core Exchange: STOPPED")
-            self.logger.info("🛑 ALL SERVICES STOPPED")
-
-        except Exception as e:
-            self.logger.error(f"❌ Error stopping services: {e}")
+        # Clear Kubernetes metadata during shutdown
+        if self.exchange_registration:
+            try:
+                await exchange_registry.clear_kubernetes_metadata(
+                    self.exchange_registration.exch_id
+                )
+            except Exception as e:
+                self.logger.error(f"❌ Failed to clear registration: {e}")
+                
+        self.logger.info("✅ All services stopped gracefully")
 
     async def run_forever(self):
-        """Run the exchange service indefinitely until shutdown"""
+        """
+        Main service run loop - keeps services running until shutdown.
+        
+        This method:
+        - Keeps the main thread alive
+        - Monitors for shutdown signals
+        - Handles graceful shutdown coordination
+        - Provides operational logging
+        """
+        self.running = True
+        
         try:
-            self.logger.info("🔄 Exchange service running indefinitely...")
-            self.logger.info("📡 Market data connection will auto-retry every 10 seconds if disconnected")
-
+            self.logger.info("🚀 Exchange service running - waiting for shutdown signal")
+            
             # Main service loop
-            while self.running and not self.shutdown_requested:
-                await asyncio.sleep(1.0)
-
-                # Optional: Periodic health checks
-                if self.running:
-                    await self._periodic_health_check()
-
-            self.logger.info("🔄 Exchange service loop ended")
-
+            while not self.shutdown_requested and self.running:
+                # Perform any periodic maintenance here if needed
+                await asyncio.sleep(1)
+                
+            self.logger.info("🛑 Shutdown signal received, initiating graceful shutdown")
+            
+        except KeyboardInterrupt:
+            self.logger.info("🛑 Received keyboard interrupt")
         except Exception as e:
-            self.logger.error(f"❌ Error in service loop: {e}")
-
-    async def _periodic_health_check(self):
-        """Periodic health check for all services"""
-        if hasattr(self, '_health_check_counter'):
-            self._health_check_counter += 1
-        else:
-            self._health_check_counter = 1
-
-        if self._health_check_counter % 60 == 0:  # Every 60 seconds
-            active_services = len(self.enabled_services)
-            users = len(self.exchange_group_manager.get_all_users())
-            market_status = "CONNECTED" if self.market_data_connected else "RETRYING"
-
-            self.logger.info(
-                f"💓 Health Check: Core Exchange running for {users} users, {active_services} services active, Market Data: {market_status}")
+            self.logger.error(f"❌ Error in service run loop: {e}")
+        finally:
+            self.running = False
 
 
-async def initialize_core_exchange(group_id: str) -> EnhancedExchangeGroupManager:
-    """Initialize core exchange simulation with enhanced logging and error handling"""
+async def initialize_core_exchange(exch_id: str) -> EnhancedExchangeGroupManager:
+    """
+    Initialize core exchange simulation from snapshot data.
+    
+    This function handles the complex initialization process:
+    1. Create snapshot manager
+    2. Load last snap data from files/database
+    3. Initialize all user contexts and managers
+    4. Create enhanced exchange group manager
+    5. Validate initialization completeness
+    
+    Args:
+        exch_id: Exchange group identifier (e.g., "ABC")
+        
+    Returns:
+        EnhancedExchangeGroupManager: Fully initialized exchange manager
+        
+    Raises:
+        Exception: If initialization fails at any step
+    """
     try:
         logger.info("=" * 80)
-        logger.info(f"🏦 INITIALIZING CORE EXCHANGE for group: {group_id}")
+        logger.info("🏗️  INITIALIZING CORE EXCHANGE")
         logger.info("=" * 80)
 
-        # Check environment configuration
-        from source.config import app_config
-        logger.info(f"🔧 Environment: {app_config.environment}")
-        logger.info(f"🔧 Is production: {app_config.is_production}")
-        logger.info(f"🔧 Use database storage: {app_config.use_database_storage}")
+        # Step 1: Create snapshot manager
+        logger.info("🔄 Step 1: Creating snapshot manager...")
+        snapshot_manager = SnapshotManager(exch_id)
 
-        # Initialize database connection only if in production mode
-        if app_config.is_production:
-            logger.info("🔄 Production mode detected - initializing database connection...")
+        # Step 2: Initialize from snapshot data
+        logger.info("📊 Step 2: Initializing from snapshot data...")
+        snapshot_initialized = await snapshot_manager.initialize_multi_user_from_snapshot()
+        
+        if not snapshot_initialized:
+            raise RuntimeError("Failed to initialize from snapshot data")
 
-            # Check database configuration
-            logger.info(f"🔧 Database host: {app_config.database.host}")
-            logger.info(f"🔧 Database port: {app_config.database.port}")
-            logger.info(f"🔧 Database name: {app_config.database.database}")
-            logger.info(f"🔧 Database user: {app_config.database.user}")
-            logger.info(f"🔧 Connection string: {app_config.database.connection_string}")
+        logger.info("✅ Snapshot data loaded successfully")
 
-            # Import and initialize database manager
-            from source.db.db_manager import db_manager
-
-            # Test database connection with proper timeout
-            async def init_and_test_db():
-                try:
-                    logger.info("🔄 Initializing database connection...")
-                    await db_manager.initialize()
-                    logger.info("✅ Database connection initialized")
-
-                    # Test basic query
-                    logger.info("🔄 Testing database query...")
-                    metadata = await db_manager.load_exchange_metadata(group_id)
-                    if metadata:
-                        logger.info(f"✅ Database query successful for group: {group_id}")
-                        logger.info(f"   Exchange type: {metadata.get('exchange_type')}")
-                        logger.info(f"   Timezone: {metadata.get('timezone')}")
-                    else:
-                        logger.warning(f"⚠️ No metadata found for group: {group_id}")
-
-                    return True
-                except Exception as e:
-                    logger.error(f"❌ Database test failed: {e}")
-                    return False
-
-            # Run database initialization - FIXED THE ASYNC ISSUE
-            try:
-                logger.info("🔄 Testing database connection with 10 second timeout...")
-                db_success = await asyncio.wait_for(init_and_test_db(), timeout=10)
-            except asyncio.TimeoutError:
-                logger.error("❌ Database connection timeout after 10 seconds")
-                logger.error("🔧 Check database connectivity and performance")
-                raise RuntimeError("Database connection timeout")
-
-            if not db_success:
-                logger.error("❌ Database initialization failed")
-                raise RuntimeError("Database initialization failed")
-
-            logger.info("✅ Database connection and testing successful")
-        else:
-            logger.info("🔄 Development mode - skipping database initialization")
-
-        # Step 1: Initialize snapshot manager
-        logger.info("📸 Step 1: Initializing snapshot manager...")
-        snapshot_manager = SnapshotManager(group_id=group_id)
-        logger.info("✅ Snapshot manager created")
-
-        # Step 2: Load snapshot data
-        logger.info("📂 Step 2: Loading snapshot data...")
-        logger.info("⏳ Looking for required data files or database records...")
-
-        # Initialize snapshot data
-        initialization_success = await snapshot_manager.initialize_multi_user_from_snapshot()
-
-        if not initialization_success:
-            logger.error("❌ Failed to initialize exchange snapshot data")
-            logger.error("🔧 Check if required data files are present or database has data")
-            raise RuntimeError("Failed to initialize exchange snapshot data")
-
-        logger.info("✅ Snapshot initialization successful")
-
-        # Step 3: Get the regular exchange group manager
-        logger.info("📊 Step 3: Getting exchange group manager...")
-        regular_exchange_group_manager = snapshot_manager.get_exchange_group_manager()
-
+        # Step 3: Get initialized exchange group manager
+        logger.info("🔄 Step 3: Retrieving exchange group manager...")
+        regular_exchange_group_manager = snapshot_manager.exchange_group_manager
+        
         if not regular_exchange_group_manager:
-            logger.error("❌ Exchange group manager is None")
-            logger.error("🔧 This usually indicates a problem with metadata loading")
-            raise RuntimeError("Exchange group manager is None")
+            raise RuntimeError("Exchange group manager not created by snapshot initialization")
 
         logger.info("✅ Exchange group manager retrieved successfully")
 
-        # Step 4: Create enhanced exchange group manager
+        # Step 4: Create enhanced exchange group manager with orchestration features
         logger.info("🚀 Step 4: Creating enhanced exchange group manager...")
         enhanced_exchange_group_manager = EnhancedExchangeGroupManager(
-            group_id=regular_exchange_group_manager.group_id,
+            exch_id=regular_exchange_group_manager.exch_id,
         )
 
-        # Step 5: Copy all initialized state
+        # Step 5: Copy all initialized state to enhanced manager
         logger.info("📋 Step 5: Copying initialized state...")
         enhanced_exchange_group_manager.metadata = regular_exchange_group_manager.metadata
         enhanced_exchange_group_manager.user_contexts = regular_exchange_group_manager.user_contexts
@@ -422,11 +594,11 @@ async def initialize_core_exchange(group_id: str) -> EnhancedExchangeGroupManage
         enhanced_exchange_group_manager.replay_manager = regular_exchange_group_manager.replay_manager
         enhanced_exchange_group_manager._original_last_snap_str = regular_exchange_group_manager._original_last_snap_str
 
-        # Copy additional attributes
-        if hasattr(regular_exchange_group_manager, 'timezone'):
-            enhanced_exchange_group_manager.timezone = regular_exchange_group_manager.timezone
-        if hasattr(regular_exchange_group_manager, 'market_hours'):
-            enhanced_exchange_group_manager.market_hours = regular_exchange_group_manager.market_hours
+        # Copy additional attributes if they exist
+        for attr in ['timezone', 'market_hours']:
+            if hasattr(regular_exchange_group_manager, attr):
+                setattr(enhanced_exchange_group_manager, attr, 
+                       getattr(regular_exchange_group_manager, attr))
 
         logger.info("✅ State copying completed")
 
@@ -435,6 +607,13 @@ async def initialize_core_exchange(group_id: str) -> EnhancedExchangeGroupManage
         users = enhanced_exchange_group_manager.get_all_users()
         market_time = enhanced_exchange_group_manager.last_snap_time
 
+        if not users:
+            raise RuntimeError("No users found after initialization")
+        
+        if not market_time:
+            raise RuntimeError("Market time not set after initialization")
+
+        # Log successful initialization
         logger.info("=" * 80)
         logger.info("🎉 CORE EXCHANGE INITIALIZATION COMPLETE")
         logger.info("=" * 80)
@@ -454,51 +633,86 @@ async def initialize_core_exchange(group_id: str) -> EnhancedExchangeGroupManage
         logger.error(f"❌ Full traceback: {traceback.format_exc()}")
         logger.error("=" * 80)
 
-        # Add specific debugging hints
+        # Add specific debugging hints for common issues
         if "timeout" in str(e).lower():
             logger.error("🔧 DEBUGGING HINT: Timeout error")
             logger.error("🔧 Check if database is running and accessible")
-            logger.error("🔧 Verify database credentials match your working test script")
+            logger.error("🔧 Verify database credentials and connectivity")
 
         if "connection" in str(e).lower():
             logger.error("🔧 DEBUGGING HINT: Connection error")
-            logger.error("🔧 Your test script works, so check environment variables")
-            logger.error("🔧 Ensure DB_NAME=opentp, DB_USER=opentp, DB_PASSWORD=samaral")
+            logger.error("🔧 Check environment variables for database connection")
+            logger.error("🔧 Ensure DB_NAME, DB_USER, DB_PASSWORD are correct")
+
+        if "snapshot" in str(e).lower():
+            logger.error("🔧 DEBUGGING HINT: Snapshot data issue")
+            logger.error("🔧 Check if snapshot files exist in data directory")
+            logger.error("🔧 Verify data file permissions and format")
 
         raise
 
+
 async def main():
-    """Main function - Core exchange with persistent market data connection"""
+    """
+    Main application entry point with comprehensive error handling.
+    
+    This function:
+    1. Sets up logging and configuration
+    2. Initializes core exchange from snapshot data
+    3. Creates service manager
+    4. Sets up signal handlers for graceful shutdown
+    5. Starts all services
+    6. Runs until shutdown signal
+    7. Performs graceful cleanup
+    """
     service_manager = None
 
     try:
         logger.info("=" * 80)
         logger.info("🏦 STARTING CORE EXCHANGE SERVICE")
-        logger.info(f"Session ID: {logging_config.session_id}")
+        logger.info(f"📋 Session ID: {logging_config.session_id}")
+        logger.info(f"🐍 Python: {sys.version}")
+        logger.info(f"📁 Working Directory: {os.getcwd()}")
         logger.info("=" * 80)
 
-        # Get exchange group ID
-        group_id = os.environ.get("EXCHANGE_GROUP_ID", "ABC")
-        logger.info(f"🔄 Exchange Group ID: {group_id}")
+        # Get configuration from environment
+        exch_id = os.environ.get("EXCHANGE_ID", "ABC")
+        logger.info(f"🔄 Exchange Group ID: {exch_id}")
 
-        # Initialize core exchange
-        exchange_group_manager = await initialize_core_exchange(group_id)
+        # Log environment configuration
+        logger.info("🌍 Environment Configuration:")
+        logger.info(f"   - ENABLE_SESSION_SERVICE: {os.environ.get('ENABLE_SESSION_SERVICE', 'true')}")
+        logger.info(f"   - ENABLE_CONVICTION_SERVICE: {os.environ.get('ENABLE_CONVICTION_SERVICE', 'false')}")
+        logger.info(f"   - MARKET_DATA_HOST: {os.environ.get('MARKET_DATA_HOST', 'localhost')}")
+        logger.info(f"   - MARKET_DATA_PORT: {os.environ.get('MARKET_DATA_PORT', '50051')}")
+        logger.info(f"   - HEALTH_SERVICE_PORT: {os.environ.get('HEALTH_SERVICE_PORT', '50056')}")
+
+        # Initialize core exchange simulation
+        logger.info("🏗️  Initializing core exchange...")
+        exchange_group_manager = await initialize_core_exchange(exch_id)
 
         # Create service manager
+        logger.info("🎛️  Creating service manager...")
         service_manager = CoreExchangeServiceManager(exchange_group_manager)
 
         # Set up signal handlers for graceful shutdown
         def signal_handler(signum, frame):
-            logger.info(f"📡 Received signal {signum}, initiating graceful shutdown...")
+            signal_name = signal.Signals(signum).name
+            logger.info(f"📡 Received {signal_name} signal, initiating graceful shutdown...")
             service_manager.shutdown_requested = True
 
-        signal.signal(signal.SIGINT, signal_handler)
-        signal.signal(signal.SIGTERM, signal_handler)
+        # Register signal handlers
+        signal.signal(signal.SIGINT, signal_handler)   # Ctrl+C
+        signal.signal(signal.SIGTERM, signal_handler)  # Docker/Kubernetes termination
+        
+        logger.info("📡 Signal handlers registered")
 
-        # Start all services
+        # Start all services in orchestrated manner
+        logger.info("🚀 Starting all services...")
         await service_manager.start_all_services()
 
-        # Run forever until shutdown
+        # Run main service loop until shutdown
+        logger.info("🎯 All services started - entering main run loop")
         await service_manager.run_forever()
 
     except KeyboardInterrupt:
@@ -506,19 +720,30 @@ async def main():
     except Exception as e:
         logger.error(f"❌ Fatal error in main: {e}")
         logger.error(f"❌ Full traceback: {traceback.format_exc()}")
+        sys.exit(1)
     finally:
         # Always attempt graceful shutdown
         if service_manager:
-            await service_manager.stop_all_services()
+            try:
+                logger.info("🧹 Performing graceful shutdown...")
+                await service_manager.stop_all_services()
+            except Exception as e:
+                logger.error(f"❌ Error during shutdown: {e}")
+        
         logger.info("🏁 Exchange service shutdown complete")
 
 
 if __name__ == "__main__":
+    """
+    Application entry point with top-level exception handling.
+    """
     try:
         # Run the main exchange service
         asyncio.run(main())
     except KeyboardInterrupt:
         logger.info("🛑 Received keyboard interrupt, exiting...")
+        sys.exit(0)
     except Exception as e:
-        logger.error(f"❌ Fatal error: {e}")
+        logger.error(f"❌ Fatal error at top level: {e}")
+        logger.error(f"❌ Full traceback: {traceback.format_exc()}")
         sys.exit(1)
