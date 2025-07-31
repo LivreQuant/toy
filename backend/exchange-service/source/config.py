@@ -1,11 +1,21 @@
-# source/config.py
+# source/config.py - Updated to integrate with new architecture
 import os
 from dataclasses import dataclass
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
+from typing import List
 
 # Load environment variables
 load_dotenv()
+
+
+class SimulatorConfig(BaseModel):
+    """Simulator configuration for backward compatibility and user management"""
+    user_id: str = Field(default=os.getenv('USER_ID', 'test'))
+    desk_id: str = Field(default=os.getenv('DESK_ID', 'test'))
+    default_symbols: List[str] = Field(default=['AAPL', 'GOOGL', 'MSFT', 'AMZN'])
+    initial_cash: float = Field(default=100_000.0)
+
 
 class ServerConfig(BaseModel):
     host: str = Field(default="0.0.0.0")
@@ -37,6 +47,7 @@ class DatabaseConfig(BaseModel):
     def connection_string(self) -> str:
         return f"postgresql://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}"
 
+
 class MarketDataConfig(BaseModel):
     service_url: str = Field(default=os.getenv('MARKET_DATA_SERVICE_URL', 'market-data-service:50060'))
 
@@ -46,7 +57,7 @@ class ConvictionExchangeConfig(BaseModel):  # Renamed from OrderExchangeConfig
 
 
 class Config:
-    """Application configuration."""
+    """Application configuration - enhanced to support both old and new architectures."""
 
     def __init__(self):
         self.environment = os.getenv('ENVIRONMENT', 'development')
@@ -57,8 +68,20 @@ class Config:
 
         self.log_level = os.getenv('LOG_LEVEL', 'INFO')
 
+        # Add simulator config for backward compatibility
+        self.simulator = SimulatorConfig()
+        self.server = ServerConfig()
+        self.metrics = MetricsConfig()
+        self.tracing = TracingConfig()
+
         # Database configuration
         self.database = self._get_database_config()
+        self.db = self.database  # Backward compatibility
+
+        # Market data and conviction exchange
+        self.market_data = MarketDataConfig()
+        self.conviction_exchange = ConvictionExchangeConfig()
+        self.order_exchange = self.conviction_exchange  # Backward compatibility
 
         # SIMPLE RULE: Production = Database, Development = Files
         if self.is_production:
@@ -118,6 +141,12 @@ class Config:
         """Check if running in production environment"""
         return self.environment.lower() == 'production'
 
+    @classmethod
+    def from_env(cls):
+        """Create config from environment variables - backward compatibility method"""
+        return cls()
 
-# Global configuration instance
+
+# Global configuration instances for backward compatibility
 app_config = Config()
+config = app_config  # For old-style access pattern
