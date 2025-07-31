@@ -4,37 +4,6 @@ kind: ConfigMap
 metadata:
   name: db-schemas-session
 data:
-  market_data.sql: |
-    -- Market Data Schema for Minute Bars
-    CREATE SCHEMA IF NOT EXISTS marketdata;
-    
-    -- Create market data table for storing minute bars
-    CREATE TABLE IF NOT EXISTS marketdata.market_data (
-      market_data_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-      symbol VARCHAR(20) NOT NULL,
-      timestamp BIGINT NOT NULL,
-      open NUMERIC(18, 8) NOT NULL,
-      high NUMERIC(18, 8) NOT NULL,
-      low NUMERIC(18, 8) NOT NULL,
-      close NUMERIC(18, 8) NOT NULL,
-      volume INTEGER NOT NULL,
-      trade_count INTEGER,
-      vwap NUMERIC(18, 8),
-      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-    );
-    
-    -- Create indexes for efficient queries
-    CREATE INDEX IF NOT EXISTS idx_market_data_symbol ON marketdata.market_data(symbol);
-    CREATE INDEX IF NOT EXISTS idx_market_data_timestamp ON marketdata.market_data(timestamp);
-    CREATE INDEX IF NOT EXISTS idx_market_data_symbol_timestamp ON marketdata.market_data(symbol, timestamp);
-    
-    -- Grant permissions
-    GRANT USAGE ON SCHEMA marketdata TO opentp;
-    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA marketdata TO opentp;
-    GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA marketdata TO opentp;
-    ALTER DEFAULT PRIVILEGES IN SCHEMA marketdata GRANT ALL ON TABLES TO opentp;
-    ALTER DEFAULT PRIVILEGES IN SCHEMA marketdata GRANT ALL ON SEQUENCES TO opentp;
-
   sessions.sql: |
     -- Session Schema
     CREATE SCHEMA IF NOT EXISTS session;
@@ -107,9 +76,12 @@ data:
       simulator_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
       session_id UUID NOT NULL REFERENCES session.active_sessions(session_id) ON DELETE CASCADE,
       user_id UUID NOT NULL REFERENCES auth.users(user_id) ON DELETE CASCADE,
-      status TEXT NOT NULL,
-      endpoint TEXT,
-      exchange_type VARCHAR(20),
+      status VARCHAR(20) NOT NULL DEFAULT 'RUNNING',
+      endpoint VARCHAR(255) NOT NULL,
+      pod_name VARCHAR(100) NOT NULL,
+      namespace VARCHAR(50) NOT NULL DEFAULT 'default',
+      exch_id UUID NOT NULL,
+      exchange_type VARCHAR(50) NOT NULL DEFAULT 'EXCH_US_EQUITIES'
       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
       last_active TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
     );
@@ -117,6 +89,7 @@ data:
     -- Indexes for performance
     CREATE INDEX IF NOT EXISTS idx_simulator_session_id ON simulator.instances(session_id);
     CREATE INDEX IF NOT EXISTS idx_simulator_user_id ON simulator.instances(user_id);
+    CREATE INDEX IF NOT EXISTS idx_simulator_exch_id ON simulator.instances(exch_id);
     CREATE INDEX IF NOT EXISTS idx_simulator_status ON simulator.instances(status);
 
     -- Grant permissions for simulator schema
@@ -125,51 +98,3 @@ data:
     GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA simulator TO opentp;
     ALTER DEFAULT PRIVILEGES IN SCHEMA simulator GRANT ALL ON TABLES TO opentp;
     ALTER DEFAULT PRIVILEGES IN SCHEMA simulator GRANT ALL ON SEQUENCES TO opentp;
-
-  trading.sql: |
-    -- Trading Schema
-    CREATE SCHEMA IF NOT EXISTS trading;
-    
-    -- Create orders table if not exists
-    CREATE TABLE IF NOT EXISTS trading.orders (
-      order_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-      status VARCHAR(20) PRIMARY NOT NULL,
-      user_id UUID NOT NULL REFERENCES auth.users(user_id) ON DELETE CASCADE,
-      symbol VARCHAR(20) NOT NULL,
-      side VARCHAR(10) NOT NULL,
-      quantity NUMERIC(18,8) NOT NULL,
-      price NUMERIC(18,8),
-      order_type VARCHAR(20) NOT NULL,
-      filled_quantity NUMERIC(18,8) NOT NULL DEFAULT 0,
-      avg_price NUMERIC(18,8) NOT NULL DEFAULT 0,
-      created_at TIMESTAMP WITH TIME ZONE NOT NULL,
-      updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
-      request_id VARCHAR(100),
-      error_message TEXT
-    );
-    
-    -- Create indexes
-    CREATE INDEX IF NOT EXISTS idx_orders_order_id ON trading.orders(order_id);
-    CREATE INDEX IF NOT EXISTS idx_orders_status ON trading.orders(status);
-    CREATE INDEX IF NOT EXISTS idx_orders_user_id ON trading.orders(user_id);
-    CREATE INDEX IF NOT EXISTS idx_orders_created_at ON trading.orders(created_at);
-    
-    CREATE TABLE IF NOT EXISTS trading.books (
-      book_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-      user_id UUID NOT NULL REFERENCES auth.users(user_id) ON DELETE CASCADE,
-      name VARCHAR(255) NOT NULL,
-      parameters JSONB,
-      created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
-    );
-
-    -- Add indexes
-    CREATE INDEX IF NOT EXISTS idx_books_user_id ON trading.books(user_id);
-
-    -- Grant permissions
-    GRANT USAGE ON SCHEMA trading TO opentp;
-    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA trading TO opentp;
-    GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA trading TO opentp;
-    ALTER DEFAULT PRIVILEGES IN SCHEMA trading GRANT ALL ON TABLES TO opentp;
-    ALTER DEFAULT PRIVILEGES IN SCHEMA trading GRANT ALL ON SEQUENCES TO opentp;
-  

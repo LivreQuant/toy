@@ -8,7 +8,7 @@ import os
 
 from source.config import config
 from source.utils.logging_utils import setup_logging
-from source.generator.market_data_generator import MarketDataGenerator
+from source.generator.market_data_generator import ControlledMarketDataGenerator
 from source.db.database import DatabaseManager
 from source.api.grpc.market_exchange_interface_pb2_grpc import add_MarketDataServiceServicer_to_server
 from source.service.market_data_service import MarketDataService
@@ -33,23 +33,28 @@ async def shutdown(service, server, health_service):
     logging.info("Shutdown complete")
 
 async def main():
-    """Main entry point for the application"""
+    """Main entry point for the controlled market data service"""
     # Setup logging
     logger = setup_logging()
-    logger.info("Starting market data service")
+    logger.info("Starting controlled market data service")
     
     try:
-        # Create the market data generator with configured symbols
-        generator = MarketDataGenerator(config.SYMBOLS)
+        # Load market configuration from JSON
+        market_config = config.load_market_config()
+        logger.info(f"Loaded market config: {market_config['config_name']}")
+        
+        # Create the controlled market data generator
+        generator = ControlledMarketDataGenerator(market_config)
         
         # Create database manager
         db_manager = DatabaseManager()
         
-        # Create the service
+        # Create the service with configurable update interval
+        update_interval = market_config.get("time_increment_minutes", 1) * 60  # Convert to seconds
         service = MarketDataService(
             generator=generator,
             db_manager=db_manager,
-            update_interval=config.UPDATE_INTERVAL
+            update_interval=update_interval
         )
                 
         health_service = HealthService(http_port=50061)
@@ -64,7 +69,9 @@ async def main():
         server.add_insecure_port(server_addr)
         await server.start()
         
-        logger.info(f"Server started on {server_addr}")
+        logger.info(f"Controlled market data server started on {server_addr}")
+        logger.info(f"Market timezone: {market_config.get('timezone', 'UTC')}")
+        logger.info(f"Update interval: {update_interval} seconds")
         
         # Set up shutdown handler
         loop = asyncio.get_running_loop()
@@ -88,8 +95,7 @@ async def main():
     finally:
         await shutdown(service if 'service' in locals() else None, 
                        server if 'server' in locals() else None, 
-                       health_service if 'health_service' in locals() else None,)
+                       health_service if 'health_service' in locals() else None)
 
 if __name__ == "__main__":
     asyncio.run(main())
-    

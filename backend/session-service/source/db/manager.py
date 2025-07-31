@@ -1,5 +1,5 @@
 """
-Centralized database connection management.
+Simplified database connection management for combined schema.
 """
 import logging
 
@@ -10,12 +10,16 @@ logger = logging.getLogger(__name__)
 
 
 class StoreManager:
-    """Manages PostgreSQL database connections"""
+    """Manages PostgreSQL database connections for combined schema"""
 
     def __init__(self):
         """Initialize database stores"""
         self.session_store = PostgresSessionStore()
-        self.simulator_store = PostgresSimulatorStore()
+        # Updated to use combined schema
+        self.simulator_store = PostgresSimulatorStore(
+            schema_name="exch_us_equity", 
+            table_name="simulator_instances"
+        )
 
     async def connect(self):
         """Connect to PostgreSQL databases"""

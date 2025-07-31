@@ -1,28 +1,9 @@
-// market_exchange_interface.proto
 syntax = "proto3";
 
 package market_data;
 
-// Market data service definition
-service MarketDataService {
-  // Stream market data to subscribers
-  rpc SubscribeMarketData (SubscriptionRequest) returns (stream MarketDataUpdate);
-}
-
-// Request to subscribe to market data
-message SubscriptionRequest {
-  string subscriber_id = 1;
-  repeated string symbols = 2;
-}
-
-// Market data update message
-message MarketDataUpdate {
-  int64 timestamp = 1;
-  repeated SymbolData data = 2;
-}
-
-// Data for a single symbol - minute bars
-message SymbolData {
+// Equity data bar for a single symbol
+message EquityData {
   string symbol = 1;
   double open = 2;
   double high = 3;
@@ -31,4 +12,36 @@ message SymbolData {
   int32 volume = 6;
   int32 trade_count = 7;
   double vwap = 8;
+  string exchange = 9;
+  string currency = 10;
+  double vwas = 11;
+  double vwav = 12;
+}
+
+// FX rate data
+message FXRate {
+  string from_currency = 1;
+  string to_currency = 2;
+  string timestamp = 3;
+  double rate = 4;
+}
+
+// Subscription request
+message SubscriptionRequest {
+  string subscriber_id = 1;
+  bool include_history = 2;
+}
+
+// Streamed market data batch
+message MarketDataStream {
+  int64 timestamp = 1;
+  string bin_time = 2;
+  repeated EquityData equity = 3;
+  repeated FXRate fx = 4;
+  int32 batch_number = 5;
+}
+
+// Simple streaming service
+service MarketDataService {
+  rpc SubscribeToMarketData(SubscriptionRequest) returns (stream MarketDataStream);
 }

@@ -1,4 +1,6 @@
-# source/utils/metrics.py
+"""
+Metrics for session service - connection-focused, no creation metrics.
+"""
 import logging
 import threading
 import time
@@ -8,7 +10,7 @@ from source.config import config
 
 logger = logging.getLogger('metrics')
 
-# REST API Metrics (keep original names)
+# REST API Metrics
 REST_API_REQUESTS = Counter(
     'session_rest_requests_total',
     'Total number of REST API requests',
@@ -53,20 +55,26 @@ WEBSOCKET_ERRORS = Counter(
     ['error_type']
 )
 
-# Simulator Metrics
-SIMULATOR_COUNT = Gauge(
-    'session_active_simulators',
-    'Number of active simulators',
+# Simulator Connection Metrics (updated - no creation, just connection)
+SIMULATOR_CONNECTIONS = Gauge(
+    'session_simulator_connections',
+    'Number of active simulator connections',
     ['pod_name']
 )
 
-SIMULATOR_OPERATIONS = Counter(
-    'session_simulator_operations_total',
-    'Number of simulator operations',
-    ['operation', 'status']
+SIMULATOR_CONNECTION_ATTEMPTS = Counter(
+    'session_simulator_connection_attempts_total',
+    'Number of simulator connection attempts',
+    ['status']
 )
 
-# Database Metrics - PRESERVE EXISTING NAMES
+SIMULATOR_CONNECTION_DURATION = Histogram(
+    'session_simulator_connection_duration_seconds',
+    'Time taken to establish simulator connection',
+    ['status']
+)
+
+# Database Metrics
 DB_OPERATION_LATENCY = Histogram(
     'session_db_operation_duration_seconds',
     'Database operation duration in seconds',
@@ -105,7 +113,6 @@ CIRCUIT_BREAKER_FAILURES = Counter(
     ['service']
 )
 
-# KEEP ALL EXISTING FUNCTIONS WITH THE SAME NAMES
 
 def setup_metrics(metrics_port=None):
     """Start Prometheus metrics server"""
@@ -126,7 +133,6 @@ def setup_metrics(metrics_port=None):
         logger.error(f"Failed to start metrics server: {e}")
 
 
-# Keep all original function names and signatures
 def track_rest_request(method, endpoint, status_code, duration):
     """Track REST API request"""
     REST_API_REQUESTS.labels(method=method, endpoint=endpoint, status=str(status_code)).inc()
@@ -162,22 +168,21 @@ def track_websocket_error(error_type):
     WEBSOCKET_ERRORS.labels(error_type=error_type).inc()
 
 
-def track_simulator_count(count, pod_name=None):
-    """Track active simulator count"""
+def track_simulator_connection_count(count, pod_name=None):
+    """Track active simulator connection count"""
     if pod_name is None:
         pod_name = config.kubernetes.pod_name
-    SIMULATOR_COUNT.labels(pod_name=pod_name).set(count)
+    SIMULATOR_CONNECTIONS.labels(pod_name=pod_name).set(count)
 
 
-def track_simulator_operation(operation, status='success'):
-    """Track simulator operation"""
-    SIMULATOR_OPERATIONS.labels(operation=operation, status=status).inc()
+def track_simulator_connection_attempt(status='success'):
+    """Track simulator connection attempt"""
+    SIMULATOR_CONNECTION_ATTEMPTS.labels(status=status).inc()
 
 
-def track_simulator_creation_time(duration_seconds):
-    """Track simulator creation time"""
-    # Keep function but simplify implementation
-    DB_OPERATION_LATENCY.labels(operation="simulator_creation").observe(duration_seconds)
+def track_simulator_connection_time(duration_seconds, status='success'):
+    """Track simulator connection time"""
+    SIMULATOR_CONNECTION_DURATION.labels(status=status).observe(duration_seconds)
 
 
 def track_db_operation(operation, duration_seconds):
@@ -198,7 +203,6 @@ def track_external_request(service, endpoint, status, duration_seconds):
 
 def track_circuit_breaker_state(service, state):
     """Track circuit breaker state change"""
-    # Convert state to number: CLOSED=0, OPEN=1, HALF_OPEN=2
     state_map = {"CLOSED": 0, "OPEN": 1, "HALF_OPEN": 2}
     state_num = state_map.get(state, 0)
     CIRCUIT_BREAKER_STATE.labels(service=service).set(state_num)
@@ -209,24 +213,21 @@ def track_circuit_breaker_failure(service):
     CIRCUIT_BREAKER_FAILURES.labels(service=service).inc()
 
 
-# Keep remaining functions with same signatures
 def track_client_reconnection(reconnect_count):
+    """Track client reconnection"""
     CIRCUIT_BREAKER_FAILURES.labels(service=f"reconnect_{reconnect_count}").inc()
 
 
 def track_connection_quality(quality, pod_name=None):
-    if pod_name is None:
-        pod_name = config.kubernetes.pod_name
-    # Simplified implementation but same interface
-    pass
+    """Track connection quality"""
+    pass  # Simplified implementation
 
 
 def track_cleanup_operation(operation, items_cleaned=0):
-    # Simplified implementation but same interface
+    """Track cleanup operation"""
     SESSION_OPERATIONS.labels(operation=f"cleanup_{operation}").inc()
 
 
-# Context manager for timing operations and recording metrics
 class TimedOperation:
     def __init__(self, metric_func, *args, **kwargs):
         self.metric_func = metric_func

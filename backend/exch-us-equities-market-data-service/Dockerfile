@@ -15,20 +15,22 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy source code (including pre-generated protobuf files)
 COPY source/ source/
 
+# Copy market configuration files
+COPY tests/ tests/
+
 # Environment variables
 ENV PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app \
     # Market Data Configuration
-    SYMBOLS="AAPL,GOOGL,MSFT,AMZN,TSLA,META" \
-    UPDATE_INTERVAL="60" \
+    CONFIG_FILE="test_0.json" \
     API_HOST="0.0.0.0" \
     API_PORT="50060" \
     # Database Configuration
     DB_HOST="pgbouncer" \
     DB_PORT="5432" \
-    DB_NAME="opentp" \
-    DB_USER="opentp" \
-    DB_PASSWORD="samaral" \
+    DB_NAME="exch_us_equity" \
+    DB_USER="postgres" \
+    DB_PASSWORD="postgres" \
     # Logging Configuration
     LOG_LEVEL="INFO"
 

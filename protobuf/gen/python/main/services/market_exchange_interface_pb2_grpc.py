@@ -6,7 +6,7 @@ from main.services import market_exchange_interface_pb2 as main_dot_services_dot
 
 
 class MarketDataServiceStub(object):
-    """Market data service definition
+    """Simple streaming service
     """
 
     def __init__(self, channel):
@@ -15,20 +15,19 @@ class MarketDataServiceStub(object):
         Args:
             channel: A grpc.Channel.
         """
-        self.SubscribeMarketData = channel.unary_stream(
-                '/market_data.MarketDataService/SubscribeMarketData',
+        self.SubscribeToMarketData = channel.unary_stream(
+                '/market_data.MarketDataService/SubscribeToMarketData',
                 request_serializer=main_dot_services_dot_market__exchange__interface__pb2.SubscriptionRequest.SerializeToString,
-                response_deserializer=main_dot_services_dot_market__exchange__interface__pb2.MarketDataUpdate.FromString,
+                response_deserializer=main_dot_services_dot_market__exchange__interface__pb2.MarketDataStream.FromString,
                 )
 
 
 class MarketDataServiceServicer(object):
-    """Market data service definition
+    """Simple streaming service
     """
 
-    def SubscribeMarketData(self, request, context):
-        """Stream market data to subscribers
-        """
+    def SubscribeToMarketData(self, request, context):
+        """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
@@ -36,10 +35,10 @@ class MarketDataServiceServicer(object):
 
 def add_MarketDataServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
-            'SubscribeMarketData': grpc.unary_stream_rpc_method_handler(
-                    servicer.SubscribeMarketData,
+            'SubscribeToMarketData': grpc.unary_stream_rpc_method_handler(
+                    servicer.SubscribeToMarketData,
                     request_deserializer=main_dot_services_dot_market__exchange__interface__pb2.SubscriptionRequest.FromString,
-                    response_serializer=main_dot_services_dot_market__exchange__interface__pb2.MarketDataUpdate.SerializeToString,
+                    response_serializer=main_dot_services_dot_market__exchange__interface__pb2.MarketDataStream.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -49,11 +48,11 @@ def add_MarketDataServiceServicer_to_server(servicer, server):
 
  # This class is part of an EXPERIMENTAL API.
 class MarketDataService(object):
-    """Market data service definition
+    """Simple streaming service
     """
 
     @staticmethod
-    def SubscribeMarketData(request,
+    def SubscribeToMarketData(request,
             target,
             options=(),
             channel_credentials=None,
@@ -63,8 +62,8 @@ class MarketDataService(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.unary_stream(request, target, '/market_data.MarketDataService/SubscribeMarketData',
+        return grpc.experimental.unary_stream(request, target, '/market_data.MarketDataService/SubscribeToMarketData',
             main_dot_services_dot_market__exchange__interface__pb2.SubscriptionRequest.SerializeToString,
-            main_dot_services_dot_market__exchange__interface__pb2.MarketDataUpdate.FromString,
+            main_dot_services_dot_market__exchange__interface__pb2.MarketDataStream.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)

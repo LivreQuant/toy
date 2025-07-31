@@ -75,18 +75,19 @@ class WebSocketConfig(BaseModel):
 
 
 class SimulatorConfig(BaseModel):
-    """Simulator configuration"""
-    max_per_user: int = Field(default=2)
-    inactivity_timeout: int = Field(default=3600)  # 1 hour
-    namespace: str = Field(default="default")
+    """Simplified simulator configuration - connection only"""
+    connection_timeout: int = Field(default=30)  # Seconds to wait for connection
+    heartbeat_interval: int = Field(default=10)  # Heartbeat frequency
+    max_reconnect_attempts: int = Field(default=0)  # 0 = infinite retries
+    reconnect_delay: int = Field(default=5)  # Seconds between reconnection attempts
+    connection_retry_backoff: float = Field(default=1.5)  # Exponential backoff multiplier
+    max_retry_delay: int = Field(default=60)  # Maximum delay between retries
 
 
 class KubernetesConfig(BaseModel):
-    """Kubernetes configuration"""
+    """Minimal Kubernetes configuration - only for identification"""
     namespace: str = Field(default="default")
     pod_name: str = Field(default=os.getenv('HOSTNAME', 'unknown'))
-    in_cluster: bool = Field(default=True)
-    registry_secret_name: str = Field(default=os.getenv('KUBERNETES_REGISTRY_SECRET', 'do-registry-credentials'))
 
 
 class TracingConfig(BaseModel):
@@ -156,14 +157,16 @@ class Config(BaseModel):
                 ssl_key_path=os.getenv('WS_SSL_KEY_PATH')
             ),
             simulator=SimulatorConfig(
-                max_per_user=int(os.getenv('MAX_SIMULATORS_PER_USER', '1')),
-                namespace=os.getenv('SIMULATOR_NAMESPACE', 'default')
+                connection_timeout=int(os.getenv('SIMULATOR_CONNECTION_TIMEOUT', '30')),
+                heartbeat_interval=int(os.getenv('SIMULATOR_HEARTBEAT_INTERVAL', '10')),
+                max_reconnect_attempts=int(os.getenv('SIMULATOR_MAX_RECONNECT_ATTEMPTS', '0')),
+                reconnect_delay=int(os.getenv('SIMULATOR_RECONNECT_DELAY', '5')),
+                connection_retry_backoff=float(os.getenv('SIMULATOR_RETRY_BACKOFF', '1.5')),
+                max_retry_delay=int(os.getenv('SIMULATOR_MAX_RETRY_DELAY', '60'))
             ),
             kubernetes=KubernetesConfig(
                 namespace=os.getenv('KUBERNETES_NAMESPACE', 'default'),
-                pod_name=os.getenv('POD_NAME', os.getenv('HOSTNAME', 'unknown')),
-                in_cluster=os.getenv('K8S_IN_CLUSTER', 'true').lower() == 'true',
-                registry_secret_name=os.getenv('KUBERNETES_REGISTRY_SECRET', 'do-registry-credentials'),
+                pod_name=os.getenv('POD_NAME', os.getenv('HOSTNAME', 'unknown'))
             ),
             tracing=TracingConfig(
                 enabled=os.getenv('ENABLE_TRACING', 'false').lower() == 'true',
