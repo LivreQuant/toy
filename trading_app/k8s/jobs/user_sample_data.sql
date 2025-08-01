@@ -17,7 +17,7 @@ INSERT INTO exch_us_equity.metadata (
     market_close,
     post_market_close
 ) VALUES (
-    gen_random_uuid(),
+    '00000000-0000-0000-0000-000000000002'::UUID,
     'US_EQUITIES',
     'America/New_York',
     ARRAY['NYSE', 'NASDAQ', 'ARCA'],
@@ -26,9 +26,7 @@ INSERT INTO exch_us_equity.metadata (
     '09:30:00'::TIME,
     '16:00:00'::TIME,
     '20:00:00'::TIME
-) ON CONFLICT (group_id) DO UPDATE SET
-    last_snap = EXCLUDED.last_snap,
-    updated_time = CURRENT_TIMESTAMP;
+);
 
 -- =====================================================================================
 -- INSERT USER
@@ -38,11 +36,12 @@ INSERT INTO exch_us_equity.users (
     exch_id,
     base_currency,
     timezone
-) VALUES
-    ('USER_000', (SELECT exch_id FROM exch_us_equity.metadata WHERE group_id = 'ABC'), 'USD', 'America/New_York')
-ON CONFLICT (user_id) DO UPDATE SET
-    base_currency = EXCLUDED.base_currency,
-    timezone = EXCLUDED.timezone;
+) VALUES (
+    '00000000-0000-0000-0000-000000000001', 
+    '00000000-0000-0000-0000-000000000002', 
+    'USD', 
+    'America/New_York'
+);
 
 -- =====================================================================================
 -- INSERT PORTFOLIO DATA
@@ -59,17 +58,9 @@ INSERT INTO exch_us_equity.portfolio_data (
     itd_realized_pnl,
     realized_pnl,
     unrealized_pnl
-) VALUES
-    -- TEMPLATE_USER portfolio
-    ('USER_000', '2024-01-09T00:00:00+00:00'::TIMESTAMP WITH TIME ZONE, 'AAPL', 1000, 'USD', 180.50, 187450.00, 0.0, 6950.00, 0.0, 6950.00)
-ON CONFLICT (user_id, timestamp, symbol) DO UPDATE SET
-    quantity = EXCLUDED.quantity,
-    avg_price = EXCLUDED.avg_price,
-    mtm_value = EXCLUDED.mtm_value,
-    sod_realized_pnl = EXCLUDED.sod_realized_pnl,
-    itd_realized_pnl = EXCLUDED.itd_realized_pnl,
-    realized_pnl = EXCLUDED.realized_pnl,
-    unrealized_pnl = EXCLUDED.unrealized_pnl;
+) VALUES 
+    ('00000000-0000-0000-0000-000000000001', '2024-01-09T00:00:00+00:00'::TIMESTAMP WITH TIME ZONE, 'AAPL', 1000, 'USD', 180.50, 187450.00, 0.0, 6950.00, 0.0, 6950.00);
+
 
 -- =====================================================================================
 -- INSERT ACCOUNT DATA
@@ -84,18 +75,14 @@ INSERT INTO exch_us_equity.account_data (
     change
 ) VALUES
     -- TEMPLATE_USER accounts
-    ('USER_000', '2024-01-09T00:00:00+00:00'::TIMESTAMP WITH TIME ZONE, 'CREDIT', 'USD', 1000000.0, 1000000.0, 0.0),
-    ('USER_000', '2024-01-09T00:00:00+00:00'::TIMESTAMP WITH TIME ZONE, 'SHORT_CREDIT', 'USD', 0.0, 0.0, 0.0),
-    ('USER_000', '2024-01-09T00:00:00+00:00'::TIMESTAMP WITH TIME ZONE, 'DEBIT', 'USD', 575000.0, 575000.0, 0.0)
-ON CONFLICT (user_id, timestamp, type, currency) DO UPDATE SET
-    amount = EXCLUDED.amount,
-    previous_amount = EXCLUDED.previous_amount,
-    change = EXCLUDED.change;
+    ('00000000-0000-0000-0000-000000000001', '2024-01-09T00:00:00+00:00'::TIMESTAMP WITH TIME ZONE, 'CREDIT', 'USD', 1000000.0, 1000000.0, 0.0),
+    ('00000000-0000-0000-0000-000000000001', '2024-01-09T00:00:00+00:00'::TIMESTAMP WITH TIME ZONE, 'SHORT_CREDIT', 'USD', 0.0, 0.0, 0.0),
+    ('00000000-0000-0000-0000-000000000001', '2024-01-09T00:00:00+00:00'::TIMESTAMP WITH TIME ZONE, 'DEBIT', 'USD', 575000.0, 575000.0, 0.0);
 
 -- =====================================================================================
 -- INSERT RETURN DATA
 -- =====================================================================================
-INSERT INTO cccc.return_data (
+INSERT INTO exch_us_equity.return_data (
     user_id,
     timestamp,
     return_id,
@@ -112,23 +99,11 @@ INSERT INTO cccc.return_data (
     cumulative_return_contribution
 ) VALUES
     -- TEMPLATE_USER returns
-    ('USER_000', '2024-01-09T00:00:00+00:00'::TIMESTAMP WITH TIME ZONE, 'WTD_BOOK_NAV', 'BOOK', 'NAV', 425450.0, 415000.0, 415000.0, 0.0, 0.0252, 0.0252, 100.0, 0.0252, 0.0252),
-    ('USER_000', '2024-01-09T00:00:00+00:00'::TIMESTAMP WITH TIME ZONE, 'MTD_BOOK_NAV', 'BOOK', 'NAV', 425450.0, 415000.0, 415000.0, 0.0, 0.0252, 0.0252, 100.0, 0.0252, 0.0252),
-    ('USER_000', '2024-01-09T00:00:00+00:00'::TIMESTAMP WITH TIME ZONE, 'YTD_BOOK_NAV', 'BOOK', 'NAV', 425450.0, 415000.0, 415000.0, 0.0, 0.0252, 0.0252, 100.0, 0.0252, 0.0252),
-    ('USER_000', '2024-01-09T00:00:00+00:00'::TIMESTAMP WITH TIME ZONE, 'WTD_CASH_EQUITY_EQUITY', 'CASH_EQUITY', 'EQUITY', 425450.0, 415000.0, 415000.0, 0.0, 0.0252, 0.0252, 100.0, 0.0252, 0.0252),
-    ('USER_000', '2024-01-09T00:00:00+00:00'::TIMESTAMP WITH TIME ZONE, 'WTD_CASH_EQUITY_CASH', 'CASH_EQUITY', 'CASH', 425000.0, 425000.0, 425000.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
-ON CONFLICT (user_id, timestamp, return_id) DO UPDATE SET
-   category = EXCLUDED.category,
-   subcategory = EXCLUDED.subcategory,
-   emv = EXCLUDED.emv,
-   bmv = EXCLUDED.bmv,
-   bmv_book = EXCLUDED.bmv_book,
-   cf = EXCLUDED.cf,
-   periodic_return_subcategory = EXCLUDED.periodic_return_subcategory,
-   cumulative_return_subcategory = EXCLUDED.cumulative_return_subcategory,
-   contribution_percentage = EXCLUDED.contribution_percentage,
-   periodic_return_contribution = EXCLUDED.periodic_return_contribution,
-   cumulative_return_contribution = EXCLUDED.cumulative_return_contribution;
+    ('00000000-0000-0000-0000-000000000001', '2024-01-09T00:00:00+00:00'::TIMESTAMP WITH TIME ZONE, 'WTD_BOOK_NAV', 'BOOK', 'NAV', 425450.0, 415000.0, 415000.0, 0.0, 0.0252, 0.0252, 100.0, 0.0252, 0.0252),
+    ('00000000-0000-0000-0000-000000000001', '2024-01-09T00:00:00+00:00'::TIMESTAMP WITH TIME ZONE, 'MTD_BOOK_NAV', 'BOOK', 'NAV', 425450.0, 415000.0, 415000.0, 0.0, 0.0252, 0.0252, 100.0, 0.0252, 0.0252),
+    ('00000000-0000-0000-0000-000000000001', '2024-01-09T00:00:00+00:00'::TIMESTAMP WITH TIME ZONE, 'YTD_BOOK_NAV', 'BOOK', 'NAV', 425450.0, 415000.0, 415000.0, 0.0, 0.0252, 0.0252, 100.0, 0.0252, 0.0252),
+    ('00000000-0000-0000-0000-000000000001', '2024-01-09T00:00:00+00:00'::TIMESTAMP WITH TIME ZONE, 'WTD_CASH_EQUITY_EQUITY', 'CASH_EQUITY', 'EQUITY', 425450.0, 415000.0, 415000.0, 0.0, 0.0252, 0.0252, 100.0, 0.0252, 0.0252),
+    ('00000000-0000-0000-0000-000000000001', '2024-01-09T00:00:00+00:00'::TIMESTAMP WITH TIME ZONE, 'WTD_CASH_EQUITY_CASH', 'CASH_EQUITY', 'CASH', 425000.0, 425000.0, 425000.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
 
 -- =====================================================================================
 -- VERIFY USER DATA INSERTION

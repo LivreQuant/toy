@@ -6,7 +6,6 @@
 -- INSERT UNIVERSE DATA
 -- =====================================================================================
 INSERT INTO exch_us_equity.universe_data (
-    exchange_id,
     date,
     symbol,
     sector,
@@ -19,18 +18,11 @@ INSERT INTO exch_us_equity.universe_data (
     primary_exchange,
     shares_outstanding
 ) VALUES
-    ('ABC', '2024-01-09', 'AAPL', 'Technology', 'Consumer Electronics', 3000000000000, 'US', 'USD', 50000000, 1.2, 'NASDAQ', 15500000000),
-    ('ABC', '2024-01-09', 'MSFT', 'Technology', 'Software', 2800000000000, 'US', 'USD', 30000000, 0.9, 'NASDAQ', 7400000000),
-    ('ABC', '2024-01-09', 'GOOGL', 'Technology', 'Internet Services', 2000000000000, 'US', 'USD', 25000000, 1.1, 'NASDAQ', 12800000000),
-    ('ABC', '2024-01-09', 'AMZN', 'Consumer Discretionary', 'E-commerce', 1800000000000, 'US', 'USD', 35000000, 1.3, 'NASDAQ', 10700000000),
-    ('ABC', '2024-01-09', 'TSLA', 'Consumer Discretionary', 'Automotive', 800000000000, 'US', 'USD', 75000000, 2.0, 'NASDAQ', 3170000000)
-ON CONFLICT (date, symbol) DO UPDATE SET
-    sector = EXCLUDED.sector,
-    industry = EXCLUDED.industry,
-    market_cap = EXCLUDED.market_cap,
-    avg_daily_volume = EXCLUDED.avg_daily_volume,
-    beta = EXCLUDED.beta,
-    shares_outstanding = EXCLUDED.shares_outstanding;
+    ('2024-01-09', 'AAPL', 'Technology', 'Consumer Electronics', 3000000000000, 'US', 'USD', 50000000, 1.2, 'NASDAQ', 15500000000),
+    ('2024-01-09', 'MSFT', 'Technology', 'Software', 2800000000000, 'US', 'USD', 30000000, 0.9, 'NASDAQ', 7400000000),
+    ('2024-01-09', 'GOOGL', 'Technology', 'Internet Services', 2000000000000, 'US', 'USD', 25000000, 1.1, 'NASDAQ', 12800000000),
+    ('2024-01-09', 'AMZN', 'Consumer Discretionary', 'E-commerce', 1800000000000, 'US', 'USD', 35000000, 1.3, 'NASDAQ', 10700000000),
+    ('2024-01-09', 'TSLA', 'Consumer Discretionary', 'Automotive', 800000000000, 'US', 'USD', 75000000, 2.0, 'NASDAQ', 3170000000);
 
 -- =====================================================================================
 -- INSERT RISK FACTOR DATA
@@ -80,9 +72,7 @@ INSERT INTO exch_us_equity.risk_factor_data (
     ('2024-01-09', 'TSLA', 'STYLE', 'QUALITY', 0.3),
     ('2024-01-09', 'TSLA', 'STYLE', 'VALUE', -0.8),
     ('2024-01-09', 'TSLA', 'STYLE', 'SIZE', 0.2),
-    ('2024-01-09', 'TSLA', 'STYLE', 'VOLATILITY', 1.2)
-ON CONFLICT (date, symbol, type, name) DO UPDATE SET
-    value = EXCLUDED.value;
+    ('2024-01-09', 'TSLA', 'STYLE', 'VOLATILITY', 1.2);
 
 -- =====================================================================================
 -- VERIFY GLOBAL STATIC DATA INSERTION
@@ -90,11 +80,6 @@ ON CONFLICT (date, symbol, type, name) DO UPDATE SET
 SELECT 'Global static data inserted successfully!' as status;
 
 -- Show record counts
-SELECT
-    'metadata' as table_name,
-    count(*) as records
-FROM exch_us_equity.metadata
-UNION ALL
 SELECT
     'universe_data' as table_name,
     count(*) as records
