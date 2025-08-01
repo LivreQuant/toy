@@ -5,6 +5,7 @@ metadata:
   name: db-schemas-exch-us-equities-global-data
 data:
   exch-us-equities-global-data.sql: |
+    -- global_schema.sql
     -- OpenTP Exchange Service Database Schema - Global Data Tables
 
     -- =====================================================================================
