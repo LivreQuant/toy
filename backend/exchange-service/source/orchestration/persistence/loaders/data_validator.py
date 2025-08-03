@@ -56,7 +56,7 @@ class DataValidator:
         total_users = len(last_snap_data['user_data'])
         summary = {
             'total_users': total_users,
-            'exchange_id': last_snap_data['exchange_metadata'].get('group_id', 'UNKNOWN'),
+            'exch_id': last_snap_data['exchange_metadata'].get('exch_id', 'UNKNOWN'),
             'exchange_type': last_snap_data['exchange_metadata'].get('exchange_type', 'UNKNOWN'),
             'universe_symbols': len(last_snap_data['global_data']['universe']),
             'equity': len(last_snap_data['global_data']['equity']),

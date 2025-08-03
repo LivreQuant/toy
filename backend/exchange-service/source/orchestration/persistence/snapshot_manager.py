@@ -17,20 +17,20 @@ from source.orchestration.persistence.managers.snapshot_validator import Snapsho
 class SnapshotManager:
     """Unified snapshot management for multi-user scenarios"""
 
-    def __init__(self, group_id: str = ""):
+    def __init__(self, exch_id: str = ""):
         self.logger = logging.getLogger(self.__class__.__name__)
-        self.group_id = group_id
+        self.exch_id = exch_id
 
         # Build paths
         # self.data_dir = os.path.join(self._get_project_root(), "data")
         # self.metadata_file = os.path.join(self.data_dir, f"exchange_group_metadata.json")
 
         self.logger.info(f"📁 SnapshotManager initialized")
-        self.logger.info(f"   Group ID: {group_id}")
+        self.logger.info(f"   Group ID: {exch_id}")
 
         # Initialize components
         self.exchange_group_manager = None
-        self.last_snap_loader = LastSnapLoader(group_id)
+        self.last_snap_loader = LastSnapLoader(exch_id)
 
         # Initialize specialized modules (will be set up when exchange_group_manager is available)
         self.manager_initializer = ManagerInitializer()
@@ -46,7 +46,7 @@ class SnapshotManager:
             self.logger.info("=" * 80)
 
             # Step 1: Initialize exchange group manager
-            self.exchange_group_manager = ExchangeGroupManager(self.group_id)
+            self.exchange_group_manager = ExchangeGroupManager(self.exch_id)
 
             if not await self.exchange_group_manager.initialize():
                 self.logger.error("❌ Failed to initialize exchange group manager")

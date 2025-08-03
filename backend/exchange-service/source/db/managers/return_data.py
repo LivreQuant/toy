@@ -15,7 +15,7 @@ class ReturnDataManager(BaseTableManager):
         try:
             async with self.pool.acquire() as conn:
                 query = """
-                    SELECT return_pk, user_id, timestamp, return_id, category, subcategory,
+                    SELECT user_id, timestamp, return_id, category, subcategory,
                            emv, bmv, bmv_book, cf, periodic_return_subcategory,
                            cumulative_return_subcategory, contribution_percentage,
                            periodic_return_contribution, cumulative_return_contribution
@@ -28,7 +28,6 @@ class ReturnDataManager(BaseTableManager):
                 returns_data = []
                 for row in rows:
                     returns_data.append({
-                        'return_pk': str(row['return_pk']),
                         'user_id': row['user_id'],
                         'timestamp': row['timestamp'],
                         'return_id': row['return_id'],
@@ -63,11 +62,11 @@ class ReturnDataManager(BaseTableManager):
             async with self.pool.acquire() as conn:
                 query = """
                     INSERT INTO exch_us_equity.return_data (
-                        return_pk, user_id, timestamp, return_id, category, subcategory,
+                        user_id, timestamp, return_id, category, subcategory,
                         emv, bmv, bmv_book, cf, periodic_return_subcategory,
                         cumulative_return_subcategory, contribution_percentage,
                         periodic_return_contribution, cumulative_return_contribution
-                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
                     ON CONFLICT (user_id, timestamp, return_id) DO UPDATE SET
                         category = EXCLUDED.category,
                         subcategory = EXCLUDED.subcategory,
@@ -86,7 +85,6 @@ class ReturnDataManager(BaseTableManager):
                 records = []
                 for record in data:
                     records.append((
-                        uuid.uuid4(),
                         user_id,
                         timestamp,
                         record.get('return_id', f"RET_{uuid.uuid4().hex[:8]}"),

@@ -53,9 +53,8 @@ class Config:
         self.use_database_storage = self.is_production
 
         # Exchange configuration
-        self.exchange_id = os.getenv('EXCHANGE_ID', 'ABC')
         self.exch_id = os.getenv('EXCH_ID', '123e4567-e89b-12d3-a456-426614174000')
-        self.exchange_type = os.getenv('EXCHANGE_TYPE', 'EXCH_US_EQUITIES')
+        self.exchange_type = os.getenv('EXCHANGE_TYPE', 'US_EQUITIES')
 
         # Service configuration
         self.host = os.getenv('HOST', '0.0.0.0')

@@ -15,7 +15,7 @@ class OrderDataManager(BaseTableManager):
         try:
             async with self.pool.acquire() as conn:
                 query = """
-                    SELECT order_pk, user_id, timestamp, order_id, cl_order_id, symbol, side,
+                    SELECT user_id, timestamp, order_id, cl_order_id, symbol, side,
                            original_qty, remaining_qty, completed_qty, currency, price,
                            order_type, participation_rate, order_state, submit_timestamp,
                            start_timestamp, tag, conviction_id
@@ -28,7 +28,6 @@ class OrderDataManager(BaseTableManager):
                 orders_data = []
                 for row in rows:
                     orders_data.append({
-                        'order_pk': str(row['order_pk']),
                         'user_id': row['user_id'],
                         'timestamp': row['timestamp'],
                         'order_id': row['order_id'],
@@ -67,18 +66,17 @@ class OrderDataManager(BaseTableManager):
             async with self.pool.acquire() as conn:
                 query = """
                     INSERT INTO exch_us_equity.order_data (
-                        order_pk, user_id, timestamp, order_id, cl_order_id, symbol, side,
+                        user_id, timestamp, order_id, cl_order_id, symbol, side,
                         original_qty, remaining_qty, completed_qty, currency, price,
                         order_type, participation_rate, order_state, submit_timestamp,
                         start_timestamp, tag, conviction_id
-                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
                 """
 
                 import uuid
                 records = []
                 for record in data:
                     records.append((
-                        uuid.uuid4(),
                         user_id,
                         timestamp,
                         record.get('order_id', ''),

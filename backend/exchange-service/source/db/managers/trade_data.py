@@ -16,7 +16,7 @@ class TradeDataManager(BaseTableManager):
             async with self.pool.acquire() as conn:
                 # Query the normalized trade_data table
                 query = """
-                    SELECT trade_pk, user_id, start_timestamp, end_timestamp, trade_id,
+                    SELECT user_id, start_timestamp, end_timestamp, trade_id,
                            order_id, cl_order_id, symbol, side, currency, price,
                            quantity, detail
                     FROM exch_us_equity.trade_data 
@@ -35,7 +35,6 @@ class TradeDataManager(BaseTableManager):
                 trades_data = []
                 for row in rows:
                     trades_data.append({
-                        'trade_pk': str(row['trade_pk']),
                         'user_id': row['user_id'],
                         'start_timestamp': row['start_timestamp'],
                         'end_timestamp': row['end_timestamp'],
@@ -71,10 +70,10 @@ class TradeDataManager(BaseTableManager):
                 # Insert into normalized trade_data table
                 query = """
                     INSERT INTO exch_us_equity.trade_data (
-                        trade_pk, user_id, start_timestamp, end_timestamp, trade_id,
+                        user_id, start_timestamp, end_timestamp, trade_id,
                         order_id, cl_order_id, symbol, side, currency, price,
                         quantity, detail
-                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
                     ON CONFLICT (user_id, end_timestamp, trade_id) DO UPDATE SET
                         start_timestamp = EXCLUDED.start_timestamp,
                         order_id = EXCLUDED.order_id,
@@ -91,7 +90,6 @@ class TradeDataManager(BaseTableManager):
                 records = []
                 for record in data:
                     records.append((
-                        uuid.uuid4(),
                         user_id,
                         record.get('start_timestamp', timestamp),
                         record.get('end_timestamp', timestamp),

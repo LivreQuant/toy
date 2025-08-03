@@ -60,12 +60,12 @@ case $SECTION in
         kubectl delete deployment fund-service
         ;;
     simulator)
-        echo "Resetting exchange simulator resources..."
-        kubectl delete configmap exchange-simulator-config --ignore-not-found=true
-        kubectl delete serviceaccount exchange-simulator-account --ignore-not-found=true
-        # Clean up any running simulator pods (they all have simulator-* in their name)
-        kubectl delete deployment -l app=exchange-simulator --ignore-not-found=true
-        kubectl delete service -l app=exchange-simulator --ignore-not-found=true
+        echo "Resetting exchange service resources..."
+        kubectl delete configmap exchange-service-config --ignore-not-found=true
+        kubectl delete serviceaccount exchange-service-account --ignore-not-found=true
+        # Clean up any running service pods (they all have service-* in their name)
+        kubectl delete deployment exchange-service --ignore-not-found=true
+        kubectl delete service exchange-service --ignore-not-found=true
         ;;
     exch-us-equities)
         echo "Resetting exch-us-equities market data service..."
@@ -86,21 +86,6 @@ case $SECTION in
         echo "Resetting algorand services..."
         kubectl delete service algorand-localnet
         # kubectl delete endpoints algorand-localnet
-        ;;
-    all)
-        echo "Resetting everything..."
-        kubectl delete ingress --all
-        kubectl delete deployment --all
-        kubectl delete service --all --ignore-not-found=true        
-        kubectl delete serviceaccount exchange-simulator-account --ignore-not-found=true
-        kubectl delete configmap exchange-simulator-config --ignore-not-found=true
-        kubectl delete configmap db-schemas db-data opentelemetry-config prometheus-config grafana-datasources auth-service-dashboard --ignore-not-found=true
-        kubectl delete job --all
-        kubectl delete pvc --all
-        kubectl delete pv --all
-        kubectl delete serviceaccount session-service-account --ignore-not-found=true
-        kubectl delete role session-service-role --ignore-not-found=true
-        kubectl delete rolebinding session-service-role-binding --ignore-not-found=true
         ;;
     *)
         echo "Unknown section: $SECTION"

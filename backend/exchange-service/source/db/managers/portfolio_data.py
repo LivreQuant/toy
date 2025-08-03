@@ -16,7 +16,7 @@ class PortfolioDataManager(BaseTableManager):
         try:
             async with self.pool.acquire() as conn:
                 query = """
-                    SELECT port_id, user_id, timestamp, symbol, quantity, currency, 
+                    SELECT user_id, timestamp, symbol, quantity, currency, 
                            avg_price, mtm_value, sod_realized_pnl, itd_realized_pnl,
                            realized_pnl, unrealized_pnl
                     FROM exch_us_equity.portfolio_data 
@@ -94,10 +94,10 @@ class PortfolioDataManager(BaseTableManager):
                 # Insert into normalized portfolio_data table
                 query = """
                     INSERT INTO exch_us_equity.portfolio_data (
-                        port_id, user_id, timestamp, symbol, quantity, currency,
+                        user_id, timestamp, symbol, quantity, currency,
                         avg_price, mtm_value, sod_realized_pnl, itd_realized_pnl,
                         realized_pnl, unrealized_pnl
-                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
                     ON CONFLICT (user_id, timestamp, symbol) DO UPDATE SET
                         quantity = EXCLUDED.quantity,
                         currency = EXCLUDED.currency,
@@ -113,7 +113,6 @@ class PortfolioDataManager(BaseTableManager):
                 records = []
                 for record in data:
                     records.append((
-                        uuid.uuid4(),
                         user_id,
                         timestamp,
                         record['symbol'],

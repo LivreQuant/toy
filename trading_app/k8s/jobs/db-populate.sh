@@ -92,8 +92,6 @@ TRUNCATE TABLE exch_us_equity.cash_flow_data CASCADE;
 TRUNCATE TABLE exch_us_equity.account_data CASCADE;
 TRUNCATE TABLE exch_us_equity.portfolio_data CASCADE;
 TRUNCATE TABLE exch_us_equity.users CASCADE;
-TRUNCATE TABLE exch_us_equity.fx_data CASCADE;
-TRUNCATE TABLE exch_us_equity.equity_data CASCADE;
 TRUNCATE TABLE exch_us_equity.risk_factor_data CASCADE;
 TRUNCATE TABLE exch_us_equity.risk_symbol_data CASCADE;
 TRUNCATE TABLE exch_us_equity.universe_data CASCADE;

@@ -29,7 +29,7 @@ class EquityDataManager(BaseTableManager):
                 where_clause = " WHERE " + " AND ".join(conditions) if conditions else ""
 
                 query = f"""
-                    SELECT equity_id, timestamp, symbol, currency, open, high, low, close,
+                    SELECT timestamp, symbol, currency, open, high, low, close,
                            vwap, vwas, vwav, volume, count
                     FROM exch_us_equity.equity_data 
                     {where_clause}
@@ -40,7 +40,6 @@ class EquityDataManager(BaseTableManager):
                 equity_data = []
                 for row in rows:
                     equity_data.append({
-                        'equity_id': str(row['equity_id']),
                         'timestamp': row['timestamp'],
                         'symbol': row['symbol'],
                         'currency': row['currency'],

@@ -17,6 +17,12 @@ spec:
         prometheus.io/port: "9090"
         prometheus.io/path: "/metrics"
     spec:
+      # ✅ FIXED: initContainers at pod spec level (same as auth-service)
+      initContainers:
+      - name: wait-for-db
+        image: postgres:13
+        command: ['sh', '-c', 'until pg_isready -h pgbouncer -p 5432; do echo waiting for database; sleep 2; done;']
+      
       containers:
       - name: exchange-service
         image: opentp/exchange-service:latest
@@ -52,9 +58,9 @@ spec:
         - name: EXCHANGE_ID
           value: "ABC"
         - name: EXCHANGE_TYPE
-          value: "EXCH_US_EQUITIES"
+          value: "US_EQUITIES"
         - name: EXCH_ID
-          value: "123e4567-e89b-12d3-a456-426614174000"
+          value: "00000000-0000-0000-0000-000000000002"
         
         # Service ports
         - name: GRPC_SERVICE_PORT
@@ -76,9 +82,9 @@ spec:
         
         # Service URLs
         - name: MARKET_DATA_SERVICE_URL
-          value: "exch-us-equities-market-data-service:50060"
+          value: "http://exch-us-equities-market-data-service:50060"
         - name: AUTH_SERVICE_URL
-          value: "auth-service:8000"
+          value: http://auth-service:8000
         
         resources:
           requests:
@@ -105,11 +111,6 @@ spec:
           periodSeconds: 30
           timeoutSeconds: 10
           failureThreshold: 3
-          
-        initContainers:
-        - name: wait-for-db
-          image: postgres:13
-          command: ['sh', '-c', 'until pg_isready -h pgbouncer -p 5432; do echo waiting for database; sleep 2; done;']
 
 ---
 apiVersion: v1

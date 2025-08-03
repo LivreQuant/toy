@@ -19,10 +19,10 @@ from source.orchestration.coordination.metadata_handler import (
 class LastSnapLoader:
     """Main coordinator for loading all Last Snapshot data from files"""
 
-    def __init__(self, group_id: str):
+    def __init__(self, exch_id: str):
         self.logger = logging.getLogger(self.__class__.__name__)
 
-        self.group_id = group_id
+        self.exch_id = exch_id
 
         # data loaders
         self.global_loader = GlobalDataLoader()
@@ -50,7 +50,7 @@ class LastSnapLoader:
             # Load metadata based on environment
             if app_config.is_production:
                 self.logger.info("🔄 PRODUCTION MODE: Loading metadata from PostgreSQL")
-                exchange_metadata = await load_metadata_from_postgres(self.group_id)
+                exchange_metadata = await load_metadata_from_postgres(self.exch_id)
             else:
                 self.logger.info("🔄 DEVELOPMENT MODE: Loading metadata from JSON file")
                 exchange_metadata = load_metadata_from_file()

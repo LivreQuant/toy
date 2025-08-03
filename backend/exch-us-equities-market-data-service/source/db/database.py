@@ -60,7 +60,6 @@ class DatabaseManager:
                 # Create equity_data table
                 await conn.execute("""
                     CREATE TABLE IF NOT EXISTS exch_us_equity.equity_data (
-                        equity_id UUID PRIMARY KEY,
                         timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
                         symbol VARCHAR(20) NOT NULL,
                         currency VARCHAR(3) NOT NULL,
@@ -79,7 +78,6 @@ class DatabaseManager:
                 # Create fx_data table
                 await conn.execute("""
                     CREATE TABLE IF NOT EXISTS exch_us_equity.fx_data (
-                        fx_id UUID PRIMARY KEY,
                         timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
                         from_currency VARCHAR(3) NOT NULL,
                         to_currency VARCHAR(3) NOT NULL,
@@ -126,9 +124,9 @@ class DatabaseManager:
                 async with conn.transaction():
                     stmt = await conn.prepare('''
                         INSERT INTO exch_us_equity.equity_data(
-                            equity_id, timestamp, symbol, currency, open, high, low, close, 
+                            timestamp, symbol, currency, open, high, low, close, 
                             vwap, vwas, vwav, volume, count
-                        ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+                        ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
                         ON CONFLICT (timestamp, symbol) DO UPDATE SET
                             open = EXCLUDED.open,
                             high = EXCLUDED.high,
@@ -143,7 +141,6 @@ class DatabaseManager:
                     
                     records = [
                         (
-                            uuid.uuid4(),
                             exact_minute_timestamp,  # Use truncated timestamp
                             eq['symbol'],
                             eq['currency'],
@@ -183,15 +180,14 @@ class DatabaseManager:
                 async with conn.transaction():
                     stmt = await conn.prepare('''
                         INSERT INTO exch_us_equity.fx_data(
-                            fx_id, timestamp, from_currency, to_currency, rate
-                        ) VALUES($1, $2, $3, $4, $5)
+                            timestamp, from_currency, to_currency, rate
+                        ) VALUES($1, $2, $3, $4)
                         ON CONFLICT (timestamp, from_currency, to_currency) DO UPDATE SET
                             rate = EXCLUDED.rate
                     ''')
                     
                     records = [
                         (
-                            uuid.uuid4(),
                             exact_minute_timestamp,  # Use truncated timestamp
                             fx['from_currency'],
                             fx['to_currency'],

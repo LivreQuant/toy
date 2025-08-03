@@ -16,7 +16,7 @@ class ImpactDataManager(BaseTableManager):
         try:
             async with self.pool.acquire() as conn:
                 query = """
-                    SELECT impact_id, user_id, timestamp, symbol, trade_id, previous_impact,
+                    SELECT user_id, timestamp, symbol, trade_id, previous_impact,
                            current_impact, currency, base_price, impacted_price, cumulative_volume,
                            trade_volume, start_timestamp, end_timestamp, impact_type
                     FROM exch_us_equity.impact_data 
@@ -60,10 +60,10 @@ class ImpactDataManager(BaseTableManager):
             async with self.pool.acquire() as conn:
                 query = """
                     INSERT INTO exch_us_equity.impact_data (
-                        impact_id, user_id, timestamp, symbol, trade_id, previous_impact,
+                        user_id, timestamp, symbol, trade_id, previous_impact,
                         current_impact, currency, base_price, impacted_price, cumulative_volume,
                         trade_volume, start_timestamp, end_timestamp, impact_type
-                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
                 """
 
                 import uuid
@@ -72,7 +72,6 @@ class ImpactDataManager(BaseTableManager):
                     if record.get('previous_impact', 0) == 0 and record.get('current_impact', 0) == 0:
                         continue
                     records.append((
-                        uuid.uuid4(),
                         user_id,
                         timestamp,
                         record['symbol'],

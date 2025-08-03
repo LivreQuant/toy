@@ -22,8 +22,8 @@ from source.utils.timezone_utils import ensure_utc, to_iso_string
 class ExchangeGroupManager:
     """Manages multiple users in a single exchange group - ALL TIMES IN UTC"""
 
-    def __init__(self, group_id: str):
-        self.group_id = group_id
+    def __init__(self, exch_id: str):
+        self.exch_id = exch_id
         self.logger = logging.getLogger(self.__class__.__name__)
         self._lock = RLock()
 
@@ -45,7 +45,7 @@ class ExchangeGroupManager:
             # Load metadata based on environment
             if app_config.is_production:
                 self.logger.info("🔄 PRODUCTION MODE: Loading metadata from PostgreSQL")
-                self.metadata = await load_metadata_from_postgres(self.group_id)
+                self.metadata = await load_metadata_from_postgres(self.exch_id)
             else:
                 self.logger.info("🔄 DEVELOPMENT MODE: Loading metadata from JSON file")
                 self.metadata = load_metadata_from_file()
@@ -71,7 +71,7 @@ class ExchangeGroupManager:
                 )
                 self.user_contexts[user_id] = user_context
 
-            self.logger.info(f"✅ Exchange group {self.group_id} initialized with {len(self.user_contexts)} users")
+            self.logger.info(f"✅ Exchange group {self.exch_id} initialized with {len(self.user_contexts)} users")
             return True
 
         except Exception as e:
@@ -123,9 +123,9 @@ class ExchangeGroupManager:
                         await db_manager.initialize()
                         success = await db_manager.metadata.update_exchange_metadata(self.metadata)
                         if success:
-                            self.logger.info(f"✅ Database metadata updated for group_id: {self.group_id}")
+                            self.logger.info(f"✅ Database metadata updated for exch_id: {self.exch_id}")
                         else:
-                            self.logger.error(f"❌ Database metadata update failed for group_id: {self.group_id}")
+                            self.logger.error(f"❌ Database metadata update failed for exch_id: {self.exch_id}")
                     except Exception as e:
                         self.logger.error(f"❌ Database metadata update error: {e}")
                     finally:
@@ -151,9 +151,9 @@ class ExchangeGroupManager:
             success = await db_manager.metadata.update_exchange_metadata(self.metadata)
 
             if success:
-                self.logger.info(f"✅ Successfully persisted metadata to database for group_id: {self.group_id}")
+                self.logger.info(f"✅ Successfully persisted metadata to database for exch_id: {self.exch_id}")
             else:
-                self.logger.error(f"❌ Failed to persist metadata to database for group_id: {self.group_id}")
+                self.logger.error(f"❌ Failed to persist metadata to database for exch_id: {self.exch_id}")
 
         except Exception as e:
             self.logger.error(f"❌ Error persisting metadata to database: {e}")
@@ -162,8 +162,8 @@ class ExchangeGroupManager:
 class EnhancedExchangeGroupManager(ExchangeGroupManager):
     """Enhanced Exchange Group Manager with unified replay mode support"""
 
-    def __init__(self, group_id: str):
-        super().__init__(group_id)
+    def __init__(self, exch_id: str):
+        super().__init__(exch_id)
         self.logger = logging.getLogger(self.__class__.__name__)
         self.unified_replay_manager: Optional['ReplayManager'] = None
         self.replay_queue: List = []
@@ -173,7 +173,7 @@ class EnhancedExchangeGroupManager(ExchangeGroupManager):
         """Set the unified replay manager"""
         self.unified_replay_manager = replay_manager
         self.replay_manager = replay_manager
-        self.logger.info(f"🎬 Replay manager set for exchange group: {self.group_id}")
+        self.logger.info(f"🎬 Replay manager set for exchange group: {self.exch_id}")
 
     def process_market_data_with_replay_awareness(self, equity_bars: List, fx: Optional[List] = None) -> bool:
         """Process market data with unified replay mode awareness"""

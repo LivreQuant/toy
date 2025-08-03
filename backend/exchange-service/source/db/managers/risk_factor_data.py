@@ -29,7 +29,7 @@ class RiskFactorDataManager(BaseTableManager):
                     date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
 
                     query = """
-                        SELECT risk_id, date, symbol, type, name, value
+                        SELECT date, symbol, type, name, value
                         FROM exch_us_equity.risk_factor_data 
                         WHERE date = $1
                         ORDER BY symbol ASC, type ASC, name ASC
@@ -37,7 +37,7 @@ class RiskFactorDataManager(BaseTableManager):
                     rows = await conn.fetch(query, date_obj)
                 else:
                     query = """
-                        SELECT risk_id, date, symbol, type, name, value
+                        SELECT date, symbol, type, name, value
                         FROM exch_us_equity.risk_factor_data 
                         ORDER BY date DESC, symbol ASC, type ASC, name ASC
                         LIMIT 1000
@@ -47,7 +47,6 @@ class RiskFactorDataManager(BaseTableManager):
                 risk_factor_data = []
                 for row in rows:
                     risk_factor_data.append({
-                        'risk_id': str(row['risk_id']),
                         'date': row['date'],
                         'symbol': row['symbol'],
                         'type': row['type'],

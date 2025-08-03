@@ -31,7 +31,7 @@ class AccountDataManager(BaseTableManager):
                     target_datetime = datetime.fromisoformat(timestamp_str)
 
                 query = """
-                    SELECT account_id, user_id, timestamp, type, currency, amount, 
+                    SELECT user_id, timestamp, type, currency, amount, 
                            previous_amount, change
                     FROM exch_us_equity.account_data 
                     WHERE user_id = $1 AND timestamp = $2
@@ -73,16 +73,15 @@ class AccountDataManager(BaseTableManager):
             async with self.pool.acquire() as conn:
                 query = """
                     INSERT INTO exch_us_equity.account_data (
-                        account_id, user_id, timestamp, type, currency, amount,
+                        user_id, timestamp, type, currency, amount,
                         previous_amount, change
-                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7)
                 """
 
                 import uuid
                 records = []
                 for record in data:
                     records.append((
-                        uuid.uuid4(),
                         user_id,
                         timestamp,
                         record['type'],

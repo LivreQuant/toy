@@ -163,7 +163,7 @@ class CoreExchangeServiceManager:
             if not self.exchange_group_manager.last_snap_time:
                 raise RuntimeError("Last snap time not set in exchange group manager")
 
-            self.logger.info(f"👥 Core exchange initialized for {len(users)} users: {users}")
+            self.logger.info(f"👥 Core exchange initialized for {len(users)} users: {[str(user) for user in users]}")
             self.logger.info(f"📅 Market time: {self.exchange_group_manager.last_snap_time}")
 
             # Mark core exchange as ready in health service
@@ -292,7 +292,7 @@ class CoreExchangeServiceManager:
             session_port = int(os.environ.get("SESSION_SERVICE_PORT", "50050"))
             
             # Start gRPC server
-            await self.session_service.start_server(port=session_port)
+            await self.session_service.start_sync_server(port=session_port)
 
             # Track service state
             users = self.exchange_group_manager.get_all_users()
@@ -411,7 +411,7 @@ class CoreExchangeServiceManager:
         self.logger.info("🎯 EXCHANGE SERVICE STARTUP COMPLETE")
         self.logger.info("=" * 80)
         self.logger.info(f"🏦 Core Exchange: RUNNING ({len(users)} users)")
-        self.logger.info(f"👥 Users: {', '.join(users)}")
+        self.logger.info(f"👥 Users: {', '.join(str(user) for user in users)}")
         self.logger.info(f"📅 Market Time: {self.exchange_group_manager.last_snap_time}")
         self.logger.info(f"📡 Market Data: {'CONNECTING' if not self.market_data_connected else 'CONNECTED'}")
         self.logger.info(f"   - Host: {self.market_data_host}:{self.market_data_port}")
@@ -618,7 +618,7 @@ async def initialize_core_exchange(exch_id: str) -> EnhancedExchangeGroupManager
         logger.info("🎉 CORE EXCHANGE INITIALIZATION COMPLETE")
         logger.info("=" * 80)
         logger.info(f"✅ CORE EXCHANGE initialized for {len(users)} users")
-        logger.info(f"👥 Users: {', '.join(users)}")
+        logger.info(f"👥 Users: {', '.join(str(user) for user in users)}")
         logger.info(f"📍 Market time: {market_time}")
         logger.info(f"🏦 Exchange simulation ready for services")
         logger.info("=" * 80)
@@ -676,7 +676,7 @@ async def main():
         logger.info("=" * 80)
 
         # Get configuration from environment
-        exch_id = os.environ.get("EXCHANGE_ID", "ABC")
+        exch_id = os.environ.get("EXCH_ID", "ABC")
         logger.info(f"🔄 Exchange Group ID: {exch_id}")
 
         # Log environment configuration

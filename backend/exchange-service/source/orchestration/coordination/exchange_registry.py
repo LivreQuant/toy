@@ -107,7 +107,7 @@ class ExchangeRegistry:
         
         Required environment variables:
         - EXCH_ID: Unique exchange identifier (UUID format)
-        - EXCHANGE_TYPE: Type of exchange (default: 'EXCH_US_EQUITIES')
+        - EXCHANGE_TYPE: Type of exchange (default: 'US_EQUITIES')
         
         Returns:
             tuple: (exch_id, exchange_type)
@@ -125,7 +125,7 @@ class ExchangeRegistry:
         except ValueError:
             raise ValueError(f"EXCH_ID must be a valid UUID format, got: {exch_id}")
         
-        exchange_type = os.environ.get('EXCHANGE_TYPE', 'EXCH_US_EQUITIES')
+        exchange_type = os.environ.get('EXCHANGE_TYPE', 'US_EQUITIES')
         
         self.logger.info(f"🏦 Exchange Configuration:")
         self.logger.info(f"   - Exchange ID: {exch_id}")

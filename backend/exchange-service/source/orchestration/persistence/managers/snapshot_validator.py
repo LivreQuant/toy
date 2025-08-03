@@ -71,7 +71,7 @@ class SnapshotValidator:
             snapshot_date = exchange_group_manager.last_snap_time
 
         summary = {
-            'group_id': exchange_group_manager.group_id if exchange_group_manager else None,
+            'exch_id': exchange_group_manager.exch_id if exchange_group_manager else None,
             'users_count': len(users),
             'users': users,
             'snapshot_date': snapshot_date.isoformat() if snapshot_date else None,

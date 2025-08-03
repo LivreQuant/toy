@@ -66,7 +66,7 @@ class MultiUserSessionServiceImpl(SessionExchangeSimulatorServicer, BaseServiceI
 
         users = self.exchange_group_manager.get_all_users()
         self.logger.info(f"🔍 SETTING UP SESSION SERVICE CALLBACKS")
-        self.logger.info(f"🔍 Found {len(users)} users: {users}")
+        self.logger.info(f"🔍 Found {len(users)} users: {[str(user) for user in users]}")
 
         if users:
             first_user_id = users[0]
@@ -248,10 +248,10 @@ class MultiUserSessionServiceImpl(SessionExchangeSimulatorServicer, BaseServiceI
         """Stream exchange data to client - Multi-user aware"""
         user_id = request.user_id if request.user_id else "USER_000"  # Default fallback
 
-        self.logger.info(f"🌊 New stream request from user: {user_id}")
+        self.logger.info(f"🌊 New stream request from user: {str(user_id)}")
 
         if user_id not in self.exchange_group_manager.user_contexts:
-            context.abort(grpc.StatusCode.NOT_FOUND, f"User {user_id} not found")
+            context.abort(grpc.StatusCode.NOT_FOUND, f"User {str(user_id)} not found")
             return
 
         # Track this stream
@@ -268,18 +268,18 @@ class MultiUserSessionServiceImpl(SessionExchangeSimulatorServicer, BaseServiceI
                     # Get update from queue with timeout
                     update = user_queue.get(timeout=1.0)
                     yield update
-                    self.logger.debug(f"📤 Sent update to user {user_id}")
+                    self.logger.debug(f"📤 Sent update to user {str(user_id)}")
                 except queue.Empty:
                     # Send periodic heartbeat or continue
                     continue
                 except Exception as e:
-                    self.logger.error(f"❌ Error sending update to user {user_id}: {e}")
+                    self.logger.error(f"❌ Error sending update to user {str(user_id)}: {e}")
                     break
 
         except grpc.RpcError as e:
-            self.logger.info(f"🔌 Stream disconnected for user {user_id}: {e}")
+            self.logger.info(f"🔌 Stream disconnected for user {str(user_id)}: {e}")
         except Exception as e:
-            self.logger.error(f"❌ Unexpected error in stream for user {user_id}: {e}")
+            self.logger.error(f"❌ Unexpected error in stream for user {str(user_id)}: {e}")
         finally:
             # Clean up
             if user_id in self._active_streams:

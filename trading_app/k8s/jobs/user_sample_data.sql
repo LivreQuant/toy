@@ -21,7 +21,7 @@ INSERT INTO exch_us_equity.metadata (
     'US_EQUITIES',
     'America/New_York',
     ARRAY['NYSE', 'NASDAQ', 'ARCA'],
-    '2024-01-09T00:00:00+00:00'::TIMESTAMP WITH TIME ZONE,
+    '2025-08-01T20:45:00+00:00'::TIMESTAMP WITH TIME ZONE,
     '04:00:00'::TIME,
     '09:30:00'::TIME,
     '16:00:00'::TIME,
@@ -46,6 +46,7 @@ INSERT INTO exch_us_equity.users (
 -- =====================================================================================
 -- INSERT PORTFOLIO DATA
 -- =====================================================================================
+/*
 INSERT INTO exch_us_equity.portfolio_data (
     user_id,
     timestamp,
@@ -60,7 +61,7 @@ INSERT INTO exch_us_equity.portfolio_data (
     unrealized_pnl
 ) VALUES 
     ('00000000-0000-0000-0000-000000000001', '2024-01-09T00:00:00+00:00'::TIMESTAMP WITH TIME ZONE, 'AAPL', 1000, 'USD', 180.50, 187450.00, 0.0, 6950.00, 0.0, 6950.00);
-
+*/
 
 -- =====================================================================================
 -- INSERT ACCOUNT DATA
@@ -75,13 +76,14 @@ INSERT INTO exch_us_equity.account_data (
     change
 ) VALUES
     -- TEMPLATE_USER accounts
-    ('00000000-0000-0000-0000-000000000001', '2024-01-09T00:00:00+00:00'::TIMESTAMP WITH TIME ZONE, 'CREDIT', 'USD', 1000000.0, 1000000.0, 0.0),
-    ('00000000-0000-0000-0000-000000000001', '2024-01-09T00:00:00+00:00'::TIMESTAMP WITH TIME ZONE, 'SHORT_CREDIT', 'USD', 0.0, 0.0, 0.0),
-    ('00000000-0000-0000-0000-000000000001', '2024-01-09T00:00:00+00:00'::TIMESTAMP WITH TIME ZONE, 'DEBIT', 'USD', 575000.0, 575000.0, 0.0);
+    ('00000000-0000-0000-0000-000000000001', '2025-08-01T20:45:00+00:00'::TIMESTAMP WITH TIME ZONE, 'CREDIT', 'USD', 1000000.0, 1000000.0, 0.0),
+    ('00000000-0000-0000-0000-000000000001', '2025-08-01T20:45:00+00:00'::TIMESTAMP WITH TIME ZONE, 'SHORT_CREDIT', 'USD', 0.0, 0.0, 0.0),
+    ('00000000-0000-0000-0000-000000000001', '2025-08-01T20:45:00+00:00'::TIMESTAMP WITH TIME ZONE, 'DEBIT', 'USD', 0.0, 0.0, 0.0);
 
 -- =====================================================================================
 -- INSERT RETURN DATA
 -- =====================================================================================
+/*
 INSERT INTO exch_us_equity.return_data (
     user_id,
     timestamp,
@@ -104,6 +106,7 @@ INSERT INTO exch_us_equity.return_data (
     ('00000000-0000-0000-0000-000000000001', '2024-01-09T00:00:00+00:00'::TIMESTAMP WITH TIME ZONE, 'YTD_BOOK_NAV', 'BOOK', 'NAV', 425450.0, 415000.0, 415000.0, 0.0, 0.0252, 0.0252, 100.0, 0.0252, 0.0252),
     ('00000000-0000-0000-0000-000000000001', '2024-01-09T00:00:00+00:00'::TIMESTAMP WITH TIME ZONE, 'WTD_CASH_EQUITY_EQUITY', 'CASH_EQUITY', 'EQUITY', 425450.0, 415000.0, 415000.0, 0.0, 0.0252, 0.0252, 100.0, 0.0252, 0.0252),
     ('00000000-0000-0000-0000-000000000001', '2024-01-09T00:00:00+00:00'::TIMESTAMP WITH TIME ZONE, 'WTD_CASH_EQUITY_CASH', 'CASH_EQUITY', 'CASH', 425000.0, 425000.0, 425000.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+*/
 
 -- =====================================================================================
 -- VERIFY USER DATA INSERTION

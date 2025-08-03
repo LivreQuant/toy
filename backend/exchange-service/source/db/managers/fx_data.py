@@ -53,7 +53,7 @@ class FxDataManager(BaseTableManager):
                 where_clause = " WHERE " + " AND ".join(conditions) if conditions else ""
 
                 query = f"""
-                    SELECT fx_id, timestamp, from_currency, to_currency, rate
+                    SELECT timestamp, from_currency, to_currency, rate
                     FROM exch_us_equity.fx_data 
                     {where_clause}
                 """
@@ -64,7 +64,6 @@ class FxDataManager(BaseTableManager):
                 fx_data = []
                 for row in rows:
                     fx_data.append({
-                        'fx_id': str(row['fx_id']),
                         'timestamp': row['timestamp'],
                         'from_currency': row['from_currency'],
                         'to_currency': row['to_currency'],

@@ -45,7 +45,7 @@ class UniverseDataManager(BaseTableManager):
                 where_clause = " WHERE " + " AND ".join(conditions) if conditions else ""
 
                 query = f"""
-                    SELECT univ_id, exchange_id, date, symbol, sector, industry,
+                    SELECT date, symbol, sector, industry,
                            market_cap, country, currency, avg_daily_volume, beta,
                            primary_exchange, shares_outstanding
                     FROM exch_us_equity.universe_data 
@@ -61,8 +61,6 @@ class UniverseDataManager(BaseTableManager):
                 universe_data = []
                 for row in rows:
                     universe_data.append({
-                        'univ_id': str(row['univ_id']),
-                        'exchange_id': row['exchange_id'],
                         'date': row['date'],
                         'symbol': row['symbol'],
                         'sector': row['sector'],

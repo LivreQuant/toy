@@ -87,9 +87,9 @@ class DatabaseManager:
         return self.pool is not None and not self.pool._closed
 
     # Legacy compatibility methods - delegate to appropriate table managers
-    async def load_exchange_metadata(self, group_id: str = None):
+    async def load_exchange_metadata(self, exch_id: str = None):
         """Load exchange metadata - delegates to metadata manager"""
-        return await self.metadata.load_exchange_metadata(group_id)
+        return await self.metadata.load_exchange_metadata(exch_id)
 
     async def load_risk_factor_data(self, timestamp_str: str):
         """Load risk factor data - delegates to risk factor manager"""

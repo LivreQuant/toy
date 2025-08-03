@@ -21,7 +21,7 @@ class CashFlowDataManager(BaseTableManager):
         try:
             async with self.pool.acquire() as conn:
                 query = """
-                    SELECT flow_id, user_id, timestamp, flow_type, from_account, from_currency,
+                    SELECT user_id, timestamp, flow_type, from_account, from_currency,
                            from_fx, from_amount, to_account, to_currency, to_fx, to_amount,
                            instrument, trade_id, description
                     FROM exch_us_equity.cash_flow_data
@@ -34,7 +34,6 @@ class CashFlowDataManager(BaseTableManager):
                 cash_flow_data = []
                 for row in rows:
                     cash_flow_data.append({
-                        'flow_id': str(row['flow_id']),
                         'user_id': row['user_id'],
                         'timestamp': row['timestamp'],
                         'flow_type': row['flow_type'],
@@ -71,10 +70,10 @@ class CashFlowDataManager(BaseTableManager):
             async with self.pool.acquire() as conn:
                 query = """
                     INSERT INTO exch_us_equity.cash_flow_data (
-                        flow_id, user_id, timestamp, flow_type, from_account, from_currency,
+                        user_id, timestamp, flow_type, from_account, from_currency,
                         from_fx, from_amount, to_account, to_currency, to_fx, to_amount,
                         instrument, trade_id, description
-                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
                     ON CONFLICT (user_id, timestamp, flow_type, from_account, to_account, trade_id) 
                     DO UPDATE SET
                         from_currency = EXCLUDED.from_currency,
@@ -90,7 +89,6 @@ class CashFlowDataManager(BaseTableManager):
                 records = []
                 for record in data:
                     records.append((
-                        uuid.uuid4(),
                         user_id,
                         timestamp,
                         record.get('flow_type', ''),

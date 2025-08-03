@@ -1,5 +1,5 @@
 #!/bin/bash
-echo "Building exchange simulator image..."
+echo "Building exchange service image..."
 
 # Get the correct path to the directories
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -21,28 +21,28 @@ done
 eval $(minikube docker-env)
 
 # Check if image exists or rebuild is requested
-if [[ "$REBUILD" == "true" ]] || ! docker images opentp/exchange-simulator:latest --format "{{.Repository}}:{{.Tag}}" | grep -q "opentp/exchange-simulator:latest"; then
-    echo "Building exchange-simulator Docker image..."
+if [[ "$REBUILD" == "true" ]] || ! docker images opentp/exchange-service:latest --format "{{.Repository}}:{{.Tag}}" | grep -q "opentp/exchange-service:latest"; then
+    echo "Building exchange-service Docker image..."
     cd "$BACKEND_DIR/exchange-service"
     if [[ "$REBUILD" == "true" ]]; then
         echo "Rebuilding without cache..."
-        docker build --no-cache -t opentp/exchange-simulator:latest .
+        docker build --no-cache -t opentp/exchange-service:latest .
     else
-        docker build -t opentp/exchange-simulator:latest .
+        docker build -t opentp/exchange-service:latest .
     fi
     
     if [ $? -ne 0 ]; then
-        echo "Error: Failed to build exchange-simulator image"
+        echo "Error: Failed to build exchange-service image"
         exit 1
     fi
     
-    echo "Exchange simulator image built successfully"
+    echo "Exchange service image built successfully"
     cd - > /dev/null
 else
-    echo "Using existing exchange-simulator image"
+    echo "Using existing exchange-service image"
 fi
 
 # Apply the service account and config
-kubectl apply -f "$K8S_DIR/deployments/exchange-simulator.yaml"
+kubectl apply -f "$K8S_DIR/deployments/exchange-service.yaml"
 
-echo "Exchange simulator setup completed successfully"
+echo "Exchange service setup completed successfully"

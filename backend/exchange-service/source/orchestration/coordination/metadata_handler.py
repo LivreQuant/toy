@@ -31,10 +31,10 @@ def load_metadata_from_file() -> dict:
         raise
 
 
-async def load_metadata_from_postgres(group_id: str) -> dict:
+async def load_metadata_from_postgres(exch_id: str) -> dict:
     """Load metadata from PostgreSQL (production) - async version"""
     try:
-        print(f"🔄 Loading metadata from PostgreSQL for group_id: {group_id}")
+        print(f"🔄 Loading metadata from PostgreSQL for exch_id: {exch_id}")
 
         # Import here to avoid circular imports
         from source.db.db_manager import db_manager
@@ -43,15 +43,15 @@ async def load_metadata_from_postgres(group_id: str) -> dict:
         await db_manager.initialize()
         print("✅ Database connection initialized")
 
-        print(f"🔍 Loading metadata for group_id: {group_id}")
-        metadata = await db_manager.load_exchange_metadata(group_id)
+        print(f"🔍 Loading metadata for exch_id: {exch_id}")
+        metadata = await db_manager.load_exchange_metadata(exch_id)
 
         # Validate metadata
         if not metadata:
-            print(f"❌ No metadata returned from database for group_id: {group_id}")
-            raise ValueError(f"No metadata found for group_id: {group_id}")
+            print(f"❌ No metadata returned from database for exch_id: {exch_id}")
+            raise ValueError(f"No metadata found for exch_id: {exch_id}")
 
-        print(f"✅ PostgreSQL metadata loaded for group: {metadata.get('group_id', 'UNKNOWN')}")
+        print(f"✅ PostgreSQL metadata loaded for group: {metadata.get('exch_id', 'UNKNOWN')}")
 
         # DEBUG: Print all metadata fields and their types
         print("🔍 DEBUG: Metadata fields and types:")
