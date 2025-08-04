@@ -14,16 +14,29 @@ class OrderDataManager(BaseTableManager):
 
         try:
             async with self.pool.acquire() as conn:
+                # Convert timestamp string to actual datetime object - EXACT MATCHING
+                from datetime import datetime
+                
+                if len(timestamp_str) >= 13 and '_' in timestamp_str:
+                    date_part = timestamp_str[:8]  # "20250804"  
+                    time_part = timestamp_str[9:]  # "0313"
+                    formatted_date = f"{date_part[:4]}-{date_part[4:6]}-{date_part[6:8]}"
+                    formatted_time = f"{time_part[:2]}:{time_part[2:]}:00"
+                    timestamp_string = f"{formatted_date} {formatted_time}+00"
+                    target_datetime = datetime.fromisoformat(timestamp_string.replace('+00', '+00:00'))
+                else:
+                    target_datetime = datetime.fromisoformat(timestamp_str)
+
                 query = """
                     SELECT user_id, timestamp, order_id, cl_order_id, symbol, side,
-                           original_qty, remaining_qty, completed_qty, currency, price,
-                           order_type, participation_rate, order_state, submit_timestamp,
-                           start_timestamp, tag, conviction_id
+                        original_qty, remaining_qty, completed_qty, currency, price,
+                        order_type, participation_rate, order_state, submit_timestamp,
+                        start_timestamp, tag, conviction_id
                     FROM exch_us_equity.order_data 
-                    WHERE user_id = $1 AND timestamp::text LIKE $2
+                    WHERE user_id = $1 AND timestamp = $2
                 """
 
-                rows = await conn.fetch(query, user_id, f"{timestamp_str}%")
+                rows = await conn.fetch(query, user_id, target_datetime)
 
                 orders_data = []
                 for row in rows:
@@ -48,11 +61,13 @@ class OrderDataManager(BaseTableManager):
                         'conviction_id': row['conviction_id']
                     })
 
-                self.logger.info(f"✅ Loaded orders data for {user_id}: {len(orders_data)} orders")
+                self.logger.info(f"✅ Loaded order data: {len(orders_data)} records for timestamp: {timestamp_str}")
                 return orders_data
 
         except Exception as e:
-            self.logger.error(f"❌ Error loading orders data for {user_id}: {e}")
+            self.logger.error(f"❌ Error loading order data for {timestamp_str}: {e}")
+            import traceback
+            self.logger.error(f"❌ Full traceback: {traceback.format_exc()}")
             return []
 
     async def insert_simulation_data(self, data: List[Dict], user_id: str, timestamp: datetime) -> int:

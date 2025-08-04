@@ -115,18 +115,49 @@ class EquityManager(CallbackManager[List[Dict]]):
         return snapshot_data
 
     def insert_last_snap_equity(self, equity: List[Dict], timestamp: datetime) -> None:
-        """Set the last snapshot equity state for symbols and FX rates - used during initialization"""
+        """Set the last snapshot equity state for symbols - used during initialization"""
         self.logger.info(f"📊 Initializing Last Snap equity state for {len(equity)} symbols")
 
-        # Handle equity states
         with self._state_lock:
             for state in equity:
-                self._symbol_state[state['symbol']] = EquityState(
+                symbol = state.get('symbol')
+                if not symbol:
+                    raise ValueError("Symbol is required in equity state")
+
+                # Try to get price from different possible fields
+                price = None
+                if 'last_price' in state:
+                    price = state['last_price']
+                elif 'close' in state:
+                    price = state['close']
+                else:
+                    raise KeyError(f"No price field found for symbol {symbol}. Available fields: {list(state.keys())}")
+
+                # Validate price
+                if price is None or price <= 0:
+                    raise ValueError(f"Invalid price for symbol {symbol}: {price}")
+
+                # Try to get volume from different possible fields
+                volume = None
+                if 'last_volume' in state:
+                    volume = state['last_volume']
+                elif 'volume' in state:
+                    volume = state['volume']
+                else:
+                    volume = 0
+
+                # Validate volume
+                if volume is None or volume < 0:
+                    raise ValueError(f"Invalid volume for symbol {symbol}: {volume}")
+
+                self._symbol_state[symbol] = EquityState(
                     last_update_time=timestamp,
-                    last_currency=state['currency'],
-                    last_price=Decimal(str(state['last_price'])),
-                    last_volume=int(state['last_volume'])
+                    last_currency=state.get('currency', 'USD'),
+                    last_price=Decimal(str(price)),
+                    last_volume=int(volume)
                 )
+
+                self.logger.debug(f"✅ Initialized {symbol}: price=${price}, volume={volume}")
 
     def get_last_price(self, symbol: str) -> Optional[Decimal]:
         """Get the last known price for a symbol"""

@@ -7,7 +7,9 @@ import os
 import glob
 import logging
 import asyncio
+import threading 
 from typing import List
+from concurrent.futures import ThreadPoolExecutor
 
 from source.config import app_config
 
@@ -17,6 +19,9 @@ class ReplayUtils:
 
     def __init__(self):
         self.logger = logging.getLogger(self.__class__.__name__)
+
+        self._db_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="ReplayUtils-DB")
+        self._thread_local = threading.local()
 
         # CRITICAL FIX: Only set up data directory in development mode
         if not app_config.is_production:
@@ -30,6 +35,20 @@ class ReplayUtils:
             self.data_directory = None
             self.logger.info(f"🚫 PRODUCTION MODE: Data directory not used - PostgreSQL only")
 
+    def _get_thread_db_manager(self):
+        """Get or create thread-local database manager"""
+        if not hasattr(self._thread_local, 'db_manager'):
+            from source.db.db_manager import DatabaseManager
+            self._thread_local.db_manager = DatabaseManager()
+            self._thread_local.loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(self._thread_local.loop)
+            
+            self._thread_local.loop.run_until_complete(
+                self._thread_local.db_manager.initialize()
+            )
+            
+        return self._thread_local.db_manager, self._thread_local.loop
+    
     def get_available_bin_snaps(self) -> List[str]:
         """Get list of available bin snap files/timestamps - Environment aware"""
 
@@ -148,28 +167,24 @@ class ReplayUtils:
             }
 
     def _get_replay_data_summary_from_postgres(self) -> dict:
-        """Get replay data summary from PostgreSQL (production)"""
+        """Get replay data summary from PostgreSQL (production) with proper threading"""
+        def _db_operation():
+            try:
+                db_manager, loop = self._get_thread_db_manager()
+                return loop.run_until_complete(db_manager.get_replay_data_summary())
+            except Exception as e:
+                self.logger.error(f"❌ Error in thread getting replay data summary: {e}")
+                return {
+                    'total_timestamps': 0,
+                    'date_range': None,
+                    'data_types': [],
+                    'status': 'error',
+                    'error': str(e)
+                }
+
         try:
-            from source.db.db_manager import db_manager
-
-            async def get_summary_async():
-                await db_manager.initialize()
-                return await db_manager.get_replay_data_summary()
-
-            # Use asyncio to run the async function
-            import asyncio
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                # If we're already in an async context, create a new event loop
-                import concurrent.futures
-                with concurrent.futures.ThreadPoolExecutor() as executor:
-                    future = executor.submit(asyncio.run, get_summary_async())
-                    summary = future.result()
-            else:
-                summary = asyncio.run(get_summary_async())
-
-            return summary
-
+            future = self._db_executor.submit(_db_operation)
+            return future.result(timeout=30)
         except Exception as e:
             self.logger.error(f"❌ Error getting replay data summary from PostgreSQL: {e}")
             return {
@@ -205,29 +220,29 @@ class ReplayUtils:
             'status': 'valid' if filtered_timestamps else 'no_data_in_range'
         }
 
+    
     def _validate_replay_data_postgres(self, start_timestamp: str, end_timestamp: str) -> dict:
-        """Validate replay data from PostgreSQL (production)"""
+        """Validate replay data from PostgreSQL (production) with proper threading"""
+        def _db_operation():
+            try:
+                db_manager, loop = self._get_thread_db_manager()
+                return loop.run_until_complete(
+                    db_manager.validate_replay_data_range(start_timestamp, end_timestamp)
+                )
+            except Exception as e:
+                self.logger.error(f"❌ Error in thread validating replay data: {e}")
+                return {
+                    'valid': False,
+                    'available_timestamps': 0,
+                    'total_in_range': 0,
+                    'missing_timestamps': [],
+                    'status': 'error',
+                    'error': str(e)
+                }
+
         try:
-            from source.db.db_manager import db_manager
-
-            async def validate_async():
-                await db_manager.initialize()
-                return await db_manager.validate_replay_data_range(start_timestamp, end_timestamp)
-
-            # Use asyncio to run the async function
-            import asyncio
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                # If we're already in an async context, create a new event loop
-                import concurrent.futures
-                with concurrent.futures.ThreadPoolExecutor() as executor:
-                    future = executor.submit(asyncio.run, validate_async())
-                    validation_result = future.result()
-            else:
-                validation_result = asyncio.run(validate_async())
-
-            return validation_result
-
+            future = self._db_executor.submit(_db_operation)
+            return future.result(timeout=30)
         except Exception as e:
             self.logger.error(f"❌ Error validating replay data from PostgreSQL: {e}")
             return {
@@ -238,3 +253,22 @@ class ReplayUtils:
                 'status': 'error',
                 'error': str(e)
             }
+        
+    def _get_available_bin_snaps_from_postgres(self) -> List[str]:
+        """Get list of available bin snap timestamps from PostgreSQL (production) with proper threading"""
+        def _db_operation():
+            try:
+                db_manager, loop = self._get_thread_db_manager()
+                return loop.run_until_complete(db_manager.get_available_bin_snap_timestamps())
+            except Exception as e:
+                self.logger.error(f"❌ Error in thread getting bin snap timestamps: {e}")
+                return []
+
+        try:
+            future = self._db_executor.submit(_db_operation)
+            timestamps = future.result(timeout=30)
+            self.logger.info(f"💾 Found {len(timestamps)} bin snap timestamps in PostgreSQL")
+            return timestamps
+        except Exception as e:
+            self.logger.error(f"❌ Error getting bin snap timestamps from PostgreSQL: {e}")
+            return []

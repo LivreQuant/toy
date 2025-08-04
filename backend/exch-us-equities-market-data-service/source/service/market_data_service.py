@@ -6,7 +6,7 @@ import grpc
 from datetime import datetime, timedelta
 from typing import Dict, List, Any
 
-from source.api.grpc.market_exchange_interface_pb2 import SubscriptionRequest, MarketDataUpdate, SymbolData
+from source.api.grpc.market_exchange_interface_pb2 import SubscriptionRequest, MarketDataStream, EquityData, FXRate
 from source.api.grpc.market_exchange_interface_pb2_grpc import MarketDataServiceServicer
 from source.generator.market_data_generator import ControlledMarketDataGenerator
 from source.db.database import DatabaseManager
@@ -198,10 +198,10 @@ class MarketDataService(MarketDataServiceServicer):
         
         logger.debug(f"📡 Broadcasting {market_status} minute bar for {len(market_data['equity'])} symbols to {len(self.subscribers)} subscribers")
         
-        # Convert equity data to gRPC format
-        symbol_data_list = []
+        # Convert equity data to protobuf EquityData format
+        equity_data_list = []
         for eq in market_data['equity']:
-            symbol_data = SymbolData(
+            equity_data = EquityData(
                 symbol=eq['symbol'],
                 open=eq['open'],
                 high=eq['high'],
@@ -209,13 +209,32 @@ class MarketDataService(MarketDataServiceServicer):
                 close=eq['close'],
                 volume=eq['volume'],
                 trade_count=eq['trade_count'],
-                vwap=eq['vwap']
+                vwap=eq['vwap'],
+                exchange=eq['exchange'],
+                currency=eq['currency'],
+                vwas=eq['vwas'],
+                vwav=eq['vwav']
             )
-            symbol_data_list.append(symbol_data)
+            equity_data_list.append(equity_data)
         
-        update = MarketDataUpdate(
+        # Convert FX data to protobuf FXRate format
+        fx_data_list = []
+        for fx in market_data['fx']:
+            fx_rate = FXRate(
+                from_currency=fx['from_currency'],
+                to_currency=fx['to_currency'],
+                timestamp=fx['timestamp'],
+                rate=fx['rate']
+            )
+            fx_data_list.append(fx_rate)
+        
+        # Create MarketDataStream message as defined in protobuf
+        stream_message = MarketDataStream(
             timestamp=market_data['timestamp'],
-            data=symbol_data_list
+            bin_time=market_data['bin_time'],
+            equity=equity_data_list,
+            fx=fx_data_list,
+            batch_number=self.batch_count
         )
         
         # Send to all subscribers
@@ -223,7 +242,7 @@ class MarketDataService(MarketDataServiceServicer):
         
         for client_id, context in self.subscribers.items():
             try:
-                await context.write(update)
+                await context.write(stream_message)
                 data_type = "live" if is_trading else ("weekend last" if is_weekend else "last market")
                 logger.debug(f"✅ Sent {data_type} minute bar to {client_id}")
             except Exception as e:
@@ -237,15 +256,16 @@ class MarketDataService(MarketDataServiceServicer):
         
         self.subscribers_count = len(self.subscribers)
     
-    async def SubscribeMarketData(self, request, context):
+    async def SubscribeToMarketData(self, request: SubscriptionRequest, context):
         """
         Handle subscription request from an exchange simulator.
         Always provides data - live during market hours, last available otherwise.
+        Matches the protobuf service definition exactly.
         """
         client_id = request.subscriber_id
-        symbols = request.symbols
+        include_history = request.include_history
         
-        logger.info(f"📡 New subscription from {client_id} for symbols: {symbols}")
+        logger.info(f"📡 New subscription from {client_id} (include_history: {include_history})")
         
         # Register this subscriber
         self.subscribers[client_id] = context
@@ -257,15 +277,10 @@ class MarketDataService(MarketDataServiceServicer):
         market_status = market_data['market_status']
         is_weekend = market_data['is_weekend']
        
-        # Filter for requested symbols if specified
-        equity_data = market_data['equity']
-        if symbols:
-            equity_data = [eq for eq in equity_data if eq['symbol'] in symbols]
-       
-        # Convert to gRPC format
-        symbol_data_list = []
-        for eq in equity_data:
-            symbol_data = SymbolData(
+        # Convert equity data to protobuf format
+        equity_data_list = []
+        for eq in market_data['equity']:
+            equity_data = EquityData(
                 symbol=eq['symbol'],
                 open=eq['open'],
                 high=eq['high'],
@@ -273,19 +288,43 @@ class MarketDataService(MarketDataServiceServicer):
                 close=eq['close'],
                 volume=eq['volume'],
                 trade_count=eq['trade_count'],
-                vwap=eq['vwap']
+                vwap=eq['vwap'],
+                exchange=eq['exchange'],
+                currency=eq['currency'],
+                vwas=eq['vwas'],
+                vwav=eq['vwav']
             )
-            symbol_data_list.append(symbol_data)
+            equity_data_list.append(equity_data)
         
-        initial_update = MarketDataUpdate(
+        # Convert FX data to protobuf format
+        fx_data_list = []
+        for fx in market_data['fx']:
+            fx_rate = FXRate(
+                from_currency=fx['from_currency'],
+                to_currency=fx['to_currency'],
+                timestamp=fx['timestamp'],
+                rate=fx['rate']
+            )
+            fx_data_list.append(fx_rate)
+        
+        # Create initial MarketDataStream message
+        initial_stream = MarketDataStream(
             timestamp=market_data['timestamp'],
-            data=symbol_data_list
+            bin_time=market_data['bin_time'],
+            equity=equity_data_list,
+            fx=fx_data_list,
+            batch_number=self.batch_count
         )
         
         # Send initial update with market status info
-        await context.write(initial_update)
+        await context.write(initial_stream)
         data_type = "live" if is_trading else ("weekend last" if is_weekend else "last market")
         logger.info(f"📤 Sent initial {data_type} minute bar to {client_id} (market: {market_status})")
+        
+        # If history is requested, send historical data (implement as needed)
+        if include_history:
+            logger.info(f"📚 Historical data requested by {client_id} - implement historical data logic here")
+            # TODO: Implement historical data retrieval from database
         
         # Keep the stream open until client disconnects or we shut down
         try:
@@ -299,8 +338,6 @@ class MarketDataService(MarketDataServiceServicer):
                 del self.subscribers[client_id]
                 self.subscribers_count = len(self.subscribers)
                 logger.info(f"📡 Subscription ended for {client_id}")
-        
-        return None
 
     def get_stats(self) -> Dict[str, Any]:
         """Get service statistics including 24/7/365 operation info"""
