@@ -147,7 +147,7 @@ def parse_market_hours_to_utc(market_hours: dict, exchange_timezone_str: str, re
     Parse market hours from exchange timezone to UTC.
 
     Args:
-        market_hours: Dict with 'open' and 'close' times in HH:MM:SS format
+        market_hours: Dict with market time keys in HH:MM:SS format
         exchange_timezone_str: Exchange timezone (e.g., "America/New_York")
         reference_date: Reference date to use for the conversion
 
@@ -158,14 +158,18 @@ def parse_market_hours_to_utc(market_hours: dict, exchange_timezone_str: str, re
         exchange_tz = zoneinfo.ZoneInfo(exchange_timezone_str)
         reference_date_in_exchange = reference_date.astimezone(exchange_tz)
 
+        # Use correct keys from the actual data structure
+        market_open_time = market_hours.get('market_open', '09:30:00')
+        market_close_time = market_hours.get('market_close', '16:00:00')
+
         # Parse open time
-        open_parts = market_hours['open'].split(':')
+        open_parts = market_open_time.split(':')
         open_hour = int(open_parts[0])
         open_minute = int(open_parts[1])
         open_second = int(open_parts[2]) if len(open_parts) > 2 else 0
 
         # Parse close time
-        close_parts = market_hours['close'].split(':')
+        close_parts = market_close_time.split(':')
         close_hour = int(close_parts[0])
         close_minute = int(close_parts[1])
         close_second = int(close_parts[2]) if len(close_parts) > 2 else 0

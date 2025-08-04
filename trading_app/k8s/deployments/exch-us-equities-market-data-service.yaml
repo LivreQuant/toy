@@ -83,7 +83,7 @@ metadata:
   name: exch-us-equities-market-data-service
 spec:
   selector:
-    app: exch-us-equities-market-data-service
+    app: exch-us-equities-market-data
   ports:
     - port: 50060
       targetPort: 50060

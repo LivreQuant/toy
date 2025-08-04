@@ -30,12 +30,13 @@ class OrchestrationHealthService:
         self.startup_time = time.time()
         self.initialization_complete = False
         
-        # Track orchestration services
+        # Track orchestration services - ADD exchange_registration
         self.services_ready = {
             'core_exchange': False,
             'market_data_client': False,
             'session_service': False,
-            'conviction_service': False
+            'conviction_service': False,
+            'exchange_registration': False  # ADD THIS LINE
         }
 
     async def setup(self):

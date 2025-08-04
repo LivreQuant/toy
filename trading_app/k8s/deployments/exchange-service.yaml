@@ -81,11 +81,16 @@ spec:
           value: "false"
         
         # Service URLs
-        - name: MARKET_DATA_SERVICE_URL
-          value: "http://exch-us-equities-market-data-service:50060"
         - name: AUTH_SERVICE_URL
           value: http://auth-service:8000
-        
+                
+        - name: MARKET_DATA_HOST
+          value: exch-us-equities-market-data-service  # Kubernetes service name
+        - name: MARKET_DATA_PORT
+          value: "50060"  # Correct port number
+        - name: MARKET_DATA_RETRY_SECONDS
+          value: "5"
+          
         resources:
           requests:
             memory: "256Mi"

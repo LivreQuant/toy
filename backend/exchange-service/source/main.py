@@ -80,7 +80,7 @@ class CoreExchangeServiceManager:
 
 
     async def register_exchange_service(self):
-        """Register exchange service with Kubernetes metadata"""
+        """Register exchange service with Kubernetes metadata - OPTIONAL"""
         try:
             self.logger.info("🔧 Registering exchange service in database...")
             
@@ -91,11 +91,15 @@ class CoreExchangeServiceManager:
             if self.health_service:
                 self.health_service.mark_service_ready('exchange_registration', True)
                 
+            self.logger.info("✅ Exchange service registration completed")
+                
         except Exception as e:
-            self.logger.error(f"❌ Exchange service registration failed: {e}")
+            self.logger.warning(f"⚠️ Exchange service registration failed (non-critical): {e}")
+            # Mark as failed but don't stop startup - this is for service discovery only
             if self.health_service:
                 self.health_service.mark_service_ready('exchange_registration', False)
-            raise
+            # DO NOT raise - continue without registry (development mode)
+            self.logger.info("🏦 Core exchange continues without service registry")
 
 
     async def start_health_service(self):
@@ -220,13 +224,6 @@ class CoreExchangeServiceManager:
     async def _monitor_market_data_connection(self):
         """
         Continuous monitoring task for market data connection.
-        
-        This background task:
-        1. Attempts initial connection
-        2. Monitors connection health
-        3. Handles reconnections on failure
-        4. Updates health service status
-        5. Respects shutdown signals
         """
         retry_count = 0
         
@@ -235,18 +232,25 @@ class CoreExchangeServiceManager:
                 if not self.market_data_connected:
                     self.logger.info(f"📡 Attempting market data connection (attempt {retry_count + 1})")
                     
-                    # Attempt connection
-                    await self.market_data_client.connect_and_run()
+                    # FIXED: Call start() instead of connect_and_run()
+                    self.market_data_client.start()
                     
-                    # Connection successful
-                    self.market_data_connected = True
-                    retry_count = 0
+                    # Give it a moment to establish connection
+                    await asyncio.sleep(2)
                     
-                    # Update health service
-                    if self.health_service:
-                        self.health_service.mark_service_ready('market_data_client', True)
-                    
-                    self.logger.info("✅ Market Data: CONNECTED")
+                    # Check if connection was established
+                    if self.market_data_client.running:
+                        self.market_data_connected = True
+                        retry_count = 0
+                        
+                        # Update health service
+                        if self.health_service:
+                            self.health_service.mark_service_ready('market_data_client', True)
+                        
+                        self.logger.info("✅ Market Data: STARTED")
+                    else:
+                        raise Exception("Market data client failed to start")
+                        
                 else:
                     # Connection is active, just wait
                     await asyncio.sleep(1)
@@ -292,7 +296,7 @@ class CoreExchangeServiceManager:
             session_port = int(os.environ.get("SESSION_SERVICE_PORT", "50050"))
             
             # Start gRPC server
-            await self.session_service.start_sync_server(port=session_port)
+            self.session_service.start_sync_server(port=session_port)
 
             # Track service state
             users = self.exchange_group_manager.get_all_users()

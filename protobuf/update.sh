@@ -164,7 +164,7 @@ copy_proto_files "gen/python/main/services" \
 
 # Market Manager
 copy_proto_files "gen/python/main/services" \
-                 "../backend/market-data-service/source/api/grpc" \
+                 "../backend/exch-us-equities-market-data-service/source/api/grpc" \
                  "market*.py" \
                  "Python market data service files copied to Session Service" \
                  "No Python market data service files found for Session Service" \

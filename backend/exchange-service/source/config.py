@@ -67,10 +67,6 @@ class Config:
         self.enable_session_service = os.getenv('ENABLE_SESSION_SERVICE', 'true').lower() == 'true'
         self.enable_conviction_service = os.getenv('ENABLE_CONVICTION_SERVICE', 'false').lower() == 'true'
 
-        # Service URLs
-        self.market_data_service_url = os.getenv('MARKET_DATA_SERVICE_URL', 'localhost:50060')
-        self.auth_service_url = os.getenv('AUTH_SERVICE_URL', 'http://auth-service:8000')
-
         # Backward compatibility
         self.db = self.database
         self.rest_port = self.health_service_port
