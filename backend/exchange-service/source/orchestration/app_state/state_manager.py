@@ -4,7 +4,8 @@ Main State Manager - Coordination only
 """
 import logging
 from threading import RLock
-from typing import Optional
+from typing import Optional, Dict, Any
+from datetime import datetime
 
 from .snapshot_state import SnapshotState
 from .market_timing import MarketTiming
@@ -27,7 +28,17 @@ class AppState:
 
         # User context only
         self._user_id: Optional[str] = None
+
+        # Parameters
         self._base_currency = 'USD'
+        self._timezone = 'America/New_York'
+        self._initial_nav = 100000000
+        self._opertion_id = 0
+        self._engine_id = 1
+
+        # State tracking
+        self._last_update_time = datetime.now()
+        self._initialization_complete = False
 
     def get_app_state(self) -> str:
         """Get current application state"""
@@ -46,75 +57,167 @@ class AppState:
             return self.snapshot_state.get_current_state()
 
     def is_initialized(self) -> bool:
-        return self.components.is_initialized()
+        with self._lock:
+            return self.components.is_initialized() and self._initialization_complete
+
+    def mark_initialization_complete(self) -> None:
+        """Mark initialization as complete"""
+        with self._lock:
+            self._initialization_complete = True
+            self.logger.info("✅ App state initialization marked complete")
 
     def is_healthy(self) -> bool:
         return self.service_health.is_healthy()
 
     def request_shutdown(self) -> None:
+        """Request system shutdown"""
         self.service_health.shutdown_all_services()
+        self.components.shutdown_all_managers()
 
-    # Snapshot state delegation
+    # Snapshot state delegation - ALL METHODS
     def mark_last_snap_universe_received(self):
         self.snapshot_state.mark_universe_received()
+        self._update_last_update_time()
 
     def mark_last_snap_portfolio_received(self):
         self.snapshot_state.mark_portfolio_received()
+        self._update_last_update_time()
 
     def mark_last_snap_orders_received(self):
         self.snapshot_state.mark_orders_received()
+        self._update_last_update_time()
 
-    def mark_last_snap_impact_received(self):
-        self.snapshot_state.mark_impact_received()
+    def mark_last_snap_accounts_received(self):
+        self.snapshot_state.mark_accounts_received()
+        self._update_last_update_time()
 
     def mark_last_snap_account_received(self):
-        self.snapshot_state.mark_account_received()
+        """Missing method - same as accounts"""
+        self.snapshot_state.mark_accounts_received()
+        self._update_last_update_time()
+
+    def mark_last_snap_equity_received(self):
+        self.snapshot_state.mark_equity_received()
+        self._update_last_update_time()
 
     def mark_last_snap_fx_received(self):
         self.snapshot_state.mark_fx_received()
+        self._update_last_update_time()
 
-    def has_universe(self) -> bool:
-        return self.snapshot_state.has_universe()
+    def mark_last_snap_impact_received(self):
+        self.snapshot_state.mark_impact_received()
+        self._update_last_update_time()
 
-    def log_current_state(self):
-        self.snapshot_state.log_current_state()
+    def mark_last_snap_returns_received(self):
+        self.snapshot_state.mark_returns_received()
+        self._update_last_update_time()
+
+    def mark_last_snap_risk_received(self):
+        self.snapshot_state.mark_risk_received()
+        self._update_last_update_time()
+
+    def mark_last_snap_trades_received(self):
+        self.snapshot_state.mark_trades_received()
+        self._update_last_update_time()
+
+    def mark_last_snap_conviction_received(self):
+        self.snapshot_state.mark_conviction_received()
+        self._update_last_update_time()
+
+    def mark_last_snap_cash_flow_received(self):
+        self.snapshot_state.mark_cash_flow_received()
+        self._update_last_update_time()
+
+    def _update_last_update_time(self):
+        """Update the last update timestamp"""
+        with self._lock:
+            self._last_update_time = datetime.now()
+
+    def get_last_update_time(self) -> datetime:
+        """Get the last update timestamp"""
+        with self._lock:
+            return self._last_update_time
 
     # Market timing delegation
-    def get_current_bin(self):
-        return self.market_timing.get_current_bin()
-
-    def get_next_bin(self):
-        return self.market_timing.get_next_bin()
-
     def get_current_timestamp(self):
         return self.market_timing.get_current_timestamp()
 
     def get_next_timestamp(self):
         return self.market_timing.get_next_timestamp()
 
-    def advance_bin(self):
-        self.market_timing.advance_bin()
+    def set_current_timestamp(self, timestamp):
+        self.market_timing.set_current_timestamp(timestamp)
+        self._update_last_update_time()
 
-    def mark_first_market_data_received(self, timestamp):
-        self.market_timing.mark_first_market_data_received(timestamp)
+    def is_market_open(self):
+        return self.market_timing.is_market_open()
 
-    def initialize_bin(self, timestamp):
-        self.market_timing.initialize_bin(timestamp)
+    @property
+    def current_timestamp(self):
+        return self.market_timing.current_timestamp
 
-    def set_base_date(self, date):
-        self.market_timing.set_base_date(date)
+    @current_timestamp.setter
+    def current_timestamp(self, value):
+        self.market_timing.current_timestamp = value
+        self._update_last_update_time()
 
-    def is_market_open(self, check_time=None):
-        return self.market_timing.is_market_open(check_time)
+    @property
+    def market_open(self):
+        return self.market_timing.market_open
 
-    # ADD THIS - the processor needs this attribute directly
+    @market_open.setter
+    def market_open(self, value):
+        self.market_timing.market_open = value
+
+    @property
+    def market_close(self):
+        return self.market_timing.market_close
+
+    @market_close.setter
+    def market_close(self, value):
+        self.market_timing.market_close = value
+
+    @property
+    def base_date(self):
+        return self.market_timing.base_date
+
+    @base_date.setter
+    def base_date(self, value):
+        self.market_timing.base_date = value
+
+    def set_base_date(self, value):
+        """Set the base date - missing method that was causing the error"""
+        self.market_timing.base_date = value
+        self.logger.debug(f"📅 Base date set to: {value}")
+
+    # CRITICAL: Add missing _received_first_market_data property
     @property
     def _received_first_market_data(self):
+        """Delegate to market timing"""
         return self.market_timing._received_first_market_data
 
     @_received_first_market_data.setter
     def _received_first_market_data(self, value):
+        """Delegate to market timing"""
         self.market_timing._received_first_market_data = value
+
+    def mark_first_market_data_received(self, timestamp):
+        self.market_timing.mark_first_market_data_received(timestamp)
+        self._update_last_update_time()
+
+    def initialize_bin(self, timestamp):
+        self.market_timing.initialize_bin(timestamp)
+        self._update_last_update_time()
+
+    def advance_bin(self):
+        self.market_timing.advance_bin()
+        self._update_last_update_time()
+
+    def get_current_bin(self):
+        return self.market_timing.get_current_bin()
+
+    def get_next_bin(self):
+        return self.market_timing.get_next_bin()
 
     # Service health delegation
     def mark_service_started(self, service_name: str):
@@ -123,25 +226,40 @@ class AppState:
     def mark_service_stopped(self, service_name: str):
         self.service_health.mark_service_stopped(service_name)
 
-    def record_initialization_error(self, service_name: str, error: str):
-        self.service_health.record_initialization_error(service_name, error)
+    def is_service_running(self, service_name: str) -> bool:
+        return self.service_health.is_service_running(service_name)
 
-    def get_service_status(self, service_name: str):
-        return self.service_health.get_service_status(service_name)
-
-    def get_health_status(self):
+    def get_health_status(self) -> Dict[str, Any]:
         return self.service_health.get_health_status()
 
-    def set_market_data_service_available(self, available: bool):
-        self.service_health.set_market_data_service_available(available)
+    def get_service_status(self, service_name: str) -> str:
+        return self.service_health.get_service_status(service_name)
 
-    def is_market_data_service_available(self) -> bool:
-        return self.service_health.is_market_data_service_available()
+    # User management
+    def get_user_id(self) -> Optional[str]:
+        with self._lock:
+            return self._user_id
 
-    def set_market_data_health_checker(self, checker):
-        self.service_health.set_market_data_health_checker(checker)
+    def set_user_id(self, user_id: str):
+        with self._lock:
+            old_user_id = self._user_id
+            self._user_id = user_id
 
-    # Manager properties - delegate to components
+            # Set user context in all managers
+            self.components.set_user_context(user_id)
+
+            self.logger.info(f"🆔 App state assigned to user: {user_id}")
+            if old_user_id and old_user_id != user_id:
+                self.logger.info(f"🔄 User context changed from {old_user_id} to {user_id}")
+
+    def clear_user_context(self):
+        """Clear user context"""
+        with self._lock:
+            old_user_id = self._user_id
+            self._user_id = None
+            self.logger.info(f"🧹 Cleared user context (was: {old_user_id})")
+
+    # Component manager delegation
     @property
     def exchange(self):
         return self.components.exchange
@@ -158,6 +276,7 @@ class AppState:
     def module(self, value):
         self.components.module = value
 
+    # Business logic managers
     @property
     def conviction_manager(self):
         return self.components.conviction_manager
@@ -210,41 +329,7 @@ class AppState:
     def fx_manager(self):
         return self.components.fx_manager
 
-    # Market hours properties
-    @property
-    def market_open(self):
-        return self.market_timing.market_open
-
-    @market_open.setter
-    def market_open(self, value):
-        self.market_timing.market_open = value
-
-    @property
-    def market_close(self):
-        return self.market_timing.market_close
-
-    @market_close.setter
-    def market_close(self, value):
-        self.market_timing.market_close = value
-
-    @property
-    def base_date(self):
-        return self.market_timing.base_date
-
-    @base_date.setter
-    def base_date(self, value):
-        self.market_timing.base_date = value
-
-    # User management
-    def get_user_id(self) -> Optional[str]:
-        with self._lock:
-            return self._user_id
-
-    def set_user_id(self, user_id: str):
-        with self._lock:
-            self._user_id = user_id
-            self.logger.info(f"🆔 App state assigned to user: {user_id}")
-
+    # Parameter management
     def get_base_currency(self) -> str:
         with self._lock:
             return self._base_currency
@@ -252,6 +337,43 @@ class AppState:
     def set_base_currency(self, currency: str):
         with self._lock:
             self._base_currency = currency
+            self.logger.debug(f"💰 Base currency set to: {currency}")
+
+    def get_initial_nav(self) -> int:
+        with self._lock:
+            return self._initial_nav
+
+    def set_initial_nav(self, initial_nav: int):
+        with self._lock:
+            self._initial_nav = initial_nav
+            self.logger.debug(f"💰 Initial NAV set to: {initial_nav}")
+
+    def get_timezone(self) -> str:
+        with self._lock:
+            return self._timezone
+
+    def set_timezone(self, timezone: str):
+        with self._lock:
+            self._timezone = timezone
+            self.logger.debug(f"🕐 Timezone set to: {timezone}")
+
+    def get_opertion_id(self) -> int:
+        with self._lock:
+            return self._opertion_id
+
+    def set_opertion_id(self, opertion_id: int):
+        with self._lock:
+            self._opertion_id = opertion_id
+            self.logger.debug(f"🔧 Operation ID set to: {opertion_id}")
+
+    def get_engine_id(self) -> int:
+        with self._lock:
+            return self._engine_id
+
+    def set_engine_id(self, engine_id: int):
+        with self._lock:
+            self._engine_id = engine_id
+            self.logger.debug(f"⚙️ Engine ID set to: {engine_id}")
 
     # Configuration
     @property
@@ -260,6 +382,84 @@ class AppState:
 
     def log_state_change(self, state: str):
         self.snapshot_state.log_state_change(state)
+        self._update_last_update_time()
+
+    def get_system_status(self) -> Dict[str, Any]:
+        """Get comprehensive system status"""
+        with self._lock:
+            return {
+                'app_state': self.get_app_state(),
+                'current_state': self.get_current_state(),
+                'user_id': self._user_id,
+                'initialized': self.is_initialized(),
+                'healthy': self.is_healthy(),
+                'last_update': self._last_update_time.isoformat(),
+                'market_open': self.is_market_open(),
+                'current_timestamp': self.get_current_timestamp().isoformat() if self.get_current_timestamp() else None,
+                'base_currency': self._base_currency,
+                'timezone': self._timezone,
+                'engine_id': self._engine_id,
+                'services': self.get_health_status(),
+                'managers': self.components.get_manager_status()
+            }
+
+    def validate_system(self) -> Dict[str, Any]:
+        """Validate entire system"""
+        with self._lock:
+            validation = {
+                'valid': True,
+                'errors': [],
+                'warnings': [],
+                'components': {}
+            }
+
+            # Validate components
+            try:
+                component_validation = self.components.validate_managers()
+                validation['components'] = component_validation
+
+                # Check for any invalid managers
+                for manager_name, manager_validation in component_validation.items():
+                    if not manager_validation.get('valid', True):
+                        validation['valid'] = False
+                        validation['errors'].append(f"Manager {manager_name} validation failed")
+
+            except Exception as e:
+                validation['valid'] = False
+                validation['errors'].append(f"Component validation error: {e}")
+
+            # Validate user context
+            if not self._user_id:
+                validation['warnings'].append("No user context set")
+
+            # Validate initialization
+            if not self._initialization_complete:
+                validation['warnings'].append("Initialization not marked complete")
+
+            return validation
+
+    def reset_system(self) -> None:
+        """Reset entire system to initial state"""
+        with self._lock:
+            self.logger.info("🔄 Resetting entire system...")
+
+            # Reset all components
+            self.snapshot_state = SnapshotState()
+            self.market_timing = MarketTiming()
+            self.service_health = ServiceHealth()
+            self.components.reset_all_managers()
+
+            # Reset parameters
+            self._user_id = None
+            self._base_currency = 'USD'
+            self._timezone = 'America/New_York'
+            self._initial_nav = 100000000
+            self._opertion_id = 0
+            self._engine_id = 1
+            self._last_update_time = datetime.now()
+            self._initialization_complete = False
+
+            self.logger.info("✅ System reset complete")
 
 
 # Global app state instance

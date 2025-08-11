@@ -1,209 +1,442 @@
-# source/servers/convictionserver/conviction_entry_service_impl.py
+# source/orchestration/servers/conviction/conviction_server_impl.py
+import asyncio
 import logging
+import traceback
 import uuid
-import grpc
 from datetime import datetime
-from typing import Dict
+from typing import List, Dict, Any, Optional
 
-from source.orchestration.servers.utils import BaseServiceImpl
-from source.orchestration.app_state.state_manager import app_state
+import grpc
+from grpc import aio
 
 from source.api.grpc.conviction_exchange_interface_pb2 import (
-    BatchConvictionRequest, BatchConvictionResponse, ConvictionResponse,
-    BatchCancelRequest, BatchCancelResponse, CancelResult,
-    Side as ConvictionSide, ParticipationRate
+    BatchConvictionRequest,
+    BatchConvictionResponse,
+    ConvictionResponse
 )
-from source.api.grpc.conviction_exchange_interface_pb2_grpc import ConvictionExchangeSimulatorServicer
+from source.api.grpc.conviction_exchange_interface_pb2_grpc import (
+    ConvictionExchangeSimulatorServicer,
+    add_ConvictionExchangeSimulatorServicer_to_server
+)
+from source.engines.engine_factory import EngineFactory
+from source.orchestration.coordination.exchange_manager import ExchangeGroupManager
 
-class ConvictionServiceImpl(ConvictionExchangeSimulatorServicer, BaseServiceImpl):
-    def __init__(self):
-        super().__init__()
+
+class ConvictionServiceImpl(ConvictionExchangeSimulatorServicer):
+    """Implementation of the ConvictionExchange gRPC service"""
+
+    def __init__(self, exchange_group_manager: ExchangeGroupManager):
         self.logger = logging.getLogger(self.__class__.__name__)
+        self.exchange_group_manager = exchange_group_manager
+        self.server: Optional[aio.Server] = None
 
-        # Track active convictions
-        self.active_convictions: Dict[str, Dict] = {}
+    async def SubmitConvictions(self, request: BatchConvictionRequest, context) -> BatchConvictionResponse:
+        """Submit convictions and convert them to orders"""
 
-    def SubmitConvictions(self, request: BatchConvictionRequest,
-                          context: grpc.ServicerContext) -> BatchConvictionResponse:
-        """Receive and process conviction submissions from external service"""
+        self.logger.info("=" * 80)
+        self.logger.info("📥 CONVICTION SERVICE: SubmitConvictions called")
+        self.logger.info(f"📥 Request type: {type(request)}")
+        self.logger.info(f"📥 Request has user_id: {hasattr(request, 'user_id')}")
+        self.logger.info(f"📥 Request.user_id: {request.user_id}")
+        self.logger.info(f"📥 Request.user_id type: {type(request.user_id)}")
+        self.logger.info(f"📥 Request.convictions count: {len(request.convictions)}")
+        self.logger.info(f"📥 Request attributes: {[attr for attr in dir(request) if not attr.startswith('_')]}")
 
-        def submit_convictions():
-            self.logger.info(f"Received {len(request.convictions)} convictions")
-
-            results = []
-            current_time = datetime.now()
-
-            for conviction in request.convictions:
-                try:
-                    # Validate conviction
-                    validation_error = self._validate_conviction(conviction)
-                    if validation_error:
-                        results.append(ConvictionResponse(
-                            success=False,
-                            broker_id="",
-                            error_message=validation_error
-                        ))
-                        self.logger.warning(f"Conviction validation failed: {validation_error}")
-                        continue
-
-                    # Generate broker ID
-                    broker_id = f"CONV_{conviction.conviction_id}_{uuid.uuid4().hex[:8]}"
-
-                    # Store conviction data
-                    conviction_data = self._process_conviction(conviction, broker_id, current_time)
-                    self.active_convictions[conviction.conviction_id] = conviction_data
-
-                    # TODO: Later we'll convert to orders and submit to exchange
-                    # For now, just store and track
-
-                    results.append(ConvictionResponse(
-                        success=True,
-                        broker_id=broker_id,
-                        error_message=""
-                    ))
-
-                    self.logger.info(f"Accepted conviction {conviction.conviction_id} for {conviction.instrument_id} "
-                                     f"({conviction.quantity} shares, {conviction.side.name})")
-
-                except Exception as e:
-                    self.logger.error(f"Error processing conviction {conviction.conviction_id}: {e}")
-                    results.append(ConvictionResponse(
-                        success=False,
-                        broker_id="",
-                        error_message=f"Processing error: {str(e)}"
-                    ))
-
-            success_count = len([r for r in results if r.success])
-
+        try:
+            result = await self._async_submit_convictions(request, context)
+            self.logger.info("✅ Async execution completed")
+            return result
+        except Exception as e:
+            self.logger.error(f"❌ Error in async execution: {e}")
+            self.logger.error(f"   Traceback: {traceback.format_exc()}")
             return BatchConvictionResponse(
-                success=success_count > 0,
-                results=results,
-                error_message=f"Processed {success_count}/{len(request.convictions)} convictions"
+                success=False,
+                results=[],
+                error_message=f"Execution error: {e}"
             )
 
-        return self._handle_request(context, submit_convictions)
+    async def _async_submit_convictions(self, request: BatchConvictionRequest, context) -> BatchConvictionResponse:
+        """Async implementation of submit_convictions with proper user context switching"""
+        self.logger.info("🔄 Inside async submit_convictions")
 
-    def CancelConvictions(self, request: BatchCancelRequest, context: grpc.ServicerContext) -> BatchCancelResponse:
-        """Cancel convictions"""
+        # Extract user_id from request
+        try:
+            self.logger.info("🔄 Attempting to get user_id from request...")
+            user_id_str = request.user_id
+            self.logger.info(f"✅ Got user_id_str: {user_id_str}")
+        except AttributeError as e:
+            self.logger.error(f"❌ Request does not have user_id attribute: {e}")
+            return BatchConvictionResponse(
+                success=False,
+                results=[],
+                error_message=f"Request missing user_id: {e}"
+            )
+        except Exception as e:
+            self.logger.error(f"❌ Unexpected error getting user_id: {e}")
+            self.logger.error(f"   Traceback: {traceback.format_exc()}")
+            return BatchConvictionResponse(
+                success=False,
+                results=[],
+                error_message=f"Error accessing user_id: {e}"
+            )
 
-        def cancel_convictions():
-            self.logger.info(f"Received cancellation request for {len(request.conviction_id)} convictions")
+        self.logger.info(f"📊 Received {len(request.convictions)} convictions from user {user_id_str}")
 
-            results = []
-            current_time = datetime.now()
+        # Convert string to UUID
+        user_id = self._convert_user_id(user_id_str)
+        if user_id is None:
+            return BatchConvictionResponse(
+                success=False,
+                results=[],
+                error_message=f"Invalid user ID or user not found: {user_id_str}"
+            )
 
-            for conviction_id in request.conviction_id:
+        # Get user context
+        try:
+            user_context = self.exchange_group_manager.user_contexts[user_id]
+            self.logger.info(f"✅ Got user context for {user_id}")
+
+            # CRITICAL FIX: Switch global app_state to user's app_state
+            import source.orchestration.app_state.state_manager as app_state_module
+            original_app_state = app_state_module.app_state
+
+            try:
+                # Set user's app_state as current (like user_processor.py does)
+                app_state_module.app_state = user_context.app_state
+                self.logger.info(f"✅ Switched global app_state to user {user_id}'s app_state")
+
+                # Verify exchange is available
+                if app_state_module.app_state.exchange:
+                    self.logger.info(
+                        f"✅ Exchange available in user app_state: {id(app_state_module.app_state.exchange)}")
+                else:
+                    self.logger.error(f"❌ No exchange in user app_state for {user_id}")
+                    return BatchConvictionResponse(
+                        success=False,
+                        results=[],
+                        error_message=f"No exchange available for user {user_id_str}"
+                    )
+
+                # Set the user_id in the app_state for this user_context
+                user_context.app_state.set_user_id(str(user_id))
+                self.logger.info(f"✅ Set user_id {user_id} in app_state for this context")
+
+                # CRITICAL FIX: Set user context in OrderManager
+                if user_context.app_state.order_manager:
+                    user_context.app_state.order_manager.set_user_context(str(user_id))
+                    self.logger.info(f"✅ Set user context in OrderManager for {user_id}")
+                else:
+                    self.logger.warning(f"⚠️ No OrderManager found in user context for {user_id}")
+
+                # Also set user context in component managers
+                if hasattr(user_context.app_state, 'components'):
+                    user_context.app_state.components.set_user_context(str(user_id))
+                    self.logger.info(f"✅ Set user context in ComponentManagers for {user_id}")
+
+                results = []
+                current_time = datetime.now()
+
                 try:
-                    # Check if conviction exists
-                    if conviction_id not in self.active_convictions:
-                        results.append(CancelResult(
-                            broker_id=conviction_id,
+                    # Get user's engine type from database
+                    self.logger.info("🔄 Getting engine ID...")
+                    engine_id = user_context.app_state.get_engine_id()
+                    self.logger.info(f"✅ Engine ID: {engine_id}")
+
+                    if engine_id is None:
+                        error_msg = f"Could not determine engine for user {user_id}"
+                        self.logger.error(f"❌ {error_msg}")
+                        return BatchConvictionResponse(
                             success=False,
-                            error_message="Conviction not found or already processed"
-                        ))
-                        continue
+                            results=[],
+                            error_message=error_msg
+                        )
 
-                    # Get conviction data
-                    conviction_data = self.active_convictions[conviction_id]
+                    # Create engine instance
+                    self.logger.info(f"🔄 Creating engine instance for engine_id: {engine_id}")
+                    engine = EngineFactory.create_engine(engine_id)
 
-                    # Mark as cancelled
-                    conviction_data['status'] = 'CANCELLED'
-                    conviction_data['cancel_time'] = current_time
+                    if engine is None:
+                        error_msg = f"Failed to create engine for ID {engine_id}"
+                        self.logger.error(f"❌ {error_msg}")
+                        return BatchConvictionResponse(
+                            success=False,
+                            results=[],
+                            error_message=error_msg
+                        )
 
-                    # TODO: Later we'll cancel any associated orders
+                    self.logger.info(f"✅ Engine created: {type(engine)}")
 
-                    results.append(CancelResult(
-                        broker_id=conviction_data['broker_id'],
+                    # Process all convictions at once (more efficient)
+                    try:
+                        # Convert all protobuf convictions to dict format
+                        conviction_dicts = []
+                        for conviction in request.convictions:
+                            # Generate unique conviction ID if not provided
+                            conviction_id = conviction.conviction_id if conviction.conviction_id else f"CONV_{uuid.uuid4().hex[:6].upper()}"
+
+                            # Convert protobuf to dict
+                            conviction_dict = self._protobuf_to_dict(conviction)
+                            conviction_dict['conviction_id'] = conviction_id
+
+                            conviction_dicts.append(conviction_dict)
+                            self.logger.info(f"CONVICTION: {conviction_dict}")
+
+                        # FIXED: Use correct engine method name and await it
+                        all_orders = await engine.convert_convictions_to_orders(
+                            user_id=str(user_id),
+                            convictions=conviction_dicts,
+                            user_context=user_context
+                        )
+
+                        self.logger.info(
+                            f"✅ Engine generated {len(all_orders)} total orders from {len(conviction_dicts)} convictions")
+
+                        # Create response results for each conviction
+                        for i, conviction in enumerate(request.convictions):
+                            conviction_id = conviction.conviction_id if conviction.conviction_id else f"CONV_{uuid.uuid4().hex[:6].upper()}"
+
+                            # FIXED: Use correct protobuf field name (broker_id instead of conviction_id)
+                            broker_id = f"BROKER_{conviction_id}_{uuid.uuid4().hex[:8]}"
+
+                            results.append(ConvictionResponse(
+                                success=True,
+                                broker_id=broker_id,
+                                error_message=""
+                            ))
+
+                    except Exception as e:
+                        self.logger.error(f"❌ Error processing convictions through engine: {e}")
+                        self.logger.error(f"   Traceback: {traceback.format_exc()}")
+
+                        # Create error results for all convictions
+                        for conviction in request.convictions:
+                            results.append(ConvictionResponse(
+                                success=False,
+                                broker_id="",
+                                error_message=f"Engine processing error: {e}"
+                            ))
+
+                        return BatchConvictionResponse(
+                            success=False,
+                            results=results,
+                            error_message=f"Engine processing failed: {e}"
+                        )
+
+                    # Submit all orders to OrderManager (which now has proper exchange access)
+                    if all_orders:
+                        self.logger.info(f"🔄 Converting {len(all_orders)} orders to OrderManager format...")
+
+                        orders_submitted = 0
+                        for order in all_orders:
+                            try:
+                                # Convert order dict to the format expected by OrderManager
+                                order_data = {
+                                    'order_id': order['order_id'],
+                                    'cl_order_id': order['cl_order_id'],
+                                    'symbol': order['symbol'],
+                                    'side': order['side'],
+                                    'original_qty': float(order['original_qty']),
+                                    'remaining_qty': float(order['remaining_qty']),
+                                    'completed_qty': float(order['completed_qty']),
+                                    'currency': order['currency'],
+                                    'price': float(order['price']),
+                                    'order_type': order['order_type'],
+                                    'participation_rate': float(order['participation_rate']),
+                                    'submit_timestamp': order['submit_timestamp'],
+                                }
+
+                                # Add order to OrderManager (which will now have proper exchange access)
+                                success = user_context.app_state.order_manager.add_order(order_data)
+                                if success:
+                                    orders_submitted += 1
+                                    self.logger.info(f"✅ Added order {order['order_id']} to OrderManager")
+                                else:
+                                    self.logger.error(f"❌ Failed to add order {order['order_id']} to OrderManager")
+
+                            except Exception as e:
+                                self.logger.error(
+                                    f"❌ Error adding order {order.get('order_id', 'unknown')} to OrderManager: {e}")
+
+                        self.logger.info(
+                            f"✅ Successfully submitted {orders_submitted}/{len(all_orders)} orders to exchange")
+                    else:
+                        self.logger.warning("⚠️ No orders generated from convictions")
+
+                    return BatchConvictionResponse(
                         success=True,
+                        results=results,
                         error_message=""
-                    ))
-
-                    self.logger.info(f"Cancelled conviction {conviction_id}")
+                    )
 
                 except Exception as e:
-                    self.logger.error(f"Error cancelling conviction {conviction_id}: {e}")
-                    results.append(CancelResult(
-                        broker_id=conviction_id,
+                    self.logger.error(f"❌ Error in conviction processing: {e}")
+                    self.logger.error(f"   Traceback: {traceback.format_exc()}")
+                    return BatchConvictionResponse(
                         success=False,
-                        error_message=f"Cancellation error: {str(e)}"
-                    ))
+                        results=results,
+                        error_message=f"Processing error: {e}"
+                    )
 
-            success_count = len([r for r in results if r.success])
+            finally:
+                # CRITICAL: Always restore original app_state
+                app_state_module.app_state = original_app_state
+                self.logger.info("✅ Restored original app_state")
 
-            return BatchCancelResponse(
-                success=success_count > 0,
-                results=results,
-                error_message=f"Cancelled {success_count}/{len(request.conviction_id)} convictions"
+        except KeyError:
+            self.logger.error(f"❌ User {user_id} not found in exchange contexts")
+            return BatchConvictionResponse(
+                success=False,
+                results=[],
+                error_message=f"User {user_id_str} not found in exchange"
+            )
+        except Exception as e:
+            self.logger.error(f"❌ Unexpected error in conviction processing: {e}")
+            self.logger.error(f"   Traceback: {traceback.format_exc()}")
+            return BatchConvictionResponse(
+                success=False,
+                results=[],
+                error_message=f"Unexpected error: {e}"
             )
 
-        return self._handle_request(context, cancel_convictions)
+    async def CancelConvictions(self, request, context):
+        """Cancel convictions - placeholder implementation"""
+        self.logger.info("📥 CONVICTION SERVICE: CancelConvictions called")
 
-    def _validate_conviction(self, conviction) -> str:
-        """Validate conviction parameters"""
-        if not conviction.instrument_id:
-            return "Missing instrument_id"
+        # Return empty response for now
+        from source.api.grpc.conviction_exchange_interface_pb2 import BatchCancelResponse
+        return BatchCancelResponse(
+            success=True,
+            results=[],
+            error_message=""
+        )
 
-        if not conviction.conviction_id:
-            return "Missing conviction_id"
+    def _convert_user_id(self, user_id_str: str) -> Optional[uuid.UUID]:
+        """Convert user_id string to UUID and validate it exists"""
+        self.logger.info(f"🔄 Converting user_id: {user_id_str} (type: {type(user_id_str)})")
 
-        if conviction.quantity <= 0:
-            return "Quantity must be positive"
+        try:
+            user_id = uuid.UUID(user_id_str)
+            self.logger.info(f"✅ Converted to UUID: {user_id} (type: {type(user_id)})")
 
-        # Check if instrument exists in universe
-        if app_state.universe_manager:
-            if not app_state.universe_manager.is_valid_symbol(conviction.instrument_id):
-                return f"Invalid instrument: {conviction.instrument_id}"
+            if user_id in self.exchange_group_manager.user_contexts:
+                self.logger.info(f"✅ User {user_id} found in exchange contexts")
+                return user_id
+            else:
+                self.logger.error(f"❌ User {user_id} not found in exchange contexts")
+                return None
 
-        # Check for duplicate conviction ID
-        if conviction.conviction_id in self.active_convictions:
-            return f"Conviction ID already exists: {conviction.conviction_id}"
+        except ValueError as e:
+            self.logger.error(f"❌ Invalid UUID format: {user_id_str}: {e}")
+            return None
 
-        return ""
-
-    def _process_conviction(self, conviction, broker_id: str, submit_time: datetime) -> Dict:
-        """Process and store conviction data"""
-
-        # Convert participation rate enum to float
-        participation_map = {
-            ParticipationRate.LOW: 0.01,  # 1%
-            ParticipationRate.MEDIUM: 0.03,  # 3%
-            ParticipationRate.HIGH: 0.05  # 5%
-        }
-        participation_rate = participation_map.get(conviction.participation_rate, 0.03)
-
-        # Get currency from universe
-        currency = "USD"  # Default
-        if app_state.universe_manager:
-            symbol_data = app_state.universe_manager.get_symbol_metadata(conviction.instrument_id)
-            if symbol_data:
-                currency = symbol_data.get('currency', 'USD')
-
-        # Store conviction data
-        conviction_data = {
-            'conviction_id': conviction.conviction_id,
-            'broker_id': broker_id,
+    def _protobuf_to_dict(self, conviction) -> Dict[str, Any]:
+        """Convert protobuf conviction to dictionary"""
+        conviction_dict = {
             'instrument_id': conviction.instrument_id,
-            'side': 'BUY' if conviction.side == ConvictionSide.BUY else 'SELL',
-            'quantity': float(conviction.quantity),
-            'currency': currency,
-            'participation_rate': participation_rate,
+            'conviction_id': conviction.conviction_id,
             'tag': conviction.tag,
-            'score': float(conviction.score),
-            'zscore': float(conviction.zscore),
-            'target_percentage': float(conviction.target_percentage),
-            'target_notional': float(conviction.target_notional),
+            'score': conviction.score,
+            'quantity': conviction.quantity,
+            'zscore': conviction.zscore,
+            'target_percentage': conviction.target_percentage,
+            'target_notional': conviction.target_notional,
             'horizon_zscore': conviction.horizon_zscore,
-            'status': 'ACTIVE',
-            'submit_time': submit_time,
-            'cancel_time': None
         }
 
-        return conviction_data
+        # Handle enum fields
+        if hasattr(conviction, 'participation_rate'):
+            conviction_dict['participation_rate'] = conviction.participation_rate
 
-    def get_active_convictions(self) -> Dict[str, Dict]:
-        """Get all active convictions"""
-        return {k: v for k, v in self.active_convictions.items() if v['status'] == 'ACTIVE'}
+        if hasattr(conviction, 'side'):
+            conviction_dict['side'] = conviction.side
 
-    def get_all_convictions(self) -> Dict[str, Dict]:
-        """Get all convictions (active and cancelled)"""
-        return self.active_convictions.copy()
+        # Handle optional fields
+        if hasattr(conviction, 'min_position_size_pct') and conviction.HasField('min_position_size_pct'):
+            conviction_dict['min_position_size_pct'] = conviction.min_position_size_pct
+
+        if hasattr(conviction, 'max_position_size_pct') and conviction.HasField('max_position_size_pct'):
+            conviction_dict['max_position_size_pct'] = conviction.max_position_size_pct
+
+        if hasattr(conviction, 'max_days_to_liquidate') and conviction.HasField('max_days_to_liquidate'):
+            conviction_dict['max_days_to_liquidate'] = conviction.max_days_to_liquidate
+
+        return conviction_dict
+
+    async def _cancel_existing_orders(self, user_id: uuid.UUID, conviction_id: str) -> bool:
+        """Cancel all orders where cl_order_id matches conviction_id"""
+        try:
+            if user_id not in self.exchange_group_manager.user_contexts:
+                self.logger.error(f"❌ No exchange context found for user {user_id}")
+                return False
+
+            user_context = self.exchange_group_manager.user_contexts[user_id]
+
+            # Cancel orders using cl_order_id = conviction_id
+            if hasattr(user_context.app_state, 'order_manager') and user_context.app_state.order_manager:
+                cancel_result = user_context.app_state.order_manager.cancel_orders_by_cl_order_id(conviction_id)
+                if cancel_result:
+                    self.logger.info(f"✅ Cancelled orders with cl_order_id={conviction_id}")
+                    return True
+                else:
+                    self.logger.warning(f"⚠️ No active orders found with cl_order_id={conviction_id}")
+                    return True  # No orders to cancel is considered success
+            else:
+                self.logger.warning(f"⚠️ No order_manager found in user context")
+                return True
+
+        except Exception as e:
+            self.logger.error(f"❌ Error cancelling orders for conviction {conviction_id}: {e}")
+            self.logger.error(f"   Traceback: {traceback.format_exc()}")
+            return False
+
+    async def _submit_orders_to_exchange(self, user_id: uuid.UUID, orders: List[Dict[str, Any]]):
+        """Submit generated orders to the exchange simulator"""
+        try:
+            if user_id not in self.exchange_group_manager.user_contexts:
+                raise Exception(f"No exchange context found for user {user_id}")
+
+            user_context = self.exchange_group_manager.user_contexts[user_id]
+
+            for order in orders:
+                print(f"WTF: {order}")
+                # Submit order to user's exchange simulator through OrderManager
+                if user_context.app_state.order_manager:
+                    user_context.app_state.order_manager.add_order(order)
+                    self.logger.info(f"✅ Added order {order.get('order_id', 'unknown')} to OrderManager")
+                elif hasattr(user_context.app_state, 'components') and user_context.app_state.components.order_manager:
+                    user_context.app_state.components.order_manager.add_order(order)
+                    self.logger.info(
+                        f"✅ Added order {order.get('order_id', 'unknown')} to ComponentManager OrderManager")
+                else:
+                    self.logger.error(f"❌ No order_manager found in user context")
+                    raise Exception("No order_manager found in user context")
+
+        except Exception as e:
+            self.logger.error(f"❌ Failed to submit orders to exchange: {e}")
+            self.logger.error(f"   Traceback: {traceback.format_exc()}")
+            raise
+
+    async def start_server(self, port: int = 50052):
+        """Start the gRPC server"""
+        self.server = aio.server()
+        add_ConvictionExchangeSimulatorServicer_to_server(self, self.server)
+
+        listen_addr = f'[::]:{port}'
+        self.server.add_insecure_port(listen_addr)
+
+        self.logger.info(f"Starting ConvictionExchange server on {listen_addr}")
+        await self.server.start()
+
+        # Keep server running
+        try:
+            await self.server.wait_for_termination()
+        except KeyboardInterrupt:
+            self.logger.info("Server interrupted")
+        finally:
+            await self.server.stop(grace=5)
+
+    async def stop_server(self):
+        """Stop the gRPC server"""
+        if self.server:
+            await self.server.stop(grace=5)
+            self.logger.info("ConvictionExchange server stopped")

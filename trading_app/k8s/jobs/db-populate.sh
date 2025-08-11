@@ -32,7 +32,7 @@ if [ "$CREATE_USER" = true ]; then
     
     # Create fake user SQL with proper UUID
     cat > temp_create_user.sql << 'EOF'
--- Create fake user in auth schema with proper UUID
+-- Create fake user in auth schema with proper UUID (testuser: Test123!)
 INSERT INTO auth.users (
     user_id,
     username,
@@ -46,7 +46,7 @@ INSERT INTO auth.users (
     '00000000-0000-0000-0000-000000000001'::UUID,
     'testuser',
     'test@example.com',
-    '$2b$12$dummy.hash.for.testing.purposes.only',
+    '4f6694d10ede2bb286a0559638ac04a5d27e181aa3d83a17be4cb238a30c29d4',
     true,
     true,
     'user',
@@ -56,7 +56,61 @@ INSERT INTO auth.users (
     email = EXCLUDED.email,
     is_active = EXCLUDED.is_active;
 
-SELECT 'Fake user created/updated successfully!' as status;
+
+-- Create fund for the test user
+INSERT INTO fund.funds (
+    user_id,
+    fund_id,
+    active_at
+) VALUES (
+    '00000000-0000-0000-0000-000000000001'::UUID,
+    '0ae5453f-2d9e-4c6a-ade0-df9f66726ad1'::UUID,
+    CURRENT_TIMESTAMP
+) ON CONFLICT (fund_id) DO NOTHING;
+
+-- Insert fund properties
+INSERT INTO fund.fund_properties (fund_id, category, subcategory, value, active_at, expire_at) VALUES
+('0ae5453f-2d9e-4c6a-ade0-df9f66726ad1'::UUID, 'property', 'name', 'Test Fund', CURRENT_TIMESTAMP, '2999-01-01 00:00:00+00'),
+('0ae5453f-2d9e-4c6a-ade0-df9f66726ad1'::UUID, 'property', 'legal_structure', 'Personal Account', CURRENT_TIMESTAMP, '2999-01-01 00:00:00+00'),
+('0ae5453f-2d9e-4c6a-ade0-df9f66726ad1'::UUID, 'property', 'state_country', 'Newark, NJ', CURRENT_TIMESTAMP, '2999-01-01 00:00:00+00'),
+('0ae5453f-2d9e-4c6a-ade0-df9f66726ad1'::UUID, 'property', 'year_established', '2025', CURRENT_TIMESTAMP, '2999-01-01 00:00:00+00'),
+('0ae5453f-2d9e-4c6a-ade0-df9f66726ad1'::UUID, 'metadata', 'aum', 'Under $1M', CURRENT_TIMESTAMP, '2999-01-01 00:00:00+00'),
+('0ae5453f-2d9e-4c6a-ade0-df9f66726ad1'::UUID, 'metadata', 'purpose', '["raise_capital", "track_record"]', CURRENT_TIMESTAMP, '2999-01-01 00:00:00+00'),
+('0ae5453f-2d9e-4c6a-ade0-df9f66726ad1'::UUID, 'metadata', 'thesis', 'Test this thing out.', CURRENT_TIMESTAMP, '2999-01-01 00:00:00+00')
+ON CONFLICT (fund_id, category, subcategory) DO UPDATE SET
+    value = EXCLUDED.value,
+    active_at = EXCLUDED.active_at;
+
+-- Create team member
+INSERT INTO fund.team_members (
+    team_member_id,
+    fund_id,
+    active_at,
+    expire_at
+) VALUES (
+    '6e46e336-766c-4f05-a96b-21f9359dda61'::UUID,
+    '0ae5453f-2d9e-4c6a-ade0-df9f66726ad1'::UUID,
+    CURRENT_TIMESTAMP,
+    '2999-01-01 00:00:00+00'
+) ON CONFLICT (team_member_id) DO NOTHING;
+
+-- Insert team member properties
+INSERT INTO fund.team_member_properties (member_id, category, subcategory, value, active_at, expire_at) VALUES
+('6e46e336-766c-4f05-a96b-21f9359dda61'::UUID, 'personal', 'order', '0', CURRENT_TIMESTAMP, '2999-01-01 00:00:00+00'),
+('6e46e336-766c-4f05-a96b-21f9359dda61'::UUID, 'personal', 'firstName', 'Sergio', CURRENT_TIMESTAMP, '2999-01-01 00:00:00+00'),
+('6e46e336-766c-4f05-a96b-21f9359dda61'::UUID, 'personal', 'lastName', 'Amaral', CURRENT_TIMESTAMP, '2999-01-01 00:00:00+00'),
+('6e46e336-766c-4f05-a96b-21f9359dda61'::UUID, 'personal', 'birthDate', '1984-05-19', CURRENT_TIMESTAMP, '2999-01-01 00:00:00+00'),
+('6e46e336-766c-4f05-a96b-21f9359dda61'::UUID, 'professional', 'role', 'Portfolio Manager', CURRENT_TIMESTAMP, '2999-01-01 00:00:00+00'),
+('6e46e336-766c-4f05-a96b-21f9359dda61'::UUID, 'professional', 'yearsExperience', '2', CURRENT_TIMESTAMP, '2999-01-01 00:00:00+00'),
+('6e46e336-766c-4f05-a96b-21f9359dda61'::UUID, 'professional', 'currentEmployment', 'Citadel Shit', CURRENT_TIMESTAMP, '2999-01-01 00:00:00+00'),
+('6e46e336-766c-4f05-a96b-21f9359dda61'::UUID, 'professional', 'investmentExpertise', 'Quantitative', CURRENT_TIMESTAMP, '2999-01-01 00:00:00+00'),
+('6e46e336-766c-4f05-a96b-21f9359dda61'::UUID, 'social', 'linkedin', 'https://google.com', CURRENT_TIMESTAMP, '2999-01-01 00:00:00+00'),
+('6e46e336-766c-4f05-a96b-21f9359dda61'::UUID, 'education', 'education', 'MIT', CURRENT_TIMESTAMP, '2999-01-01 00:00:00+00')
+ON CONFLICT (member_id, category, subcategory) DO UPDATE SET
+    value = EXCLUDED.value,
+    active_at = EXCLUDED.active_at;
+
+SELECT 'Fake user and fund created/updated successfully!' as status;
 EOF
 
     # Copy and execute user creation SQL

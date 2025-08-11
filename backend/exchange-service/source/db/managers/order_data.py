@@ -72,8 +72,6 @@ class OrderDataManager(BaseTableManager):
 
     async def insert_simulation_data(self, data: List[Dict], user_id: str, timestamp: datetime) -> int:
         """Insert order simulation data"""
-        await self.ensure_connection()
-
         if not data:
             return 0
 
@@ -88,7 +86,6 @@ class OrderDataManager(BaseTableManager):
                     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
                 """
 
-                import uuid
                 records = []
                 for record in data:
                     records.append((

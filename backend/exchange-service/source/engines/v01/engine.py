@@ -1,302 +1,433 @@
-# source/conviction_engine/alpha_engines/target_weight/engine.py
-from typing import Dict, List, Optional
-from datetime import datetime
-import logging
-
-from .config_loader import ConfigLoader
-from .alpha_processor import AlphaProcessor, TargetWeightSignal
-from .constraint_manager import ConstraintManager
-from .risk_manager import RiskManager
-from .solver import TargetWeightSolver
-from .order_generator import OrderGenerator
+# source/engines/v01/engine.py
+from typing import Dict, List, Any, Tuple
+import asyncio
+from ..base_engine import BaseEngine
 
 
-class TargetWeightEngine:
-    """Configuration-driven target weight engine"""
+class ENGINE_v01(BaseEngine):
+    """
+    Portfolio optimization engine that properly uses existing managers.
 
-    def __init__(self, config_path: Optional[str] = None, config_overrides: Optional[Dict] = None):
-        # Load configuration
-        self.config_loader = ConfigLoader(config_path)
-        self.config = self.config_loader.load_config()
+    Process:
+    1. Get user's base currency from database
+    2. Get current portfolio from portfolio manager in user_context (converted to base currency)
+    3. Get target portfolio from convictions (engine-specific logic)
+    4. Get exchange parameters using db_manager.load_exchange_parameters()
+    5. Get user parameters using db_manager.load_user_operational_parameters()
+    6. Solve optimization problem in base currency notionals
+    7. Generate orders from solution (converting back to symbol quantities using latest prices)
+    """
 
-        # Apply any overrides
-        if config_overrides:
-            self.config = ConfigLoader.override_config(self.config, config_overrides)
+    def __init__(self, config: Dict[str, Any] = None):
+        super().__init__(engine_id=1, config=config)
 
-        # Setup logging
-        self._setup_logging()
+    def validate_conviction(self, conviction: Dict[str, Any]) -> str:
+        """Validate conviction for basic engine."""
+        required_fields = ['instrument_id', 'side', 'quantity']
 
-        self.logger.info(f"Initializing {self.config['engine']['name']} v{self.config['engine']['version']}")
+        for field in required_fields:
+            if field not in conviction or conviction[field] is None:
+                return f"Missing required field: {field}"
 
-        # Initialize components with configuration
-        self.alpha_processor = AlphaProcessor(self.config)
-        self.constraint_manager = ConstraintManager(self.config)
-        self.risk_manager = RiskManager(self.config)
-        self.solver = TargetWeightSolver(self.config)
-        self.order_generator = OrderGenerator(self.config)
+        # Validate side
+        if conviction['side'] not in ['BUY', 'SELL']:
+            return f"Invalid side: {conviction['side']}"
 
-        self.logger.info("Target weight engine initialized successfully")
+        # Validate quantity
+        try:
+            quantity = float(conviction['quantity'])
+            if quantity <= 0:
+                return f"Invalid quantity: {quantity}"
+        except (ValueError, TypeError):
+            return f"Invalid quantity: {conviction['quantity']}"
 
-    def _setup_logging(self):
-        """Setup logging from configuration"""
+        return ""
 
-        logging_config = self.config.get('logging', {})
-        log_level = getattr(logging, logging_config.get('level', 'INFO'))
+    async def convert_convictions_to_orders(self,
+                                            user_id: str,
+                                            convictions: List[Dict[str, Any]],
+                                            user_context: Any) -> List[Dict[str, Any]]:
+        """Convert convictions to orders using portfolio optimization."""
+        return await self._async_portfolio_optimization(user_id, convictions, user_context)
 
-        self.logger = logging.getLogger(__name__)
-        self.logger.setLevel(log_level)
-
-        # Configure formatter if specified
-        if logging_config.get('log_format') == 'detailed':
-            formatter = logging.Formatter(
-                '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-            )
-        elif logging_config.get('log_format') == 'json':
-            # Would implement JSON formatter here
-            formatter = logging.Formatter('%(message)s')
-        else:
-            formatter = logging.Formatter('%(levelname)s - %(message)s')
-
-    def process_signal(self,
-                       signals: List[TargetWeightSignal],
-                       current_portfolio: Dict[str, float],
-                       market_data: Optional[Dict] = None) -> Dict:
-        """Process target weight signals using configuration-driven pipeline"""
-
-        start_time = datetime.now()
+    async def _async_portfolio_optimization(self,
+                                            user_id: str,
+                                            convictions: List[Dict[str, Any]],
+                                            user_context: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Main optimization workflow using existing managers."""
 
         try:
-            # Check if we're in dry run mode
-            if self.config.get('testing', {}).get('dry_run_mode', False):
-                self.logger.info("Running in DRY RUN mode - no actual orders will be generated")
+            # Step 1: Get current portfolio from user_context portfolio manager (in base currency)
+            current_portfolio = self.get_current_notional_portfolio_from_manager(user_context)
+            self.logger.info(f"Current portfolio for {user_id}: {len(current_portfolio)}")
 
-            # Step 1: Process alpha signals
-            self.logger.debug("Processing alpha signals")
-            target_portfolio, urgency_map, alpha_log = self.alpha_processor.process_signals(signals)
+            # Step 2: Get target portfolio from convictions (ENGINE SPECIFIC) (in base currency)
+            target_portfolio = self._get_target_notional_portfolio_from_convictions(
+                current_portfolio, convictions, user_context
+            )
+            self.logger.info(f"Target portfolio from convictions: {len(target_portfolio)}")
 
-            # Step 2: Apply operational constraints if enabled
-            if self.config.get('constraint_manager', {}).get('constraints', {}).get('enable_position_limits', True):
-                self.logger.debug("Applying operational constraints")
-                constrained_portfolio, constraint_log = self.constraint_manager.apply_operational_constraints(
-                    target_portfolio, market_data
-                )
-            else:
-                constrained_portfolio, constraint_log = target_portfolio, []
+            # Step 5: Solve optimization problem in base currency
+            optimal_portfolio, optimization_result = self._solve_optimization_problem(
+                user_context=user_context,
+                current_portfolio=current_portfolio,
+                target_portfolio=target_portfolio
+            )
 
-            # Step 3: Apply risk constraints if enabled
-            if self.config.get('risk_manager', {}).get('firm_risk', {}).get('enable_firm_limits', True):
-                self.logger.debug("Applying risk constraints")
-                risk_constrained_portfolio, risk_log = self.risk_manager.apply_risk_constraints(
-                    constrained_portfolio, market_data
-                )
-            else:
-                risk_constrained_portfolio, risk_log = constrained_portfolio, []
+            print("OK NOW CREATE THE ORDER")
 
-            # Step 4: Solve for final portfolio
-            self.logger.debug("Solving for final portfolio")
-            final_portfolio, solver_log = self.solver.solve(risk_constrained_portfolio)
+            # Step 6: Generate orders from solution (converting back to symbol quantities)
+            orders = self._generate_orders_from_notional_solution(
+                current_portfolio=current_portfolio,
+                optimal_portfolio=optimal_portfolio,
+                user_context=user_context,
+                convictions=convictions
+            )
 
-            # Step 5: Generate orders if not in dry run mode
-            if not self.config.get('testing', {}).get('dry_run_mode', False):
-                self.logger.debug("Generating orders")
-                orders = self.order_generator.generate_orders(
-                    final_portfolio, current_portfolio, urgency_map
-                )
-            else:
-                orders = []
-                self.logger.info("Skipping order generation (dry run mode)")
+            print(f"ORDER: {orders}")
 
-            # Step 6: Calculate attribution if enabled
-            attribution = {}
-            if self.config.get('attribution', {}).get('enable_performance_attribution', True):
-                attribution = self._calculate_attribution(
-                    target_portfolio, final_portfolio,
-                    alpha_log + constraint_log + risk_log + solver_log
-                )
-
-            # Calculate processing time
-            processing_time = (datetime.now() - start_time).total_seconds() * 1000
-
-            # Check performance benchmarks
-            max_processing_time = self.config.get('testing', {}).get('performance_benchmarks', {}).get(
-                'max_processing_time_ms', 1000)
-            if processing_time > max_processing_time:
-                self.logger.warning(
-                    f"Processing time {processing_time:.1f}ms exceeds benchmark {max_processing_time}ms")
-
-            result = {
-                'signal_type': 'target_weights',
-                'engine_version': self.config['engine']['version'],
-                'timestamp': datetime.now().isoformat(),
-                'processing_time_ms': processing_time,
-                'config_used': self._get_config_summary(),
-                'raw_target_portfolio': target_portfolio,
-                'final_target_portfolio': final_portfolio,
-                'orders': orders,
-                'attribution': attribution,
-                'logs': {
-                    'alpha_processing': alpha_log,
-                    'constraints': constraint_log,
-                    'risk_management': risk_log,
-                    'solver': solver_log
-                },
-                'metadata': self._calculate_metadata(final_portfolio, current_portfolio, orders)
-            }
-
-            self.logger.info(f"Signal processing completed in {processing_time:.1f}ms")
-            return result
+            self.logger.info(f"Generated {len(orders)} orders from optimization for {user_id}")
+            return orders
 
         except Exception as e:
-            self.logger.error(f"Error processing target weight signals: {e}")
-            raise
+            self.logger.error(f"Error in portfolio optimization for user {user_id}: {e}")
+            return []
 
-    def _get_config_summary(self) -> Dict:
-        """Get summary of key configuration parameters"""
+    def _get_target_notional_portfolio_from_convictions(self,
+                                                        current_portfolio: Dict[str, float],
+                                                        convictions: List[Dict[str, Any]],
+                                                        user_context: Any) -> Dict[str, float]:
+        """
+        ENGINE SPECIFIC: Convert convictions to target portfolio notionals in base currency.
+        This is specific to ENGINE_v01 logic.
+        """
+        base_currency = user_context.base_currency
 
-        return {
-            'aum': self.config.get('constraint_manager', {}).get('operational', {}).get('aum'),
-            'max_position_size': self.config.get('constraint_manager', {}).get('operational', {}).get(
-                'max_position_size'),
-            'firm_max_position': self.config.get('risk_manager', {}).get('firm_risk', {}).get('max_single_position'),
-            'risk_model': self.config.get('risk_manager', {}).get('risk_model', {}).get('type'),
-            'solver_method': self.config.get('solver', {}).get('method'),
-            'constraints_enabled': {
-                'position_limits': self.config.get('constraint_manager', {}).get('constraints', {}).get(
-                    'enable_position_limits'),
-                'sector_limits': self.config.get('constraint_manager', {}).get('constraints', {}).get(
-                    'enable_sector_limits'),
-                'liquidity_limits': self.config.get('constraint_manager', {}).get('constraints', {}).get(
-                    'enable_liquidity_limits'),
-                'firm_limits': self.config.get('risk_manager', {}).get('firm_risk', {}).get('enable_firm_limits')
-            }
-        }
+        target_portfolio = {}
 
-    def _calculate_attribution(self,
-                               raw_portfolio: Dict[str, float],
-                               final_portfolio: Dict[str, float],
-                               all_logs: List[Dict]) -> Dict:
-        """Calculate performance attribution using configured methods"""
 
-        attribution_config = self.config.get('attribution', {})
+        for conviction in convictions:
+            print(f"CONVICTION: {conviction}")
 
-        result = {}
+            symbol = conviction.get('instrument_id')
+            if not symbol:
+                continue
 
-        if attribution_config.get('enable_constraint_attribution', True):
-            total_impact = sum(log.get('impact', 0) for log in all_logs if 'impact' in log)
+            try:
+                current_notional = current_portfolio.get(symbol, 0)
 
-            constraint_impacts = {}
-            for log in all_logs:
-                if 'constraint' in log or 'action' in log:
-                    key = log.get('constraint', log.get('action', 'unknown'))
-                    impact = log.get('impact', 0)
+                side = conviction.get('side', 'BUY')
+                quantity = float(conviction.get('quantity', 0))
 
-                    if key not in constraint_impacts:
-                        constraint_impacts[key] = 0
-                    constraint_impacts[key] += impact
+                # Get latest price for the symbol
+                latest_price = self.utils.get_symbol_latest_price(symbol, user_context)
+                if latest_price is None:
+                    self.logger.warning(f"No price available for {symbol}, skipping")
+                    continue
 
-            result.update({
-                'total_constraint_impact': total_impact,
-                'constraint_breakdown': constraint_impacts
-            })
+                print(f"LATEST PRICE: {latest_price}")
 
-        if attribution_config.get('track_implementation_efficiency', True):
-            similarity = self._calculate_similarity(raw_portfolio, final_portfolio)
-            result['implementation_efficiency'] = similarity
+                # Calculate notional value in symbol's native currency
+                delta_notional_value = quantity * float(latest_price)
 
-        if attribution_config.get('metrics', {}).get('calculate_similarity', True):
-            similarity_method = attribution_config.get('metrics', {}).get('similarity_method', 'manhattan')
-            similarity = self._calculate_similarity(raw_portfolio, final_portfolio, method=similarity_method)
-            result['portfolio_similarity'] = similarity
+                # Get symbol currency and convert to base currency
+                symbol_currency = self.utils.get_symbol_currency(symbol, user_context)
+                delta_notional_value = self.utils.convert_to_base_currency(
+                    delta_notional_value, symbol_currency, base_currency, user_context
+                )
 
-        return result
+                # Apply side (BUY = positive, SELL = negative)
+                if side == 'SELL':
+                    delta_notional_value = -delta_notional_value
 
-    def _calculate_similarity(self,
-                              portfolio1: Dict[str, float],
-                              portfolio2: Dict[str, float],
-                              method: str = 'manhattan') -> float:
-        """Calculate portfolio similarity using configured method"""
+                print(f"NOTIONAL VALUE: {current_notional} > {delta_notional_value}")
 
-        all_symbols = set(list(portfolio1.keys()) + list(portfolio2.keys()))
+                target_portfolio[symbol] = current_notional + delta_notional_value
 
-        if not all_symbols:
-            return 1.0
+            except Exception as e:
+                self.logger.error(f"Error processing conviction for {symbol}: {e}")
+                continue
 
-        if method == 'manhattan':
-            total_diff = sum(abs(portfolio1.get(s, 0) - portfolio2.get(s, 0)) for s in all_symbols)
-            max_diff = sum(abs(portfolio1.get(s, 0)) + abs(portfolio2.get(s, 0)) for s in all_symbols)
-            return 1.0 - (total_diff / max_diff) if max_diff > 0 else 1.0
+        return target_portfolio
 
-        elif method == 'euclidean':
-            import math
-            squared_diff = sum((portfolio1.get(s, 0) - portfolio2.get(s, 0)) ** 2 for s in all_symbols)
-            max_squared_diff = sum((portfolio1.get(s, 0)) ** 2 + (portfolio2.get(s, 0)) ** 2 for s in all_symbols)
-            return 1.0 - math.sqrt(squared_diff / max_squared_diff) if max_squared_diff > 0 else 1.0
+    def _solve_optimization_problem(self,
+                                    user_context: Any,
+                                    current_portfolio: Dict[str, float],
+                                    target_portfolio: Dict[str, float]
+                                    ) -> Tuple[Dict[str, float], Dict]:
+        """
+        Solve portfolio optimization problem using a common framework.
 
-        elif method == 'correlation':
+        Framework:
+        1. Set up decision variables (positions for each symbol)
+        2. Define objective function (minimize deviation from target)
+        3. Add constraints (user min/max limits, budget constraint)
+        4. Solve using optimization solver
+        5. Return optimal portfolio and result metadata
+        """
+        base_currency = user_context.base_currency
+        self.logger.info(f"Setting up optimization problem in {base_currency}")
+
+        print(f"CURRENT: {current_portfolio}")
+        print(f"TARGET: {target_portfolio}")
+
+        try:
             import numpy as np
-            vec1 = [portfolio1.get(s, 0) for s in all_symbols]
-            vec2 = [portfolio2.get(s, 0) for s in all_symbols]
+            from scipy.optimize import minimize
 
-            if len(vec1) > 1:
-                correlation = np.corrcoef(vec1, vec2)[0, 1]
-                return correlation if not np.isnan(correlation) else 0.0
+            print("1")
+
+            # ==========================================
+            # STEP 1: SETUP DECISION VARIABLES
+            # ==========================================
+
+            # Get all unique symbols from current and target portfolios
+            all_symbols = sorted(set(list(current_portfolio.keys()) + list(target_portfolio.keys())))
+            n_symbols = len(all_symbols)
+
+            if n_symbols == 0:
+                self.logger.warning("No symbols to optimize")
+                return {}, {'status': 'no_symbols', 'message': 'No symbols provided'}
+
+            print("2")
+
+            self.logger.info(f"Optimizing {n_symbols} symbols: {all_symbols}")
+
+            # Current positions vector
+            current_positions = np.array([current_portfolio.get(symbol, 0.0) for symbol in all_symbols])
+
+            # Target positions vector
+            target_positions = np.array([target_portfolio.get(symbol, 0.0) for symbol in all_symbols])
+
+            self.logger.info(f"Current total: {np.sum(current_positions):,.2f} {base_currency}")
+            self.logger.info(f"Target total: {np.sum(target_positions):,.2f} {base_currency}")
+
+            print(f"3: CURRENT: {current_positions}")
+            print(f"3: TARGET: {target_positions}")
+
+            # ==========================================
+            # STEP 2: DEFINE OBJECTIVE FUNCTION
+            # ==========================================
+
+            def objective_function(x):
+                """
+                Minimize squared deviation from target positions.
+                x: vector of optimal positions for each symbol
+                """
+                deviation = x - target_positions
+                return np.sum(deviation ** 2)
+
+            # ==========================================
+            # STEP 3: SETUP CONSTRAINTS
+            # ==========================================
+
+            constraints = []
+            bounds = []
+
+            # Get NAV from account manager (this is your total budget)
+            account_manager = user_context.app_state.account_manager
+            if hasattr(account_manager, 'get_nav') or hasattr(account_manager, 'get_total_value'):
+                total_budget = account_manager.get_nav()  # or get_total_value()
             else:
-                return 1.0 if vec1[0] == vec2[0] else 0.0
+                total_budget = user_context.initial_nav
 
-        else:
-            # Default to manhattan
-            return self._calculate_similarity(portfolio1, portfolio2, 'manhattan')
+            print(f"4: TOTAL: {total_budget}")
 
-    def _calculate_metadata(self,
-                            final_portfolio: Dict[str, float],
-                            current_portfolio: Dict[str, float],
-                            orders: List[Dict]) -> Dict:
-        """Calculate metadata using configured metrics"""
+            # FIXED: Budget constraint should be "don't exceed budget" not "use entire budget"
+            def budget_constraint(x):
+                # Total portfolio value should not exceed available budget
+                # This is an inequality constraint: sum(x) <= total_budget
+                return float(total_budget) - np.sum(x)  # Must be >= 0
 
-        all_symbols = set(list(final_portfolio.keys()) + list(current_portfolio.keys()))
-
-        metadata = {
-            'positions_count': len(final_portfolio),
-            'orders_count': len(orders),
-            'gross_exposure': sum(abs(w) for w in final_portfolio.values()),
-            'net_exposure': sum(final_portfolio.values())
-        }
-
-        # Add turnover if enabled
-        if self.config.get('attribution', {}).get('metrics', {}).get('track_turnover', True):
-            total_turnover = sum(abs(final_portfolio.get(s, 0) - current_portfolio.get(s, 0))
-                                 for s in all_symbols)
-            metadata['total_turnover'] = total_turnover
-
-        # Add exposure changes if enabled
-        if self.config.get('attribution', {}).get('metrics', {}).get('track_exposure_changes', True):
-            old_gross = sum(abs(w) for w in current_portfolio.values())
-            old_net = sum(current_portfolio.values())
-
-            metadata.update({
-                'gross_exposure_change': metadata['gross_exposure'] - old_gross,
-                'net_exposure_change': metadata['net_exposure'] - old_net
+            constraints.append({
+                'type': 'ineq',  # FIXED: Changed from 'eq' to 'ineq'
+                'fun': budget_constraint
             })
 
-        # Add total notional if orders exist
-        if orders:
-            metadata['total_notional'] = sum(abs(order['delta_notional']) for order in orders)
+            print(f"5: CONSTRAINTS: Budget <= {total_budget}")
 
-        return metadata
+            self.logger.info(f"Budget constraint: total = {total_budget:,.2f} {base_currency}")
 
-    def get_config(self) -> Dict:
-        """Get current configuration"""
-        return self.config.copy()
+            print(f"5: BASE CURRENCY: {base_currency}")
 
-    def update_config(self, config_overrides: Dict[str, Any]) -> None:
-        """Update configuration with overrides"""
-        self.config = ConfigLoader.override_config(self.config, config_overrides)
+            # B) User position limits (min/max constraints per symbol)
+            for i, symbol in enumerate(all_symbols):
+                symbol_min = None
+                symbol_max = None
 
-        # Reinitialize components with new config
-        self.alpha_processor = AlphaProcessor(self.config)
-        self.constraint_manager = ConstraintManager(self.config)
-        self.risk_manager = RiskManager(self.config)
-        self.solver = TargetWeightSolver(self.config)
-        self.order_generator = OrderGenerator(self.config)
+                # Check user parameters for symbol-specific limits
+                """
+                if user_params:
+                    position_limits = user_params.get('position_limits', {})
+                    if symbol in position_limits:
+                        symbol_min = position_limits[symbol].get('min_position_size_pct')
+                        symbol_max = position_limits[symbol].get('max_position_size_pct')
 
-        self.logger.info("Configuration updated and components reinitialized")
+                    # Global limits as fallback
+                    if symbol_min is None:
+                        symbol_min = user_params.get('min_position_size_pct')
+                    if symbol_max is None:
+                        symbol_max = user_params.get('max_position_size_pct')
+                """
+
+                # Set bounds for this symbol
+                lower_bound = symbol_min if symbol_min is not None else -float(total_budget)# np.inf
+                upper_bound = symbol_max if symbol_max is not None else float(total_budget)# np.inf
+
+                bounds.append((lower_bound, upper_bound))
+
+                if symbol_min is not None or symbol_max is not None:
+                    self.logger.debug(f"Position limits for {symbol}: [{lower_bound}, {upper_bound}]")
+
+            print(f"6: BOUNDS: {bounds}")
+
+            # C) Additional constraints can be added here
+            # - Sector limits
+            # - Risk limits
+            # - Turnover limits
+            # - etc.
+
+            # ==========================================
+            # STEP 4: SOLVE OPTIMIZATION PROBLEM
+            # ==========================================
+
+            # Initial guess: start from current positions
+            x0 = current_positions.copy()
+
+            self.logger.info("Solving optimization problem...")
+            self.logger.info(f"Solver: scipy.optimize.minimize (SLSQP)")
+            self.logger.info(f"Variables: {n_symbols}")
+            self.logger.info(f"Constraints: {len(constraints)}")
+
+            # Solve the optimization problem
+            result = minimize(
+                fun=objective_function,
+                x0=x0,
+                method='SLSQP',  # Sequential Least Squares Programming
+                bounds=bounds,
+                constraints=constraints,
+                options={
+                    'ftol': 1e-8,
+                    'disp': False,
+                    'maxiter': 1000
+                }
+            )
+
+            print(f"7: {result}")
+
+            # ==========================================
+            # STEP 5: PROCESS RESULTS
+            # ==========================================
+
+            if result.success:
+                # Extract optimal positions
+                optimal_positions = result.x
+
+                # Convert back to dictionary
+                optimal_portfolio = {}
+                for i, symbol in enumerate(all_symbols):
+                    position = optimal_positions[i]
+                    # Only include non-zero positions (with small threshold)
+                    if abs(position) > 0.01:
+                        optimal_portfolio[symbol] = float(position)
+
+                print(f"8: FINAL: {optimal_portfolio}")
+
+                # Calculate metrics
+                total_deviation = np.sum(np.abs(optimal_positions - target_positions))
+                max_deviation = np.max(np.abs(optimal_positions - target_positions))
+
+                optimization_result = {
+                    'status': 'optimal',
+                    'solver': 'scipy.SLSQP',
+                    'objective_value': float(result.fun),
+                    'total_deviation': float(total_deviation),
+                    'max_deviation': float(max_deviation),
+                    'base_currency': base_currency,
+                    'symbols_optimized': len(optimal_portfolio),
+                    'iterations': result.nit,
+                    'function_evaluations': result.nfev,
+                    'message': result.message,
+                    'total_budget': float(total_budget),
+                    'constraints_satisfied': all(
+                        abs(c['fun'](optimal_positions)) < 1e-6 for c in constraints if 'fun' in c)
+                }
+
+                print(f"9: RESULT: {optimization_result}")
+
+                self.logger.info(f"✅ Optimization successful!")
+                self.logger.info(f"   Objective value: {result.fun:.6f}")
+                self.logger.info(f"   Total deviation: {total_deviation:.2f} {base_currency}")
+                self.logger.info(f"   Positions: {len(optimal_portfolio)} symbols")
+                self.logger.info(f"   Iterations: {result.nit}")
+
+                return optimal_portfolio, optimization_result
+
+            else:
+                # Optimization failed
+                self.logger.error(f"❌ Optimization failed: {result.message}")
+
+                # Fallback: return target portfolio (or current if target is empty)
+                fallback_portfolio = target_portfolio if target_portfolio else current_portfolio
+
+                print("10")
+
+                optimization_result = {
+                    'status': 'failed',
+                    'solver': 'scipy.SLSQP',
+                    'error': result.message,
+                    'base_currency': base_currency,
+                    'fallback_used': True,
+                    'symbols_in_fallback': len(fallback_portfolio),
+                    'iterations': result.nit if hasattr(result, 'nit') else 0
+                }
+
+                return fallback_portfolio, optimization_result
+
+        except ImportError as e:
+            self.logger.error(f"❌ Optimization solver not available: {e}")
+            self.logger.info("💡 Install scipy: pip install scipy")
+
+            # Fallback to simple target following
+            return self._simple_target_following_fallback(
+                current_portfolio, target_portfolio, base_currency
+            )
+
+        except Exception as e:
+            self.logger.error(f"❌ Error in optimization: {e}")
+            import traceback
+            self.logger.error(f"Full traceback: {traceback.format_exc()}")
+
+            # Fallback to simple target following
+            return self._simple_target_following_fallback(
+                current_portfolio, target_portfolio, base_currency
+            )
+
+    def _simple_target_following_fallback(self,
+                                          current_portfolio: Dict[str, float],
+                                          target_portfolio: Dict[str, float],
+                                          base_currency: str) -> Tuple[Dict[str, float], Dict]:
+        """
+        Fallback method when optimization solver is not available.
+        Simply moves towards target positions without constraints.
+        """
+        self.logger.info("Using simple target following fallback")
+
+        # Get all symbols
+        all_symbols = set(list(current_portfolio.keys()) + list(target_portfolio.keys()))
+
+        optimal_portfolio = {}
+        for symbol in all_symbols:
+            target_position = target_portfolio.get(symbol, 0.0)
+            if abs(target_position) > 0.01:  # Only include significant positions
+                optimal_portfolio[symbol] = target_position
+
+        optimization_result = {
+            'status': 'fallback',
+            'method': 'simple_target_following',
+            'base_currency': base_currency,
+            'symbols_optimized': len(optimal_portfolio),
+            'message': 'Used simple fallback due to solver unavailability'
+        }
+
+        return optimal_portfolio, optimization_result

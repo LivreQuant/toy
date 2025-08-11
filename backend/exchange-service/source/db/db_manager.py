@@ -31,6 +31,7 @@ class DatabaseManager:
         from source.db.managers.return_data import ReturnDataManager
         from source.db.managers.trade_data import TradeDataManager
         from source.db.managers.cash_flow_data import CashFlowDataManager
+        from source.db.managers.user_operational_parameters import UserOperationalParametersManager
 
         # Initialize managers (they will receive the pool when it's created)
         self.metadata = MetadataManager(self)
@@ -49,6 +50,9 @@ class DatabaseManager:
         self.trade_data = TradeDataManager(self)
 
         self.cash_flow_data = CashFlowDataManager(self)
+
+        # New parameter managers
+        self.user_operational_parameters = UserOperationalParametersManager(self)
 
     async def initialize(self):
         """Initialize database connection pool"""
@@ -132,6 +136,11 @@ class DatabaseManager:
     async def load_user_return_data(self, user_id: str, timestamp_str: str):
         """Load user returns data - delegates to return manager"""
         return await self.return_data.load_user_data(user_id, timestamp_str)
+
+    # Add convenience methods
+    async def load_user_operational_parameters(self, user_id: str):
+        """Load PM operational parameters for user"""
+        return await self.user_operational_parameters.load_parameters_for_user(user_id)
 
     async def insert_simulation_data(self, table_name: str, data, user_id: str, timestamp):
         """Insert simulation data - routes to appropriate table manager"""

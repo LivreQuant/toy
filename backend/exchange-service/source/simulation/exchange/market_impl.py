@@ -203,6 +203,9 @@ class Market(Market_ABC):
                 try:
                     from source.orchestration.app_state.state_manager import app_state
 
+                    print(f"🔥🔥🔥 MARKET UPDATE START: {self.instrument}")
+                    print(f"🔥🔥🔥 Market data: {market_data}")
+
                     # Get timezone-aware timestamps
                     start_bin_timestamp = ensure_timezone_aware(app_state.get_current_timestamp())
                     stop_bin_timestamp = ensure_timezone_aware(app_state.get_next_timestamp())
@@ -210,6 +213,9 @@ class Market(Market_ABC):
                     currency = str(market_data['currency'])
                     price = Decimal(str(market_data['price']))
                     volume = int(market_data['volume'])
+
+                    print(f"🔥🔥🔥 Price: {price}, Volume: {volume}, Currency: {currency}")
+                    print(f"🔥🔥🔥 Time window: {start_bin_timestamp} to {stop_bin_timestamp}")
 
                     self.logger.log_data_flow(
                         source="MarketDataService",
@@ -225,6 +231,20 @@ class Market(Market_ABC):
                     volume_update_duration = (time.time() - volume_update_start) * 1000
 
                     self.logger.debug(f"Volume updated: {old_volume} -> {volume} in {volume_update_duration:.2f}ms")
+
+                    # ✅ EXTENSIVE ORDER DEBUG LOGGING
+                    print(f"🔥🔥🔥 TOTAL ORDERS IN MARKET: {len(self._orders)}")
+                    print(f"🔥🔥🔥 CANCELLED ORDERS: {len(self._cancelled_orders)}")
+
+                    for order_id, order in self._orders.items():
+                        print(f"🔥🔥🔥 ORDER {order_id}:")
+                        print(f"🔥🔥🔥   - Symbol: {self.instrument}")  # Market is symbol-specific
+                        print(f"🔥🔥🔥   - Side: {order.get_side()}")
+                        print(f"🔥🔥🔥   - Remaining Qty: {order.get_remaining_qty()}")
+                        print(f"🔥🔥🔥   - Order Type: {order.get_order_type()}")
+                        print(f"🔥🔥🔥   - Participation Rate: {order.get_participation_rate()}")
+                        print(f"🔥🔥🔥   - Start Timestamp: {order.get_start_timestamp()}")
+                        print(f"🔥🔥🔥   - Is Cancelled: {order_id in self._cancelled_orders}")
 
                     # ✅ ADD ORDER DEBUG LOGGING HERE
                     self.logger.info(f"🔍 Order Debug - Total orders in market: {len(self._orders)}")

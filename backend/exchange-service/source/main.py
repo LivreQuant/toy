@@ -78,21 +78,20 @@ class CoreExchangeServiceManager:
         self.market_data_port = int(os.environ.get("MARKET_DATA_PORT", "50051"))
         self.market_data_retry_interval = int(os.environ.get("MARKET_DATA_RETRY_SECONDS", "5"))
 
-
     async def register_exchange_service(self):
         """Register exchange service with Kubernetes metadata - OPTIONAL"""
         try:
             self.logger.info("🔧 Registering exchange service in database...")
-            
+
             # Update Kubernetes metadata for service discovery
             self.exchange_registration = await exchange_registry.update_kubernetes_metadata()
-            
+
             # Mark as ready in health service
             if self.health_service:
                 self.health_service.mark_service_ready('exchange_registration', True)
-                
+
             self.logger.info("✅ Exchange service registration completed")
-                
+
         except Exception as e:
             self.logger.warning(f"⚠️ Exchange service registration failed (non-critical): {e}")
             # Mark as failed but don't stop startup - this is for service discovery only
@@ -100,7 +99,6 @@ class CoreExchangeServiceManager:
                 self.health_service.mark_service_ready('exchange_registration', False)
             # DO NOT raise - continue without registry (development mode)
             self.logger.info("🏦 Core exchange continues without service registry")
-
 
     async def start_health_service(self):
         """
@@ -116,27 +114,27 @@ class CoreExchangeServiceManager:
         """
         try:
             self.logger.info("🏥 Starting Health Service")
-            
+
             # Get health service port from environment
             health_port = int(os.environ.get("HEALTH_SERVICE_PORT", "50056"))
-            
+
             # Create health service with references to manager components
             self.health_service = OrchestrationHealthService(
                 exchange_group_manager=self.exchange_group_manager,
                 service_manager=self,  # Pass self for service status monitoring
                 http_port=health_port
             )
-            
+
             # Start the aiohttp server for health endpoints
             await self.health_service.setup()
-            
+
             self.logger.info(f"✅ Health Service: STARTED on port {health_port}")
             self.logger.info("🏥 Health endpoints available:")
             self.logger.info(f"   - Liveness:  http://0.0.0.0:{health_port}/health")
             self.logger.info(f"   - Readiness: http://0.0.0.0:{health_port}/readiness")
             self.logger.info(f"   - Metrics:   http://0.0.0.0:{health_port}/metrics")
             self.logger.info(f"   - Status:    http://0.0.0.0:{health_port}/status")
-            
+
         except Exception as e:
             self.logger.error(f"❌ Health Service failed to start: {e}")
             # Health service failure is critical - cannot monitor without it
@@ -197,7 +195,7 @@ class CoreExchangeServiceManager:
         try:
             self.logger.info("📡 Starting Market Data Client")
             self.logger.info(f"📍 Target: {self.market_data_host}:{self.market_data_port}")
-            
+
             # Create market data client
             self.market_data_client = EnhancedMultiUserMarketDataClient(
                 self.exchange_group_manager,
@@ -226,77 +224,87 @@ class CoreExchangeServiceManager:
         Continuous monitoring task for market data connection.
         """
         retry_count = 0
-        
+
         while not self.shutdown_requested:
             try:
                 if not self.market_data_connected:
                     self.logger.info(f"📡 Attempting market data connection (attempt {retry_count + 1})")
-                    
+
                     # FIXED: Call start() instead of connect_and_run()
                     self.market_data_client.start()
-                    
+
                     # Give it a moment to establish connection
                     await asyncio.sleep(2)
-                    
+
                     # Check if connection was established
                     if self.market_data_client.running:
                         self.market_data_connected = True
                         retry_count = 0
-                        
+
                         # Update health service
                         if self.health_service:
                             self.health_service.mark_service_ready('market_data_client', True)
-                        
+
                         self.logger.info("✅ Market Data: STARTED")
                     else:
                         raise Exception("Market data client failed to start")
-                        
+
                 else:
                     # Connection is active, just wait
                     await asyncio.sleep(1)
-                    
+
             except Exception as e:
                 # Connection failed or lost
                 if self.market_data_connected:
                     self.logger.warning(f"📡 Market Data connection lost: {e}")
                 else:
                     self.logger.debug(f"📡 Market Data connection attempt {retry_count + 1} failed: {e}")
-                
+
                 # Update state
                 self.market_data_connected = False
                 retry_count += 1
-                
+
                 # Update health service
                 if self.health_service:
                     self.health_service.mark_service_ready('market_data_client', False)
-                
+
                 # Wait before retry
                 self.logger.info(f"⏳ Retrying market data connection in {self.market_data_retry_interval} seconds...")
                 await asyncio.sleep(self.market_data_retry_interval)
 
     async def start_optional_session_service(self):
         """
-        Start session gRPC service for client connections.
-        
-        The session service provides real-time streaming of exchange data to clients.
-        This is optional and controlled by ENABLE_SESSION_SERVICE environment variable.
-        
-        Service features:
-        - Multi-user streaming support
-        - Real-time exchange data updates
-        - Health monitoring integration
+        Start session gRPC service for client connections with EXTENSIVE debugging.
         """
         try:
+            self.logger.info("🔗 SESSION SERVICE STARTUP: Beginning")
+            self.logger.info(f"🔗 SESSION SERVICE STARTUP: exchange_group_manager: {self.exchange_group_manager}")
+            self.logger.info(
+                f"🔗 SESSION SERVICE STARTUP: exchange_group_manager type: {type(self.exchange_group_manager)}")
+
+            if self.exchange_group_manager:
+                users = self.exchange_group_manager.get_all_users()
+                self.logger.info(f"🔗 SESSION SERVICE STARTUP: Found {len(users)} users")
+                for user in users:
+                    self.logger.info(f"🔗 SESSION SERVICE STARTUP: User: {user} (type: {type(user)})")
+            else:
+                self.logger.error("🔗 SESSION SERVICE STARTUP: exchange_group_manager is None!")
+
             self.logger.info("🔗 Starting Session Service")
 
             # Create session service implementation
+            self.logger.info("🔗 SESSION SERVICE STARTUP: Creating MultiUserSessionServiceImpl")
             self.session_service = MultiUserSessionServiceImpl(self.exchange_group_manager)
+            self.logger.info("🔗 SESSION SERVICE STARTUP: MultiUserSessionServiceImpl created")
 
             # Get port from environment
             session_port = int(os.environ.get("SESSION_SERVICE_PORT", "50050"))
-            
+            self.logger.info(f"🔗 SESSION SERVICE STARTUP: Using port {session_port}")
+
             # Start gRPC server
+            self.logger.info("🔗 SESSION SERVICE STARTUP: Starting gRPC server")
             self.session_service.start_sync_server(port=session_port)
+            self.logger.info("🔗 SESSION SERVICE STARTUP: gRPC server start_sync_server completed")
 
             # Track service state
             users = self.exchange_group_manager.get_all_users()
@@ -305,12 +313,15 @@ class CoreExchangeServiceManager:
             # Update health service
             if self.health_service:
                 self.health_service.mark_service_ready('session_service', True)
+                self.logger.info("🔗 SESSION SERVICE STARTUP: Health service updated")
 
             self.logger.info(f"✅ Session Service: STARTED on port {session_port}")
             self.logger.info(f"🔗 Session Service: Ready for up to {len(users)} concurrent user connections")
 
         except Exception as e:
             self.logger.error(f"❌ Session Service failed to start: {e}")
+            import traceback
+            self.logger.error(f"❌ Session Service traceback: {traceback.format_exc()}")
             # Mark as failed in health service
             if self.health_service:
                 self.health_service.mark_service_ready('session_service', False)
@@ -337,7 +348,7 @@ class CoreExchangeServiceManager:
 
             # Get port from environment
             conviction_port = int(os.environ.get("CONVICTION_SERVICE_PORT", "50052"))
-            
+
             # Start gRPC server
             await self.conviction_service.start_server(port=conviction_port)
 
@@ -381,13 +392,13 @@ class CoreExchangeServiceManager:
             await self.start_core_exchange()
 
             # Register exchange service for service discovery
-            await self.register_exchange_service()
+            #await self.register_exchange_service()
 
             # STEP 3: Start market data connection (background task)
             await self.start_persistent_market_data_connection()
 
             # STEP 4: Start optional services based on environment configuration
-            
+
             # Session service (for client streaming)
             if os.environ.get("ENABLE_SESSION_SERVICE", "true").lower() in ['true', '1', 'yes']:
                 await self.start_optional_session_service()
@@ -410,7 +421,7 @@ class CoreExchangeServiceManager:
     def _log_startup_summary(self):
         """Log comprehensive startup summary for operations visibility."""
         users = self.exchange_group_manager.get_all_users()
-        
+
         self.logger.info("=" * 80)
         self.logger.info("🎯 EXCHANGE SERVICE STARTUP COMPLETE")
         self.logger.info("=" * 80)
@@ -501,7 +512,7 @@ class CoreExchangeServiceManager:
                 )
             except Exception as e:
                 self.logger.error(f"❌ Failed to clear registration: {e}")
-                
+
         self.logger.info("✅ All services stopped gracefully")
 
     async def run_forever(self):
@@ -515,17 +526,17 @@ class CoreExchangeServiceManager:
         - Provides operational logging
         """
         self.running = True
-        
+
         try:
             self.logger.info("🚀 Exchange service running - waiting for shutdown signal")
-            
+
             # Main service loop
             while not self.shutdown_requested and self.running:
                 # Perform any periodic maintenance here if needed
                 await asyncio.sleep(1)
-                
+
             self.logger.info("🛑 Shutdown signal received, initiating graceful shutdown")
-            
+
         except KeyboardInterrupt:
             self.logger.info("🛑 Received keyboard interrupt")
         except Exception as e:
@@ -566,7 +577,7 @@ async def initialize_core_exchange(exch_id: str) -> EnhancedExchangeGroupManager
         # Step 2: Initialize from snapshot data
         logger.info("📊 Step 2: Initializing from snapshot data...")
         snapshot_initialized = await snapshot_manager.initialize_multi_user_from_snapshot()
-        
+
         if not snapshot_initialized:
             raise RuntimeError("Failed to initialize from snapshot data")
 
@@ -575,7 +586,7 @@ async def initialize_core_exchange(exch_id: str) -> EnhancedExchangeGroupManager
         # Step 3: Get initialized exchange group manager
         logger.info("🔄 Step 3: Retrieving exchange group manager...")
         regular_exchange_group_manager = snapshot_manager.exchange_group_manager
-        
+
         if not regular_exchange_group_manager:
             raise RuntimeError("Exchange group manager not created by snapshot initialization")
 
@@ -601,8 +612,8 @@ async def initialize_core_exchange(exch_id: str) -> EnhancedExchangeGroupManager
         # Copy additional attributes if they exist
         for attr in ['timezone', 'market_hours']:
             if hasattr(regular_exchange_group_manager, attr):
-                setattr(enhanced_exchange_group_manager, attr, 
-                       getattr(regular_exchange_group_manager, attr))
+                setattr(enhanced_exchange_group_manager, attr,
+                        getattr(regular_exchange_group_manager, attr))
 
         logger.info("✅ State copying completed")
 
@@ -613,7 +624,7 @@ async def initialize_core_exchange(exch_id: str) -> EnhancedExchangeGroupManager
 
         if not users:
             raise RuntimeError("No users found after initialization")
-        
+
         if not market_time:
             raise RuntimeError("Market time not set after initialization")
 
@@ -706,9 +717,9 @@ async def main():
             service_manager.shutdown_requested = True
 
         # Register signal handlers
-        signal.signal(signal.SIGINT, signal_handler)   # Ctrl+C
+        signal.signal(signal.SIGINT, signal_handler)  # Ctrl+C
         signal.signal(signal.SIGTERM, signal_handler)  # Docker/Kubernetes termination
-        
+
         logger.info("📡 Signal handlers registered")
 
         # Start all services in orchestrated manner
@@ -733,7 +744,7 @@ async def main():
                 await service_manager.stop_all_services()
             except Exception as e:
                 logger.error(f"❌ Error during shutdown: {e}")
-        
+
         logger.info("🏁 Exchange service shutdown complete")
 
 

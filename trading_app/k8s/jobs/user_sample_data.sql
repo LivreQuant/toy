@@ -21,7 +21,7 @@ INSERT INTO exch_us_equity.metadata (
     'US_EQUITIES',
     'America/New_York',
     ARRAY['NYSE', 'NASDAQ', 'ARCA'],
-    '2025-08-04T03:12:00+00:00'::TIMESTAMP WITH TIME ZONE,
+    '2025-08-11T14:49:00+00:00'::TIMESTAMP WITH TIME ZONE,
     '04:00:00'::TIME,
     '09:30:00'::TIME,
     '16:00:00'::TIME,
@@ -34,14 +34,40 @@ INSERT INTO exch_us_equity.metadata (
 INSERT INTO exch_us_equity.users (
     user_id,
     exch_id,
+    timezone,
     base_currency,
-    timezone
+    initial_nav,
+    operation_id,
+    engine_id,
+    transaction_cost_model,
+    market_impact_model
 ) VALUES (
     '00000000-0000-0000-0000-000000000001', 
     '00000000-0000-0000-0000-000000000002', 
+    'America/New_York',
     'USD', 
-    'America/New_York'
+    100000000,
+    0,
+    1,
+    0,
+    0
 );
+
+-- =====================================================================================
+-- INSERT USER OPERATIONAL PARAMETERS
+-- =====================================================================================
+INSERT INTO exch_us_equity.user_operational_parameters (
+    user_id,
+    max_position_size_pct,
+    min_position_size_pct,
+    max_days_to_liquidate
+) VALUES
+    (
+    '00000000-0000-0000-0000-000000000001'::UUID,
+    1,
+    0,
+    365
+    );
 
 -- =====================================================================================
 -- INSERT PORTFOLIO DATA
@@ -76,9 +102,10 @@ INSERT INTO exch_us_equity.account_data (
     change
 ) VALUES
     -- TEMPLATE_USER accounts
-    ('00000000-0000-0000-0000-000000000001', '2025-08-04T03:12:00+00:00'::TIMESTAMP WITH TIME ZONE, 'CREDIT', 'USD', 1000000.0, 1000000.0, 0.0),
-    ('00000000-0000-0000-0000-000000000001', '2025-08-04T03:12:00+00:00'::TIMESTAMP WITH TIME ZONE, 'SHORT_CREDIT', 'USD', 0.0, 0.0, 0.0),
-    ('00000000-0000-0000-0000-000000000001', '2025-08-04T03:12:00+00:00'::TIMESTAMP WITH TIME ZONE, 'DEBIT', 'USD', 0.0, 0.0, 0.0);
+    ('00000000-0000-0000-0000-000000000001', '2025-08-11T14:49:00+00:00'::TIMESTAMP WITH TIME ZONE, 'CREDIT', 'USD', 1000000.0, 1000000.0, 0.0),
+    ('00000000-0000-0000-0000-000000000001', '2025-08-11T14:49:00+00:00'::TIMESTAMP WITH TIME ZONE, 'SHORT_CREDIT', 'USD', 0.0, 0.0, 0.0),
+    ('00000000-0000-0000-0000-000000000001', '2025-08-11T14:49:00+00:00'::TIMESTAMP WITH TIME ZONE, 'DEBIT', 'USD', 0.0, 0.0, 0.0),
+    ('00000000-0000-0000-0000-000000000001', '2025-08-11T14:49:00+00:00'::TIMESTAMP WITH TIME ZONE, 'INVESTOR', 'USD', 0.0, 0.0, 0.0);
 
 -- =====================================================================================
 -- INSERT RETURN DATA

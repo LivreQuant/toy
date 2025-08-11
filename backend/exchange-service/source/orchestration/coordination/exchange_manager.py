@@ -37,6 +37,9 @@ class ExchangeGroupManager:
         self._original_last_snap_str: Optional[str] = None
         self.replay_manager = None
 
+        # Parameter storage
+        self.user_parameters: Dict[str, Dict] = {}
+
     async def initialize(self) -> bool:
         """Initialize the exchange group from metadata"""
         try:
@@ -64,12 +67,16 @@ class ExchangeGroupManager:
                 self.metadata, self.exchange_timezone, self.last_snap_time
             )
 
+            # Load user-specific PM operational parameters
+            await self._load_user_parameters()
+
             # Initialize user contexts
             for user_id, user_config in self.metadata['users'].items():
                 user_context = initialize_user_context(
                     user_id, user_config, self.last_snap_time, self.market_hours_utc
                 )
                 self.user_contexts[user_id] = user_context
+                self.logger.info(f"EXCHANGE OBJECT IN EXCHANGE MANAGER: {id(user_context.app_state.exchange)}")
 
             self.logger.info(f"✅ Exchange group {self.exch_id} initialized with {len(self.user_contexts)} users")
             return True
@@ -81,6 +88,36 @@ class ExchangeGroupManager:
     def check_and_handle_market_data_gap(self, incoming_market_time: datetime):
         """Check for gaps between market timestamps"""
         return detect_gap(self.last_snap_time, incoming_market_time, self.replay_manager)
+
+    async def _load_user_parameters(self):
+        """Load PM operational parameters for all users"""
+        try:
+            from source.db.db_manager import DatabaseManager
+            db_manager = DatabaseManager()
+            await db_manager.initialize()
+
+            for user_id in self.metadata['users'].keys():
+                user_params = await db_manager.load_user_operational_parameters(user_id)
+
+                if not user_params:
+                    self.logger.warning(f"No PM parameters found for user {user_id}, creating defaults")
+                    await db_manager.user_operational_parameters.create_default_parameters_for_user(user_id)
+                    user_params = await db_manager.load_user_operational_parameters(user_id)
+
+                self.user_parameters[user_id] = user_params
+                self.logger.info(f"✅ Loaded PM operational parameters for user {user_id}")
+
+        except Exception as e:
+            self.logger.error(f"❌ Failed to load user PM parameters: {e}")
+            raise
+
+    def get_user_parameters(self, user_id: str) -> Dict:
+        """Get PM operational parameters for a specific user"""
+        return self.user_parameters.get(user_id, {})
+
+    def get_all_user_parameters(self) -> Dict[str, Dict]:
+        """Get PM operational parameters for all users"""
+        return self.user_parameters
 
     def load_missing_market_data(self, gap_start: datetime, gap_end: datetime):
         """Load missing market data for the gap period"""

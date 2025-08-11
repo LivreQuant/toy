@@ -4,7 +4,7 @@ metadata:
   name: algorand-localnet
   namespace: default
 spec:
-  clusterIP: None  # Headless service
+  clusterIP: None # Headless service
   ports:
   - name: algod
     port: 4001

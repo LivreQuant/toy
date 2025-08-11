@@ -1,12 +1,12 @@
 # source/orchestration/servers/session/session_server_impl.py
 """
-Fixed Session Server Implementation
-Fixed timestamp method and using market time instead of system time
+COMPLETE FIXED Session Server Implementation
 """
 
 import logging
 import queue
 import grpc
+import uuid
 from datetime import datetime
 from typing import Dict
 from concurrent import futures
@@ -32,11 +32,23 @@ class MultiUserSessionServiceImpl(SessionExchangeSimulatorServicer, BaseServiceI
     def __init__(self, exchange_group_manager, snapshot_manager=None):
         super().__init__()
         self.logger = logging.getLogger(self.__class__.__name__)
+        self.logger.info("🔧 SESSION SERVICE INITIALIZATION STARTING")
+
         self.exchange_group_manager = exchange_group_manager
         self.snapshot_manager = snapshot_manager
+        self._sequence_counter = 0
 
-        # Initialize the composite state manager
-        self.state_manager = CompositeStateManager()
+        # Initialize composite state manager
+        try:
+            self.state_manager = CompositeStateManager()
+            self._composite_state_manager = CompositeStateManager()
+            print(f"🔥🔥🔥 SESSION SERVICE: Composite state manager initialized")
+            self.logger.info("🔧 SESSION SERVICE: Composite state manager initialized successfully")
+        except Exception as e:
+            self.state_manager = None
+            self._composite_state_manager = None
+            print(f"🔥🔥🔥 SESSION SERVICE: Composite state manager not available: {e}")
+            self.logger.warning(f"🔧 SESSION SERVICE: Composite state manager not available: {e}")
 
         # Per-user stream queues
         self._user_stream_queues: Dict[str, queue.Queue] = {}
@@ -44,214 +56,95 @@ class MultiUserSessionServiceImpl(SessionExchangeSimulatorServicer, BaseServiceI
 
         # gRPC Server components
         self.server = None
-        self.port = 50050  # Default port - make this configurable
+        self.port = 50050
         self.running = False
-
-        # Track callback registration to prevent duplicates
         self._callback_registered = False
 
         # Track replay mode statistics
         self.replay_updates_sent = 0
         self.live_updates_sent = 0
 
-        # Setup master callback - only register with first user's equity manager
+        # Setup master callback
         self._setup_master_callback()
+        self.logger.info("🔧 SESSION SERVICE INITIALIZATION COMPLETE")
 
-    def _setup_master_callback(self):
-        """Register with first user's equity manager as master trigger - PREVENT DUPLICATES"""
-        # Prevent duplicate registrations
-        if self._callback_registered:
-            self.logger.info("🔍 CALLBACK ALREADY REGISTERED - SKIPPING DUPLICATE REGISTRATION")
-            return
-
-        users = self.exchange_group_manager.get_all_users()
-        self.logger.info(f"🔍 SETTING UP SESSION SERVICE CALLBACKS")
-        self.logger.info(f"🔍 Found {len(users)} users: {[str(user) for user in users]}")
-
-        if users:
-            first_user_id = users[0]
-            first_user_context = self.exchange_group_manager.user_contexts[first_user_id]
-            self.logger.info(f"🔍 Using first user: {first_user_id}")
-
-            if first_user_context.app_state.equity_manager:
-                self.logger.info(f"🔍 Registering callback with equity manager for {first_user_id}")
-
-                # FIXED: Use correct method name 'register_callback' instead of 'register_bin_advancement_callback'
-                first_user_context.app_state.equity_manager.register_callback(
-                    self._on_equity_data_complete
-                )
-
-                self._callback_registered = True
-                self.logger.info("✅ SESSION SERVICE CALLBACK REGISTERED SUCCESSFULLY")
-            else:
-                self.logger.warning(f"⚠️ No equity manager found for user {first_user_id}")
-
-    def _on_equity_data_complete(self, equity_data):
-        """Handle equity data updates by sending updates to all active users"""
+    def start_sync_server(self, port: int = 50050):
+        """Start the session service gRPC server synchronously"""
+        self.logger.info("🚀 SESSION SERVICE: Starting gRPC server")
         try:
-            self.logger.info(f"📊 Session Service Equity Callback Triggered!")
-            self.logger.info(f"📊 Received equity data: {len(equity_data) if equity_data else 0} records")
+            self.server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+            add_SessionExchangeSimulatorServicer_to_server(self, self.server)
+            self.server.add_insecure_port(f'[::]:{port}')
+            self.server.start()
 
-            # Extract market timestamp from equity data if available
-            market_timestamp = None
-            timestamp_source = "unknown"
+            self.port = port
+            self.running = True
 
-            # Method 1: Try to get timestamp from equity data (highest priority)
-            if equity_data and len(equity_data) > 0:
-                try:
-                    timestamp_str = equity_data[0].get('timestamp')
-                    if timestamp_str:
-                        market_timestamp = datetime.fromisoformat(timestamp_str)
-                        timestamp_source = "equity_data[0].timestamp"
-                        self.logger.info(f"📅 Using market timestamp from equity data: {market_timestamp}")
-                except Exception as e:
-                    self.logger.warning(f"⚠️ Error parsing equity data timestamp: {e}")
-
-            # Method 2: Fall back to app state current timestamp
-            if market_timestamp is None:
-                market_timestamp, timestamp_source = self._get_market_timestamp("callback")
-
-            self.logger.info(f"⏰ Final callback timestamp source: {timestamp_source}")
-
-            # Get the latest data for all users and send updates
-            for user_id, user_context in self.exchange_group_manager.user_contexts.items():
-                if user_id in self._user_stream_queues:
-                    self.logger.info(f"📤 Creating live update for user {user_id}")
-                    update = ExchangeDataUpdate()
-
-                    # ALWAYS use market timestamp (not computer time)
-                    update.timestamp = int(market_timestamp.timestamp() * 1000)
-                    update.user_id = user_id
-
-                    self.logger.debug(f"⏰ Update timestamp: {market_timestamp} (source: {timestamp_source})")
-
-                    # Add equity data to the update
-                    if equity_data:
-                        self._add_equity_data(update, equity_data)
-
-                    # Add user-specific state using the new state manager
-                    self.state_manager.add_user_state(update, user_context)
-
-                    # Send to this user's queue
-                    self._user_stream_queues[user_id].put(update)
-                    self.logger.info(f"✅ Sent live update to user {user_id} queue")
-
-            self.logger.info(f"✅ Sent live updates to {len(self._user_stream_queues)} active user streams")
-
-        except Exception as e:
-            self.logger.error(f"❌ Error in equity data callback: {e}")
-            import traceback
-            self.logger.error(f"❌ Full traceback: {traceback.format_exc()}")
-
-    def _get_or_create_user_queue(self, user_id: str) -> queue.Queue:
-        """Get or create stream queue for a specific user"""
-        if user_id not in self._user_stream_queues:
-            self._user_stream_queues[user_id] = queue.Queue()
-        return self._user_stream_queues[user_id]
-
-    def _add_equity_data(self, update: ExchangeDataUpdate, equity_data):
-        """Add equity data to the update"""
-        try:
-            for bar_data in equity_data:
-                equity_bar = EquityData()
-                equity_bar.symbol = bar_data['symbol']
-                equity_bar.open = float(bar_data['open'])
-                equity_bar.high = float(bar_data['high'])
-                equity_bar.low = float(bar_data['low'])
-                equity_bar.close = float(bar_data['close'])
-                equity_bar.volume = int(bar_data['volume'])
-                equity_bar.trade_count = int(bar_data['count'])
-                equity_bar.vwap = float(bar_data['vwap'])
-                equity_bar.currency = bar_data['currency']
-                equity_bar.vwas = float(bar_data['vwas'])
-
-                update.equity_data.append(equity_bar)
-
-            self.logger.debug(f"📊 Added {len(equity_data)} equity bars to update")
-        except Exception as e:
-            self.logger.error(f"Error adding equity data: {e}")
-
-    def _send_initial_state_for_user(self, user_id: str):
-        """Send initial state for a specific user"""
-        try:
-            self.logger.info(f"📡 Sending initial state to user {user_id}")
-
-            user_context = self.exchange_group_manager.user_contexts[user_id]
-            user_queue = self._get_or_create_user_queue(user_id)
-
-            update = ExchangeDataUpdate()
-
-            # Get market timestamp for initial state
-            market_timestamp, timestamp_source = self._get_market_timestamp("initial_state")
-
-            # Set the market timestamp
-            update.timestamp = int(market_timestamp.timestamp() * 1000)
-            update.user_id = user_id
-
-            self.logger.info(f"⏰ Initial state timestamp: {market_timestamp}")
-            self.logger.info(f"📍 Timestamp source: {timestamp_source}")
-
-            # Add user-specific state using the new state manager
-            self.state_manager.add_user_state(update, user_context)
-
-            user_queue.put(update)
-            self.logger.info(f"✅ Sent initial state to user {user_id} with market timestamp")
-
-        except Exception as e:
-            self.logger.error(f"❌ Error sending initial state to user {user_id}: {e}")
-            import traceback
-            self.logger.error(f"❌ Full traceback: {traceback.format_exc()}")
-
-    def _get_market_timestamp(self, context: str = "unknown") -> tuple:
-        """
-        Get the current market timestamp from the best available source.
-        Returns tuple of (timestamp, source_description)
-        """
-        try:
-            # Try to get timestamp from first user's app state
             users = self.exchange_group_manager.get_all_users()
-            if users:
-                first_user_context = self.exchange_group_manager.user_contexts[users[0]]
-
-                # Method 1: Try get_current_timestamp (market bin timestamp)
-                if hasattr(first_user_context.app_state, 'get_current_timestamp'):
-                    market_time = first_user_context.app_state.get_current_timestamp()
-                    if market_time:
-                        return market_time, f"app_state.get_current_timestamp()[{users[0]}]"
-
-                # Method 2: Try get_next_timestamp (next market bin timestamp)
-                if hasattr(first_user_context.app_state, 'get_next_timestamp'):
-                    market_time = first_user_context.app_state.get_next_timestamp()
-                    if market_time:
-                        return market_time, f"app_state.get_next_timestamp()[{users[0]}]"
-
-                # Method 3: Try base_date as fallback
-                if hasattr(first_user_context.app_state, 'base_date') and first_user_context.app_state.base_date:
-                    return first_user_context.app_state.base_date, f"app_state.base_date[{users[0]}]"
-
-            # Method 4: Try exchange group manager last_snap_time
-            if hasattr(self.exchange_group_manager, 'last_snap_time') and self.exchange_group_manager.last_snap_time:
-                return self.exchange_group_manager.last_snap_time, "exchange_group_manager.last_snap_time"
-
-            # Fallback to system time
-            return datetime.now(), "system_time"
+            self.logger.info(f"✅ Session Service: STARTED on port {port}")
+            self.logger.info(f"🔗 Session Service: Ready for up to {len(users)} concurrent user connections")
 
         except Exception as e:
-            self.logger.warning(f"Error getting market timestamp for {context}: {e}")
-            return datetime.now(), f"system_time_fallback[{context}]"
+            self.logger.error(f"❌ SESSION SERVICE: Failed to start server: {e}")
+            raise
 
-    # ========================================
-    # gRPC Service Implementation Methods
-    # ========================================
+    def GetHealth(self, request: HealthRequest, context: grpc.ServicerContext):
+        """Get server health status"""
+        try:
+            response = HealthResponse()
+            user_id_str = request.user_id
+
+            import uuid
+            try:
+                user_id = uuid.UUID(user_id_str)
+            except ValueError:
+                response.status = "error"
+                response.market_state = f"Invalid user ID format"
+                response.timestamp = int(datetime.now().timestamp() * 1000)
+                return response
+
+            if self.exchange_group_manager and hasattr(self.exchange_group_manager, 'user_contexts'):
+                user_context = self.exchange_group_manager.user_contexts.get(user_id)
+                if user_context and user_context.app_state:
+                    app_state_status = user_context.app_state.get_app_state()
+                    response.status = "healthy" if app_state_status == "ACTIVE" else "error"
+                    response.market_state = f"User {user_id}: {app_state_status}"
+                else:
+                    response.status = "error"
+                    response.market_state = f"User {user_id} not found"
+            else:
+                response.status = "initializing"
+                response.market_state = "No exchange group manager"
+
+            response.timestamp = int(datetime.now().timestamp() * 1000)
+            return response
+
+        except Exception as e:
+            response = HealthResponse()
+            response.status = "error"
+            response.market_state = f"Health check error: {str(e)}"
+            response.timestamp = int(datetime.now().timestamp() * 1000)
+            return response
 
     def StreamExchangeData(self, request: StreamRequest, context: grpc.ServicerContext):
-        """Stream exchange data to client - Multi-user aware"""
-        user_id = request.user_id if request.user_id else "USER_000"  # Default fallback
+        """Stream exchange data to client"""
+        user_id_str = request.user_id
 
-        self.logger.info(f"🌊 New stream request from user: {str(user_id)}")
+        import uuid
+        try:
+            user_id = uuid.UUID(user_id_str)
+        except ValueError:
+            context.abort(grpc.StatusCode.INVALID_ARGUMENT, f"Invalid user ID format: {user_id_str}")
+            return
+
+        self.logger.info(f"🌊 STREAM REQUEST: New stream request from user: {user_id}")
+
+        if not self.exchange_group_manager or not hasattr(self.exchange_group_manager, 'user_contexts'):
+            context.abort(grpc.StatusCode.INTERNAL, "No user contexts available")
+            return
 
         if user_id not in self.exchange_group_manager.user_contexts:
-            context.abort(grpc.StatusCode.NOT_FOUND, f"User {str(user_id)} not found")
+            context.abort(grpc.StatusCode.NOT_FOUND, f"User {user_id} not found")
             return
 
         # Track this stream
@@ -259,175 +152,401 @@ class MultiUserSessionServiceImpl(SessionExchangeSimulatorServicer, BaseServiceI
         user_queue = self._get_or_create_user_queue(user_id)
 
         try:
-            # Send initial state
+            self.logger.info(f"🌊 STREAM REQUEST: Starting stream for user {user_id}")
             self._send_initial_state_for_user(user_id)
 
             # Stream updates
             while context.is_active():
                 try:
-                    # Get update from queue with timeout
                     update = user_queue.get(timeout=1.0)
                     yield update
-                    self.logger.debug(f"📤 Sent update to user {str(user_id)}")
                 except queue.Empty:
-                    # Send periodic heartbeat or continue
                     continue
                 except Exception as e:
-                    self.logger.error(f"❌ Error sending update to user {str(user_id)}: {e}")
+                    self.logger.error(f"❌ Error sending update to user {user_id}: {e}")
                     break
 
         except grpc.RpcError as e:
-            self.logger.info(f"🔌 Stream disconnected for user {str(user_id)}: {e}")
+            self.logger.info(f"🔌 Stream disconnected for user {user_id}: {e}")
         except Exception as e:
-            self.logger.error(f"❌ Unexpected error in stream for user {str(user_id)}: {e}")
+            self.logger.error(f"❌ Unexpected error in stream for user {user_id}: {e}")
         finally:
-            # Clean up
             if user_id in self._active_streams:
                 del self._active_streams[user_id]
             if user_id in self._user_stream_queues:
                 del self._user_stream_queues[user_id]
             self.logger.info(f"🧹 Cleaned up stream for user {user_id}")
 
-    def GetHealth(self, request: HealthRequest, context: grpc.ServicerContext):
-        """Get server health status"""
+    def _setup_master_callback(self):
+        """Register with first user's equity manager as master trigger"""
+        print(f"🔥🔥🔥 SESSION SERVICE: _setup_master_callback CALLED")
+
+        if self._callback_registered:
+            return
+
+        if not self.exchange_group_manager or not hasattr(self.exchange_group_manager, 'user_contexts'):
+            return
+
+        users = self.exchange_group_manager.get_all_users()
+        if not users:
+            return
+
+        master_user = users[0]
+        print(f"🔥🔥🔥 SESSION SERVICE: Using master user: {master_user}")
+
         try:
-            response = HealthResponse()
-            user_id = request.user_id if request.user_id else "USER_000"
-
-            # Check if we have any users and determine health
-            if self.exchange_group_manager.user_contexts:
-                if user_id in self.exchange_group_manager.user_contexts:
-                    user_context = self.exchange_group_manager.user_contexts[user_id]
-                    # Map app state to valid status strings
-                    app_state_status = user_context.app_state.get_app_state()
-                    if app_state_status == "ACTIVE":
-                        response.status = "healthy"
-                    elif app_state_status == "DEGRADED":
-                        response.status = "error"  # Map DEGRADED to error
-                    elif app_state_status == "INITIALIZING":
-                        response.status = "initializing"
-                    else:
-                        response.status = "error"
-
-                    response.market_state = f"User {user_id}: {app_state_status}"
-                else:
-                    response.status = "error"
-                    response.market_state = f"User {user_id} not found"
-            else:
-                response.status = "initializing"
-                response.market_state = "No users configured"
-
-            # FIX: Use integer timestamp, not string
-            response.timestamp = int(datetime.now().timestamp() * 1000)
-
-            # FIX: Remove this line - user_id field doesn't exist in proto
-            # response.user_id = user_id
-
-            # Add service metrics using the correct structure
-            if user_id in self.exchange_group_manager.user_contexts:
-                user_context = self.exchange_group_manager.user_contexts[user_id]
-                # Only add metrics if the user context has service status
-                if hasattr(user_context.app_state, '_service_status'):
-                    for name, status in user_context.app_state._service_status.items():
-                        service_metric = ServiceMetrics()
-                        service_metric.running = status.is_running if hasattr(status, 'is_running') else True
-                        service_metric.errors = status.error_count if hasattr(status, 'error_count') else 0
-                        service_metric.last_heartbeat = status.last_heartbeat.isoformat() if hasattr(status,
-                                                                                                     'last_heartbeat') else datetime.now().isoformat()
-                        response.services[name].CopyFrom(service_metric)
-
-            return response
+            user_context = self.exchange_group_manager.user_contexts.get(master_user)
+            if user_context and hasattr(user_context, 'app_state') and user_context.app_state:
+                if hasattr(user_context.app_state, 'equity_manager') and user_context.app_state.equity_manager:
+                    equity_manager = user_context.app_state.equity_manager
+                    if hasattr(equity_manager, 'register_update_callback'):
+                        equity_manager.register_update_callback(self._on_market_data_update)
+                        self._callback_registered = True
+                        print(f"🔥🔥🔥 SESSION SERVICE: CALLBACK REGISTERED SUCCESSFULLY!")
         except Exception as e:
-            self.logger.error(f"Error in health check: {e}")
-            import traceback
-            self.logger.error(f"Full traceback: {traceback.format_exc()}")
-            context.abort(grpc.StatusCode.INTERNAL, str(e))
+            print(f"🔥🔥🔥 SESSION SERVICE: EXCEPTION in callback setup: {e}")
 
-    def Heartbeat(self, request: HeartbeatRequest, context: grpc.ServicerContext):
-        """Get heartbeat for specific user"""
+    def _get_next_sequence(self) -> int:
+        """Get next sequence number for messages"""
+        self._sequence_counter += 1
+        return self._sequence_counter
+
+    def _get_or_create_user_queue(self, user_id: str) -> queue.Queue:
+        """Get or create queue for user"""
+        if user_id not in self._user_stream_queues:
+            self._user_stream_queues[user_id] = queue.Queue()
+        return self._user_stream_queues[user_id]
+
+    def _send_initial_state_for_user(self, user_id: str):
+        """Send initial state to user"""
+        self.logger.info(f"📤 INITIAL STATE: Sending to user {user_id}")
+
+    def _on_market_data_update(self, update_data):
+        """Handle market data updates - MAIN CALLBACK"""
+        print(f"🔥🔥🔥 SESSION SERVICE: _on_market_data_update CALLED!")
+        print(f"🔥🔥🔥 SESSION SERVICE: Received {len(update_data) if update_data else 0} updates")
+
         try:
-            user_id = request.user_id if request.user_id else "USER_000"  # Default fallback
-
-            if user_id not in self.exchange_group_manager.user_contexts:
-                context.abort(grpc.StatusCode.NOT_FOUND, f"User {user_id} not found")
+            if not update_data:
                 return
 
-            user_context = self.exchange_group_manager.user_contexts[user_id]
+            for i, update in enumerate(update_data):
+                print(f"🔥🔥🔥 SESSION SERVICE: Processing update {i + 1}/{len(update_data)}")
 
-            response = HeartbeatResponse()
-            response.success = True
-            response.server_timestamp = int(datetime.now().timestamp() * 1000)
-            response.user_id = user_id  # Add user_id to response
+                # FIXED: Create complete exchange update
+                base_exchange_update = self._create_exchange_update_FIXED(update)
 
-            # Check health for this specific user
-            if user_context.app_state.is_healthy():
-                response.status = SimulatorStatus.RUNNING
-            elif user_context.app_state.is_initialized():
-                response.status = SimulatorStatus.ERROR
-            else:
-                response.status = SimulatorStatus.INITIALIZING
+                # Queue for all active users
+                for user_id in self._active_streams:
+                    user_exchange_update = ExchangeDataUpdate()
+                    user_exchange_update.CopyFrom(base_exchange_update)
+                    user_exchange_update.user_id = str(user_id)  # Convert UUID to string
 
-            # Use this user's timing info
-            response.current_bin = user_context.app_state.get_current_bin() or ""
-            response.next_bin = user_context.app_state.get_next_bin() or ""
+                    if user_id in self._user_stream_queues:
+                        self._user_stream_queues[user_id].put(user_exchange_update)
 
-            return response
+            self.logger.info(
+                f"✅ SESSION SERVICE: Queued {len(update_data)} updates for {len(self._active_streams)} active streams")
+
         except Exception as e:
-            self.logger.error(f"Error in heartbeat for user {user_id}: {e}")
-            context.abort(grpc.StatusCode.INTERNAL, str(e))
+            print(f"🔥🔥🔥 SESSION SERVICE: EXCEPTION in _on_market_data_update: {e}")
+            import traceback
+            print(f"🔥🔥🔥 SESSION SERVICE: Traceback:\n{traceback.format_exc()}")
 
-    # ========================================
-    # gRPC Server Management Methods
-    # ========================================
+    def _create_exchange_update_FIXED(self, market_data):
+        """FIXED: Create ExchangeDataUpdate with complete exchange state"""
+        print(f"🔥🔥🔥 SESSION SERVICE: Creating COMPLETE exchange update from market_data")
 
-    def start_sync_server(self, port: int = None):
-        """Start the gRPC server synchronously"""
         try:
-            if port:
-                self.port = port
+            update = ExchangeDataUpdate()
 
-            self.logger.info(f"🚀 Starting Session Exchange gRPC Server on port {self.port}")
+            # Add equity data from market data trigger
+            if 'symbol' in market_data:
+                equity = update.equity_data.add()
+                equity.symbol = market_data.get('symbol', '')
+                equity.open = float(market_data.get('open', 0))
+                equity.high = float(market_data.get('high', 0))
+                equity.low = float(market_data.get('low', 0))
+                equity.close = float(market_data.get('close', 0))
+                equity.volume = int(market_data.get('volume', 0))
+                equity.vwap = float(market_data.get('vwap', 0))
 
-            # Create server
-            self.server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+            # FIXED: Set timestamp from market data
+            if 'timestamp' in market_data:
+                timestamp_str = market_data['timestamp']
+                try:
+                    if isinstance(timestamp_str, str):
+                        from dateutil.parser import parse
+                        market_dt = parse(timestamp_str)
+                        update.timestamp = int(market_dt.timestamp() * 1000)
+                    else:
+                        update.timestamp = int(timestamp_str)
+                except:
+                    update.timestamp = int(datetime.now().timestamp() * 1000)
+            else:
+                update.timestamp = int(datetime.now().timestamp() * 1000)
 
-            # Add servicer to server
-            add_SessionExchangeSimulatorServicer_to_server(self, self.server)
+            update.sequence_number = self._get_next_sequence()
 
-            # Add insecure port
-            listen_addr = f'[::]:{self.port}'
-            self.server.add_insecure_port(listen_addr)
+            # FIXED: Add complete exchange state for all users
+            users = self.exchange_group_manager.get_all_users()
 
-            # Start server
-            self.server.start()
-            self.running = True
+            for user_id in users:
+                user_context = self.exchange_group_manager.user_contexts.get(user_id)
+                if user_context and user_context.app_state:
+                    # Use composite state manager if available
+                    if self._composite_state_manager:
+                        self._composite_state_manager.add_user_state(update, user_context)
+                    else:
+                        # Fallback to manual collection
+                        self._add_complete_user_state_FIXED(update, user_context)
 
-            self.logger.info(f"✅ Session Exchange gRPC Server started successfully")
-            self.logger.info(f"📡 Listening on {listen_addr}")
-            self.logger.info(f"👥 Supporting {len(self.exchange_group_manager.user_contexts)} users")
-
-            # Log available users
-            for user_id in self.exchange_group_manager.user_contexts.keys():
-                self.logger.info(f"   📊 User: {user_id}")
+            print(f"🔥🔥🔥 SESSION SERVICE: COMPLETE exchange update created with seq#{update.sequence_number}")
+            return update
 
         except Exception as e:
-            self.logger.error(f"❌ Failed to start Session Exchange gRPC Server: {e}")
+            print(f"🔥🔥🔥 SESSION SERVICE: EXCEPTION creating exchange update: {e}")
+            import traceback
+            print(f"🔥🔥🔥 SESSION SERVICE: Traceback:\n{traceback.format_exc()}")
             raise
 
-    def stop(self):
-        """Synchronous stop method for compatibility"""
-        if self.running and self.server:
-            try:
-                # For sync server, stop directly
-                self.server.stop(grace=5)
-                self.running = False
-                self._active_streams.clear()
-                self._user_stream_queues.clear()
-                self.logger.info("✅ Session Exchange gRPC Server stopped")
-            except Exception as e:
-                self.logger.error(f"❌ Error stopping Session Exchange gRPC Server: {e}")
+    def _add_complete_user_state_FIXED(self, update, user_context):
+        """FIXED: Add complete user state to the exchange update"""
+        print(f"🔥🔥🔥 SESSION SERVICE: Adding COMPLETE state for user {user_context.user_id}")
 
-    def wait_for_termination(self):
-        """Wait for server termination"""
-        if self.server:
-            self.server.wait_for_termination()
+        import source.orchestration.app_state.state_manager as app_state_module
+        original_app_state = app_state_module.app_state
+
+        try:
+            app_state_module.app_state = user_context.app_state
+
+            # Add all state components
+            self._add_portfolio_state_FIXED(update, user_context.app_state)
+            self._add_account_state_FIXED(update, user_context.app_state)
+            self._add_order_state_FIXED(update, user_context.app_state)
+            self._add_trade_state_FIXED(update, user_context.app_state)
+            self._add_fx_state_FIXED(update, user_context.app_state)
+
+        finally:
+            app_state_module.app_state = original_app_state
+
+    def _add_portfolio_state_FIXED(self, update, app_state):
+        """FIXED: Add current portfolio state"""
+        try:
+            portfolio_manager = app_state.portfolio_manager
+            if not portfolio_manager:
+                return
+
+            positions = portfolio_manager.get_all_positions()
+            print(f"🔥🔥🔥 SESSION SERVICE: Found {len(positions)} portfolio positions")
+
+            if positions:
+                portfolio = update.portfolio
+                portfolio.total_value = 0.0
+                portfolio.cash_balance = 0.0
+                portfolio.total_pnl = 0.0
+                portfolio.unrealized_pnl = 0.0
+
+                for symbol, position in positions.items():
+                    # DEBUG: Print all available attributes
+                    print(
+                        f"🔥🔥🔥 SESSION SERVICE: Position {symbol} attributes: {[attr for attr in dir(position) if not attr.startswith('_')]}")
+
+                    pos = portfolio.positions.add()
+                    pos.symbol = symbol
+                    pos.quantity = float(position.quantity)
+
+                    # Handle average price/cost
+                    avg_price = 0.0
+                    for field_name in ['avg_price', 'average_price', 'price']:
+                        if hasattr(position, field_name):
+                            avg_price = float(getattr(position, field_name))
+                            print(f"🔥🔥🔥 SESSION SERVICE: Found avg_price in '{field_name}': {avg_price}")
+                            break
+                    pos.average_cost = avg_price
+
+                    # CRITICAL: Handle market value - check all possible field names
+                    market_value = 0.0
+                    for field_name in ['mtm_value', 'market_value', 'notional_value', 'current_value']:
+                        if hasattr(position, field_name):
+                            market_value = float(getattr(position, field_name))
+                            print(f"🔥🔥🔥 SESSION SERVICE: Found market_value in '{field_name}': {market_value}")
+                            break
+
+                    if market_value == 0.0:
+                        # Calculate market value if not found
+                        market_value = float(position.quantity) * avg_price
+                        print(f"🔥🔥🔥 SESSION SERVICE: Calculated market_value: {market_value}")
+
+                    pos.market_value = market_value
+                    pos.unrealized_pnl = float(getattr(position, 'unrealized_pnl', 0.0))
+                    pos.realized_pnl = float(getattr(position, 'realized_pnl', 0.0))
+                    pos.currency = getattr(position, 'currency', 'USD')
+
+                    # Update portfolio totals
+                    portfolio.total_value += market_value
+                    portfolio.unrealized_pnl += pos.unrealized_pnl
+                    portfolio.total_pnl += (pos.unrealized_pnl + pos.realized_pnl)
+
+                print(f"🔥🔥🔥 SESSION SERVICE: Portfolio FINAL - total_value=${portfolio.total_value}")
+
+        except Exception as e:
+            print(f"🔥🔥🔥 SESSION SERVICE: Error adding portfolio state: {e}")
+            import traceback
+            print(f"🔥🔥🔥 SESSION SERVICE: Portfolio traceback: {traceback.format_exc()}")
+
+    def _add_order_state_FIXED(self, update, app_state):
+        """FIXED: Add current order state"""
+        try:
+            order_manager = app_state.order_manager
+            if not order_manager:
+                return
+
+            orders = order_manager.get_all_orders()
+            print(f"🔥🔥🔥 SESSION SERVICE: Found {len(orders)} orders")
+
+            for order_id, order in orders.items():
+                print(
+                    f"🔥🔥🔥 SESSION SERVICE: Order {order_id} attributes: {[attr for attr in dir(order) if not attr.startswith('_')]}")
+
+                order_msg = update.orders_data.add()
+                order_msg.order_id = order_id
+                order_msg.symbol = order.symbol
+                order_msg.side = str(order.side.name if hasattr(order.side, 'name') else order.side)
+                order_msg.quantity = float(order.remaining_qty)
+                order_msg.price = float(order.price) if order.price else 0.0
+                order_msg.order_type = str(
+                    order.order_type.name if hasattr(order.order_type, 'name') else order.order_type)
+
+                # FIXED: Get order status correctly
+                if hasattr(order, 'status'):
+                    order_msg.status = str(order.status.name if hasattr(order.status, 'name') else order.status)
+                elif float(order.remaining_qty) <= 0:
+                    order_msg.status = "COMPLETED"
+                else:
+                    order_msg.status = "WORKING"
+
+                order_msg.timestamp = int(order.submit_timestamp.timestamp() * 1000)
+
+                # Add additional fields
+                if hasattr(order, 'cl_order_id'):
+                    order_msg.cl_order_id = order.cl_order_id
+                if hasattr(order, 'currency'):
+                    order_msg.currency = order.currency
+                if hasattr(order, 'original_qty'):
+                    order_msg.original_qty = float(order.original_qty)
+                if hasattr(order, 'remaining_qty'):
+                    order_msg.remaining_qty = float(order.remaining_qty)
+
+        except Exception as e:
+            print(f"🔥🔥🔥 SESSION SERVICE: Error adding order state: {e}")
+
+    def _add_trade_state_FIXED(self, update, app_state):
+        """FIXED: Add recent trade state"""
+        try:
+            trade_manager = getattr(app_state, 'trade_manager', None)
+            order_manager = getattr(app_state, 'order_manager', None)
+
+            trades = []
+
+            if trade_manager and hasattr(trade_manager, 'get_all_trades'):
+                trades = trade_manager.get_all_trades()
+            elif order_manager and hasattr(order_manager, 'get_all_trades'):
+                trades = order_manager.get_all_trades()
+            elif order_manager and hasattr(order_manager, 'trades'):
+                trades = order_manager.trades
+
+            print(f"🔥🔥🔥 SESSION SERVICE: Found {len(trades)} trades")
+
+            for trade in trades:
+                trade_msg = update.trades.add()
+                trade_msg.trade_id = getattr(trade, 'trade_id', '')
+                trade_msg.order_id = getattr(trade, 'order_id', '')
+                trade_msg.symbol = getattr(trade, 'symbol', '')
+                trade_msg.side = str(getattr(trade, 'side', ''))
+                trade_msg.quantity = float(getattr(trade, 'quantity', 0.0))
+                trade_msg.price = float(getattr(trade, 'price', 0.0))
+                trade_msg.currency = getattr(trade, 'currency', 'USD')
+
+                timestamp = getattr(trade, 'timestamp', None)
+                if timestamp:
+                    trade_msg.timestamp = int(timestamp.timestamp() * 1000)
+
+        except Exception as e:
+            print(f"🔥🔥🔥 SESSION SERVICE: Error adding trade state: {e}")
+
+    def _add_account_state_FIXED(self, update, app_state):
+        """FIXED: Add current account state"""
+        try:
+            account_manager = app_state.account_manager
+            if not account_manager:
+                return
+
+            balances = account_manager.get_all_balances()
+            accounts = update.accounts
+            accounts.base_currency = "USD"
+
+            if hasattr(account_manager, 'get_nav'):
+                nav = account_manager.get_nav()
+                accounts.nav = float(nav) if nav else 0.0
+
+            for account_type, currency_balances in balances.items():
+                for currency, balance in currency_balances.items():
+                    bal = accounts.balances.add()
+                    bal.type = account_type
+                    bal.currency = currency
+                    bal.amount = float(balance.amount)
+
+        except Exception as e:
+            print(f"🔥🔥🔥 SESSION SERVICE: Error adding account state: {e}")
+
+    def _add_fx_state_FIXED(self, update, app_state):
+        """FIXED: Add current FX state"""
+        try:
+            fx_manager = app_state.fx_manager
+            if not fx_manager:
+                return
+
+            fx_rates = fx_manager.get_all_rates()
+            for rate_key, rate_value in fx_rates.items():
+                fx_rate = update.fx_rates.add()
+                if '/' in str(rate_key):
+                    from_curr, to_curr = str(rate_key).split('/')
+                    fx_rate.from_currency = from_curr
+                    fx_rate.to_currency = to_curr
+                fx_rate.rate = float(rate_value)
+                fx_rate.timestamp = int(datetime.now().timestamp() * 1000)
+
+
+        except Exception as e:
+
+            print(f"🔥🔥🔥 SESSION SERVICE: Error adding FX state: {e}")
+
+    def Heartbeat(self, request: HeartbeatRequest, context: grpc.ServicerContext):
+
+        """Handle heartbeat requests"""
+
+        self.logger.info(f"💓 HEARTBEAT: Received from user {request.user_id}")
+
+        response = HeartbeatResponse()
+
+        response.status = "healthy"
+
+        response.server_timestamp = int(datetime.now().timestamp() * 1000)
+
+        response.active_connections = len(self._active_streams)
+
+        return response
+
+    def stop(self):
+
+        """Stop the session service"""
+
+        if self.server and self.running:
+            self.logger.info("🛑 SESSION SERVICE: Stopping gRPC server")
+
+            self.server.stop(grace=5)
+
+            self.running = False
+
+            self.logger.info("✅ SESSION SERVICE: Stopped")

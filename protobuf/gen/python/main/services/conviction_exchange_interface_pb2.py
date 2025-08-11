@@ -13,7 +13,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n1main/services/conviction_exchange_interface.proto\x12\x13\x63onviction_exchange\"\xbc\x03\n\x11\x43onvictionRequest\x12#\n\rinstrument_id\x18\x01 \x01(\tR\x0cinstrumentId\x12#\n\rconviction_id\x18\x02 \x01(\tR\x0c\x63onvictionId\x12U\n\x12participation_rate\x18\x03 \x01(\x0e\x32&.conviction_exchange.ParticipationRateR\x11participationRate\x12\x10\n\x03tag\x18\x04 \x01(\tR\x03tag\x12-\n\x04side\x18\x05 \x01(\x0e\x32\x19.conviction_exchange.SideR\x04side\x12\x14\n\x05score\x18\x06 \x01(\x01R\x05score\x12\x1a\n\x08quantity\x18\x07 \x01(\x01R\x08quantity\x12\x16\n\x06zscore\x18\x08 \x01(\x01R\x06zscore\x12+\n\x11target_percentage\x18\t \x01(\x01R\x10targetPercentage\x12\'\n\x0ftarget_notional\x18\n \x01(\x01R\x0etargetNotional\x12%\n\x0ehorizon_zscore\x18\x0b \x01(\tR\rhorizonZscore\"b\n\x16\x42\x61tchConvictionRequest\x12H\n\x0b\x63onvictions\x18\x01 \x03(\x0b\x32&.conviction_exchange.ConvictionRequestR\x0b\x63onvictions\"p\n\x12\x43onvictionResponse\x12\x18\n\x07success\x18\x01 \x01(\x08R\x07success\x12\x1b\n\tbroker_id\x18\x02 \x01(\tR\x08\x62rokerId\x12#\n\rerror_message\x18\x03 \x01(\tR\x0c\x65rrorMessage\"\x9b\x01\n\x17\x42\x61tchConvictionResponse\x12\x18\n\x07success\x18\x01 \x01(\x08R\x07success\x12\x41\n\x07results\x18\x02 \x03(\x0b\x32\'.conviction_exchange.ConvictionResponseR\x07results\x12#\n\rerror_message\x18\x03 \x01(\tR\x0c\x65rrorMessage\"9\n\x12\x42\x61tchCancelRequest\x12#\n\rconviction_id\x18\x01 \x03(\tR\x0c\x63onvictionId\"j\n\x0c\x43\x61ncelResult\x12\x1b\n\tbroker_id\x18\x01 \x01(\tR\x08\x62rokerId\x12\x18\n\x07success\x18\x02 \x01(\x08R\x07success\x12#\n\rerror_message\x18\x03 \x01(\tR\x0c\x65rrorMessage\"\x91\x01\n\x13\x42\x61tchCancelResponse\x12\x18\n\x07success\x18\x01 \x01(\x08R\x07success\x12;\n\x07results\x18\x02 \x03(\x0b\x32!.conviction_exchange.CancelResultR\x07results\x12#\n\rerror_message\x18\x03 \x01(\tR\x0c\x65rrorMessage*\x19\n\x04Side\x12\x07\n\x03\x42UY\x10\x00\x12\x08\n\x04SELL\x10\x01*2\n\x11ParticipationRate\x12\x07\n\x03LOW\x10\x00\x12\n\n\x06MEDIUM\x10\x01\x12\x08\n\x04HIGH\x10\x02\x32\xf5\x01\n\x1b\x43onvictionExchangeSimulator\x12n\n\x11SubmitConvictions\x12+.conviction_exchange.BatchConvictionRequest\x1a,.conviction_exchange.BatchConvictionResponse\x12\x66\n\x11\x43\x61ncelConvictions\x12\'.conviction_exchange.BatchCancelRequest\x1a(.conviction_exchange.BatchCancelResponseB\xa3\x01\n\x17\x63om.conviction_exchangeB ConvictionExchangeInterfaceProtoP\x01\xa2\x02\x03\x43XX\xaa\x02\x12\x43onvictionExchange\xca\x02\x12\x43onvictionExchange\xe2\x02\x1e\x43onvictionExchange\\GPBMetadata\xea\x02\x12\x43onvictionExchangeb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n1main/services/conviction_exchange_interface.proto\x12\x13\x63onviction_exchange\"\xb2\x05\n\x11\x43onvictionRequest\x12#\n\rinstrument_id\x18\x01 \x01(\tR\x0cinstrumentId\x12#\n\rconviction_id\x18\x02 \x01(\tR\x0c\x63onvictionId\x12U\n\x12participation_rate\x18\x03 \x01(\x0e\x32&.conviction_exchange.ParticipationRateR\x11participationRate\x12\x10\n\x03tag\x18\x04 \x01(\tR\x03tag\x12-\n\x04side\x18\x05 \x01(\x0e\x32\x19.conviction_exchange.SideR\x04side\x12\x14\n\x05score\x18\x06 \x01(\x01R\x05score\x12\x1a\n\x08quantity\x18\x07 \x01(\x01R\x08quantity\x12\x16\n\x06zscore\x18\x08 \x01(\x01R\x06zscore\x12+\n\x11target_percentage\x18\t \x01(\x01R\x10targetPercentage\x12\'\n\x0ftarget_notional\x18\n \x01(\x01R\x0etargetNotional\x12%\n\x0ehorizon_zscore\x18\x0b \x01(\tR\rhorizonZscore\x12\x36\n\x15min_position_size_pct\x18\x0c \x01(\x01H\x00R\x12minPositionSizePct\x88\x01\x01\x12\x36\n\x15max_position_size_pct\x18\r \x01(\x01H\x01R\x12maxPositionSizePct\x88\x01\x01\x12\x36\n\x15max_days_to_liquidate\x18\x0e \x01(\x01H\x02R\x12maxDaysToLiquidate\x88\x01\x01\x42\x18\n\x16_min_position_size_pctB\x18\n\x16_max_position_size_pctB\x18\n\x16_max_days_to_liquidate\"{\n\x16\x42\x61tchConvictionRequest\x12\x17\n\x07user_id\x18\x01 \x01(\tR\x06userId\x12H\n\x0b\x63onvictions\x18\x02 \x03(\x0b\x32&.conviction_exchange.ConvictionRequestR\x0b\x63onvictions\"p\n\x12\x43onvictionResponse\x12\x18\n\x07success\x18\x01 \x01(\x08R\x07success\x12\x1b\n\tbroker_id\x18\x02 \x01(\tR\x08\x62rokerId\x12#\n\rerror_message\x18\x03 \x01(\tR\x0c\x65rrorMessage\"\x9b\x01\n\x17\x42\x61tchConvictionResponse\x12\x18\n\x07success\x18\x01 \x01(\x08R\x07success\x12\x41\n\x07results\x18\x02 \x03(\x0b\x32\'.conviction_exchange.ConvictionResponseR\x07results\x12#\n\rerror_message\x18\x03 \x01(\tR\x0c\x65rrorMessage\"R\n\x12\x42\x61tchCancelRequest\x12\x17\n\x07user_id\x18\x01 \x01(\tR\x06userId\x12#\n\rconviction_id\x18\x02 \x03(\tR\x0c\x63onvictionId\"j\n\x0c\x43\x61ncelResult\x12\x1b\n\tbroker_id\x18\x01 \x01(\tR\x08\x62rokerId\x12\x18\n\x07success\x18\x02 \x01(\x08R\x07success\x12#\n\rerror_message\x18\x03 \x01(\tR\x0c\x65rrorMessage\"\x91\x01\n\x13\x42\x61tchCancelResponse\x12\x18\n\x07success\x18\x01 \x01(\x08R\x07success\x12;\n\x07results\x18\x02 \x03(\x0b\x32!.conviction_exchange.CancelResultR\x07results\x12#\n\rerror_message\x18\x03 \x01(\tR\x0c\x65rrorMessage*\x19\n\x04Side\x12\x07\n\x03\x42UY\x10\x00\x12\x08\n\x04SELL\x10\x01*2\n\x11ParticipationRate\x12\x07\n\x03LOW\x10\x00\x12\n\n\x06MEDIUM\x10\x01\x12\x08\n\x04HIGH\x10\x02\x32\xf5\x01\n\x1b\x43onvictionExchangeSimulator\x12n\n\x11SubmitConvictions\x12+.conviction_exchange.BatchConvictionRequest\x1a,.conviction_exchange.BatchConvictionResponse\x12\x66\n\x11\x43\x61ncelConvictions\x12\'.conviction_exchange.BatchCancelRequest\x1a(.conviction_exchange.BatchCancelResponseB\xa3\x01\n\x17\x63om.conviction_exchangeB ConvictionExchangeInterfaceProtoP\x01\xa2\x02\x03\x43XX\xaa\x02\x12\x43onvictionExchange\xca\x02\x12\x43onvictionExchange\xe2\x02\x1e\x43onvictionExchange\\GPBMetadata\xea\x02\x12\x43onvictionExchangeb\x06proto3')
 
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, globals())
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'main.services.conviction_exchange_interface_pb2', globals())
@@ -21,24 +21,24 @@ if _descriptor._USE_C_DESCRIPTORS == False:
 
   DESCRIPTOR._options = None
   DESCRIPTOR._serialized_options = b'\n\027com.conviction_exchangeB ConvictionExchangeInterfaceProtoP\001\242\002\003CXX\252\002\022ConvictionExchange\312\002\022ConvictionExchange\342\002\036ConvictionExchange\\GPBMetadata\352\002\022ConvictionExchange'
-  _SIDE._serialized_start=1208
-  _SIDE._serialized_end=1233
-  _PARTICIPATIONRATE._serialized_start=1235
-  _PARTICIPATIONRATE._serialized_end=1285
+  _SIDE._serialized_start=1504
+  _SIDE._serialized_end=1529
+  _PARTICIPATIONRATE._serialized_start=1531
+  _PARTICIPATIONRATE._serialized_end=1581
   _CONVICTIONREQUEST._serialized_start=75
-  _CONVICTIONREQUEST._serialized_end=519
-  _BATCHCONVICTIONREQUEST._serialized_start=521
-  _BATCHCONVICTIONREQUEST._serialized_end=619
-  _CONVICTIONRESPONSE._serialized_start=621
-  _CONVICTIONRESPONSE._serialized_end=733
-  _BATCHCONVICTIONRESPONSE._serialized_start=736
-  _BATCHCONVICTIONRESPONSE._serialized_end=891
-  _BATCHCANCELREQUEST._serialized_start=893
-  _BATCHCANCELREQUEST._serialized_end=950
-  _CANCELRESULT._serialized_start=952
-  _CANCELRESULT._serialized_end=1058
-  _BATCHCANCELRESPONSE._serialized_start=1061
-  _BATCHCANCELRESPONSE._serialized_end=1206
-  _CONVICTIONEXCHANGESIMULATOR._serialized_start=1288
-  _CONVICTIONEXCHANGESIMULATOR._serialized_end=1533
+  _CONVICTIONREQUEST._serialized_end=765
+  _BATCHCONVICTIONREQUEST._serialized_start=767
+  _BATCHCONVICTIONREQUEST._serialized_end=890
+  _CONVICTIONRESPONSE._serialized_start=892
+  _CONVICTIONRESPONSE._serialized_end=1004
+  _BATCHCONVICTIONRESPONSE._serialized_start=1007
+  _BATCHCONVICTIONRESPONSE._serialized_end=1162
+  _BATCHCANCELREQUEST._serialized_start=1164
+  _BATCHCANCELREQUEST._serialized_end=1246
+  _CANCELRESULT._serialized_start=1248
+  _CANCELRESULT._serialized_end=1354
+  _BATCHCANCELRESPONSE._serialized_start=1357
+  _BATCHCANCELRESPONSE._serialized_end=1502
+  _CONVICTIONEXCHANGESIMULATOR._serialized_start=1584
+  _CONVICTIONEXCHANGESIMULATOR._serialized_end=1829
 # @@protoc_insertion_point(module_scope)

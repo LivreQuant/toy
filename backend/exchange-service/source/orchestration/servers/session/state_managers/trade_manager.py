@@ -15,52 +15,71 @@ class TradeStateManager:
         self.logger = logging.getLogger(self.__class__.__name__)
 
     def add_current_trades_state(self, update: ExchangeDataUpdate):
-        """Poll current trades state - Fixed for proto"""
+        """Poll current trades state - FIXED to handle dictionary data"""
         from source.orchestration.app_state.state_manager import app_state
-        if not app_state.order_manager:
-            return
 
         try:
-            # Fix: Use correct method name
-            if hasattr(app_state.order_manager, 'get_all_trades'):
-                trades = app_state.order_manager.get_all_trades()
-            elif hasattr(app_state.order_manager, 'trades'):
-                trades = app_state.order_manager.trades
-            elif hasattr(app_state, 'trade_manager') and app_state.trade_manager:
-                trades = app_state.trade_manager.get_all_trades() if hasattr(app_state.trade_manager,
-                                                                             'get_all_trades') else []
-            else:
-                trades = []
+            # Get trade_manager first
+            if not app_state.trade_manager:
+                print(f"🔥🔥🔥 COMPOSITE STATE: No trade_manager available")
+                return
 
-            for trade in trades:
+            # Get all trades from memory (they are stored as dictionaries)
+            trades = app_state.trade_manager.get_all_trades()
+            print(f"🔥🔥🔥 COMPOSITE STATE: Found {len(trades)} trades from trade_manager")
+
+            for trade_id, trade_dict in trades.items():
+                print(f"🔥🔥🔥 COMPOSITE STATE: Trade {trade_id} data: {trade_dict}")
+
                 trade_data = Trade()
-                trade_data.trade_id = getattr(trade, 'trade_id', '')
-                trade_data.order_id = getattr(trade, 'order_id', '')
-                trade_data.cl_order_id = getattr(trade, 'cl_order_id', '')
-                trade_data.symbol = getattr(trade, 'symbol', '')
 
-                # Fix: Handle side enum properly
-                side = getattr(trade, 'side', '')
-                if hasattr(side, 'value'):
-                    trade_data.side = side.value
-                else:
-                    trade_data.side = str(side)
+                # FIXED: Access dictionary keys instead of object attributes
+                trade_data.trade_id = trade_dict.get('trade_id', '')
+                trade_data.order_id = trade_dict.get('order_id', '')
+                trade_data.cl_order_id = trade_dict.get('cl_order_id', '')
+                trade_data.symbol = trade_dict.get('symbol', '')
+                trade_data.side = str(trade_dict.get('side', ''))
+                trade_data.currency = trade_dict.get('currency', 'USD')
+                trade_data.price = float(trade_dict.get('price', 0.0))
+                trade_data.quantity = float(trade_dict.get('quantity', 0.0))
+                trade_data.detail = trade_dict.get('detail', '')
 
-                trade_data.currency = getattr(trade, 'currency', 'USD')
-                trade_data.price = float(getattr(trade, 'price', 0.0))
-                trade_data.quantity = float(getattr(trade, 'quantity', 0.0))
-                trade_data.remaining_qty = float(getattr(trade, 'remaining_qty', 0.0))
-                trade_data.completed_qty = float(getattr(trade, 'completed_qty', 0.0))
-                trade_data.detail = getattr(trade, 'detail', '')
+                # Handle timestamps - they can be datetime objects or strings
+                start_timestamp = trade_dict.get('start_timestamp')
+                end_timestamp = trade_dict.get('end_timestamp')
 
-                # Fix: Timestamps
-                timestamp = getattr(trade, 'timestamp', None)
-                if timestamp:
-                    trade_data.start_timestamp = int(timestamp.timestamp() * 1000)
-                    trade_data.end_timestamp = int(timestamp.timestamp() * 1000)
+                if start_timestamp:
+                    if isinstance(start_timestamp, str):
+                        from dateutil.parser import parse
+                        start_dt = parse(start_timestamp)
+                        trade_data.start_timestamp = int(start_dt.timestamp() * 1000)
+                    else:
+                        # It's a datetime object
+                        trade_data.start_timestamp = int(start_timestamp.timestamp() * 1000)
+
+                if end_timestamp:
+                    if isinstance(end_timestamp, str):
+                        from dateutil.parser import parse
+                        end_dt = parse(end_timestamp)
+                        trade_data.end_timestamp = int(end_dt.timestamp() * 1000)
+                    else:
+                        # It's a datetime object
+                        trade_data.end_timestamp = int(end_timestamp.timestamp() * 1000)
+
+                # Use end_timestamp as the main timestamp for compatibility
+                if hasattr(trade_data, 'timestamp'):
+                    trade_data.timestamp = trade_data.end_timestamp
 
                 update.trades.append(trade_data)
+                print(f"🔥🔥🔥 COMPOSITE STATE: Added trade {trade_data.trade_id} for order {trade_data.order_id}")
+                print(
+                    f"🔥🔥🔥 COMPOSITE STATE: Trade details - {trade_data.symbol} {trade_data.side} {trade_data.quantity}@${trade_data.price}")
 
+            print(f"🔥🔥🔥 COMPOSITE STATE: Trades FINAL - {len(trades)} trades added from memory")
             self.logger.debug(f"💰 Added {len(trades)} trades to update")
+
         except Exception as e:
+            print(f"🔥🔥🔥 COMPOSITE STATE: Error adding trades state: {e}")
+            import traceback
+            print(f"🔥🔥🔥 COMPOSITE STATE: Trade error traceback: {traceback.format_exc()}")
             self.logger.error(f"Error adding trades state: {e}")

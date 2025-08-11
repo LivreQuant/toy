@@ -108,6 +108,17 @@ class ExecutionManager:
         prv_time = ensure_timezone_aware(prv_time)
         current_time = ensure_timezone_aware(current_time)
 
+        print(f"🔥🔥🔥 EXECUTION MANAGER: process_executions CALLED")
+        print(f"🔥🔥🔥 Instrument: {self.instrument}")
+        print(f"🔥🔥🔥 Time window: {prv_time} to {current_time}")
+        print(f"🔥🔥🔥 Price: {price}, Currency: {currency}")
+        print(f"🔥🔥🔥 Pending executions buckets: {len(self._pending_executions)}")
+
+        for exec_time, executions in self._pending_executions.items():
+            print(f"🔥🔥🔥 Bucket {exec_time}: {len(executions)} executions")
+            for action, order, timestamp in executions:
+                print(f"🔥🔥🔥   - {action}: {order.get_order_id()}")
+
         with transaction_scope("process_executions", self.logger,
                                instrument=self.instrument, prv_time=to_iso_string(prv_time),
                                current_time=to_iso_string(current_time), currency=currency,
@@ -671,6 +682,26 @@ class ExecutionManager:
                 else:
                     self.logger.info(f"⏳ ORDER_PARTIALLY_FILLED: {order.get_order_id()} ({new_remaining} remaining)")
                     order_status = "PARTIAL"
+
+                # **ADD THIS: Update OrderManager with new order state**
+                from source.orchestration.app_state.state_manager import app_state
+                if app_state.order_manager:
+                    order_manager_start = time.time()
+
+                    # Update the order in OrderManager with new state
+                    order_updates = {
+                        'remaining_qty': new_remaining,
+                        'completed_qty': new_completed,
+                        'status': order_status
+                    }
+
+                    # Update the order in memory
+                    app_state.order_manager.update_order(order.get_order_id(), order_updates, timestamp)
+
+                    order_manager_duration = (time.time() - order_manager_start) * 1000
+                    self.logger.info(f"📊 ORDER_MANAGER_FILL_UPDATE_COMPLETE: {order_manager_duration:.2f}ms")
+                    self.logger.info(
+                        f"📊 ORDER_MANAGER: Updated {order.get_order_id()} -> status={order_status}, remaining={new_remaining}")
 
                 # Adjust balance after fill
                 balance_adjust_start = time.time()

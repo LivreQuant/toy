@@ -67,6 +67,11 @@ class UserContextManager:
                         self.logger.error(f"   ❌ Error initializing {step_name} for {user_id}: {e}")
                         return False
 
+                # CRITICAL FIX: Mark initialization as complete after all steps succeed
+                from source.orchestration.app_state.state_manager import app_state
+                app_state.mark_initialization_complete()
+                self.logger.info(f"✅ User {user_id} initialization marked complete")
+
                 return True
 
             return self.execute_with_user_context(user_id, _init_user)

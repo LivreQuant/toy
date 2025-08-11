@@ -1,3 +1,5 @@
+# source/exchange_logging/config.py - COMPLETE FIXED VERSION
+
 import os
 import logging
 import logging.handlers
@@ -66,19 +68,19 @@ class ExchangeLoggingConfig:
         # Add handler to exchange logger
         exchange_logger.addHandler(exchange_file_handler)
 
-        # Prevent propagation to root logger
-        exchange_logger.propagate = False
-
-        # Setup console handler for important messages only
+        # FIXED: Setup console handler for ALL LOG LEVELS
         console_handler = logging.StreamHandler()
-        console_handler.setLevel(logging.INFO)
+        console_handler.setLevel(logging.DEBUG)  # Changed from INFO to DEBUG to show ALL logs
         console_formatter = MicrosecondFormatter(
             '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
         )
         console_handler.setFormatter(console_formatter)
 
-        # Add console handler only to exchange logger
+        # Add console handler to exchange logger
         exchange_logger.addHandler(console_handler)
+
+        # FIXED: Set propagate to False to prevent duplicate messages
+        exchange_logger.propagate = False
 
         # Configure specific component loggers to use exchange logger as parent
         component_loggers = [
@@ -87,6 +89,9 @@ class ExchangeLoggingConfig:
             "source.exchange",
             "source.servers",
             "source.sod",
+            "source.main",  # CRITICAL: Added main.py
+            "__main__",  # CRITICAL: For when main.py runs as __main__
+            "exchange.source.main",  # CRITICAL: The prefixed version
             "AppState",
             "AccountManager",
             "PortfolioManager",
@@ -119,11 +124,6 @@ class ExchangeLoggingConfig:
             logger.parent = exchange_logger
             logger.propagate = True
 
-        print(f"🚀 Exchange logging configured:")
-        print(f"   📁 Session ID: {session_id}")
-        print(f"   📁 Exchange log: {exchange_log_file}")
-        print(f"   🔧 Detailed logging: {enable_detailed_logging}")
-
         # FIXED: Add gap detection logger with proper formatter and comprehensive logging
         gap_logger = logging.getLogger('GapDetection')
         gap_logger.setLevel(logging.DEBUG)  # Changed to DEBUG for comprehensive logging
@@ -144,6 +144,11 @@ class ExchangeLoggingConfig:
         gap_logger.info("🔍 Gap detection logging initialized")
         gap_logger.info(f"📁 Gap detection log file: gap_detection_{session_id}.log")
 
+        print(f"🚀 Exchange logging configured:")
+        print(f"   📁 Session ID: {session_id}")
+        print(f"   📁 Exchange log: {exchange_log_file}")
+        print(f"   🔧 Detailed logging: {enable_detailed_logging}")
+
         return ExchangeLoggingConfig(
             session_id=session_id,
             enable_detailed_logging=enable_detailed_logging,
@@ -155,11 +160,10 @@ class ExchangeLoggingConfig:
 def get_exchange_logger(name: str) -> logging.Logger:
     """
     Get a logger for exchange components.
-    All logs will go to the exchange log file only.
+    All logs will go to the exchange log file and console.
     """
-    # Create logger under exchange hierarchy
-    if not name.startswith("exchange."):
-        name = f"exchange.{name}"
+    # FIXED: Don't automatically prefix with "exchange." for certain loggers
+    # This allows main.py to use its natural name and be caught by component_loggers
 
     logger = logging.getLogger(name)
 

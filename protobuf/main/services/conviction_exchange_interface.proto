@@ -5,7 +5,7 @@ package conviction_exchange;
 service ConvictionExchangeSimulator {
   // Submit convictions in batch
   rpc SubmitConvictions(BatchConvictionRequest) returns (BatchConvictionResponse);
-  
+
   // Cancel convictions in batch
   rpc CancelConvictions(BatchCancelRequest) returns (BatchCancelResponse);
 }
@@ -35,10 +35,16 @@ message ConvictionRequest {
   double target_notional = 10;
 
   string horizon_zscore = 11;
+
+  // operational parameters (optional)
+  optional double min_position_size_pct = 12;
+  optional double max_position_size_pct = 13;
+  optional double max_days_to_liquidate = 14;
 }
 
 message BatchConvictionRequest {
-  repeated ConvictionRequest convictions = 1;
+  string user_id = 1;  // User submitting the convictions
+  repeated ConvictionRequest convictions = 2;
 }
 
 message ConvictionResponse {
@@ -54,7 +60,8 @@ message BatchConvictionResponse {
 }
 
 message BatchCancelRequest {
-  repeated string conviction_id = 1;
+  string user_id = 1;  // User canceling the convictions
+  repeated string conviction_id = 2;
 }
 
 message CancelResult {

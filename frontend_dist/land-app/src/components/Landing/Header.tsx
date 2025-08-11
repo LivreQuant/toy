@@ -7,6 +7,21 @@ const Header: React.FC = () => {
   const theme = useTheme();
   
   const handleLogin = () => {
+    // Debug what's actually loaded
+    console.log('🔍 DEBUG Environment Variables:');
+    console.log('REACT_APP_MAIN_URL:', process.env.REACT_APP_MAIN_URL);
+    console.log('REACT_APP_LAND_URL:', process.env.REACT_APP_LAND_URL);
+    console.log('REACT_APP_GATEWAY_URL:', process.env.REACT_APP_GATEWAY_URL);
+    console.log('REACT_APP_TYPE:', process.env.REACT_APP_TYPE);
+    console.log('NODE_ENV:', process.env.NODE_ENV);
+    
+    console.log('🔍 DEBUG environmentService:');
+    console.log('getGatewayUrl():', environmentService.getGatewayUrl());
+    console.log('config:', environmentService.getConfig());
+    
+    const loginUrl12 = environmentService.getLoginUrl();
+    console.log('🔗 Final loginUrl:', loginUrl12);
+
     // Now points to /app/login instead of /home/login
     const loginUrl = `${environmentService.getGatewayUrl()}/app/login`;
     

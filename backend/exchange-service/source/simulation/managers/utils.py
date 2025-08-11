@@ -1,151 +1,189 @@
 # source/simulation/managers/utils.py
-import os
-import logging
-import csv
-import threading
-import queue
-import time
 import asyncio
-import asyncpg
-from typing import Callable, List, TypeVar, Generic, Dict, Optional, Any
+import csv
+import logging
+import os
+import queue
+import threading
+from abc import ABC, abstractmethod
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
+from threading import RLock, Thread
+from typing import Dict, List, Optional, Callable, Any, TypeVar, Generic
 
+# Global database queue instance
+_db_queue = None
 T = TypeVar('T')
 
 
-class DatabaseWriteQueue:
-    """Thread-safe queue for database write operations with proper async handling"""
+class DatabaseQueue:
+    """Handles async database writes in a separate thread"""
 
-    def __init__(self, max_queue_size: int = 1000):
-        self.queue = queue.Queue(maxsize=max_queue_size)
-        self.shutdown_flag = threading.Event()
-        self.worker_thread = threading.Thread(target=self._worker, daemon=True)
-        self.worker_thread.start()
+    def __init__(self):
         self.logger = logging.getLogger(self.__class__.__name__)
+        self._queue = queue.Queue()
+        self._shutdown = False
+        self._worker_thread = None
+        self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="DBWriter")
+        self.start_worker()
 
-    def _worker(self):
-        """Background worker thread for database writes with dedicated event loop"""
-        # Create a dedicated event loop for this thread
+    def start_worker(self):
+        """Start the database worker thread"""
+        if self._worker_thread is None or not self._worker_thread.is_alive():
+            self._worker_thread = Thread(target=self._worker_loop, daemon=True)
+            self._worker_thread.start()
+            self.logger.info("🔄 Database worker thread started")
+
+    def _worker_loop(self):
+        """Main worker loop for processing database writes"""
+        # Create event loop for this thread
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
 
-        # Import here to ensure we're in the right thread context
+        # Initialize database manager
+        db_manager = None
         try:
             from source.db.db_manager import DatabaseManager
-            from source.config import app_config
+            db_manager = DatabaseManager()
+            loop.run_until_complete(db_manager.initialize())
+            self.logger.info("✅ Database worker initialized successfully")
+        except Exception as e:
+            self.logger.error(f"❌ Database worker initialization failed: {e}")
+            return
 
-            # Create a thread-local database manager instance
-            thread_db_manager = DatabaseManager()
-
-            # Initialize the connection pool in this thread's loop
-            loop.run_until_complete(thread_db_manager.initialize())
-
-            while not self.shutdown_flag.is_set():
+        while not self._shutdown:
+            try:
+                # Get item from queue with timeout
                 try:
-                    # Get item from queue with timeout
-                    item = self.queue.get(timeout=1.0)
-
-                    if item is None:  # Shutdown signal
-                        break
-
-                    self._process_database_write(item, loop, thread_db_manager)
-                    self.queue.task_done()
-
+                    item = self._queue.get(timeout=1.0)
                 except queue.Empty:
                     continue
+
+                if item is None:  # Shutdown signal
+                    break
+
+                table_name, data, user_id, timestamp = item
+
+                # Process the database write
+                try:
+                    loop.run_until_complete(self._write_to_database(db_manager, table_name, data, user_id, timestamp))
+                    self.logger.info(f"✅ Successfully wrote {len(data)} records to {table_name}")
                 except Exception as e:
-                    self.logger.error(f"❌ Database worker error: {e}", exc_info=True)
+                    self.logger.error(f"❌ Database write error for {table_name}: {e}")
+                    import traceback
+                    self.logger.error(f"❌ Full traceback: {traceback.format_exc()}")
+                finally:
+                    self._queue.task_done()
 
-            # Clean up
-            loop.run_until_complete(thread_db_manager.close())
+            except Exception as e:
+                self.logger.error(f"❌ Worker thread error: {e}")
 
-        except Exception as e:
-            self.logger.error(f"❌ Database worker initialization failed: {e}", exc_info=True)
-        finally:
-            loop.close()
+        # Cleanup
+        if db_manager:
+            try:
+                loop.run_until_complete(db_manager.close())
+            except Exception as e:
+                self.logger.error(f"❌ Error closing database: {e}")
 
-    def _process_database_write(self, item, loop, thread_db_manager):
-        """Process a single database write operation in the worker thread"""
-        try:
-            table_name, data, user_id, timestamp = item
+        loop.close()
 
-            # Run the async database operation in this thread's loop
-            coro = thread_db_manager.insert_simulation_data(table_name, data, user_id, timestamp)
-            result = loop.run_until_complete(coro)
+    async def _write_to_database(self, db_manager: 'DatabaseManager', table_name: str, data: List[Dict], user_id: str,
+                                 timestamp: datetime):
+        """Write data to database using the manager"""
+        if not db_manager.connected:
+            raise Exception("Database not connected")
 
-            if result > 0:
-                self.logger.debug(f"✅ Inserted {result} records into '{table_name}' for user '{user_id}'")
-
-        except Exception as e:
-            self.logger.error(f"❌ Database write failed for table '{item[0]}': {e}", exc_info=True)
+        # Use the centralized insert method
+        result = await db_manager.insert_simulation_data(table_name, data, user_id, timestamp)
+        return result
 
     def enqueue_write(self, table_name: str, data: List[Dict], user_id: str, timestamp: datetime):
         """Enqueue a database write operation"""
-        try:
-            if self.queue.full():
-                self.logger.warning(f"⚠️ Database queue full, dropping write for {table_name}")
-                return
-
-            self.queue.put((table_name, data, user_id, timestamp), block=False)
-
-        except queue.Full:
-            self.logger.warning(f"⚠️ Failed to queue database write for {table_name}")
+        if not self._shutdown:
+            self.logger.debug(f"🔄 Enqueuing {len(data)} records for {table_name}")
+            self._queue.put((table_name, data, user_id, timestamp))
 
     def shutdown(self):
-        """Shutdown the database writer"""
-        self.shutdown_flag.set()
-        self.queue.put(None)  # Shutdown signal
+        """Shutdown the database queue"""
+        self.logger.info("🔄 Shutting down database queue...")
+        self._shutdown = True
+        self._queue.put(None)  # Signal worker to stop
 
-        if self.worker_thread and self.worker_thread.is_alive():
-            self.worker_thread.join(timeout=5.0)
+        if self._worker_thread:
+            self._worker_thread.join(timeout=5.0)
+
+        self._executor.shutdown(wait=True)
+        self.logger.info("✅ Database queue shutdown complete")
 
 
-# Global database queue instance
-_db_queue = DatabaseWriteQueue()
+def get_database_queue():
+    """Get or create the global database queue"""
+    global _db_queue
+    if _db_queue is None:
+        _db_queue = DatabaseQueue()
+    return _db_queue
 
 
 class TrackingManager:
-    """Base class for all tracking managers with file and database persistence"""
+    """Base class for managers that track data"""
 
     def __init__(self, manager_name: str, table_name: str, headers: List[str], tracking: bool = False):
         self.manager_name = manager_name
         self.table_name = table_name
         self.headers = headers
         self.tracking = tracking
-        self._lock = threading.RLock()
-        self.logger = logging.getLogger(f"{manager_name}.TrackingManager")
+        self._lock = RLock()
+        self.logger = logging.getLogger(f"{self.__class__.__name__}.{manager_name}")
 
-        # Initialize storage based on environment
+        # Store current user_id context for database writes
+        self._current_user_id: Optional[str] = None
+
+        # Initialize database queue if using database storage
         from source.config import app_config
+        if app_config.use_database_storage:
+            global _db_queue
+            _db_queue = get_database_queue()
 
-        # File tracking setup for development
+        # Initialize file path for development mode
+        self.csv_file = None
         if not app_config.use_database_storage:
-            self._setup_file_tracking()
+            self._init_csv_file()
 
-    def _setup_file_tracking(self):
-        """Setup CSV file for tracking"""
+    def set_user_context(self, user_id: str) -> None:
+        """Set the current user context for this manager instance"""
+        self._current_user_id = user_id
+        self.logger.debug(f"📋 {self.manager_name} user context set to: {user_id}")
+
+    def _init_csv_file(self):
+        """Initialize CSV file for development mode"""
+        try:
+            data_dir = self._get_user_data_dir()
+            if data_dir:
+                self.csv_file = os.path.join(data_dir, f"{self.table_name}.csv")
+                if not os.path.exists(self.csv_file):
+                    with open(self.csv_file, 'w', newline='') as f:
+                        writer = csv.DictWriter(f, fieldnames=self.headers)
+                        writer.writeheader()
+        except Exception as e:
+            self.logger.error(f"Error initializing CSV file: {e}")
+
+    def _get_user_data_dir(self) -> Optional[str]:
+        """Get user-specific data directory"""
         try:
             from source.config import app_config
+            user_id = self._get_current_user_id()
 
-            # Use data_directory instead of output_dir
-            output_dir = os.path.join(app_config.data_directory, "simulation_results")
-            os.makedirs(output_dir, exist_ok=True)
-
-            # Setup CSV file path
-            self.csv_file = os.path.join(output_dir, f"{self.table_name}.csv")
-
-            # Write headers if file doesn't exist
-            if not os.path.exists(self.csv_file):
-                with open(self.csv_file, 'w', newline='') as csvfile:
-                    writer = csv.DictWriter(csvfile, fieldnames=self.headers)
-                    writer.writeheader()
-
+            if user_id and hasattr(app_config, 'data_directory') and app_config.data_directory:
+                user_data_dir = os.path.join(app_config.data_directory, f"USER_{user_id}", self.table_name)
+                os.makedirs(user_data_dir, exist_ok=True)
+                return user_data_dir
         except Exception as e:
-            self.logger.error(f"❌ Error setting up file tracking: {e}")
+            self.logger.warning(f"Could not create user data directory: {e}")
+
+        return None
 
     def write_to_storage(self, data: List[Dict], timestamp: Optional[datetime] = None):
-        """Write data to storage - routes based on tracking flag and environment"""
-
+        """Write data to storage (database or file based on config)"""
         # Check tracking flag first - if false, don't record anything
         if not self.tracking:
             return
@@ -171,6 +209,9 @@ class TrackingManager:
     def _queue_database_write(self, data: List[Dict], timestamp: Optional[datetime], user_id: str):
         """Queue database write operation"""
         try:
+            global _db_queue
+            if _db_queue is None:
+                _db_queue = get_database_queue()
             _db_queue.enqueue_write(self.table_name, data, user_id, timestamp or datetime.now())
         except Exception as e:
             self.logger.error(f"❌ Database queue error: {e}")
@@ -187,25 +228,62 @@ class TrackingManager:
             raise
 
     def _get_current_user_id(self) -> str:
-        """Get the current user ID from app_state"""
+        """Get the current user ID from stored context or app_state"""
+        # First try stored user context
+        if self._current_user_id:
+            self.logger.debug(f"📍 Using {self.manager_name} user context: {self._current_user_id}")
+            return self._current_user_id
+
+        # Fallback to app_state
         try:
             from source.orchestration.app_state.state_manager import app_state
-
-            # The user ID is stored as _user_id, not current_user_id!
-            if hasattr(app_state, '_user_id') and app_state._user_id:
-                user_id = app_state._user_id
-                self.logger.debug(f"📍 Got user ID from app_state: {user_id}")
+            user_id = app_state.get_user_id()
+            self.logger.debug(f"📍 Got user ID from app_state: {user_id}")
+            if user_id:
                 return user_id
-            else:
-                self.logger.warning("⚠️ No user ID found in app_state._user_id")
-
         except Exception as e:
             self.logger.warning(f"⚠️ Error getting user ID from app_state: {e}")
 
-        # Fallback - but this should rarely be used now
-        fallback_user_id = 'USER_000'
-        self.logger.warning(f"⚠️ Using fallback user ID: {fallback_user_id}")
-        return fallback_user_id
+        # Final fallback - raise error
+        self.logger.error(f"❌ No user context available in {self.manager_name}")
+        raise ValueError(f"No user context available for database write in {self.manager_name}")
+
+    def get_status(self) -> Dict[str, Any]:
+        """Get status information for this manager"""
+        return {
+            'manager_name': self.manager_name,
+            'table_name': self.table_name,
+            'tracking': self.tracking,
+            'user_context': self._current_user_id,
+            'csv_file': self.csv_file
+        }
+
+    def reset(self):
+        """Reset manager to initial state"""
+        with self._lock:
+            self._current_user_id = None
+            self.logger.info(f"🔄 {self.manager_name} reset to initial state")
+
+    def validate(self) -> Dict[str, Any]:
+        """Validate manager configuration"""
+        validation = {
+            'valid': True,
+            'errors': [],
+            'warnings': []
+        }
+
+        if not self.headers:
+            validation['valid'] = False
+            validation['errors'].append("No headers defined")
+
+        if not self.table_name:
+            validation['valid'] = False
+            validation['errors'].append("No table name defined")
+
+        if self.tracking and not self._current_user_id:
+            validation['warnings'].append("Tracking enabled but no user context set")
+
+        return validation
 
     @classmethod
     def shutdown_database_writer(cls):
@@ -221,25 +299,304 @@ class CallbackManager(Generic[T]):
     def __init__(self, manager_name: str = "UnknownManager"):
         self._callbacks: List[Callable[[T], None]] = []
         self.logger = logging.getLogger(f"{self.__class__.__name__}.{manager_name}")
-        self.manager_name = manager_name
 
     def register_callback(self, callback: Callable[[T], None]) -> None:
-        """Register a callback"""
-        self._callbacks.append(callback)
+        """Register a callback function"""
+        if callback not in self._callbacks:
+            self._callbacks.append(callback)
+            self.logger.debug(f"📞 Registered callback: {callback.__name__}")
 
-    def remove_callback(self, callback: Callable[[T], None]) -> None:
-        """Remove a callback"""
+    def unregister_callback(self, callback: Callable[[T], None]) -> None:
+        """Unregister a callback function"""
         if callback in self._callbacks:
             self._callbacks.remove(callback)
-
-    def clear_callbacks(self) -> None:
-        """Clear all callbacks"""
-        self._callbacks.clear()
+            self.logger.debug(f"📞 Unregistered callback: {callback.__name__}")
 
     def _notify_callbacks(self, data: T) -> None:
-        """Notify all callbacks"""
+        """Notify all registered callbacks"""
         for callback in self._callbacks:
             try:
                 callback(data)
             except Exception as e:
-                self.logger.error(f"❌ Callback error: {e}")
+                self.logger.error(f"❌ Error in callback {callback.__name__}: {e}")
+
+    def clear_callbacks(self) -> None:
+        """Clear all registered callbacks"""
+        self._callbacks.clear()
+        self.logger.debug("📞 All callbacks cleared")
+
+    def get_callback_count(self) -> int:
+        """Get number of registered callbacks"""
+        return len(self._callbacks)
+
+
+class DataProcessor(ABC):
+    """Abstract base class for data processors"""
+
+    def __init__(self, processor_name: str):
+        self.processor_name = processor_name
+        self.logger = logging.getLogger(f"{self.__class__.__name__}.{processor_name}")
+
+    @abstractmethod
+    def process_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Process the input data and return processed data"""
+        pass
+
+    @abstractmethod
+    def validate_data(self, data: Dict[str, Any]) -> bool:
+        """Validate the input data"""
+        pass
+
+    def get_processor_info(self) -> Dict[str, str]:
+        """Get processor information"""
+        return {
+            'name': self.processor_name,
+            'type': self.__class__.__name__
+        }
+
+
+class StateMachine:
+    """Simple state machine for manager states"""
+
+    def __init__(self, initial_state: str, valid_transitions: Dict[str, List[str]]):
+        self.current_state = initial_state
+        self.valid_transitions = valid_transitions
+        self.state_history: List[tuple] = [(initial_state, datetime.now())]
+        self.logger = logging.getLogger(self.__class__.__name__)
+
+    def transition_to(self, new_state: str) -> bool:
+        """Transition to a new state if valid"""
+        if new_state in self.valid_transitions.get(self.current_state, []):
+            old_state = self.current_state
+            self.current_state = new_state
+            self.state_history.append((new_state, datetime.now()))
+            self.logger.info(f"🔄 State transition: {old_state} -> {new_state}")
+            return True
+        else:
+            self.logger.warning(f"⚠️ Invalid state transition: {self.current_state} -> {new_state}")
+            return False
+
+    def can_transition_to(self, new_state: str) -> bool:
+        """Check if transition to new state is valid"""
+        return new_state in self.valid_transitions.get(self.current_state, [])
+
+    def get_state_history(self) -> List[tuple]:
+        """Get complete state history"""
+        return self.state_history.copy()
+
+    def reset_to_initial(self, initial_state: str) -> None:
+        """Reset to initial state"""
+        self.current_state = initial_state
+        self.state_history = [(initial_state, datetime.now())]
+        self.logger.info(f"🔄 Reset to initial state: {initial_state}")
+
+
+class EventBus:
+    """Simple event bus for inter-manager communication"""
+
+    def __init__(self):
+        self._subscribers: Dict[str, List[Callable]] = {}
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self._lock = RLock()
+
+    def subscribe(self, event_type: str, callback: Callable) -> None:
+        """Subscribe to an event type"""
+        with self._lock:
+            if event_type not in self._subscribers:
+                self._subscribers[event_type] = []
+
+            if callback not in self._subscribers[event_type]:
+                self._subscribers[event_type].append(callback)
+                self.logger.debug(f"📡 Subscribed to {event_type}: {callback.__name__}")
+
+    def unsubscribe(self, event_type: str, callback: Callable) -> None:
+        """Unsubscribe from an event type"""
+        with self._lock:
+            if event_type in self._subscribers and callback in self._subscribers[event_type]:
+                self._subscribers[event_type].remove(callback)
+                self.logger.debug(f"📡 Unsubscribed from {event_type}: {callback.__name__}")
+
+    def publish(self, event_type: str, event_data: Any) -> None:
+        """Publish an event to all subscribers"""
+        with self._lock:
+            if event_type in self._subscribers:
+                for callback in self._subscribers[event_type]:
+                    try:
+                        callback(event_data)
+                    except Exception as e:
+                        self.logger.error(f"❌ Error in event callback for {event_type}: {e}")
+
+    def clear_subscribers(self, event_type: Optional[str] = None) -> None:
+        """Clear subscribers for specific event type or all"""
+        with self._lock:
+            if event_type:
+                self._subscribers.pop(event_type, None)
+                self.logger.debug(f"📡 Cleared subscribers for {event_type}")
+            else:
+                self._subscribers.clear()
+                self.logger.debug("📡 Cleared all subscribers")
+
+    def get_subscriber_count(self, event_type: str) -> int:
+        """Get number of subscribers for an event type"""
+        with self._lock:
+            return len(self._subscribers.get(event_type, []))
+
+
+class PerformanceMonitor:
+    """Monitor performance metrics for managers"""
+
+    def __init__(self, manager_name: str):
+        self.manager_name = manager_name
+        self.logger = logging.getLogger(f"{self.__class__.__name__}.{manager_name}")
+        self._metrics: Dict[str, List[float]] = {}
+        self._lock = RLock()
+
+    def record_metric(self, metric_name: str, value: float) -> None:
+        """Record a performance metric"""
+        with self._lock:
+            if metric_name not in self._metrics:
+                self._metrics[metric_name] = []
+
+            self._metrics[metric_name].append(value)
+
+            # Keep only last 1000 measurements to prevent memory growth
+            if len(self._metrics[metric_name]) > 1000:
+                self._metrics[metric_name] = self._metrics[metric_name][-1000:]
+
+    def get_metric_stats(self, metric_name: str) -> Dict[str, float]:
+        """Get statistics for a metric"""
+        with self._lock:
+            if metric_name not in self._metrics or not self._metrics[metric_name]:
+                return {}
+
+            values = self._metrics[metric_name]
+            return {
+                'count': len(values),
+                'min': min(values),
+                'max': max(values),
+                'avg': sum(values) / len(values),
+                'latest': values[-1]
+            }
+
+    def get_all_metrics(self) -> Dict[str, Dict[str, float]]:
+        """Get statistics for all metrics"""
+        with self._lock:
+            return {metric: self.get_metric_stats(metric) for metric in self._metrics.keys()}
+
+    def clear_metrics(self, metric_name: Optional[str] = None) -> None:
+        """Clear metrics"""
+        with self._lock:
+            if metric_name:
+                self._metrics.pop(metric_name, None)
+            else:
+                self._metrics.clear()
+
+
+class ResourceManager:
+    """Manage resources like memory and file handles"""
+
+    def __init__(self, manager_name: str):
+        self.manager_name = manager_name
+        self.logger = logging.getLogger(f"{self.__class__.__name__}.{manager_name}")
+        self._resources: Dict[str, Any] = {}
+        self._lock = RLock()
+
+    def acquire_resource(self, resource_name: str, resource: Any) -> None:
+        """Acquire a resource"""
+        with self._lock:
+            if resource_name in self._resources:
+                self.logger.warning(f"⚠️ Resource {resource_name} already exists, replacing")
+
+            self._resources[resource_name] = resource
+            self.logger.debug(f"🔧 Acquired resource: {resource_name}")
+
+    def release_resource(self, resource_name: str) -> bool:
+        """Release a resource"""
+        with self._lock:
+            if resource_name in self._resources:
+                resource = self._resources.pop(resource_name)
+
+                # Try to clean up the resource
+                if hasattr(resource, 'close'):
+                    try:
+                        resource.close()
+                    except Exception as e:
+                        self.logger.error(f"❌ Error closing resource {resource_name}: {e}")
+
+                self.logger.debug(f"🔧 Released resource: {resource_name}")
+                return True
+
+            return False
+
+    def get_resource(self, resource_name: str) -> Optional[Any]:
+        """Get a resource"""
+        with self._lock:
+            return self._resources.get(resource_name)
+
+    def release_all_resources(self) -> None:
+        """Release all resources"""
+        with self._lock:
+            resource_names = list(self._resources.keys())
+            for resource_name in resource_names:
+                self.release_resource(resource_name)
+
+            self.logger.info(f"🔧 Released all resources for {self.manager_name}")
+
+    def get_resource_count(self) -> int:
+        """Get number of active resources"""
+        with self._lock:
+            return len(self._resources)
+
+
+class ConfigurationManager:
+    """Manage configuration for managers"""
+
+    def __init__(self, manager_name: str, default_config: Dict[str, Any] = None):
+        self.manager_name = manager_name
+        self.logger = logging.getLogger(f"{self.__class__.__name__}.{manager_name}")
+        self._config = default_config or {}
+        self._lock = RLock()
+
+    def set_config(self, key: str, value: Any) -> None:
+        """Set a configuration value"""
+        with self._lock:
+            self._config[key] = value
+            self.logger.debug(f"⚙️ Config set: {key} = {value}")
+
+    def get_config(self, key: str, default: Any = None) -> Any:
+        """Get a configuration value"""
+        with self._lock:
+            return self._config.get(key, default)
+
+    def update_config(self, config_dict: Dict[str, Any]) -> None:
+        """Update multiple configuration values"""
+        with self._lock:
+            self._config.update(config_dict)
+            self.logger.debug(f"⚙️ Config updated with {len(config_dict)} values")
+
+    def get_all_config(self) -> Dict[str, Any]:
+        """Get all configuration"""
+        with self._lock:
+            return self._config.copy()
+
+    def reset_config(self, default_config: Dict[str, Any] = None) -> None:
+        """Reset configuration to defaults"""
+        with self._lock:
+            self._config = default_config or {}
+            self.logger.info(f"⚙️ Configuration reset for {self.manager_name}")
+
+    def validate_config(self, required_keys: List[str]) -> Dict[str, Any]:
+        """Validate configuration has required keys"""
+        with self._lock:
+            validation = {
+                'valid': True,
+                'missing_keys': [],
+                'present_keys': list(self._config.keys())
+            }
+
+            for key in required_keys:
+                if key not in self._config:
+                    validation['valid'] = False
+                    validation['missing_keys'].append(key)
+
+            return validation

@@ -8,7 +8,6 @@ K8S_DIR="$BASE_DIR/k8s"
 
 # Create the algorand-external-service.yaml if it doesn't exist
 ALGORAND_SERVICE_FILE="$K8S_DIR/deployments/algorand-external-service.yaml"
-
 echo "Creating algorand-external-service.yaml..."
 mkdir -p "$K8S_DIR/deployments"
 
@@ -22,7 +21,7 @@ if [ -z "$HOST_IP" ] || [ "$HOST_IP" = "127.0.0.1" ]; then
     # Try alternative methods
     HOST_IP=$(ip route get 8.8.8.8 | awk -F"src " 'NR==1{split($2,a," ");print a[1]}' 2>/dev/null)
     if [ -z "$HOST_IP" ]; then
-        HOST_IP="172.17.0.1"  # Final fallback
+        HOST_IP="172.17.0.1" # Final fallback
     fi
 fi
 
@@ -31,8 +30,8 @@ echo "Using host IP: $HOST_IP"
 # Test connectivity to LocalNet before creating service
 echo "Testing LocalNet connectivity on $HOST_IP..."
 if curl -s -m 5 "http://$HOST_IP:4001/v2/status" \
-   -H "X-Algo-API-Token: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" \
-   > /dev/null; then
+    -H "X-Algo-API-Token: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" \
+    > /dev/null; then
     echo "✅ LocalNet is accessible on $HOST_IP:4001"
 else
     echo "❌ Warning: LocalNet may not be accessible on $HOST_IP:4001"
@@ -52,7 +51,7 @@ metadata:
   name: algorand-localnet
   namespace: default
 spec:
-  clusterIP: None  # Headless service
+  clusterIP: None # Headless service
   ports:
   - name: algod
     port: 4001
@@ -98,20 +97,28 @@ if [ $? -eq 0 ]; then
     echo "ALGOD_PORT=4001"
     echo "INDEXER_SERVER=http://algorand-localnet"
     echo "INDEXER_PORT=8980"
+    
     echo ""
     echo "📝 Make sure your Algorand LocalNet is running:"
     echo "algokit localnet start"
     echo "algokit localnet status"
     
-    # Auto-test the service
+    # Fixed connectivity test
     echo ""
     echo "🧪 Testing service connectivity..."
-    kubectl run test-connection --rm --image=curlimages/curl --restart=Never -- \
-        curl -s -m 10 "http://algorand-localnet:4001/v2/status" \
-        -H "X-Algo-API-Token: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" \
-        > /dev/null
     
-    if [ $? -eq 0 ]; then
+    # Create a temporary test pod and wait for completion
+    kubectl run test-connection \
+        --image=curlimages/curl \
+        --restart=Never \
+        --command -- \
+        sh -c "curl -s -m 10 'http://algorand-localnet:4001/v2/status' -H 'X-Algo-API-Token: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'"
+    
+    # Wait for the pod to complete
+    kubectl wait --for=condition=complete pod/test-connection --timeout=30s
+    
+    # Check if it succeeded
+    if kubectl logs test-connection | grep -q "last-round\|round"; then
         echo "✅ Service connectivity test passed!"
         echo ""
         echo "🚀 Ready to update your fund service:"
@@ -119,7 +126,13 @@ if [ $? -eq 0 ]; then
     else
         echo "❌ Service connectivity test failed"
         echo "   You may need to manually configure with IP: $HOST_IP"
+        echo ""
+        echo "🔍 Debug info:"
+        kubectl logs test-connection 2>/dev/null || echo "No logs available"
     fi
+    
+    # Clean up test pod
+    kubectl delete pod test-connection --ignore-not-found=true
     
 else
     echo "❌ Failed to deploy Algorand external service"

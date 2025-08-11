@@ -26,8 +26,8 @@ class TradeManager(TrackingManager):
         from source.utils.timezone_utils import to_iso_string
 
         return [{
-            'start_timestamp': to_iso_string(trade_data.get('start_timestamp')),
-            'end_timestamp': to_iso_string(trade_data.get('end_timestamp')),
+            'start_timestamp': trade_data.get('start_timestamp'),  # Keep as datetime
+            'end_timestamp': trade_data.get('end_timestamp'),      # Keep as datetime
             'trade_id': trade_data.get('trade_id', ''),
             'order_id': trade_data.get('order_id', ''),
             'cl_order_id': trade_data.get('cl_order_id', ''),

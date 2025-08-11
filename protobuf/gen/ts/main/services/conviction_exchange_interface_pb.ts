@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file main/services/conviction_exchange_interface.proto.
  */
 export const file_main_services_conviction_exchange_interface: GenFile = /*@__PURE__*/
-  fileDesc("CjFtYWluL3NlcnZpY2VzL2NvbnZpY3Rpb25fZXhjaGFuZ2VfaW50ZXJmYWNlLnByb3RvEhNjb252aWN0aW9uX2V4Y2hhbmdlIrgCChFDb252aWN0aW9uUmVxdWVzdBIVCg1pbnN0cnVtZW50X2lkGAEgASgJEhUKDWNvbnZpY3Rpb25faWQYAiABKAkSQgoScGFydGljaXBhdGlvbl9yYXRlGAMgASgOMiYuY29udmljdGlvbl9leGNoYW5nZS5QYXJ0aWNpcGF0aW9uUmF0ZRILCgN0YWcYBCABKAkSJwoEc2lkZRgFIAEoDjIZLmNvbnZpY3Rpb25fZXhjaGFuZ2UuU2lkZRINCgVzY29yZRgGIAEoARIQCghxdWFudGl0eRgHIAEoARIOCgZ6c2NvcmUYCCABKAESGQoRdGFyZ2V0X3BlcmNlbnRhZ2UYCSABKAESFwoPdGFyZ2V0X25vdGlvbmFsGAogASgBEhYKDmhvcml6b25fenNjb3JlGAsgASgJIlUKFkJhdGNoQ29udmljdGlvblJlcXVlc3QSOwoLY29udmljdGlvbnMYASADKAsyJi5jb252aWN0aW9uX2V4Y2hhbmdlLkNvbnZpY3Rpb25SZXF1ZXN0Ik8KEkNvbnZpY3Rpb25SZXNwb25zZRIPCgdzdWNjZXNzGAEgASgIEhEKCWJyb2tlcl9pZBgCIAEoCRIVCg1lcnJvcl9tZXNzYWdlGAMgASgJInsKF0JhdGNoQ29udmljdGlvblJlc3BvbnNlEg8KB3N1Y2Nlc3MYASABKAgSOAoHcmVzdWx0cxgCIAMoCzInLmNvbnZpY3Rpb25fZXhjaGFuZ2UuQ29udmljdGlvblJlc3BvbnNlEhUKDWVycm9yX21lc3NhZ2UYAyABKAkiKwoSQmF0Y2hDYW5jZWxSZXF1ZXN0EhUKDWNvbnZpY3Rpb25faWQYASADKAkiSQoMQ2FuY2VsUmVzdWx0EhEKCWJyb2tlcl9pZBgBIAEoCRIPCgdzdWNjZXNzGAIgASgIEhUKDWVycm9yX21lc3NhZ2UYAyABKAkicQoTQmF0Y2hDYW5jZWxSZXNwb25zZRIPCgdzdWNjZXNzGAEgASgIEjIKB3Jlc3VsdHMYAiADKAsyIS5jb252aWN0aW9uX2V4Y2hhbmdlLkNhbmNlbFJlc3VsdBIVCg1lcnJvcl9tZXNzYWdlGAMgASgJKhkKBFNpZGUSBwoDQlVZEAASCAoEU0VMTBABKjIKEVBhcnRpY2lwYXRpb25SYXRlEgcKA0xPVxAAEgoKBk1FRElVTRABEggKBEhJR0gQAjL1AQobQ29udmljdGlvbkV4Y2hhbmdlU2ltdWxhdG9yEm4KEVN1Ym1pdENvbnZpY3Rpb25zEisuY29udmljdGlvbl9leGNoYW5nZS5CYXRjaENvbnZpY3Rpb25SZXF1ZXN0GiwuY29udmljdGlvbl9leGNoYW5nZS5CYXRjaENvbnZpY3Rpb25SZXNwb25zZRJmChFDYW5jZWxDb252aWN0aW9ucxInLmNvbnZpY3Rpb25fZXhjaGFuZ2UuQmF0Y2hDYW5jZWxSZXF1ZXN0GiguY29udmljdGlvbl9leGNoYW5nZS5CYXRjaENhbmNlbFJlc3BvbnNlQqMBChdjb20uY29udmljdGlvbl9leGNoYW5nZUIgQ29udmljdGlvbkV4Y2hhbmdlSW50ZXJmYWNlUHJvdG9QAaICA0NYWKoCEkNvbnZpY3Rpb25FeGNoYW5nZcoCEkNvbnZpY3Rpb25FeGNoYW5nZeICHkNvbnZpY3Rpb25FeGNoYW5nZVxHUEJNZXRhZGF0YeoCEkNvbnZpY3Rpb25FeGNoYW5nZWIGcHJvdG8z");
+  fileDesc("CjFtYWluL3NlcnZpY2VzL2NvbnZpY3Rpb25fZXhjaGFuZ2VfaW50ZXJmYWNlLnByb3RvEhNjb252aWN0aW9uX2V4Y2hhbmdlIvIDChFDb252aWN0aW9uUmVxdWVzdBIVCg1pbnN0cnVtZW50X2lkGAEgASgJEhUKDWNvbnZpY3Rpb25faWQYAiABKAkSQgoScGFydGljaXBhdGlvbl9yYXRlGAMgASgOMiYuY29udmljdGlvbl9leGNoYW5nZS5QYXJ0aWNpcGF0aW9uUmF0ZRILCgN0YWcYBCABKAkSJwoEc2lkZRgFIAEoDjIZLmNvbnZpY3Rpb25fZXhjaGFuZ2UuU2lkZRINCgVzY29yZRgGIAEoARIQCghxdWFudGl0eRgHIAEoARIOCgZ6c2NvcmUYCCABKAESGQoRdGFyZ2V0X3BlcmNlbnRhZ2UYCSABKAESFwoPdGFyZ2V0X25vdGlvbmFsGAogASgBEhYKDmhvcml6b25fenNjb3JlGAsgASgJEiIKFW1pbl9wb3NpdGlvbl9zaXplX3BjdBgMIAEoAUgAiAEBEiIKFW1heF9wb3NpdGlvbl9zaXplX3BjdBgNIAEoAUgBiAEBEiIKFW1heF9kYXlzX3RvX2xpcXVpZGF0ZRgOIAEoAUgCiAEBQhgKFl9taW5fcG9zaXRpb25fc2l6ZV9wY3RCGAoWX21heF9wb3NpdGlvbl9zaXplX3BjdEIYChZfbWF4X2RheXNfdG9fbGlxdWlkYXRlImYKFkJhdGNoQ29udmljdGlvblJlcXVlc3QSDwoHdXNlcl9pZBgBIAEoCRI7Cgtjb252aWN0aW9ucxgCIAMoCzImLmNvbnZpY3Rpb25fZXhjaGFuZ2UuQ29udmljdGlvblJlcXVlc3QiTwoSQ29udmljdGlvblJlc3BvbnNlEg8KB3N1Y2Nlc3MYASABKAgSEQoJYnJva2VyX2lkGAIgASgJEhUKDWVycm9yX21lc3NhZ2UYAyABKAkiewoXQmF0Y2hDb252aWN0aW9uUmVzcG9uc2USDwoHc3VjY2VzcxgBIAEoCBI4CgdyZXN1bHRzGAIgAygLMicuY29udmljdGlvbl9leGNoYW5nZS5Db252aWN0aW9uUmVzcG9uc2USFQoNZXJyb3JfbWVzc2FnZRgDIAEoCSI8ChJCYXRjaENhbmNlbFJlcXVlc3QSDwoHdXNlcl9pZBgBIAEoCRIVCg1jb252aWN0aW9uX2lkGAIgAygJIkkKDENhbmNlbFJlc3VsdBIRCglicm9rZXJfaWQYASABKAkSDwoHc3VjY2VzcxgCIAEoCBIVCg1lcnJvcl9tZXNzYWdlGAMgASgJInEKE0JhdGNoQ2FuY2VsUmVzcG9uc2USDwoHc3VjY2VzcxgBIAEoCBIyCgdyZXN1bHRzGAIgAygLMiEuY29udmljdGlvbl9leGNoYW5nZS5DYW5jZWxSZXN1bHQSFQoNZXJyb3JfbWVzc2FnZRgDIAEoCSoZCgRTaWRlEgcKA0JVWRAAEggKBFNFTEwQASoyChFQYXJ0aWNpcGF0aW9uUmF0ZRIHCgNMT1cQABIKCgZNRURJVU0QARIICgRISUdIEAIy9QEKG0NvbnZpY3Rpb25FeGNoYW5nZVNpbXVsYXRvchJuChFTdWJtaXRDb252aWN0aW9ucxIrLmNvbnZpY3Rpb25fZXhjaGFuZ2UuQmF0Y2hDb252aWN0aW9uUmVxdWVzdBosLmNvbnZpY3Rpb25fZXhjaGFuZ2UuQmF0Y2hDb252aWN0aW9uUmVzcG9uc2USZgoRQ2FuY2VsQ29udmljdGlvbnMSJy5jb252aWN0aW9uX2V4Y2hhbmdlLkJhdGNoQ2FuY2VsUmVxdWVzdBooLmNvbnZpY3Rpb25fZXhjaGFuZ2UuQmF0Y2hDYW5jZWxSZXNwb25zZUKjAQoXY29tLmNvbnZpY3Rpb25fZXhjaGFuZ2VCIENvbnZpY3Rpb25FeGNoYW5nZUludGVyZmFjZVByb3RvUAGiAgNDWFiqAhJDb252aWN0aW9uRXhjaGFuZ2XKAhJDb252aWN0aW9uRXhjaGFuZ2XiAh5Db252aWN0aW9uRXhjaGFuZ2VcR1BCTWV0YWRhdGHqAhJDb252aWN0aW9uRXhjaGFuZ2ViBnByb3RvMw");
 
 /**
  * @generated from message conviction_exchange.ConvictionRequest
@@ -70,6 +70,23 @@ export type ConvictionRequest = Message<"conviction_exchange.ConvictionRequest">
    * @generated from field: string horizon_zscore = 11;
    */
   horizonZscore: string;
+
+  /**
+   * operational parameters (optional)
+   *
+   * @generated from field: optional double min_position_size_pct = 12;
+   */
+  minPositionSizePct?: number;
+
+  /**
+   * @generated from field: optional double max_position_size_pct = 13;
+   */
+  maxPositionSizePct?: number;
+
+  /**
+   * @generated from field: optional double max_days_to_liquidate = 14;
+   */
+  maxDaysToLiquidate?: number;
 };
 
 /**
@@ -84,7 +101,14 @@ export const ConvictionRequestSchema: GenMessage<ConvictionRequest> = /*@__PURE_
  */
 export type BatchConvictionRequest = Message<"conviction_exchange.BatchConvictionRequest"> & {
   /**
-   * @generated from field: repeated conviction_exchange.ConvictionRequest convictions = 1;
+   * User submitting the convictions
+   *
+   * @generated from field: string user_id = 1;
+   */
+  userId: string;
+
+  /**
+   * @generated from field: repeated conviction_exchange.ConvictionRequest convictions = 2;
    */
   convictions: ConvictionRequest[];
 };
@@ -155,7 +179,14 @@ export const BatchConvictionResponseSchema: GenMessage<BatchConvictionResponse> 
  */
 export type BatchCancelRequest = Message<"conviction_exchange.BatchCancelRequest"> & {
   /**
-   * @generated from field: repeated string conviction_id = 1;
+   * User canceling the convictions
+   *
+   * @generated from field: string user_id = 1;
+   */
+  userId: string;
+
+  /**
+   * @generated from field: repeated string conviction_id = 2;
    */
   convictionId: string[];
 };

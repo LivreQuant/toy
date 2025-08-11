@@ -82,9 +82,11 @@ async def load_metadata_from_postgres(exch_id: str) -> dict:
             if user_id:
                 users_dict[user_id] = {
                     'user_id': user_id,
-                    'base_currency': user.get('base_currency', 'USD'),
                     'timezone': user.get('timezone', metadata.get('timezone', 'America/New_York')),
-                    'updated_time': user.get('updated_time')
+                    'base_currency': user.get('base_currency', 'USD'),
+                    'initial_nav': user.get('initial_nav', 0),
+                    'operation_id': user.get('operation_id', 0),
+                    'engine_id': user.get('engine_id', 0),
                 }
 
         metadata['users'] = users_dict

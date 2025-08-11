@@ -96,6 +96,12 @@ class ProcessingSteps:
 
             app_state.portfolio_manager.update_portfolio(price_updates)
 
+            # ADD THESE 4 LINES HERE:
+            # Evaluate portfolio risk after portfolio update
+            if app_state.risk_manager:
+                timestamp = datetime.fromisoformat(equity_bars[0].timestamp) if equity_bars else datetime.now()
+                app_state.risk_manager.evaluate_portfolio_risk(timestamp)
+
             step_duration = (time.time() - step_start) * 1000
             self.logger.info(f"✅ STEP 3 COMPLETE: Portfolio updated in {step_duration:.2f}ms")
         else:
@@ -137,6 +143,19 @@ class ProcessingSteps:
             self.logger.info(f"✅ STEP 4.5 COMPLETE: Cash flow data saved in {step_duration:.2f}ms")
         else:
             self.logger.warning("⚠️ STEP 4.5 SKIPPED: Cash flow manager not available")
+
+    def process_order_progress_update(self, timestamp: datetime) -> None:
+        """Update order progress for current market bin"""
+        from source.orchestration.app_state.state_manager import app_state
+
+        step_start = time.time()
+        if app_state.order_manager:
+            self.logger.info("📋 STEP 4.6: ORDER PROGRESS UPDATE")
+            app_state.order_manager.update_order_progress_for_market_bin(timestamp)
+            step_duration = (time.time() - step_start) * 1000
+            self.logger.info(f"✅ STEP 4.6 COMPLETE: Order progress updated in {step_duration:.2f}ms")
+        else:
+            self.logger.warning("⚠️ STEP 4.6 SKIPPED: Order manager not available")
 
     def process_order_views_update(self, timestamp: datetime) -> None:
         """Update order views"""

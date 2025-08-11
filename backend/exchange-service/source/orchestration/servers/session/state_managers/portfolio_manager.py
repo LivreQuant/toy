@@ -28,7 +28,7 @@ class PortfolioStateManager:
             self.logger.error(f"Error adding portfolio state: {e}")
 
     def build_portfolio_status(self, positions) -> PortfolioStatus:
-        """Build portfolio status from positions - Fixed for proto"""
+        """Build portfolio status from positions - FIXED for mtm_value"""
         portfolio_status = PortfolioStatus()
 
         total_value = 0.0
@@ -37,23 +37,38 @@ class PortfolioStateManager:
         realized_pnl = 0.0
 
         for position in positions.values():
+            print(
+                f"🔥🔥🔥 COMPOSITE STATE: Position {position.symbol} attributes: {[attr for attr in dir(position) if not attr.startswith('_')]}")
+
             pos = Position()
             pos.symbol = getattr(position, 'symbol', '')
             pos.quantity = float(getattr(position, 'quantity', 0.0))
             pos.target_quantity = float(getattr(position, 'target_quantity', 0.0))
             pos.currency = getattr(position, 'currency', 'USD')
 
-            # Fix: Use correct field name from proto (average_cost not average_price)
-            if hasattr(position, 'average_price'):
-                pos.average_cost = float(position.average_price)
-            elif hasattr(position, 'avg_price'):
+            # FIXED: Use correct field name for average price
+            if hasattr(position, 'avg_price'):
                 pos.average_cost = float(position.avg_price)
+            elif hasattr(position, 'average_price'):
+                pos.average_cost = float(position.average_price)
             elif hasattr(position, 'price'):
                 pos.average_cost = float(position.price)
             else:
                 pos.average_cost = 0.0
 
-            pos.market_value = float(getattr(position, 'market_value', 0.0))
+            # CRITICAL FIX: Use mtm_value instead of market_value
+            market_value = 0.0
+            if hasattr(position, 'mtm_value'):
+                market_value = float(position.mtm_value)
+                print(f"🔥🔥🔥 COMPOSITE STATE: Found mtm_value for {position.symbol}: ${market_value}")
+            elif hasattr(position, 'market_value'):
+                market_value = float(position.market_value)
+                print(f"🔥🔥🔥 COMPOSITE STATE: Found market_value for {position.symbol}: ${market_value}")
+            else:
+                print(f"🔥🔥🔥 COMPOSITE STATE: No market/mtm value found for {position.symbol}")
+
+            pos.market_value = market_value
+
             pos.sod_realized_pnl = float(getattr(position, 'sod_realized_pnl', 0.0))
             pos.itd_realized_pnl = float(getattr(position, 'itd_realized_pnl', 0.0))
             pos.realized_pnl = float(getattr(position, 'realized_pnl', 0.0))
@@ -67,10 +82,12 @@ class PortfolioStateManager:
 
         total_pnl = unrealized_pnl + realized_pnl
 
-        portfolio_status.cash_balance = 0.0  # Add default cash balance
+        portfolio_status.cash_balance = 0.0
         portfolio_status.total_value = total_value
         portfolio_status.total_pnl = total_pnl
         portfolio_status.unrealized_pnl = unrealized_pnl
         portfolio_status.realized_pnl = realized_pnl
+
+        print(f"🔥🔥🔥 COMPOSITE STATE: Portfolio FINAL - total_value=${total_value}, unrealized_pnl=${unrealized_pnl}")
 
         return portfolio_status

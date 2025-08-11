@@ -17,6 +17,7 @@ from source.api.websocket.dispatcher import WebSocketDispatcher
 from source.api.websocket.emitters import error_emitter
 
 from source.models.exchange_data import ExchangeDataUpdate
+from source.core.stream.delta_manager import DeltaManager, DeltaType
 
 
 class WebSocketManager:
@@ -31,6 +32,12 @@ class WebSocketManager:
 
         # Create a dispatcher instance
         self.dispatcher = WebSocketDispatcher(session_manager)
+
+        # Initialize delta manager for compression
+        self.delta_manager = DeltaManager(
+            compression_threshold=500,  # Only compress payloads > 500 bytes
+            compression_level=6         # Balanced compression level
+        )
 
         # Register for exchange data
         self.session_manager.register_exchange_data_callback(self.broadcast_exchange_data)
@@ -124,6 +131,27 @@ class WebSocketManager:
                     if device_id in self.connection_metadata:
                         del self.connection_metadata[device_id]
 
+            # Updated cleanup section:
+            try:
+                # Process messages - use the existing method name from your codebase
+                await self._connection_loop(ws, user_id, device_id, client_id)
+            except Exception as e:
+                self.logger.error(f"WebSocket connection error: {e}")
+                await error_emitter.send_error(
+                    ws=ws,
+                    error_code="CONNECTION_ERROR",
+                    message="Unexpected connection error"
+                )
+            finally:
+                # Remove from active connections when done
+                if device_id in self.active_connections and self.active_connections[device_id] is ws:
+                    del self.active_connections[device_id]
+                    if device_id in self.connection_metadata:
+                        del self.connection_metadata[device_id]
+                    
+                    # Reset delta state for this client
+                    self.delta_manager.reset_client(device_id)
+
             return ws
         
     async def _connection_loop(self, ws: web.WebSocketResponse, user_id: str, device_id: str, client_id: str):
@@ -138,13 +166,14 @@ class WebSocketManager:
                     if device_id in self.connection_metadata:
                         self.connection_metadata[device_id]['last_activity'] = time.time()
                     
-                    # Process the message
+                    # Process the message with websocket manager context
                     await self.dispatcher.dispatch_message(
                         ws=ws,
                         user_id=user_id,
                         client_id=client_id,
                         device_id=device_id,
-                        raw_data=msg.data
+                        raw_data=msg.data,
+                        websocket_manager=self  # Pass self for refresh handling
                     )
                 elif msg.type == WSMsgType.ERROR:
                     self.logger.error(f"WebSocket connection closed with error: {ws.exception()}")
@@ -166,8 +195,15 @@ class WebSocketManager:
             if device_id in self.connection_metadata:
                 del self.connection_metadata[device_id]
 
+        # Clean up delta state
+        self.delta_manager.reset_client(device_id)
+
         self.logger.info(
             f"WebSocket connection for device {device_id} closed, remaining connections: {len(self.active_connections)}")
+
+        # Clean up old delta states for any inactive clients
+        active_device_ids = set(self.active_connections.keys())
+        self.delta_manager.cleanup_old_clients(active_device_ids)
 
         # If all connections are closed, reset the session state
         if len(self.active_connections) == 0:
@@ -189,36 +225,92 @@ class WebSocketManager:
                 self.logger.error(f"Error resetting session state during connection cleanup: {e}")
 
     async def broadcast_exchange_data(self, data: ExchangeDataUpdate):
-        """Broadcast exchange data to all active WebSocket clients using standardized format"""
+        """Broadcast exchange data with delta compression to all active WebSocket clients"""
         if not self.active_connections:
             return
 
-        # Create a unique ID for this broadcast
+        # Convert to dictionary for delta processing
+        data_dict = data.to_dict()
         data_id = f"{data.timestamp}-{data.update_id}"
-        self.logger.info(
-            f"WebSocketManager broadcasting exchange data [ID: {data_id}] to {len(self.active_connections)} clients"
+        
+        self.logger.debug(
+            f"Broadcasting exchange data [ID: {data_id}] to {len(self.active_connections)} clients with delta compression"
         )
 
-        # Create message payload
-        payload = {
-            'type': 'exchange_data',
-            'timestamp': int(time.time() * 1000),
-            'data': data.to_dict()  # Use the standardized to_dict method
-        }
-
-        # Send to all active connections
+        # Send to all active connections with delta compression
         send_tasks = []
         for device_id, ws in list(self.active_connections.items()):
             if not ws.closed:
-                send_tasks.append(asyncio.ensure_future(ws.send_json(payload)))
+                send_tasks.append(
+                    asyncio.ensure_future(self._send_delta_message(ws, device_id, data_dict))
+                )
 
         if send_tasks:
             # Wait for all sends to complete
-            await asyncio.gather(*send_tasks, return_exceptions=True)
+            results = await asyncio.gather(*send_tasks, return_exceptions=True)
+            
+            # Log any errors
+            for i, result in enumerate(results):
+                if isinstance(result, Exception):
+                    device_id = list(self.active_connections.keys())[i]
+                    self.logger.error(f"Error sending to device {device_id}: {result}")
+            
             self.logger.debug(f"Completed sending exchange data [ID: {data_id}] to {len(send_tasks)} clients")
 
         # Track this message
         track_websocket_message("sent_broadcast", "exchange_data")
+        
+        # Log compression statistics periodically
+        if data.timestamp % 30000 < 1000:  # Roughly every 30 seconds
+            stats = self.delta_manager.get_statistics()
+            self.logger.info(f"Delta compression stats: {stats}")
+
+    async def _send_delta_message(self, ws: web.WebSocketResponse, device_id: str, data_dict: Dict[str, Any]):
+        """Send exchange data using delta compression"""
+        try:
+            # Process message through delta manager
+            delta_message = self.delta_manager.process_message(device_id, data_dict)
+            
+            # Create WebSocket payload
+            payload = {
+                'type': 'exchange_data_delta',
+                'deltaType': delta_message.type.value,
+                'sequence': delta_message.sequence,
+                'timestamp': delta_message.timestamp,
+                'data': delta_message.payload,
+                'compressed': delta_message.compressed
+            }
+            
+            # Add compression metadata if available
+            if delta_message.compression_ratio:
+                payload['compressionRatio'] = delta_message.compression_ratio
+            if delta_message.delta_size and delta_message.original_size:
+                payload['dataSavings'] = f"{((1 - delta_message.delta_size/delta_message.original_size) * 100):.1f}%"
+
+            await ws.send_json(payload)
+            
+            # Track message type
+            track_websocket_message("sent", f"delta_{delta_message.type.value.lower()}")
+            
+        except Exception as e:
+            self.logger.error(f"Error sending delta message to device {device_id}: {e}")
+            # Reset client state on error to force full payload next time
+            self.delta_manager.reset_client(device_id)
+            raise
+
+    def get_compression_statistics(self) -> Dict[str, Any]:
+        """Get current compression statistics"""
+        return self.delta_manager.get_statistics()
+    
+    async def force_full_refresh(self, device_id: str = None):
+        """Force full payload on next message for a device or all devices"""
+        if device_id:
+            self.delta_manager.reset_client(device_id)
+            self.logger.info(f"Forced full refresh for device {device_id}")
+        else:
+            for device_id in list(self.active_connections.keys()):
+                self.delta_manager.reset_client(device_id)
+            self.logger.info("Forced full refresh for all connected devices")
 
     async def broadcast_to_session(self, payload: Dict[str, Any]) -> int:
         """

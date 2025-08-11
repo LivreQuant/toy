@@ -1,4 +1,5 @@
-# source/config.py - Simple configuration without overcomplicated BS
+# source/config.py - COMPLETE FIXED VERSION
+
 import os
 from dataclasses import dataclass
 from pydantic import BaseModel, Field
@@ -37,9 +38,9 @@ class Config:
 
     def __init__(self):
         # Core settings
-        self.environment = os.getenv('ENVIRONMENT', 'development')
+        self.environment = os.getenv('ENVIRONMENT', 'production')  # Default to production
         self.log_level = os.getenv('LOG_LEVEL', 'INFO')
-        
+
         # Data directory
         project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         self.data_directory = os.path.join(project_root, 'data')
@@ -60,12 +61,12 @@ class Config:
         self.host = os.getenv('HOST', '0.0.0.0')
         self.grpc_service_port = int(os.getenv('GRPC_SERVICE_PORT', '50055'))
         self.health_service_port = int(os.getenv('HEALTH_SERVICE_PORT', '50056'))
-        
+
         # Feature flags
         self.enable_metrics = os.getenv('ENABLE_METRICS', 'true').lower() == 'true'
         self.enable_tracing = os.getenv('ENABLE_TRACING', 'true').lower() == 'true'
         self.enable_session_service = os.getenv('ENABLE_SESSION_SERVICE', 'true').lower() == 'true'
-        self.enable_conviction_service = os.getenv('ENABLE_CONVICTION_SERVICE', 'false').lower() == 'true'
+        self.enable_conviction_service = os.getenv('ENABLE_CONVICTION_SERVICE', 'true').lower() == 'true'
 
         # Backward compatibility
         self.db = self.database
@@ -91,6 +92,6 @@ class Config:
         return cls()
 
 
-# Global config instance
+# CRITICAL: Global config instance that db_manager.py expects
 app_config = Config()
-config = app_config
+config = app_config  # Backward compatibility alias

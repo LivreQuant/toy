@@ -19,7 +19,8 @@ from source.api.websocket.handlers import (
     heartbeat_handler,
     reconnect_handler,
     session_handler,
-    simulator_handler
+    simulator_handler,
+    refresh_handler  # Add the new refresh handler
 )
 
 logger = logging.getLogger('websocket_dispatcher')
@@ -48,11 +49,15 @@ class WebSocketDispatcher:
             # Simulator handlers
             'start_simulator': simulator_handler.handle_start_simulator,
             'stop_simulator': simulator_handler.handle_stop_simulator,
+            
+            # Delta compression handlers
+            'request_full_refresh': refresh_handler.handle_request_full_refresh,
         }
         logger.info(f"WebSocketDispatcher initialized with handlers for: {list(self.message_handlers.keys())}")
 
     async def dispatch_message(self, ws: web.WebSocketResponse, user_id: str,
-                               client_id: str, device_id: str, raw_data: str) -> None:
+                               client_id: str, device_id: str, raw_data: str, 
+                               websocket_manager=None) -> None:
         """
         Parse and dispatch an incoming WebSocket message.
 
@@ -62,6 +67,7 @@ class WebSocketDispatcher:
             client_id: Client ID
             device_id: Device ID
             raw_data: Raw message data
+            websocket_manager: WebSocket manager instance for refresh handling
         """
         message_type = "unknown"
         request_id = None
@@ -101,7 +107,8 @@ class WebSocketDispatcher:
                 device_id=device_id,
                 message=message,
                 session_manager=self.session_manager,
-                tracer=self.tracer
+                tracer=self.tracer,
+                websocket_manager=websocket_manager  # Pass websocket manager for refresh
             )
 
         except WebSocketError as e:

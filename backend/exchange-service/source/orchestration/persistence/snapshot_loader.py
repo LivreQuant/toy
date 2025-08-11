@@ -100,7 +100,7 @@ class LastSnapLoader:
 
             if not available_users:
                 self.logger.warning("⚠️ No user directories found, creating default single user data")
-                all_user_data['USER_001'] = self.user_loader._get_empty_user_data()
+                raise ValueError(f'No user found')
             else:
                 # Load first available user for single-user mode
                 user_id = available_users[0]

@@ -1,7 +1,6 @@
 # source/orchestration/servers/session/state_managers/impact_state_manager.py
 """
-Impact State Management Component
-Extracted from session_server_impl.py to reduce file size
+Impact State Management Component - FIXED
 """
 
 import logging
@@ -15,39 +14,48 @@ class ImpactStateManager:
         self.logger = logging.getLogger(self.__class__.__name__)
 
     def add_current_impact_state(self, update: ExchangeDataUpdate):
-        """Poll current impact state - Fixed for proto"""
+        """Poll current impact state - FIXED to handle ImpactState objects"""
         from source.orchestration.app_state.state_manager import app_state
         if not app_state.impact_manager:
+            print(f"🔥🔥🔥 COMPOSITE STATE: No impact_manager available")
             return
 
         try:
-            impact_data = app_state.impact_manager.get_all_impacts()
-            update.impact.CopyFrom(self.build_impact_status(impact_data))
-            self.logger.debug(f"💥 Added impact data with {len(impact_data)} impacts to update")
+            # Get all impact states from ImpactManager
+            impact_states = app_state.impact_manager.get_all_impacts()
+            print(f"🔥🔥🔥 COMPOSITE STATE: Found {len(impact_states)} impact states")
+
+            for symbol, impact_state in impact_states.items():
+                print(f"🔥🔥🔥 COMPOSITE STATE: Impact {symbol} state type: {type(impact_state)}")
+                print(
+                    f"🔥🔥🔥 COMPOSITE STATE: Impact {symbol} attributes: {[attr for attr in dir(impact_state) if not attr.startswith('_')]}")
+
+                impact_data = ImpactData()
+
+                # FIXED: Access ImpactState object attributes correctly
+                impact_data.symbol = symbol
+                impact_data.current_impact = float(getattr(impact_state, 'current_impact', 0.0))
+                impact_data.currency = getattr(impact_state, 'currency', 'USD')
+                impact_data.base_price = float(getattr(impact_state, 'base_price', 0.0))
+                impact_data.impacted_price = float(getattr(impact_state, 'impacted_price', 0.0))
+
+                # Handle volume fields (convert to int)
+                impact_data.cumulative_volume = int(getattr(impact_state, 'cumulative_volume', 0))
+                impact_data.trade_volume = int(getattr(impact_state, 'trade_volume', 0))
+
+                update.impact.impacts.append(impact_data)
+
+                print(f"🔥🔥🔥 COMPOSITE STATE: Added impact {symbol}")
+                print(f"🔥🔥🔥 COMPOSITE STATE: - current_impact: {impact_data.current_impact}")
+                print(f"🔥🔥🔥 COMPOSITE STATE: - base_price: {impact_data.base_price}")
+                print(f"🔥🔥🔥 COMPOSITE STATE: - impacted_price: {impact_data.impacted_price}")
+                print(f"🔥🔥🔥 COMPOSITE STATE: - trade_volume: {impact_data.trade_volume}")
+
+            print(f"🔥🔥🔥 COMPOSITE STATE: Impact FINAL - {len(impact_states)} impacts added")
+            self.logger.debug(f"💥 Added impact data with {len(impact_states)} impacts to update")
+
         except Exception as e:
+            print(f"🔥🔥🔥 COMPOSITE STATE: Error adding impact state: {e}")
+            import traceback
+            print(f"🔥🔥🔥 COMPOSITE STATE: Impact error traceback: {traceback.format_exc()}")
             self.logger.error(f"Error adding impact state: {e}")
-
-    def build_impact_status(self, impact_data) -> ImpactStatus:
-        """Build impact status from impact data - Fixed for proto"""
-        impact_status = ImpactStatus()
-
-        for impact_record in impact_data:
-            impact = ImpactData()
-            impact.symbol = getattr(impact_record, 'symbol', '')
-            impact.current_impact = float(getattr(impact_record, 'current_impact', 0.0))
-            impact.currency = getattr(impact_record, 'currency', 'USD')
-            impact.base_price = float(getattr(impact_record, 'base_price', 0.0))
-
-            # FIX: Convert to integers for volume fields
-            if hasattr(impact, 'cumulative_volume'):
-                impact.cumulative_volume = int(getattr(impact_record, 'cumulative_volume', 0))
-            if hasattr(impact, 'trade_volume'):
-                impact.trade_volume = int(getattr(impact_record, 'trade_volume', 0))
-
-            # FIX: Only set fields that exist in the proto
-            if hasattr(impact, 'impacted_price'):
-                impact.impacted_price = float(getattr(impact_record, 'impacted_price', 0.0))
-
-            impact_status.impacts.append(impact)
-
-        return impact_status

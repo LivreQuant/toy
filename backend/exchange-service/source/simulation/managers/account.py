@@ -19,7 +19,7 @@ class AccountBalance:
 
 
 class AccountManager(TrackingManager):
-    VALID_TYPES = {'CREDIT', 'SHORT_CREDIT', 'DEBIT', 'NAV', 'PORTFOLIO'}
+    VALID_TYPES = {'CREDIT', 'SHORT_CREDIT', 'DEBIT', 'INVESTOR', 'NAV', 'PORTFOLIO'}
 
     def __init__(self, tracking: bool = True):
         headers = [
@@ -158,11 +158,11 @@ class AccountManager(TrackingManager):
             self.logger.info(f"   Balance updated: {old_amount} -> {balance.amount}")
 
             # Write balance change to storage
-            if self.tracking:
-                from source.orchestration.app_state.state_manager import app_state
-                market_timestamp = app_state.get_next_timestamp() or timestamp
-                data = self._prepare_balance_data(market_timestamp, balance_type, currency, old_amount, balance.amount)
-                self.write_to_storage(data, timestamp=market_timestamp)
+            #if self.tracking:
+            #    from source.orchestration.app_state.state_manager import app_state
+            #    market_timestamp = app_state.get_next_timestamp() or timestamp
+            #    data = self._prepare_balance_data(market_timestamp, balance_type, currency, old_amount, balance.amount)
+            #    self.write_to_storage(data, timestamp=market_timestamp)
 
     def write_balances(self):
         """Write immediate update"""
@@ -596,3 +596,67 @@ class AccountManager(TrackingManager):
                     position.itd_realized_pnl += realized_pnl
                 else:
                     raise ValueError(f"Closing a position that does not exist {instrument}")
+
+    def _convert_debit_to_investor(self, base_required_amount: Decimal, timestamp: datetime,
+                                   trade_id: Optional[str] = None, instrument: Optional[str] = None):
+        """Convert debit balance to credit balance if needed"""
+        from source.orchestration.app_state.state_manager import app_state
+        if not app_state.account_manager:
+            raise ValueError("No account manager available")
+        if not app_state.cash_flow_manager:
+            raise ValueError("No cash flow manager available")
+        if not app_state.fx_manager:
+            raise ValueError("No cash flow manager available")
+
+        base_currency = app_state.get_base_currency()
+
+        app_state.account_manager.update_balance("DEBIT", base_currency, -base_required_amount, timestamp)
+        app_state.account_manager.update_balance("INVESTOR", base_currency, base_required_amount, timestamp)
+        app_state.cash_flow_manager.record_account_transfer(
+            from_account="DEBIT",
+            from_currency=base_currency,
+            from_fx=1,
+            from_amount=-base_required_amount,
+            to_account="INVESTOR",
+            to_currency=base_currency,
+            to_fx=1,
+            to_amount=base_required_amount,
+            timestamp=timestamp,
+            trade_id=trade_id,
+            instrument=instrument,
+            description=""
+        )
+
+    def rebalance_capital(self, user_context: Dict[str, int], timestamp: datetime):
+        """
+        Mode 1: Constant AUM (Strategy Testing) - REBALANCE
+        Mode 2: Compound Growth (Real-world Simulation) - DO NOT REBALANCE
+
+        At the SOD we check NAV,
+        - if NAV > Constant AUM, we transfer Credit TO Investor; until new NAV = Constant AUM
+        - if NAV < Constant AUM, we transfer Investor TO Credit; until new NAV = Constant AUM
+        """
+        from source.orchestration.app_state.state_manager import app_state
+
+        base_currency = app_state.get_base_currency()
+        operation_id = app_state.get_operation_id()
+        initial_nav = app_state.get_initial_nav()
+
+        if operation_id == 1:
+            # USE ALL OF NAV; NO INVESTOR ACCOUNT REQUIRED
+            return
+
+        investor_account = app_state.account_manager.get_balance('INVESTOR', base_currency)
+
+        current_nav = self.compute_nav()
+
+        if current_nav > initial_nav:
+            # Portfolio gained - move excess cash to investor account
+            excess_cash = current_nav - initial_nav
+            self._convert_debit_to_investor(excess_cash, timestamp)
+
+        elif current_nav < initial_nav and investor_account > 0:
+            # Portfolio lost - inject cash from investor account
+            needed_cash = initial_nav - current_nav
+            available = min(needed_cash, investor_account)
+            self._convert_debit_to_investor(available, timestamp)

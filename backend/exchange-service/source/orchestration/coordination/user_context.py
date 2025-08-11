@@ -10,7 +10,11 @@ from source.simulation.core.modules.dependency_injection import ExchangeSimulato
 @dataclass
 class UserContext:
     user_id: str
+    timezone: str
     base_currency: str
+    initial_nav: int
+    operation_id: int
+    engine_id: int
     app_state: AppState
     exchange: Exchange
 
@@ -21,7 +25,11 @@ def initialize_user_context(user_id: str, user_config: dict, last_snap_time: dat
     # Each user gets their own app_state instance
     user_app_state = AppState()
     user_app_state.set_base_date(last_snap_time)  # Already in UTC
+    user_app_state._timezone = user_config['timezone']
     user_app_state._base_currency = user_config['base_currency']
+    user_app_state._initial_nav = user_config['initial_nav']
+    user_app_state._operation_id = user_config['operation_id']
+    user_app_state._engine_id = user_config['engine_id']
     user_app_state.set_user_id(user_id)
 
     # Set market hours in UTC
@@ -43,7 +51,11 @@ def initialize_user_context(user_id: str, user_config: dict, last_snap_time: dat
     # Create user context
     return UserContext(
         user_id=user_id,
+        timezone=user_config['timezone'],
         base_currency=user_config['base_currency'],
+        initial_nav=user_config['initial_nav'],
+        operation_id=user_config['operation_id'],
+        engine_id=user_config['engine_id'],
         app_state=user_app_state,
         exchange=user_exchange
     )
