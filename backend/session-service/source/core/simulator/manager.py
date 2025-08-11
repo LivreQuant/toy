@@ -1,6 +1,6 @@
+# source/core/simulator/manager.py
 """
-Simplified simulator manager for connecting to existing simulators.
-No longer responsible for creating/destroying simulators.
+Simple simulator manager - just connect to the pod name from database.
 """
 import logging
 import asyncio
@@ -13,88 +13,91 @@ from source.config import config
 from source.utils.tracing import optional_trace_span
 from source.utils.metrics import track_simulator_connection_attempt, track_simulator_connection_time
 from source.models.exchange_data import ExchangeType
+from source.clients.kubernetes import KubernetesClient
 
 logger = logging.getLogger('simulator_manager')
 
 
 class SimulatorManager:
-    """Manager for connecting to existing exchange simulator instances"""
+    """Simple simulator manager - connect to pod by name"""
 
     def __init__(self, store_manager, exchange_client=None):
-        """
-        Initialize simulator manager for connection-only operations
-        
-        Args:
-            store_manager: PostgreSQL store for simulator persistence
-            exchange_client: Exchange client for communication with simulator
-        """
         self.store_manager = store_manager
         self.exchange_client = exchange_client
         
-        # Track the current connection
+        # Current connection info
         self.current_simulator_id = None
         self.current_endpoint = None
         self.current_user_id = None
         
-        # Data callback for streaming data
+        # Data callback
         self.data_callback = None
         
-        # Connection retry state
+        # Retry state
         self._connection_retry_task = None
         self._should_retry = False
         
+        # Kubernetes client
+        self.k8s_client = KubernetesClient()
+        
         self.tracer = trace.get_tracer("simulator_manager")
-        logger.info("Simulator manager initialized for connection-only mode")
+        logger.info("Simple simulator manager initialized")
 
     def set_data_callback(self, callback):
-        """Set callback function for exchange data"""
+        """Set callback for exchange data"""
         self.data_callback = callback
-        logger.debug("Data callback set for simulator manager")
 
     async def find_user_simulator(self, user_id: str) -> Tuple[Optional[Dict], str]:
         """
-        Find the running simulator for a user
+        Find user's exchange pod from database
         
         Args:
-            user_id: User ID to find simulator for
+            user_id: User ID
             
         Returns:
-            Tuple of (simulator_info, error_message)
+            Tuple of (pod_info, error_message)
         """
         with optional_trace_span(self.tracer, "find_user_simulator") as span:
             span.set_attribute("user_id", user_id)
             
             try:
-                pool = await self.store_manager.simulator_store._get_pool()
+                pool = await self.store_manager.session_store._get_pool()
                 async with pool.acquire() as conn:
+                    # Get user's exchange info
                     row = await conn.fetchrow('''
-                        SELECT si.simulator_id, si.user_id, si.exch_id, si.endpoint, 
-                               si.pod_name, si.status, si.exchange_type,
-                               m.group_id, m.timezone, m.exchanges
-                        FROM exch_us_equity.simulator_instances si
-                        JOIN exch_us_equity.users u ON si.user_id = u.user_id
-                        JOIN exch_us_equity.metadata m ON si.exch_id = m.exch_id
-                        WHERE si.user_id = $1 AND si.status = 'RUNNING'
+                        SELECT u.user_id, u.exch_id, m.pod_name, m.namespace, m.exchange_type
+                        FROM exch_us_equity.users u
+                        JOIN exch_us_equity.metadata m ON u.exch_id = m.exch_id
+                        WHERE u.user_id = $1
                         LIMIT 1
                     ''', user_id)
                     
                     if not row:
-                        return None, f"No running simulator found for user {user_id}"
+                        return None, f"User {user_id} not found"
+                    
+                    pod_name = row['pod_name']
+                    namespace = row['namespace'] or 'default'
+                    
+                    if not pod_name:
+                        return None, f"No pod name configured for user {user_id}"
+                    
+                    # Get pod endpoint from Kubernetes
+                    pod_endpoint = await self.k8s_client.get_pod_endpoint(pod_name, namespace)
+                    if not pod_endpoint:
+                        return None, f"Pod {pod_name} not found or not running"
                     
                     simulator_info = {
-                        'simulator_id': str(row['simulator_id']),
-                        'user_id': row['user_id'],
+                        'simulator_id': f"sim-{pod_name}",
+                        'user_id': user_id,
                         'exch_id': str(row['exch_id']),
-                        'endpoint': row['endpoint'],
-                        'pod_name': row['pod_name'],
-                        'status': row['status'],
+                        'pod_name': pod_name,
+                        'endpoint': pod_endpoint['endpoint'],
+                        'namespace': namespace,
                         'exchange_type': row['exchange_type'],
-                        'group_id': row['group_id'],
-                        'timezone': row['timezone'],
-                        'exchanges': row['exchanges']
+                        'status': 'RUNNING'
                     }
                     
-                    logger.info(f"Found simulator for user {user_id}: {simulator_info['simulator_id']}")
+                    logger.info(f"Found simulator for user {user_id}: {pod_name} -> {pod_endpoint['endpoint']}")
                     return simulator_info, ""
                     
             except Exception as e:
@@ -103,10 +106,10 @@ class SimulatorManager:
 
     async def connect_to_simulator(self, user_id: str) -> Tuple[bool, str]:
         """
-        Connect to the user's existing simulator
+        Connect to user's simulator pod
         
         Args:
-            user_id: User ID to connect simulator for
+            user_id: User ID
             
         Returns:
             Tuple of (success, error_message)
@@ -128,7 +131,7 @@ class SimulatorManager:
             span.set_attribute("simulator_id", simulator_id)
             span.set_attribute("endpoint", endpoint)
             
-            # Test connection with heartbeat
+            # Test connection
             try:
                 heartbeat_result = await self.exchange_client.send_heartbeat(
                     endpoint, user_id, f"connect-{user_id}"
@@ -141,7 +144,7 @@ class SimulatorManager:
                     track_simulator_connection_time(time.time() - start_time, 'failed')
                     return False, f"Simulator not responding: {error_msg}"
                 
-                # Connection successful
+                # Success
                 self.current_simulator_id = simulator_id
                 self.current_endpoint = endpoint
                 self.current_user_id = user_id
@@ -149,7 +152,7 @@ class SimulatorManager:
                 track_simulator_connection_attempt('success')
                 track_simulator_connection_time(time.time() - start_time, 'success')
                 
-                logger.info(f"Successfully connected to simulator {simulator_id} for user {user_id}")
+                logger.info(f"Connected to simulator {simulator_id} for user {user_id}")
                 return True, ""
                 
             except Exception as e:
@@ -159,16 +162,10 @@ class SimulatorManager:
                 return False, f"Connection error: {str(e)}"
 
     async def connect_with_retry(self, user_id: str) -> None:
-        """
-        Connect to simulator with infinite retry and exponential backoff.
-        This runs in background and notifies via data callback when status changes.
-        
-        Args:
-            user_id: User ID to connect simulator for
-        """
-        max_attempts = config.simulator.max_reconnect_attempts  # 0 = infinite
+        """Connect with retry logic"""
+        max_attempts = config.simulator.max_reconnect_attempts or 0
         base_delay = config.simulator.reconnect_delay
-        backoff_multiplier = config.simulator.connection_retry_backoff
+        backoff = config.simulator.connection_retry_backoff
         max_delay = config.simulator.max_retry_delay
         
         attempt = 0
@@ -178,41 +175,35 @@ class SimulatorManager:
         while self._should_retry and (max_attempts == 0 or attempt < max_attempts):
             attempt += 1
             
-            # Try to connect
             connected, error = await self.connect_to_simulator(user_id)
             
             if connected:
-                logger.info(f"Successfully connected to simulator for user {user_id} after {attempt} attempts")
-                # Notify via callback about successful connection
+                logger.info(f"Connected to simulator for user {user_id} after {attempt} attempts")
                 if self.data_callback:
                     await self._notify_connection_status("CONNECTED", None)
                 return
             
-            # Log the failure and notify frontend
             logger.warning(f"Connection attempt {attempt} failed for user {user_id}: {error}")
             if self.data_callback:
                 await self._notify_connection_status("CONNECTING", f"Attempt {attempt} failed: {error}")
             
-            # If this is our last attempt and we have a limit, stop trying
             if max_attempts > 0 and attempt >= max_attempts:
-                logger.error(f"Failed to connect to simulator for user {user_id} after {max_attempts} attempts")
+                logger.error(f"Failed to connect after {max_attempts} attempts")
                 if self.data_callback:
                     await self._notify_connection_status("DISCONNECTED", f"Failed after {max_attempts} attempts")
                 return
             
-            # Wait before next attempt with exponential backoff
             if self._should_retry:
-                logger.info(f"Retrying connection for user {user_id} in {current_delay} seconds...")
+                logger.info(f"Retrying in {current_delay} seconds...")
                 try:
                     await asyncio.sleep(current_delay)
                 except asyncio.CancelledError:
                     break
                 
-                # Increase delay for next attempt (exponential backoff)
-                current_delay = min(current_delay * backoff_multiplier, max_delay)
+                current_delay = min(current_delay * backoff, max_delay)
 
     async def _notify_connection_status(self, status: str, message: str = None):
-        """Notify about connection status changes via data callback"""
+        """Notify connection status via callback"""
         if not self.data_callback:
             return
             
@@ -236,37 +227,29 @@ class SimulatorManager:
             logger.error(f"Error in connection status callback: {e}")
 
     async def start_connection_retry(self, user_id: str):
-        """Start background connection retry task"""
+        """Start retry task"""
         if self._connection_retry_task and not self._connection_retry_task.done():
             self._connection_retry_task.cancel()
         
         self._connection_retry_task = asyncio.create_task(self.connect_with_retry(user_id))
-        self._connection_retry_task.set_name(f"simulator-retry-{user_id}")
 
     async def stop_connection_retry(self):
-        """Stop background connection retry"""
+        """Stop retry task"""
         self._should_retry = False
         if self._connection_retry_task and not self._connection_retry_task.done():
             self._connection_retry_task.cancel()
-            try:
-                await self._connection_retry_task
-            except asyncio.CancelledError:
-                pass
 
     async def stream_exchange_data(self, session_id: str, client_id: str):
-        """Stream exchange data from connected simulator"""
+        """Stream data from connected simulator"""
         if not self.current_endpoint:
             raise ValueError("No simulator connected")
         
-        logger.info(f"Starting exchange data stream from simulator {self.current_simulator_id}")
+        logger.info(f"Starting data stream from simulator {self.current_simulator_id}")
         
         try:
-            exchange_type = ExchangeType.EQUITIES
-            
             async for data in self.exchange_client.stream_exchange_data(
-                self.current_endpoint, session_id, client_id, exchange_type
+                self.current_endpoint, session_id, client_id, ExchangeType.EQUITIES
             ):
-                # Forward data via callback
                 if self.data_callback:
                     try:
                         if asyncio.iscoroutinefunction(self.data_callback):
@@ -274,38 +257,32 @@ class SimulatorManager:
                         else:
                             self.data_callback(data)
                     except Exception as e:
-                        logger.error(f"Error in data callback: {e}", exc_info=True)
+                        logger.error(f"Error in data callback: {e}")
                 
                 yield data
                 
         except Exception as e:
             logger.error(f"Stream error from simulator {self.current_simulator_id}: {e}")
-            # Reset connection state on error
             self.current_simulator_id = None
             self.current_endpoint = None
             self.current_user_id = None
             
-            # Notify about disconnection
             if self.data_callback:
                 await self._notify_connection_status("DISCONNECTED", f"Stream error: {str(e)}")
-            
             raise
 
     async def disconnect(self):
-        """Disconnect from current simulator"""
+        """Disconnect from simulator"""
         if self.current_simulator_id:
             logger.info(f"Disconnecting from simulator {self.current_simulator_id}")
-            
-        # Stop retry task
-        await self.stop_connection_retry()
         
-        # Clear connection state
+        await self.stop_connection_retry()
         self.current_simulator_id = None
         self.current_endpoint = None
         self.current_user_id = None
 
     def get_connection_info(self) -> Dict[str, Any]:
-        """Get current connection information"""
+        """Get connection info"""
         return {
             'connected': self.current_simulator_id is not None,
             'simulator_id': self.current_simulator_id,
@@ -313,3 +290,9 @@ class SimulatorManager:
             'user_id': self.current_user_id,
             'retrying': self._connection_retry_task is not None and not self._connection_retry_task.done()
         }
+
+    async def close(self):
+        """Close manager"""
+        await self.stop_connection_retry()
+        if self.k8s_client:
+            await self.k8s_client.close()

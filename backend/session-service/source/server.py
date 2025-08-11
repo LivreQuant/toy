@@ -92,7 +92,7 @@ class SessionServer:
         self.exchange_client = ExchangeClient()
         self.stream_manager = StreamManager()
         
-        # Simplified simulator manager (connection-only)
+        # Simplified simulator manager (connection-only with Kubernetes discovery)
         self.simulator_manager = SimulatorManager(self.store_manager, self.exchange_client)
 
         # Create session manager

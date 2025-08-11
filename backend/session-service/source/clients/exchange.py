@@ -1,4 +1,4 @@
-# backend/session-service/source/clients/exchange.py
+# source/clients/exchange.py
 """
 Exchange service gRPC client.
 Handles communication with the exchange simulator service using gRPC.
@@ -22,7 +22,7 @@ from source.api.grpc.session_exchange_interface_pb2 import (
     StreamRequest,
     ExchangeDataUpdate,
     HeartbeatRequest,
-    SimulatorStatus    
+    HeartbeatResponse
 )
 from source.api.grpc.session_exchange_interface_pb2_grpc import SessionExchangeSimulatorStub
 
@@ -35,8 +35,8 @@ class ExchangeClient(BaseClient):
     def __init__(self):
         """Initialize the exchange client."""
         super().__init__(service_name="exchange_service")
-        self.channels = {}  # FIXED: was _channels
-        self.stubs = {}     # FIXED: was _stubs
+        self.channels = {}
+        self.stubs = {}
         self._conn_lock = asyncio.Lock()
         
         # Default gRPC channel options
@@ -75,8 +75,8 @@ class ExchangeClient(BaseClient):
                     logger.error(f"DNS resolution failed after {max_dns_retries} attempts: {e}")
                     raise
         
-        if endpoint in self.channels:  # FIXED: was _channels
-            channel, stub = self.channels[endpoint]  # FIXED: was _channels
+        if endpoint in self.channels:
+            channel, stub = self.channels[endpoint]
             logger.info(f"DEBUG: Reusing existing channel for {endpoint}")
             
             # CHECK IF CHANNEL IS ACTUALLY HEALTHY
@@ -88,20 +88,20 @@ class ExchangeClient(BaseClient):
                 if state == grpc.ChannelConnectivity.TRANSIENT_FAILURE or state == grpc.ChannelConnectivity.SHUTDOWN:
                     logger.warning(f"DEBUG: Channel {endpoint} is in bad state {state}, recreating...")
                     await channel.close()
-                    del self.channels[endpoint]  # FIXED: was _channels
+                    del self.channels[endpoint]
                 else:
                     return channel, stub
                     
             except Exception as e:
                 logger.error(f"DEBUG: Error checking channel state for {endpoint}: {e}")
-                del self.channels[endpoint]  # FIXED: was _channels
+                del self.channels[endpoint]
 
         logger.info(f"DEBUG: Creating NEW gRPC channel for {endpoint}")
 
         channel = grpc.aio.insecure_channel(endpoint, options=self.default_channel_options)
         stub = SessionExchangeSimulatorStub(channel)
         
-        self.channels[endpoint] = (channel, stub)  # FIXED: was _channels
+        self.channels[endpoint] = (channel, stub)
         logger.info(f"DEBUG: Stored new channel for {endpoint} in cache")
         
         return channel, stub
@@ -113,7 +113,7 @@ class ExchangeClient(BaseClient):
             
             # Create tasks for closing all channels
             close_tasks = []
-            for endpoint, (channel, stub) in self.channels.items():  # FIXED: was _channels
+            for endpoint, (channel, stub) in self.channels.items():
                 try:
                     close_tasks.append(channel.close())
                 except Exception as e:
@@ -128,42 +128,90 @@ class ExchangeClient(BaseClient):
             self.stubs.clear()
             logger.info("Finished closing gRPC channels.")
 
-    async def send_heartbeat(self, endpoint: str, session_id: str, client_id: str) -> Dict[str, Any]:
+    async def send_heartbeat(self, endpoint: str, user_id: str, client_id: str) -> Dict[str, Any]:
         """
         Send heartbeat to the simulator and get detailed status.
-        
-        Args:
-            endpoint: The endpoint of the simulator
-            session_id: The session ID
-            client_id: The client ID
-            
-        Returns:
-            Dict with heartbeat results including status
+        TEMPORARILY bypassing circuit breaker for testing.
         """
         with optional_trace_span(self.tracer, "heartbeat_rpc") as span:
             span.set_attribute("rpc.service", "ExchangeSimulator")
             span.set_attribute("rpc.method", "Heartbeat")
             span.set_attribute("net.peer.name", endpoint)
-            span.set_attribute("app.session_id", session_id)
+            span.set_attribute("app.user_id", user_id)
             try:
-                # Execute request with circuit breaker
-                response = await self.execute_with_cb(
-                    self._heartbeat_request, endpoint, session_id, client_id
-                )
+                # BYPASS CIRCUIT BREAKER FOR TESTING - call directly
+                logger.info(f"BYPASS: Calling heartbeat directly without circuit breaker")
+                response = await self._heartbeat_request(endpoint, user_id, client_id)
+                
                 span.set_attribute("app.success", response.get('success', False))
                 span.set_attribute("app.simulator_status", response.get('status', 'UNKNOWN'))
+                logger.info(f"BYPASS: Heartbeat response: {response}")
                 return response
-            except CircuitOpenError:
-                logger.debug(f"Circuit open for exchange service (heartbeat)")
-                span.set_attribute("error.message", "Exchange service unavailable (Circuit Open)")
-                span.set_attribute("app.circuit_open", True)
-                return {'success': False, 'error': 'Exchange service unavailable', 'status': 'UNKNOWN'}
             except Exception as e:
-                logger.warning(f"Error sending heartbeat via gRPC: {e}")
+                logger.error(f"BYPASS: Error sending heartbeat via gRPC: {e}", exc_info=True)
                 span.record_exception(e)
                 span.set_attribute("error.message", str(e))
                 return {'success': False, 'error': str(e), 'status': 'ERROR'}
 
+    async def _heartbeat_request(self, endpoint: str, user_id: str, client_id: str) -> Dict[str, Any]:
+        """Make the actual heartbeat request with detailed logging."""
+        logger.info(f"DETAILED: About to send heartbeat to {endpoint} for user {user_id}")
+        logger.info(f"DETAILED: client_id={client_id}, user_id={user_id}")
+        
+        _, stub = await self.get_channel(endpoint)
+
+        # Use the correct fields from the protobuf definition
+        request = HeartbeatRequest(
+            client_id=client_id,
+            user_id=user_id,
+            session_instance_id=f"session-{user_id}",
+            last_received_sequence=0
+        )
+
+        logger.info(f"DETAILED: Created HeartbeatRequest:")
+        logger.info(f"  - client_id: {request.client_id}")
+        logger.info(f"  - user_id: {request.user_id}")
+        logger.info(f"  - session_instance_id: {request.session_instance_id}")
+        logger.info(f"  - last_received_sequence: {request.last_received_sequence}")
+
+        try:
+            logger.info(f"DETAILED: Calling stub.Heartbeat for {endpoint}")
+            response = await stub.Heartbeat(
+                request,
+                timeout=10,
+                wait_for_ready=True
+            )
+
+            logger.info(f"DETAILED: Got heartbeat response from {endpoint}:")
+            logger.info(f"  - status: {response.status}")
+            logger.info(f"  - timestamp: {response.timestamp}")
+            logger.info(f"  - current_bin: {getattr(response, 'current_bin', 'N/A')}")
+            logger.info(f"  - next_bin: {getattr(response, 'next_bin', 'N/A')}")
+            logger.info(f"  - market_state: {getattr(response, 'market_state', 'N/A')}")
+
+            # Map the actual protobuf response fields to what the session service expects
+            result = {
+                'success': True,  # If we got a response, consider it successful
+                'server_timestamp': response.timestamp,
+                'status': response.status,
+                'current_bin': getattr(response, 'current_bin', ''),
+                'next_bin': getattr(response, 'next_bin', ''),
+                'market_state': getattr(response, 'market_state', '')
+            }
+            
+            logger.info(f"DETAILED: Returning result: {result}")
+            return result
+            
+        except grpc.aio.AioRpcError as e:
+            logger.error(f"DETAILED: gRPC error sending heartbeat to {endpoint}")
+            logger.error(f"  - Code: {e.code()}")
+            logger.error(f"  - Details: {e.details()}")
+            logger.error(f"  - Debug info: {e.debug_error_string()}")
+            raise
+        except Exception as e:
+            logger.error(f"DETAILED: Non-gRPC error: {type(e).__name__}: {e}")
+            raise
+        
     async def stream_exchange_data(
         self,
         endpoint: str,
@@ -186,7 +234,14 @@ class ExchangeClient(BaseClient):
             try:
                 channel, stub = await self.get_channel(endpoint)
                 
-                request = StreamRequest(client_id=client_id)
+                # Use the correct protobuf fields for StreamRequest
+                request = StreamRequest(
+                    client_id=client_id,
+                    user_id=session_id,  # Use session_id as user_id
+                    connection_timestamp=int(time.time() * 1000),
+                    session_instance_id=f"session-{session_id}",
+                    request_initial_state=True
+                )
 
                 try:
                     stream = stub.StreamExchangeData(request, wait_for_ready=True)
@@ -224,7 +279,6 @@ class ExchangeClient(BaseClient):
                 span.record_exception(e)
                 span.set_attribute("error", str(e))
                 raise
-            
 
     async def _close_endpoint_channel(self, endpoint: str):
         """
@@ -233,50 +287,15 @@ class ExchangeClient(BaseClient):
         Args:
             endpoint: The endpoint to close the channel for
         """
-        if endpoint in self.channels:  # FIXED: was _channels
+        if endpoint in self.channels:
             try:
-                channel, stub = self.channels[endpoint]  # FIXED: was _channels
+                channel, stub = self.channels[endpoint]
                 await channel.close()
                 logger.debug(f"Closed channel to {endpoint}")
             except Exception as e:
                 logger.error(f"Error closing channel to {endpoint}: {e}")
 
             # Remove from dicts regardless of close success
-            del self.channels[endpoint]  # FIXED: was _channels
+            del self.channels[endpoint]
             if endpoint in self.stubs:
                 del self.stubs[endpoint]
-
-    async def _heartbeat_request(self, endpoint: str, session_id: str, client_id: str) -> Dict[str, Any]:
-        """Make the actual heartbeat request."""
-        logger.info(f"DEBUG: About to send heartbeat to {endpoint} for session {session_id}")
-        
-        _, stub = await self.get_channel(endpoint)
-
-        request = HeartbeatRequest(
-            client_timestamp=int(time.time() * 1000)
-        )
-
-        try:
-            logger.info(f"DEBUG: Actually calling stub.Heartbeat for {endpoint}")
-            response = await stub.Heartbeat(
-                request,
-                timeout=10,  # Reduced timeout
-                wait_for_ready=True
-            )
-
-            # Convert status enum to string
-            status_str = SimulatorStatus.Name(response.status) if response.status else 'UNKNOWN'
-
-            logger.info(
-                f"DEBUG: Got heartbeat response from {endpoint}: success={response.success}, "
-                f"timestamp={response.server_timestamp}, status={status_str}"
-            )
-
-            return {
-                'success': response.success,
-                'server_timestamp': response.server_timestamp,
-                'status': status_str
-            }
-        except grpc.aio.AioRpcError as e:
-            logger.error(f"DEBUG: gRPC error sending heartbeat to {endpoint} ({e.code()}): {e.details()}")
-            raise

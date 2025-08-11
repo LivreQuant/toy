@@ -9,6 +9,10 @@ INSERT INTO exch_us_equity.metadata (
     exch_id,
     exchange_type,
 
+    endpoint,
+    pod_name,
+    namespace,
+
     timezone,
     exchanges,
     last_snap,
@@ -16,9 +20,18 @@ INSERT INTO exch_us_equity.metadata (
     market_open,
     market_close,
     post_market_close
+
+
+
 ) VALUES (
     '00000000-0000-0000-0000-000000000002'::UUID,
     'US_EQUITIES',
+
+    -- Use the specific pod name for direct targeting
+    endpoint = '10.244.0.16:50060'  
+    pod_name = 'exch-us-equities-market-data-788964d65b-sz6n7',  
+    namespace = 'default',
+
     'America/New_York',
     ARRAY['NYSE', 'NASDAQ', 'ARCA'],
     '2025-08-11T14:49:00+00:00'::TIMESTAMP WITH TIME ZONE,
