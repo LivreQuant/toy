@@ -22,24 +22,31 @@ INSERT INTO exch_us_equity.metadata (
     post_market_close
 
 
-
 ) VALUES (
     '00000000-0000-0000-0000-000000000002'::UUID,
     'US_EQUITIES',
 
     -- Use the specific pod name for direct targeting
-    endpoint = '10.244.0.16:50060'  
-    pod_name = 'exch-us-equities-market-data-788964d65b-sz6n7',  
-    namespace = 'default',
+    '10.244.0.16:50060',
+    'exchange-service-d95cfcbf8-l9tdh',
+    'default',
 
     'America/New_York',
     ARRAY['NYSE', 'NASDAQ', 'ARCA'],
-    '2025-08-11T14:49:00+00:00'::TIMESTAMP WITH TIME ZONE,
+    '2025-08-12T14:01:00+00:00'::TIMESTAMP WITH TIME ZONE,
     '04:00:00'::TIME,
     '09:30:00'::TIME,
     '16:00:00'::TIME,
     '20:00:00'::TIME
 );
+
+-- kubectl get pod exchange-service-d95cfcbf8-l9tdh -o jsonpath='{.status.podIP}'
+-- kubectl exec -it postgres-5db68c4f8d-rgddr -- psql -U opentp
+UPDATE exch_us_equity.metadata
+SET endpoint = '10.244.0.57:50050', 
+    pod_name = 'exchange-service-d95cfcbf8-6vgd2', 
+    namespace = 'default'
+WHERE exch_id = '00000000-0000-0000-0000-000000000002'::UUID;
 
 -- =====================================================================================
 -- INSERT USER
@@ -115,10 +122,10 @@ INSERT INTO exch_us_equity.account_data (
     change
 ) VALUES
     -- TEMPLATE_USER accounts
-    ('00000000-0000-0000-0000-000000000001', '2025-08-11T14:49:00+00:00'::TIMESTAMP WITH TIME ZONE, 'CREDIT', 'USD', 1000000.0, 1000000.0, 0.0),
-    ('00000000-0000-0000-0000-000000000001', '2025-08-11T14:49:00+00:00'::TIMESTAMP WITH TIME ZONE, 'SHORT_CREDIT', 'USD', 0.0, 0.0, 0.0),
-    ('00000000-0000-0000-0000-000000000001', '2025-08-11T14:49:00+00:00'::TIMESTAMP WITH TIME ZONE, 'DEBIT', 'USD', 0.0, 0.0, 0.0),
-    ('00000000-0000-0000-0000-000000000001', '2025-08-11T14:49:00+00:00'::TIMESTAMP WITH TIME ZONE, 'INVESTOR', 'USD', 0.0, 0.0, 0.0);
+    ('00000000-0000-0000-0000-000000000001', '2025-08-12T14:01:00+00:00'::TIMESTAMP WITH TIME ZONE, 'CREDIT', 'USD', 1000000.0, 1000000.0, 0.0),
+    ('00000000-0000-0000-0000-000000000001', '2025-08-12T14:01:00+00:00'::TIMESTAMP WITH TIME ZONE, 'SHORT_CREDIT', 'USD', 0.0, 0.0, 0.0),
+    ('00000000-0000-0000-0000-000000000001', '2025-08-12T14:01:00+00:00'::TIMESTAMP WITH TIME ZONE, 'DEBIT', 'USD', 0.0, 0.0, 0.0),
+    ('00000000-0000-0000-0000-000000000001', '2025-08-12T14:01:00+00:00'::TIMESTAMP WITH TIME ZONE, 'INVESTOR', 'USD', 0.0, 0.0, 0.0);
 
 -- =====================================================================================
 -- INSERT RETURN DATA

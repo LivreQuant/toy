@@ -46,6 +46,7 @@ class OrchestrationHealthService:
         # Set up routes
         self.app.router.add_get('/health', self.health_check)
         self.app.router.add_get('/readiness', self.readiness_check)
+        self.app.router.add_get('/ready', self.readiness_check)  # ADD THIS LINE
         self.app.router.add_get('/metrics', self.metrics_endpoint)
         self.app.router.add_get('/status', self.detailed_status)
         

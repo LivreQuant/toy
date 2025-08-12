@@ -28,6 +28,7 @@ spec:
         image: opentp/exchange-service:latest
         imagePullPolicy: Never
         ports:
+        - containerPort: 50050  # ADD THIS - Session service port
         - containerPort: 50055  # gRPC service port
         - containerPort: 50056  # HTTP health check port
         - containerPort: 9090   # Metrics port

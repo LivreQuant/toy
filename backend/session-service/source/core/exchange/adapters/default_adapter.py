@@ -3,7 +3,7 @@ from typing import Dict, Any
 
 from source.core.exchange.adapter import ExchangeAdapter
 from source.models.exchange_data import (
-    ExchangeDataUpdate, ExchangeType, MarketDataItem, 
+    ExchangeDataUpdate, ExchangeType, EquityDataItem, 
     OrderItem, PositionItem, PortfolioItem
 )
 from source.api.grpc.session_exchange_interface_pb2 import ExchangeDataUpdate as GrpcExchangeDataUpdate
@@ -14,6 +14,8 @@ class DefaultExchangeAdapter(ExchangeAdapter):
     async def convert_from_protobuf(self, protobuf_data: GrpcExchangeDataUpdate) -> ExchangeDataUpdate:
         """Convert protobuf message directly to standardized format in one step"""
         
+        print(f"PROTOBUF DATA: {protobuf_data}")
+
         # Create the base exchange data update
         exchange_data = ExchangeDataUpdate(
             timestamp=protobuf_data.timestamp,
@@ -21,9 +23,9 @@ class DefaultExchangeAdapter(ExchangeAdapter):
         )
         
         # Convert market data
-        for item in protobuf_data.market_data:
-            exchange_data.market_data.append(
-                MarketDataItem(
+        for item in protobuf_data.equity_data:
+            exchange_data.equity_data.append(
+                EquityDataItem(
                     symbol=item.symbol,
                     open=item.open,
                     high=item.high,

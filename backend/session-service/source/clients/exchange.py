@@ -217,6 +217,7 @@ class ExchangeClient(BaseClient):
         endpoint: str,
         session_id: str,
         client_id: str,
+        user_id: str,  # ADD user_id parameter
         exchange_type: ExchangeType = None,
     ) -> AsyncGenerator[ExchangeDataUpdate, None]:
         """Stream exchange data with better error handling for pod termination"""
@@ -237,7 +238,7 @@ class ExchangeClient(BaseClient):
                 # Use the correct protobuf fields for StreamRequest
                 request = StreamRequest(
                     client_id=client_id,
-                    user_id=session_id,  # Use session_id as user_id
+                    user_id=user_id,  # Use session_id as user_id
                     connection_timestamp=int(time.time() * 1000),
                     session_instance_id=f"session-{session_id}",
                     request_initial_state=True

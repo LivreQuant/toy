@@ -36,7 +36,7 @@ class OrderStatus(str, Enum):
     REJECTED = "REJECTED"
 
 
-class MarketDataItem(BaseModel):
+class EquityDataItem(BaseModel):
     """Standardized market data item"""
     symbol: str
     open: float
@@ -88,7 +88,7 @@ class ExchangeDataUpdate(BaseModel):
     timestamp: int = Field(default_factory=lambda: int(time.time() * 1000))
     exchange_type: ExchangeType = ExchangeType.GENERIC
     
-    market_data: List[MarketDataItem] = Field(default_factory=list)
+    equity_data: List[EquityDataItem] = Field(default_factory=list)
     orders: List[OrderItem] = Field(default_factory=list)
     portfolio: Optional[PortfolioItem] = None
     
@@ -101,7 +101,7 @@ class ExchangeDataUpdate(BaseModel):
             "updateId": self.update_id,
             "timestamp": self.timestamp,
             "exchangeType": self.exchange_type,
-            "marketData": [item.dict() for item in self.market_data],
+            "equityData": [item.dict() for item in self.equity_data],
             "orders": [order.dict() for order in self.orders],
             "portfolio": self.portfolio.dict() if self.portfolio else None,
             "metadata": self.metadata

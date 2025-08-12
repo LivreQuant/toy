@@ -155,17 +155,20 @@ class UserDataLoader:
 
     def _create_default_account_data(self) -> Dict:
         """Create default account data structure with initial USD balance"""
-        from source.simulation.managers.account import AccountManager
-
-        accounts = {balance_type: {} for balance_type in AccountManager.VALID_TYPES}
-
-        # Create default USD balance in 'balance' type
+        # Create default USD balance
         default_balance = AccountBalance(
             currency='USD',
             amount=Decimal('1000000.00')  # 1M USD starting balance
         )
 
-        accounts['balance']['USD'] = default_balance
+        # Create accounts structure with guaranteed 'balance' key
+        accounts = {
+            'balance': {'USD': default_balance},
+            'cash': {},
+            'margin': {},
+            'settled': {},
+            'unsettled': {}
+        }
 
         self.logger.info("✅ Created default account structure with 1M USD balance")
         return accounts

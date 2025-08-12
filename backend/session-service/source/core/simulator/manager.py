@@ -48,24 +48,17 @@ class SimulatorManager:
         self.data_callback = callback
 
     async def find_user_simulator(self, user_id: str) -> Tuple[Optional[Dict], str]:
-        """
-        Find user's exchange pod from database
-        
-        Args:
-            user_id: User ID
-            
-        Returns:
-            Tuple of (pod_info, error_message)
-        """
+        """Find user's exchange pod from database"""
         with optional_trace_span(self.tracer, "find_user_simulator") as span:
             span.set_attribute("user_id", user_id)
             
             try:
                 pool = await self.store_manager.session_store._get_pool()
                 async with pool.acquire() as conn:
-                    # Get user's exchange info
+                    # Get user's exchange info INCLUDING ENDPOINT from database
                     row = await conn.fetchrow('''
-                        SELECT u.user_id, u.exch_id, m.pod_name, m.namespace, m.exchange_type
+                        SELECT u.user_id, u.exch_id, m.pod_name, m.namespace, 
+                            m.exchange_type, m.endpoint
                         FROM exch_us_equity.users u
                         JOIN exch_us_equity.metadata m ON u.exch_id = m.exch_id
                         WHERE u.user_id = $1
@@ -77,32 +70,33 @@ class SimulatorManager:
                     
                     pod_name = row['pod_name']
                     namespace = row['namespace'] or 'default'
+                    endpoint = row['endpoint']  # GET FROM DATABASE
                     
                     if not pod_name:
                         return None, f"No pod name configured for user {user_id}"
                     
-                    # Get pod endpoint from Kubernetes
-                    pod_endpoint = await self.k8s_client.get_pod_endpoint(pod_name, namespace)
-                    if not pod_endpoint:
-                        return None, f"Pod {pod_name} not found or not running"
+                    if not endpoint:
+                        return None, f"No endpoint configured for user {user_id}"
                     
+                    # REMOVE ALL KUBERNETES API CALLS - USE DATABASE ONLY
                     simulator_info = {
                         'simulator_id': f"sim-{pod_name}",
                         'user_id': user_id,
                         'exch_id': str(row['exch_id']),
                         'pod_name': pod_name,
-                        'endpoint': pod_endpoint['endpoint'],
+                        'endpoint': endpoint,  # USE DATABASE ENDPOINT
                         'namespace': namespace,
                         'exchange_type': row['exchange_type'],
                         'status': 'RUNNING'
                     }
                     
-                    logger.info(f"Found simulator for user {user_id}: {pod_name} -> {pod_endpoint['endpoint']}")
+                    logger.info(f"Found simulator for user {user_id}: {pod_name} -> {endpoint}")
                     return simulator_info, ""
                     
             except Exception as e:
                 logger.error(f"Error finding simulator for user {user_id}: {e}", exc_info=True)
                 return None, f"Database error: {str(e)}"
+            
 
     async def connect_to_simulator(self, user_id: str) -> Tuple[bool, str]:
         """
@@ -239,7 +233,7 @@ class SimulatorManager:
         if self._connection_retry_task and not self._connection_retry_task.done():
             self._connection_retry_task.cancel()
 
-    async def stream_exchange_data(self, session_id: str, client_id: str):
+    async def stream_exchange_data(self, session_id: str, client_id: str, user_id: str):
         """Stream data from connected simulator"""
         if not self.current_endpoint:
             raise ValueError("No simulator connected")
@@ -248,7 +242,7 @@ class SimulatorManager:
         
         try:
             async for data in self.exchange_client.stream_exchange_data(
-                self.current_endpoint, session_id, client_id, ExchangeType.EQUITIES
+                self.current_endpoint, session_id, client_id, user_id, ExchangeType.EQUITIES
             ):
                 if self.data_callback:
                     try:

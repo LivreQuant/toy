@@ -7,7 +7,7 @@ import logging
 import queue
 import grpc
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict
 from concurrent import futures
 
@@ -88,6 +88,33 @@ class MultiUserSessionServiceImpl(SessionExchangeSimulatorServicer, BaseServiceI
             self.logger.error(f"❌ SESSION SERVICE: Failed to start server: {e}")
             raise
 
+    def GetSessionStatus(self, request, context):
+        """Get session connection status for a user"""
+        try:
+            from source.api.grpc.session_exchange_interface_pb2 import SessionStatusResponse
+            
+            response = SessionStatusResponse()
+            response.user_id = request.user_id
+            response.is_connected = request.user_id in self._active_streams
+            response.connection_count = 1 if response.is_connected else 0
+            response.last_update_timestamp = int(datetime.now().timestamp() * 1000)
+            response.next_sequence_number = 0
+            
+            if response.is_connected:
+                response.active_session_instances.append(request.session_instance_id)
+            
+            self.logger.info(f"📊 SESSION_STATUS: User {request.user_id} - connected: {response.is_connected}")
+            return response
+            
+        except Exception as e:
+            self.logger.error(f"❌ SESSION_STATUS: Error getting session status: {e}")
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(f'Internal error: {e}')
+            
+            # Return empty response on error
+            from source.api.grpc.session_exchange_interface_pb2 import SessionStatusResponse
+            return SessionStatusResponse()
+        
     def GetHealth(self, request: HealthRequest, context: grpc.ServicerContext):
         """Get server health status"""
         try:
@@ -522,21 +549,40 @@ class MultiUserSessionServiceImpl(SessionExchangeSimulatorServicer, BaseServiceI
 
             print(f"🔥🔥🔥 SESSION SERVICE: Error adding FX state: {e}")
 
-    def Heartbeat(self, request: HeartbeatRequest, context: grpc.ServicerContext):
-
-        """Handle heartbeat requests"""
-
-        self.logger.info(f"💓 HEARTBEAT: Received from user {request.user_id}")
-
-        response = HeartbeatResponse()
-
-        response.status = "healthy"
-
-        response.server_timestamp = int(datetime.now().timestamp() * 1000)
-
-        response.active_connections = len(self._active_streams)
-
-        return response
+    def Heartbeat(self, request: HeartbeatRequest, context: grpc.ServicerContext) -> HeartbeatResponse:
+        """Enhanced heartbeat with session status information"""
+        try:
+            self.logger.info(f"🏥 HEARTBEAT: Received heartbeat request from user {request.user_id}")
+            
+            response = HeartbeatResponse()
+            response.status = "OK"
+            response.timestamp = int(datetime.now().timestamp() * 1000)
+            response.current_bin = "live"  # or get from your state manager
+            response.next_bin = "next"
+            response.market_state = "OPEN"
+            
+            # Optional: Add connection info
+            if hasattr(response, 'connection_info') and response.connection_info:
+                response.connection_info.active_connections = 1
+                response.connection_info.next_expected_sequence = 0
+                response.connection_info.last_sent_timestamp = response.timestamp
+                response.connection_info.is_primary_connection = True
+            
+            self.logger.info(f"🏥 HEARTBEAT: Responding with status {response.status} for user {request.user_id}")
+            return response
+            
+        except Exception as e:
+            self.logger.error(f"❌ HEARTBEAT: Error processing heartbeat for user {request.user_id}: {e}")
+            
+            response = HeartbeatResponse()
+            response.status = "ERROR"
+            response.timestamp = int(datetime.now().timestamp() * 1000)
+            response.current_bin = "unknown"
+            response.next_bin = "unknown"
+            response.market_state = "UNKNOWN"
+            
+            return response
+        
 
     def stop(self):
 

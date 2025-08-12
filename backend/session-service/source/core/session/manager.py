@@ -98,16 +98,16 @@ class SessionManager:
         await self.simulator_manager.start_connection_retry(user_id)
         
         # Start data streaming task
-        await self._start_data_streaming(session_id)
+        await self._start_data_streaming(session_id, user_id)
         
         logger.info(f"Session started successfully for user {user_id}")
         return True, ""
 
-    async def _start_data_streaming(self, session_id: str):
+    async def _start_data_streaming(self, session_id: str, user_id: str):
         """Start exchange data streaming task"""
         try:
             stream_task = asyncio.create_task(
-                self._stream_simulator_data(session_id)
+                self._stream_simulator_data(session_id, user_id)
             )
             stream_task.set_name(f"stream-{session_id}")
             
@@ -119,7 +119,7 @@ class SessionManager:
         except Exception as e:
             logger.error(f"Failed to start data streaming: {e}", exc_info=True)
 
-    async def _stream_simulator_data(self, session_id: str):
+    async def _stream_simulator_data(self, session_id: str, user_id: str):
         """Stream data from connected simulator (with retry logic)"""
         while True:
             try:
@@ -134,7 +134,7 @@ class SessionManager:
                 
                 # Stream data while connected
                 async for data in self.simulator_manager.stream_exchange_data(
-                    session_id, f"stream-{session_id}"
+                    session_id, f"stream-{session_id}", user_id
                 ):
                     # Data is automatically forwarded via callback
                     pass
