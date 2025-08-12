@@ -29,7 +29,11 @@ ENV PYTHONUNBUFFERED=1 \
     HOST=0.0.0.0 \
     LOG_LEVEL=INFO \
     PYTHONPATH=/app \
-    KUBERNETES_REGISTRY_SECRET=do-registry-credentials
+    KUBERNETES_REGISTRY_SECRET=do-registry-credentials \
+    WS_ENABLE_DELTA=true \
+    WS_ENABLE_COMPRESSION=false \
+    WS_COMPRESSION_THRESHOLD=500 \
+    WS_COMPRESSION_LEVEL=6
 
 # Expose ports for HTTP and WebSocket
 EXPOSE 8080

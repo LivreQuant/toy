@@ -1,7 +1,7 @@
 # source/core/stream/delta_manager.py
 """
 Delta compression manager for exchange data streaming.
-Calculates and applies deltas to minimize bandwidth usage.
+FIXED: Does exactly what's configured - no fallback logic.
 """
 import json
 import logging
@@ -18,12 +18,11 @@ class DeltaType(str, Enum):
     """Types of delta operations"""
     FULL = "FULL"           # Full payload (first message or after reset)
     DELTA = "DELTA"         # Delta payload with changes only
-    COMPRESSED = "COMPRESSED"  # Compressed delta payload
 
 
 @dataclass
 class DeltaMessage:
-    """Container for delta-compressed messages"""
+    """Container for delta messages with optional compression"""
     type: DeltaType
     sequence: int
     timestamp: int
@@ -36,27 +35,30 @@ class DeltaMessage:
 
 class DeltaManager:
     """
-    Manages delta compression for exchange data streaming.
-    
-    Features:
-    - Calculates deltas between sequential messages
-    - Compresses delta payloads using zlib
-    - Handles full payload transmission for first message or reset
-    - Tracks compression statistics
+    Manages delta calculation and optional compression for exchange data streaming.
+    FIXED: No fallback logic - does exactly what's configured.
     """
 
-    def __init__(self, compression_threshold: int = 100, compression_level: int = 6):
+    def __init__(self, 
+                 enable_delta: bool = True,
+                 enable_compression: bool = True, 
+                 compression_threshold: int = 100, 
+                 compression_level: int = 6):
         """
         Initialize delta manager
         
         Args:
+            enable_delta: Whether to calculate deltas (FULL vs DELTA)
+            enable_compression: Whether to apply zlib compression
             compression_threshold: Minimum payload size to apply compression
             compression_level: zlib compression level (1-9, higher = better compression)
         """
+        self.enable_delta = enable_delta
+        self.enable_compression = enable_compression
         self.compression_threshold = compression_threshold
         self.compression_level = compression_level
         
-        # Store last complete state for each client
+        # Store last complete state for each client (only if delta enabled)
         self.client_states: Dict[str, Dict[str, Any]] = {}
         
         # Sequence tracking
@@ -73,18 +75,19 @@ class DeltaManager:
             'compression_ratio_sum': 0.0
         }
         
-        logger.info(f"Delta manager initialized with compression threshold: {compression_threshold}")
+        logger.info(f"Delta manager initialized - Delta: {'ON' if enable_delta else 'OFF'}, Compression: {'ON' if enable_compression else 'OFF'}")
 
     def process_message(self, client_id: str, data: Dict[str, Any]) -> DeltaMessage:
         """
         Process incoming exchange data and create delta message
+        FIXED: No fallback logic - strictly follows configuration
         
         Args:
             client_id: Unique identifier for the client connection
             data: Complete exchange data message
             
         Returns:
-            DeltaMessage with delta or full payload
+            DeltaMessage with delta or full payload, optionally compressed
         """
         current_sequence = self.client_sequences.get(client_id, 0) + 1
         self.client_sequences[client_id] = current_sequence
@@ -95,10 +98,16 @@ class DeltaManager:
         self.stats['total_original_bytes'] += original_size
         self.stats['messages_processed'] += 1
         
-        # Check if this is the first message for this client
+        # STEP 1: Determine if this should be FULL or DELTA
+        if not self.enable_delta:
+            # Delta disabled - always send full
+            logger.debug(f"Delta disabled - sending FULL payload for client {client_id}")
+            return self._create_message(client_id, data, DeltaType.FULL, current_sequence, original_size)
+        
+        # Delta enabled - check if this is the first message for this client
         if client_id not in self.client_states:
-            logger.info(f"Sending full payload for new client {client_id} (sequence: {current_sequence})")
-            return self._create_full_message(client_id, data, current_sequence, original_size)
+            logger.info(f"First message for client {client_id} - sending FULL payload (sequence: {current_sequence})")
+            return self._create_message(client_id, data, DeltaType.FULL, current_sequence, original_size)
         
         # Calculate delta from previous state
         previous_state = self.client_states[client_id]
@@ -107,13 +116,9 @@ class DeltaManager:
         # Update stored state
         self.client_states[client_id] = data.copy()
         
-        # If delta is too large or empty, send full payload
-        if not delta_payload or self._should_send_full(delta_payload, data):
-            logger.debug(f"Delta too large or empty for client {client_id}, sending full payload")
-            return self._create_full_message(client_id, data, current_sequence, original_size)
-        
-        # Create delta message
-        return self._create_delta_message(client_id, delta_payload, current_sequence, original_size)
+        # SEND DELTA - NO FALLBACK LOGIC
+        logger.debug(f"Sending DELTA payload for client {client_id}")
+        return self._create_message(client_id, delta_payload, DeltaType.DELTA, current_sequence, original_size)
 
     def _calculate_delta(self, previous: Dict[str, Any], current: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -145,8 +150,7 @@ class DeltaManager:
                     if nested_delta:
                         delta[key] = nested_delta
                 elif isinstance(curr_value, list) and isinstance(prev_value, list):
-                    # List comparison - for now, replace entire list if different
-                    # Could be optimized further for large lists
+                    # List comparison - replace entire list if different
                     delta[key] = curr_value
                 else:
                     # Value changed or added
@@ -154,93 +158,48 @@ class DeltaManager:
         
         return delta
 
-    def _should_send_full(self, delta: Dict[str, Any], full_data: Dict[str, Any]) -> bool:
-        """
-        Determine if we should send full payload instead of delta
+    def _create_message(self, client_id: str, payload: Dict[str, Any], 
+                       delta_type: DeltaType, sequence: int, original_size: int) -> DeltaMessage:
+        """Create a message with optional compression"""
         
-        Args:
-            delta: Calculated delta
-            full_data: Complete data
-            
-        Returns:
-            True if full payload should be sent
-        """
-        delta_json = json.dumps(delta, separators=(',', ':'))
-        full_json = json.dumps(full_data, separators=(',', ':'))
+        # Store the complete state if this is a FULL message and delta is enabled
+        if delta_type == DeltaType.FULL and self.enable_delta:
+            self.client_states[client_id] = payload.copy()
         
-        delta_size = len(delta_json.encode('utf-8'))
-        full_size = len(full_json.encode('utf-8'))
-        
-        # If delta is more than 70% the size of full data, send full
-        return delta_size > (full_size * 0.7)
-
-    def _create_full_message(self, client_id: str, data: Dict[str, Any], 
-                           sequence: int, original_size: int) -> DeltaMessage:
-        """Create a full payload message"""
-        # Store the complete state
-        self.client_states[client_id] = data.copy()
-        
-        # Try compression if payload is large enough
-        payload = data.copy()
+        # STEP 2: Apply compression if enabled
+        final_payload = payload.copy()
         compressed = False
         compression_ratio = None
-        transmitted_size = original_size
         
-        if original_size > self.compression_threshold:
+        payload_json = json.dumps(payload, separators=(',', ':'))
+        payload_size = len(payload_json.encode('utf-8'))
+        transmitted_size = payload_size
+        
+        # COMPRESS IF ENABLED AND ABOVE THRESHOLD - NO FALLBACK
+        if self.enable_compression and payload_size > self.compression_threshold:
             compressed_payload, compression_ratio = self._compress_payload(payload)
-            if compressed_payload and compression_ratio > 1.2:  # Only use if >20% savings
-                payload = compressed_payload
+            if compressed_payload:  # Use compression if it worked
+                final_payload = compressed_payload
                 compressed = True
-                transmitted_size = len(json.dumps(payload, separators=(',', ':')).encode('utf-8'))
+                transmitted_size = len(json.dumps(final_payload, separators=(',', ':')).encode('utf-8'))
+                logger.debug(f"Compressed {delta_type.value} payload: {payload_size}→{transmitted_size} bytes")
         
-        self.stats['full_messages_sent'] += 1
+        # Update statistics
+        if delta_type == DeltaType.FULL:
+            self.stats['full_messages_sent'] += 1
+        else:
+            self.stats['delta_messages_sent'] += 1
+            
         if compressed:
             self.stats['compressed_messages_sent'] += 1
+            
         self.stats['total_transmitted_bytes'] += transmitted_size
         
         return DeltaMessage(
-            type=DeltaType.COMPRESSED if compressed else DeltaType.FULL,
+            type=delta_type,
             sequence=sequence,
             timestamp=int(time.time() * 1000),
-            payload=payload,
-            compressed=compressed,
-            compression_ratio=compression_ratio,
-            original_size=original_size,
-            delta_size=transmitted_size
-        )
-
-    def _create_delta_message(self, client_id: str, delta: Dict[str, Any], 
-                            sequence: int, original_size: int) -> DeltaMessage:
-        """Create a delta payload message"""
-        delta_json = json.dumps(delta, separators=(',', ':'))
-        delta_size = len(delta_json.encode('utf-8'))
-        
-        # Try compression on delta
-        payload = delta.copy()
-        compressed = False
-        compression_ratio = None
-        transmitted_size = delta_size
-        
-        if delta_size > self.compression_threshold:
-            compressed_payload, compression_ratio = self._compress_payload(delta)
-            if compressed_payload and compression_ratio > 1.2:
-                payload = compressed_payload
-                compressed = True
-                transmitted_size = len(json.dumps(payload, separators=(',', ':')).encode('utf-8'))
-        
-        self.stats['delta_messages_sent'] += 1
-        if compressed:
-            self.stats['compressed_messages_sent'] += 1
-        self.stats['total_transmitted_bytes'] += transmitted_size
-        
-        logger.debug(f"Delta for client {client_id}: {original_size}→{transmitted_size} bytes "
-                    f"({(transmitted_size/original_size)*100:.1f}% of original)")
-        
-        return DeltaMessage(
-            type=DeltaType.COMPRESSED if compressed else DeltaType.DELTA,
-            sequence=sequence,
-            timestamp=int(time.time() * 1000),
-            payload=payload,
+            payload=final_payload,
             compressed=compressed,
             compression_ratio=compression_ratio,
             original_size=original_size,
@@ -298,13 +257,19 @@ class DeltaManager:
         return {
             'has_state': client_id in self.client_states,
             'sequence': self.client_sequences.get(client_id, 0),
-            'state_keys': list(self.client_states.get(client_id, {}).keys())
+            'state_keys': list(self.client_states.get(client_id, {}).keys()),
+            'delta_enabled': self.enable_delta,
+            'compression_enabled': self.enable_compression
         }
 
     def get_statistics(self) -> Dict[str, Any]:
         """Get compression and delta statistics"""
         if self.stats['messages_processed'] == 0:
-            return self.stats.copy()
+            return {
+                **self.stats,
+                'delta_enabled': self.enable_delta,
+                'compression_enabled': self.enable_compression
+            }
         
         avg_compression_ratio = (self.stats['compression_ratio_sum'] / 
                                max(1, self.stats['compressed_messages_sent']))
@@ -314,9 +279,12 @@ class DeltaManager:
         
         return {
             **self.stats,
+            'delta_enabled': self.enable_delta,
+            'compression_enabled': self.enable_compression,
             'average_compression_ratio': avg_compression_ratio,
             'overall_bandwidth_savings': f"{((overall_compression - 1) * 100):.1f}%",
-            'overall_compression_ratio': overall_compression
+            'overall_compression_ratio': overall_compression,
+            'delta_percentage': f"{(self.stats['delta_messages_sent'] / max(1, self.stats['messages_processed']) * 100):.1f}%"
         }
 
     def cleanup_old_clients(self, active_client_ids: Set[str]):

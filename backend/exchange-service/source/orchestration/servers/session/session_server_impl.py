@@ -1,6 +1,6 @@
 # source/orchestration/servers/session/session_server_impl.py
 """
-COMPLETE FIXED Session Server Implementation
+COMPLETE Session Server Implementation - FIXED BATCHING
 """
 
 import logging
@@ -8,7 +8,7 @@ import queue
 import grpc
 import uuid
 from datetime import datetime, timedelta
-from typing import Dict
+from typing import Dict, List
 from concurrent import futures
 
 from source.orchestration.servers.utils import BaseServiceImpl
@@ -249,7 +249,7 @@ class MultiUserSessionServiceImpl(SessionExchangeSimulatorServicer, BaseServiceI
         self.logger.info(f"📤 INITIAL STATE: Sending to user {user_id}")
 
     def _on_market_data_update(self, update_data):
-        """Handle market data updates - MAIN CALLBACK"""
+        """Handle market data updates - MAIN CALLBACK - FIXED FOR BATCHING"""
         print(f"🔥🔥🔥 SESSION SERVICE: _on_market_data_update CALLED!")
         print(f"🔥🔥🔥 SESSION SERVICE: Received {len(update_data) if update_data else 0} updates")
 
@@ -257,50 +257,39 @@ class MultiUserSessionServiceImpl(SessionExchangeSimulatorServicer, BaseServiceI
             if not update_data:
                 return
 
-            for i, update in enumerate(update_data):
-                print(f"🔥🔥🔥 SESSION SERVICE: Processing update {i + 1}/{len(update_data)}")
+            # FIXED: Create a SINGLE batched exchange update with ALL equity data
+            batched_exchange_update = self._create_batched_exchange_update(update_data)
 
-                # FIXED: Create complete exchange update
-                base_exchange_update = self._create_exchange_update_FIXED(update)
+            # Queue the SINGLE batched update for all active users
+            for user_id in self._active_streams:
+                user_exchange_update = ExchangeDataUpdate()
+                user_exchange_update.CopyFrom(batched_exchange_update)
+                user_exchange_update.user_id = str(user_id)  # Convert UUID to string
 
-                # Queue for all active users
-                for user_id in self._active_streams:
-                    user_exchange_update = ExchangeDataUpdate()
-                    user_exchange_update.CopyFrom(base_exchange_update)
-                    user_exchange_update.user_id = str(user_id)  # Convert UUID to string
-
-                    if user_id in self._user_stream_queues:
-                        self._user_stream_queues[user_id].put(user_exchange_update)
+                if user_id in self._user_stream_queues:
+                    self._user_stream_queues[user_id].put(user_exchange_update)
 
             self.logger.info(
-                f"✅ SESSION SERVICE: Queued {len(update_data)} updates for {len(self._active_streams)} active streams")
+                f"✅ SESSION SERVICE: Queued 1 BATCHED update (containing {len(update_data)} equity updates) for {len(self._active_streams)} active streams")
 
         except Exception as e:
             print(f"🔥🔥🔥 SESSION SERVICE: EXCEPTION in _on_market_data_update: {e}")
             import traceback
             print(f"🔥🔥🔥 SESSION SERVICE: Traceback:\n{traceback.format_exc()}")
 
-    def _create_exchange_update_FIXED(self, market_data):
-        """FIXED: Create ExchangeDataUpdate with complete exchange state"""
-        print(f"🔥🔥🔥 SESSION SERVICE: Creating COMPLETE exchange update from market_data")
+    def _create_batched_exchange_update(self, update_data_list: List) -> ExchangeDataUpdate:
+        """FIXED: Create a SINGLE ExchangeDataUpdate with ALL equity data batched together"""
+        print(f"🔥🔥🔥 SESSION SERVICE: Creating BATCHED exchange update from {len(update_data_list)} market data items")
 
         try:
             update = ExchangeDataUpdate()
 
-            # Add equity data from market data trigger
-            if 'symbol' in market_data:
-                equity = update.equity_data.add()
-                equity.symbol = market_data.get('symbol', '')
-                equity.open = float(market_data.get('open', 0))
-                equity.high = float(market_data.get('high', 0))
-                equity.low = float(market_data.get('low', 0))
-                equity.close = float(market_data.get('close', 0))
-                equity.volume = int(market_data.get('volume', 0))
-                equity.vwap = float(market_data.get('vwap', 0))
-
-            # FIXED: Set timestamp from market data
-            if 'timestamp' in market_data:
-                timestamp_str = market_data['timestamp']
+            # Set common fields from first update item
+            first_update = update_data_list[0] if update_data_list else {}
+            
+            # Set timestamp from first market data item
+            if 'timestamp' in first_update:
+                timestamp_str = first_update['timestamp']
                 try:
                     if isinstance(timestamp_str, str):
                         from dateutil.parser import parse
@@ -313,7 +302,29 @@ class MultiUserSessionServiceImpl(SessionExchangeSimulatorServicer, BaseServiceI
             else:
                 update.timestamp = int(datetime.now().timestamp() * 1000)
 
+            # Set sequence number
             update.sequence_number = self._get_next_sequence()
+
+            # Generate unique broadcast ID
+            import uuid
+            update.broadcast_id = str(uuid.uuid4())
+
+            # FIXED: Add ALL equity data to the SAME message
+            for market_data in update_data_list:
+                if 'symbol' in market_data:
+                    equity = update.equity_data.add()  # Add to repeated field
+                    equity.symbol = market_data.get('symbol', '')
+                    equity.open = float(market_data.get('open', 0))
+                    equity.high = float(market_data.get('high', 0))
+                    equity.low = float(market_data.get('low', 0))
+                    equity.close = float(market_data.get('close', 0))
+                    equity.volume = int(market_data.get('volume', 0))
+                    equity.vwap = float(market_data.get('vwap', 0))
+                    equity.currency = market_data.get('currency', 'USD')
+                    
+                    print(f"🔥🔥🔥 SESSION SERVICE: Added equity data for {equity.symbol}")
+
+            print(f"🔥🔥🔥 SESSION SERVICE: BATCHED update contains {len(update.equity_data)} equity entries")
 
             # FIXED: Add complete exchange state for all users
             users = self.exchange_group_manager.get_all_users()
@@ -332,10 +343,16 @@ class MultiUserSessionServiceImpl(SessionExchangeSimulatorServicer, BaseServiceI
             return update
 
         except Exception as e:
-            print(f"🔥🔥🔥 SESSION SERVICE: EXCEPTION creating exchange update: {e}")
+            print(f"🔥🔥🔥 SESSION SERVICE: EXCEPTION creating batched exchange update: {e}")
             import traceback
             print(f"🔥🔥🔥 SESSION SERVICE: Traceback:\n{traceback.format_exc()}")
             raise
+
+    def _create_exchange_update_FIXED(self, market_data):
+        """LEGACY METHOD - REPLACED BY _create_batched_exchange_update"""
+        # This method is kept for compatibility but should no longer be used
+        # The new batching approach is in _create_batched_exchange_update
+        return self._create_batched_exchange_update([market_data])
 
     def _add_complete_user_state_FIXED(self, update, user_context):
         """FIXED: Add complete user state to the exchange update"""
@@ -536,17 +553,14 @@ class MultiUserSessionServiceImpl(SessionExchangeSimulatorServicer, BaseServiceI
 
             fx_rates = fx_manager.get_all_rates()
             for rate_key, rate_value in fx_rates.items():
-                fx_rate = update.fx_rates.add()
+                fx_rate = update.fx_rates.rates.add()
                 if '/' in str(rate_key):
                     from_curr, to_curr = str(rate_key).split('/')
                     fx_rate.from_currency = from_curr
                     fx_rate.to_currency = to_curr
                 fx_rate.rate = float(rate_value)
-                fx_rate.timestamp = int(datetime.now().timestamp() * 1000)
-
 
         except Exception as e:
-
             print(f"🔥🔥🔥 SESSION SERVICE: Error adding FX state: {e}")
 
     def Heartbeat(self, request: HeartbeatRequest, context: grpc.ServicerContext) -> HeartbeatResponse:
@@ -582,17 +596,11 @@ class MultiUserSessionServiceImpl(SessionExchangeSimulatorServicer, BaseServiceI
             response.market_state = "UNKNOWN"
             
             return response
-        
 
     def stop(self):
-
         """Stop the session service"""
-
         if self.server and self.running:
             self.logger.info("🛑 SESSION SERVICE: Stopping gRPC server")
-
             self.server.stop(grace=5)
-
             self.running = False
-
             self.logger.info("✅ SESSION SERVICE: Stopped")

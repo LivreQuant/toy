@@ -44,6 +44,106 @@ async def health_check(request):
     })
 
 
+async def processing_status_endpoint(request):
+    """Get current processing configuration and statistics"""
+    try:
+        websocket_manager = request.app.get('websocket_manager')
+        
+        response_data = {
+            'delta_enabled': config.websocket.enable_delta,
+            'compression_enabled': config.websocket.enable_compression,
+            'compression_threshold': config.websocket.compression_threshold,
+            'compression_level': config.websocket.compression_level,
+            'active_connections': websocket_manager.get_connection_count() if websocket_manager else 0,
+            'processing_mode': websocket_manager._get_processing_description() if websocket_manager else 'UNKNOWN',
+            'timestamp': time.time()
+        }
+        
+        # Add processing statistics if available
+        if websocket_manager:
+            stats = websocket_manager.get_processing_statistics()
+            response_data['statistics'] = stats
+        
+        return web.json_response(response_data)
+        
+    except Exception as e:
+        logger.error(f"Error getting processing status: {e}", exc_info=True)
+        return web.json_response({
+            'error': 'Failed to get processing status',
+            'timestamp': time.time()
+        }, status=500)
+
+
+async def toggle_processing_endpoint(request):
+    """Toggle delta and/or compression on/off at runtime (POST endpoint)"""
+    try:
+        data = await request.json()
+        enable_delta = data.get('enable_delta')
+        enable_compression = data.get('enable_compression')
+        
+        if enable_delta is None and enable_compression is None:
+            return web.json_response({
+                'error': 'Must specify enable_delta and/or enable_compression parameter',
+                'timestamp': time.time()
+            }, status=400)
+        
+        websocket_manager = request.app.get('websocket_manager')
+        if not websocket_manager:
+            return web.json_response({
+                'error': 'WebSocket manager not available',
+                'timestamp': time.time()
+            }, status=500)
+        
+        # Update the configuration
+        old_delta = config.websocket.enable_delta
+        old_compression = config.websocket.enable_compression
+        
+        if enable_delta is not None:
+            config.websocket.enable_delta = bool(enable_delta)
+        if enable_compression is not None:
+            config.websocket.enable_compression = bool(enable_compression)
+        
+        # Reinitialize the WebSocket manager's processing system
+        from source.core.stream.delta_manager import DeltaManager
+        
+        if config.websocket.enable_delta or config.websocket.enable_compression:
+            # Enable processing
+            websocket_manager.delta_manager = DeltaManager(
+                enable_delta=config.websocket.enable_delta,
+                enable_compression=config.websocket.enable_compression,
+                compression_threshold=config.websocket.compression_threshold,
+                compression_level=config.websocket.compression_level
+            )
+            websocket_manager.delta_enabled = config.websocket.enable_delta
+            websocket_manager.compression_enabled = config.websocket.enable_compression
+            logger.info(f"Processing updated at runtime - Delta: {'ON' if config.websocket.enable_delta else 'OFF'}, Compression: {'ON' if config.websocket.enable_compression else 'OFF'}")
+        else:
+            # Disable all processing
+            websocket_manager.delta_manager = None
+            websocket_manager.delta_enabled = False
+            websocket_manager.compression_enabled = False
+            logger.info("All processing DISABLED at runtime - sending raw data")
+        
+        return web.json_response({
+            'success': True,
+            'old_delta': old_delta,
+            'old_compression': old_compression,
+            'new_delta': config.websocket.enable_delta,
+            'new_compression': config.websocket.enable_compression,
+            'processing_mode': websocket_manager._get_processing_description(),
+            'active_connections': websocket_manager.get_connection_count(),
+            'timestamp': time.time()
+        })
+        
+    except Exception as e:
+        logger.error(f"Error toggling processing: {e}", exc_info=True)
+        return web.json_response({
+            'error': 'Failed to toggle processing',
+            'details': str(e),
+            'timestamp': time.time()
+        }, status=500)
+
+
 class SessionServer:
     def __init__(self):
         self.state_manager = StateManager()
@@ -72,6 +172,8 @@ class SessionServer:
             return
 
         logger.info("Initializing server components")
+        logger.info(f"WebSocket Delta: {'ENABLED' if config.websocket.enable_delta else 'DISABLED'}")
+        logger.info(f"WebSocket Compression: {'ENABLED' if config.websocket.enable_compression else 'DISABLED'}")
 
         try:
             # Initialize state manager
@@ -167,6 +269,10 @@ class SessionServer:
         self.app.router.add_get('/health', health_check)
         self.app.router.add_get('/readiness', self.readiness_check)
         self.app.router.add_get('/metrics', metrics_endpoint)
+        
+        # Processing management endpoints
+        self.app.router.add_get('/api/processing/status', processing_status_endpoint)
+        self.app.router.add_post('/api/processing/toggle', toggle_processing_endpoint)
 
         logger.info("All routes configured")
 
@@ -225,5 +331,7 @@ class SessionServer:
             'status': 'READY' if all_ready else 'NOT READY',
             'timestamp': time.time(),
             'pod': config.kubernetes.pod_name,
-            'checks': checks
+            'checks': checks,
+            'delta_enabled': config.websocket.enable_delta,
+            'compression_enabled': config.websocket.enable_compression
         }, status=status_code)

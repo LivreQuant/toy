@@ -40,11 +40,11 @@ INSERT INTO exch_us_equity.metadata (
     '20:00:00'::TIME
 );
 
--- kubectl get pod exchange-service-d95cfcbf8-l9tdh -o jsonpath='{.status.podIP}'
+-- kubectl get pod exchange-service-5cdf9f5894-6xtk8 -o jsonpath='{.status.podIP}'
 -- kubectl exec -it postgres-5db68c4f8d-rgddr -- psql -U opentp
 UPDATE exch_us_equity.metadata
-SET endpoint = '10.244.0.57:50050', 
-    pod_name = 'exchange-service-d95cfcbf8-6vgd2', 
+SET endpoint = '10.244.0.70:50050', 
+    pod_name = 'exchange-service-5cdf9f5894-6xtk8', 
     namespace = 'default'
 WHERE exch_id = '00000000-0000-0000-0000-000000000002'::UUID;
 

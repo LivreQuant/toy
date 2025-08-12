@@ -38,7 +38,6 @@ class DatabaseConfig(BaseModel):
     max_retries: int = Field(default=5)
     retry_delay: int = Field(default=1)
 
-
     @property
     def connection_string(self) -> str:
         """Get PostgreSQL connection string"""
@@ -72,6 +71,12 @@ class WebSocketConfig(BaseModel):
     secure: bool = Field(default=False)  # New field for secure WebSocket
     ssl_cert_path: Optional[str] = Field(default=None)
     ssl_key_path: Optional[str] = Field(default=None)
+    
+    # CORRECTED: Separate flags for delta and compression
+    enable_delta: bool = Field(default=True)  # Enable/disable delta calculation (FULL vs DELTA)
+    enable_compression: bool = Field(default=True)  # Enable/disable zlib compression
+    compression_threshold: int = Field(default=500)  # Minimum payload size to compress
+    compression_level: int = Field(default=6)  # zlib compression level (1-9)
 
 
 class SimulatorConfig(BaseModel):
@@ -154,7 +159,12 @@ class Config(BaseModel):
                 heartbeat_interval=int(os.getenv('WS_HEARTBEAT_INTERVAL', '10')),
                 secure=os.getenv('WS_SECURE', 'false').lower() == 'true',
                 ssl_cert_path=os.getenv('WS_SSL_CERT_PATH'),
-                ssl_key_path=os.getenv('WS_SSL_KEY_PATH')
+                ssl_key_path=os.getenv('WS_SSL_KEY_PATH'),
+                # CORRECTED: Separate environment variables
+                enable_delta=os.getenv('WS_ENABLE_DELTA', 'true').lower() == 'true',
+                enable_compression=os.getenv('WS_ENABLE_COMPRESSION', 'true').lower() == 'true',
+                compression_threshold=int(os.getenv('WS_COMPRESSION_THRESHOLD', '500')),
+                compression_level=int(os.getenv('WS_COMPRESSION_LEVEL', '6'))
             ),
             simulator=SimulatorConfig(
                 connection_timeout=int(os.getenv('SIMULATOR_CONNECTION_TIMEOUT', '30')),
