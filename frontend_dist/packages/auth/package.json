@@ -8,6 +8,7 @@
       "dev": "tsc --watch"
     },
     "dependencies": {
+      "@trading-app/config": "file:../config",
       "@trading-app/logging": "file:../logging",
       "@trading-app/storage": "file:../storage"
     },

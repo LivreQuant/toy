@@ -52,6 +52,11 @@ export interface StateManager {
   updateSimulatorState(changes: any): void;
   updateExchangeState(changes: any): void;
   updatePortfolioState(changes: any): void;
+
+  updateEquityData(data: any[]): void;
+  updateOrderData(data: any[]): void;
+  updatePortfolioData(data: any): void;
+
   getConnectionState(): any;
   getAuthState(): any;
 }

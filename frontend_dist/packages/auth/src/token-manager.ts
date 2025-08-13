@@ -1,4 +1,4 @@
-// src/token-manager.ts
+// frontend_dist/packages/auth/src/token-manager.ts
 import { LocalStorageService } from '@trading-app/storage';
 import { DeviceIdManager } from './device-id-manager';
 import { AuthApiInterface } from './auth-api-interface';
@@ -142,79 +142,81 @@ export class TokenManager {
     public async refreshAccessToken(): Promise<boolean> {
         // If already refreshing, return the existing promise
         if (this.refreshPromise) {
-        return this.refreshPromise;
+            return this.refreshPromise;
         }
     
         const tokens = this.getTokens();
         if (!tokens?.refreshToken) {
-        this.logger.error('No refresh token available');
-        this.handleTokenExpiry(); // 🚨 NEW: Handle expiry
-        return false;
+            this.logger.error('No refresh token available');
+            this.handleTokenExpiry();
+            return false;
         }
     
         // Check if authApi has been set via setAuthApi
         if (!this.authApi) {
-        this.logger.error('Auth API dependency not set in TokenManager');
-        this.handleTokenExpiry(); // 🚨 NEW: Handle expiry
-        return false;
+            this.logger.error('Auth API dependency not set in TokenManager');
+            this.handleTokenExpiry();
+            return false;
         }
     
         this.refreshPromise = new Promise<boolean>(async (resolve) => {
-        try {
-            // Use the assigned authApi instance
-            const response = await this.authApi!.refreshToken(tokens.refreshToken);
+            try {
+                // Use the assigned authApi instance
+                const response = await this.authApi!.refreshToken(tokens.refreshToken);
     
-            // Verify all required fields are present
-            if (!response.accessToken || !response.refreshToken || !response.expiresIn || !response.userId) {
-            this.logger.error('Token refresh response missing required fields');
-            this.notifyRefreshListeners(false);
-            this.handleTokenExpiry(); // 🚨 NEW: Handle expiry
-            resolve(false);
-            return;
+                // Verify all required fields are present
+                if (!response.accessToken || !response.refreshToken || !response.expiresIn || !response.userId) {
+                    this.logger.error('Token refresh response missing required fields');
+                    this.notifyRefreshListeners(false);
+                    this.handleTokenExpiry();
+                    resolve(false);
+                    return;
+                }
+    
+                this.storeTokens({
+                    accessToken: response.accessToken,
+                    refreshToken: response.refreshToken,
+                    expiresAt: Date.now() + (response.expiresIn * 1000),
+                    userId: response.userId
+                });
+    
+                // Notify listeners about the token refresh success
+                this.notifyRefreshListeners(true);
+                resolve(true);
+    
+            } catch (error: any) {
+                this.logger.error('Token refresh API call failed', { error: error.message });
+                // Notify listeners about the failed refresh
+                this.notifyRefreshListeners(false);
+                this.handleTokenExpiry();
+                resolve(false);
+            } finally {
+                // Ensure the promise reference is cleared
+                this.refreshPromise = null;
             }
-    
-            this.storeTokens({
-            accessToken: response.accessToken,
-            refreshToken: response.refreshToken,
-            expiresAt: Date.now() + (response.expiresIn * 1000),
-            userId: response.userId
-            });
-    
-            // Notify listeners about the token refresh success
-            this.notifyRefreshListeners(true);
-            resolve(true);
-    
-        } catch (error: any) {
-            this.logger.error('Token refresh API call failed', { error: error.message });
-            // Notify listeners about the failed refresh
-            this.notifyRefreshListeners(false);
-            this.handleTokenExpiry(); // 🚨 NEW: Handle expiry
-            resolve(false);
-        } finally {
-            // Ensure the promise reference is cleared
-            this.refreshPromise = null;
-        }
         });
     
         return this.refreshPromise;
     }
     
-    // 🚨 NEW: Add method to handle token expiry
+    // Handle token expiry - redirect to appropriate URL
     private handleTokenExpiry(): void {
-        this.logger.warn('🔗 AUTH: Token expired, redirecting to landing app');
+        this.logger.warn('🔗 AUTH: Token expired, redirecting to main app');
         this.clearTokens();
         
-        // Redirect to landing app
+        // Redirect to main app or fallback URL
         if (typeof window !== 'undefined') {
-        // Import config dynamically to avoid circular dependency
-        import('@trading-app/config').then(({ config }) => {
-            const landingUrl = config.landing.baseUrl;
-            this.logger.info('🔗 AUTH: Redirecting to landing app due to token expiry', { landingUrl });
-            window.location.href = landingUrl;
-        }).catch(() => {
-            // Fallback if config import fails
-            window.location.href = 'http://localhost:3001';
-        });
+            // Try to import config and use gateway baseUrl
+            import('@trading-app/config').then(({ config }) => {
+                const mainAppUrl = config.gateway?.baseUrl || 'http://localhost:3000';
+                
+                this.logger.info('🔗 AUTH: Redirecting to main app due to token expiry', { mainAppUrl });
+                window.location.href = mainAppUrl;
+            }).catch((error) => {
+                // Fallback if config import fails
+                this.logger.error('Failed to load config for redirect, using fallback', { error });
+                window.location.href = 'http://localhost:3000';
+            });
         }
     }
     

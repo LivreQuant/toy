@@ -69,26 +69,6 @@ export interface BaseWebSocketMessage {
     simulatorStatus: 'RUNNING' | 'STOPPED' | 'STARTING' | 'STOPPING';
   }
   
-  export interface ServerExchangeDataMessage extends BaseWebSocketMessage {
-    type: 'exchange_data';
-    timestamp: number;
-    symbols: Record<string, {
-      price: number;
-      change: number;
-      volume: number;
-    }>;
-    userOrders?: Record<string, {
-      orderId: string;
-      status: string;
-      filledQty: number;
-    }>;
-    userPositions?: Record<string, {
-      symbol: string;
-      quantity: number;
-      value: number;
-    }>;
-  }
-  
   export interface ServerSessionInfoResponse extends BaseWebSocketMessage {
     type: 'session_info';
     requestId: string;
@@ -124,6 +104,60 @@ export interface BaseWebSocketMessage {
     success: boolean;
     error?: string;
   }
+
+  export interface ServerExchangeDataMessage extends BaseWebSocketMessage {
+    type: 'exchange_data';
+    deltaType: 'FULL' | 'DELTA';
+    sequence: number;
+    timestamp: number;
+    data: {
+      updateId: string;
+      timestamp: number;
+      exchangeType: 'EQUITIES' | 'OPTIONS' | 'FUTURES';
+      equityData: Array<{
+        symbol: string;
+        open: number;
+        high: number;
+        low: number;
+        close: number;
+        volume: number;
+        trade_count: number;
+        vwap: number;
+        exchange_type: string;
+        metadata: Record<string, any>;
+      }>;
+      orders: Array<{
+        orderId: string;
+        symbol: string;
+        side: 'BUY' | 'SELL';
+        quantity: number;
+        price: number;
+        status: string;
+        timestamp: number;
+        exchange_type: string;
+        metadata: Record<string, any>;
+      }>;
+      portfolio: {
+        positions: Array<{
+          symbol: string;
+          quantity: number;
+          average_price: number;
+          market_value: number;
+          unrealized_pnl: number;
+          metadata: Record<string, any>;
+        }>;
+        cash_balance: number;
+        total_value: number;
+        exchange_type: string;
+        metadata: Record<string, any>;
+      };
+      metadata: Record<string, any>;
+    };
+    compressed: boolean;
+    deltaEnabled: boolean;
+    compressionEnabled: boolean;
+    dataSavings: string;
+  }
   
   // --- Union Type for All Messages ---
   export type WebSocketMessage =
@@ -149,7 +183,7 @@ export interface BaseWebSocketMessage {
   export function isReconnectResultMessage(msg: WebSocketMessage): msg is ServerReconnectResultMessage {
     return msg.type === 'reconnect_result';
   }
-  
+
   export function isExchangeDataMessage(msg: WebSocketMessage): msg is ServerExchangeDataMessage {
     return msg.type === 'exchange_data';
   }

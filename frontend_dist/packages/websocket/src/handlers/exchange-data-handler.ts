@@ -1,4 +1,4 @@
-// src/handlers/exchange-data-handler.ts
+// frontend_dist/packages/websocket/src/handlers/exchange-data-handler.ts
 import { getLogger } from '@trading-app/logging';
 
 import { SocketClient } from '../client/socket-client';
@@ -7,6 +7,9 @@ import { StateManager } from '../types/connection-types';
 
 export class ExchangeDataHandler {
   private logger = getLogger('ExchangeDataHandler');
+  private sequenceNumber = 0;
+  private equityDataMap = new Map<string, any>();
+  private ordersMap = new Map<string, any>();
   
   constructor(private client: SocketClient, private stateManager: StateManager) {
     this.setupListeners();
@@ -22,64 +25,104 @@ export class ExchangeDataHandler {
   }
 
   private handleExchangeData(message: ServerExchangeDataMessage): void {
-    this.logger.debug('Received exchange data', {
-      symbolCount: Object.keys(message.symbols || {}).length,
-      hasOrderData: !!message.userOrders,
-      hasPositionData: !!message.userPositions,
+    this.logger.info('📊 Processing exchange data message', {
+      deltaType: message.deltaType,
+      sequence: message.sequence,
+      equityCount: message.data.equityData.length,
+      orderCount: message.data.orders.length,
+      hasPortfolio: !!message.data.portfolio
     });
     
-    // Process market data
-    if (message.symbols) {
-      const marketData = Object.entries(message.symbols).reduce((acc, [symbol, data]) => {
-        acc[symbol] = {
-          price: data.price,
-          open: data.price - (data.change || 0),
-          high: data.price,
-          low: data.price,
-          close: data.price,
-          volume: data.volume || 0
-        };
-        return acc;
-      }, {} as Record<string, { price: number; open: number; high: number; low: number; close: number; volume: number; }>);
-      
-      this.stateManager.updateExchangeState({ symbols: marketData });
+    // Validate sequence order for delta messages
+    if (message.deltaType === 'DELTA' && message.sequence <= this.sequenceNumber) {
+      this.logger.warn('⚠️ Ignoring out-of-sequence delta message', {
+        receivedSequence: message.sequence,
+        currentSequence: this.sequenceNumber
+      });
+      return;
     }
     
-    // Process portfolio data
-    if (message.userOrders || message.userPositions) {
-      const portfolioUpdate: any = {};
-      
-      if (message.userOrders) {
-        const orders = Object.entries(message.userOrders).reduce((acc, [orderId, data]) => {
-          acc[orderId] = {
-            orderId,
-            symbol: data.orderId.split('-')[0] || 'UNKNOWN',
-            status: data.status,
-            filledQty: data.filledQty,
-            remainingQty: 0,
-            timestamp: message.timestamp
-          };
-          return acc;
-        }, {} as Record<string, any>);
-        
-        portfolioUpdate.orders = orders;
-      }
-      
-      if (message.userPositions) {
-        const positions = Object.entries(message.userPositions).reduce((acc, [symbol, data]) => {
-          acc[symbol] = {
-            symbol,
-            quantity: data.quantity,
-            avgPrice: data.value / data.quantity,
-            marketValue: data.value
-          };
-          return acc;
-        }, {} as Record<string, any>);
-        
-        portfolioUpdate.positions = positions;
-      }
-      
-      this.stateManager.updatePortfolioState(portfolioUpdate);
+    if (message.deltaType === 'FULL') {
+      this.handleFullUpdate(message.data);
+    } else if (message.deltaType === 'DELTA') {
+      this.handleDeltaUpdate(message.data);
     }
+    
+    this.sequenceNumber = message.sequence;
+  }
+
+  private handleFullUpdate(data: any): void {
+    this.logger.info('🔄 Processing FULL update');
+    
+    // Clear and rebuild equity data
+    this.equityDataMap.clear();
+    data.equityData.forEach((equity: any) => {
+      this.equityDataMap.set(equity.symbol, equity);
+    });
+    
+    // Clear and rebuild orders
+    this.ordersMap.clear();
+    data.orders.forEach((order: any) => {
+      this.ordersMap.set(order.orderId, order);
+    });
+    
+    // Update state
+    this.emitUpdatedData();
+    
+    // Update portfolio directly
+    if (data.portfolio) {
+      this.stateManager.updatePortfolioData(data.portfolio);
+    }
+  }
+
+  private handleDeltaUpdate(data: any): void {
+    this.logger.info('📊 Processing DELTA update', {
+      equityUpdates: data.equityData.length,
+      orderUpdates: data.orders.length
+    });
+    
+    // Update equity data
+    data.equityData.forEach((equity: any) => {
+      this.equityDataMap.set(equity.symbol, equity);
+    });
+    
+    // Update orders
+    data.orders.forEach((order: any) => {
+      if (order.status === 'CANCELLED' || order.status === 'REJECTED') {
+        this.ordersMap.delete(order.orderId);
+      } else {
+        this.ordersMap.set(order.orderId, order);
+      }
+    });
+    
+    this.emitUpdatedData();
+    
+    // Update portfolio if provided
+    if (data.portfolio) {
+      this.stateManager.updatePortfolioData(data.portfolio);
+    }
+  }
+
+  private emitUpdatedData(): void {
+    const equityArray = Array.from(this.equityDataMap.values());
+    const ordersArray = Array.from(this.ordersMap.values());
+    
+    this.stateManager.updateEquityData(equityArray);
+    this.stateManager.updateOrderData(ordersArray);
+    
+    this.logger.debug('📤 Emitted updated data', {
+      equityCount: equityArray.length,
+      orderCount: ordersArray.length
+    });
+  }
+
+  public reset(): void {
+    this.logger.info('🔄 Resetting exchange data handler');
+    this.equityDataMap.clear();
+    this.ordersMap.clear();
+    this.sequenceNumber = 0;
+    
+    this.stateManager.updateEquityData([]);
+    this.stateManager.updateOrderData([]);
   }
 }

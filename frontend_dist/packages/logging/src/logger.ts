@@ -1,4 +1,4 @@
-// src/boot/logging.ts
+// frontend_dist/packages/logging/src/logger.ts
 import { EnhancedLogger, LogLevel, LoggerConfig } from './enhanced-logger';
 import { config } from '@trading-app/config';
 
@@ -30,14 +30,21 @@ export function initializeLogging(): void {
     return;
   }
 
-  const environment = config.environment;
+  const configEnvironment = config.environment;
+  const nodeEnv = process.env.NODE_ENV;
 
-  // Determine initial log level
+  // Determine initial log level based on NODE_ENV since config.environment 
+  // only supports "production" | "staging"
   let minLevel = LogLevel.INFO; // Default
-  if (environment === 'development') {
+  
+  if (nodeEnv === 'development') {
     minLevel = LogLevel.DEBUG;
-  } else if (environment === 'test') {
+  } else if (nodeEnv === 'test') {
     minLevel = LogLevel.WARN; // Or LogLevel.NONE
+  } else if (configEnvironment === 'production') {
+    minLevel = LogLevel.INFO;
+  } else if (configEnvironment === 'staging') {
+    minLevel = LogLevel.DEBUG; // Debug level for staging
   }
 
   // Check localStorage override
@@ -51,13 +58,22 @@ export function initializeLogging(): void {
     console.error("Error reading log_level from localStorage", e);
   }
 
+  // Map environment types for logger config
+  const mapEnvironmentForLogger = (): 'development' | 'production' | 'test' => {
+    if (nodeEnv === 'development') return 'development';
+    if (nodeEnv === 'test') return 'test';
+    return 'production'; // Default for production/staging
+  };
+
   // Base configuration
   const loggerConfig: Partial<LoggerConfig> = {
       minLevel,
-      structured: environment === 'production',
-      environment: environment as 'development' | 'production' | 'test',
+      structured: configEnvironment === 'production',
+      environment: mapEnvironmentForLogger(),
       additionalMetadata: {
           // appVersion: '1.0.1', // Example
+          configEnv: configEnvironment,
+          nodeEnv: nodeEnv
       }
   };
 
@@ -65,7 +81,9 @@ export function initializeLogging(): void {
   rootLoggerInstance = EnhancedLogger.getInstance(loggerConfig);
 
   // Log initialization *using the instance*
-  rootLoggerInstance.info(`Logging initialized for ${config.environment}`, {
+  rootLoggerInstance.info(`Logging initialized`, {
+    configEnvironment: configEnvironment,
+    nodeEnv: nodeEnv,
     level: LogLevel[minLevel],
     structured: rootLoggerInstance.configGetter.structured
   });
@@ -116,7 +134,12 @@ export function getLogger(name: string): EnhancedLogger {
          // Fallback to console if initialization fails critically
          console.error(`CRITICAL: Failed to initialize root logger even during fallback for '${name}'. Returning basic console logger.`);
          // Return a dummy logger that uses console to prevent further crashes
-         const dummyConfig: LoggerConfig = { minLevel: LogLevel.DEBUG, structured: false, includeTimestamp: true, environment: 'development' };
+         const dummyConfig: LoggerConfig = { 
+           minLevel: LogLevel.DEBUG, 
+           structured: false, 
+           includeTimestamp: true, 
+           environment: 'development' 
+         };
          // Basic implementation matching EnhancedLogger interface
          const dummyLogger: MinimalLogger = {
              debug: (msg, ctx) => console.debug(`[${name}|DEBUG]`, msg, ctx),
@@ -128,7 +151,12 @@ export function getLogger(name: string): EnhancedLogger {
              setConfig: () => {},
              getMinLevel: () => LogLevel.DEBUG,
              configGetter: dummyConfig,
-             trackTime: async (opName, fn) => { console.debug(`[${name}] Starting: ${opName}`); const r = await fn(); console.debug(`[${name}] Finished: ${opName}`); return r; }
+             trackTime: async (opName, fn) => { 
+               console.debug(`[${name}] Starting: ${opName}`); 
+               const r = await fn(); 
+               console.debug(`[${name}] Finished: ${opName}`); 
+               return r; 
+             }
          };
          return dummyLogger as EnhancedLogger; // Use type assertion
     }

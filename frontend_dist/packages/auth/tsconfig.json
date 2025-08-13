@@ -14,11 +14,13 @@
     "forceConsistentCasingInFileNames": true,
     "baseUrl": ".",
     "paths": {
+      "@trading-app/config": ["../config/dist"],
       "@trading-app/logging": ["../logging/dist"],
       "@trading-app/storage": ["../storage/dist"]
     }
   },
   "references": [
+    { "path": "../config" },
     { "path": "../logging" },
     { "path": "../storage" }
   ],

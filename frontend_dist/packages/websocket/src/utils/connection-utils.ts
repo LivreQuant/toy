@@ -42,6 +42,27 @@ export class GlobalStateManager implements StateManager {
     portfolioState.updateState(changes);
   }
 
+  updateEquityData(data: any[]): void {
+    this.logger.debug('Updating equity data', { count: data.length });
+    // You'll need to add this method to your exchangeState
+    if (exchangeState.updateEquityData) {
+      exchangeState.updateEquityData(data);
+    }
+  }
+
+  updateOrderData(data: any[]): void {
+    this.logger.debug('Updating order data', { count: data.length });
+    // You'll need to add this method to your portfolioState
+    if (portfolioState.updateOrderData) {
+      portfolioState.updateOrderData(data);
+    }
+  }
+
+  updatePortfolioData(data: any): void {
+    this.logger.debug('Updating portfolio data', { data });
+    portfolioState.updateState(data);
+  }
+
   getConnectionState(): any {
     return connectionState.getState();
   }
