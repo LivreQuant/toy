@@ -65,7 +65,9 @@ spec:
         
         # Service ports
         - name: GRPC_SERVICE_PORT
-          value: "50055"
+          value: "50050"
+        - name: SESSION_SERVICE_PORT
+          value: "50050"
         - name: HEALTH_SERVICE_PORT
           value: "50056"
         - name: HOST

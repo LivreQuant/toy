@@ -51,10 +51,7 @@ INSERT INTO auth.users (
     true,
     'user',
     CURRENT_TIMESTAMP
-) ON CONFLICT (user_id) DO UPDATE SET
-    username = EXCLUDED.username,
-    email = EXCLUDED.email,
-    is_active = EXCLUDED.is_active;
+);
 
 
 -- Create fund for the test user
@@ -66,7 +63,7 @@ INSERT INTO fund.funds (
     '00000000-0000-0000-0000-000000000001'::UUID,
     '0ae5453f-2d9e-4c6a-ade0-df9f66726ad1'::UUID,
     CURRENT_TIMESTAMP
-) ON CONFLICT (fund_id) DO NOTHING;
+);
 
 -- Insert fund properties
 INSERT INTO fund.fund_properties (fund_id, category, subcategory, value, active_at, expire_at) VALUES
@@ -76,10 +73,7 @@ INSERT INTO fund.fund_properties (fund_id, category, subcategory, value, active_
 ('0ae5453f-2d9e-4c6a-ade0-df9f66726ad1'::UUID, 'property', 'year_established', '2025', CURRENT_TIMESTAMP, '2999-01-01 00:00:00+00'),
 ('0ae5453f-2d9e-4c6a-ade0-df9f66726ad1'::UUID, 'metadata', 'aum', 'Under $1M', CURRENT_TIMESTAMP, '2999-01-01 00:00:00+00'),
 ('0ae5453f-2d9e-4c6a-ade0-df9f66726ad1'::UUID, 'metadata', 'purpose', '["raise_capital", "track_record"]', CURRENT_TIMESTAMP, '2999-01-01 00:00:00+00'),
-('0ae5453f-2d9e-4c6a-ade0-df9f66726ad1'::UUID, 'metadata', 'thesis', 'Test this thing out.', CURRENT_TIMESTAMP, '2999-01-01 00:00:00+00')
-ON CONFLICT (fund_id, category, subcategory) DO UPDATE SET
-    value = EXCLUDED.value,
-    active_at = EXCLUDED.active_at;
+('0ae5453f-2d9e-4c6a-ade0-df9f66726ad1'::UUID, 'metadata', 'thesis', 'Test this thing out.', CURRENT_TIMESTAMP, '2999-01-01 00:00:00+00');
 
 -- Create team member
 INSERT INTO fund.team_members (
@@ -92,7 +86,7 @@ INSERT INTO fund.team_members (
     '0ae5453f-2d9e-4c6a-ade0-df9f66726ad1'::UUID,
     CURRENT_TIMESTAMP,
     '2999-01-01 00:00:00+00'
-) ON CONFLICT (team_member_id) DO NOTHING;
+);
 
 -- Insert team member properties
 INSERT INTO fund.team_member_properties (member_id, category, subcategory, value, active_at, expire_at) VALUES
@@ -105,10 +99,7 @@ INSERT INTO fund.team_member_properties (member_id, category, subcategory, value
 ('6e46e336-766c-4f05-a96b-21f9359dda61'::UUID, 'professional', 'currentEmployment', 'Citadel Shit', CURRENT_TIMESTAMP, '2999-01-01 00:00:00+00'),
 ('6e46e336-766c-4f05-a96b-21f9359dda61'::UUID, 'professional', 'investmentExpertise', 'Quantitative', CURRENT_TIMESTAMP, '2999-01-01 00:00:00+00'),
 ('6e46e336-766c-4f05-a96b-21f9359dda61'::UUID, 'social', 'linkedin', 'https://google.com', CURRENT_TIMESTAMP, '2999-01-01 00:00:00+00'),
-('6e46e336-766c-4f05-a96b-21f9359dda61'::UUID, 'education', 'education', 'MIT', CURRENT_TIMESTAMP, '2999-01-01 00:00:00+00')
-ON CONFLICT (member_id, category, subcategory) DO UPDATE SET
-    value = EXCLUDED.value,
-    active_at = EXCLUDED.active_at;
+('6e46e336-766c-4f05-a96b-21f9359dda61'::UUID, 'education', 'education', 'MIT', CURRENT_TIMESTAMP, '2999-01-01 00:00:00+00');
 
 SELECT 'Fake user and fund created/updated successfully!' as status;
 EOF

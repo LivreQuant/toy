@@ -48,57 +48,39 @@ class ExchangeRegistry:
         self.logger = logging.getLogger(self.__class__.__name__)
         
     def get_kubernetes_metadata(self) -> KubernetesMetadata:
-        """
-        Extract Kubernetes metadata from environment variables.
-        
-        Kubernetes automatically injects these environment variables:
-        - HOSTNAME: Pod name
-        - POD_NAMESPACE: Namespace (if configured in deployment)
-        - NODE_NAME: Node name (if configured)
-        
-        Returns:
-            KubernetesMetadata: Pod metadata for service registration
-        """
+        """Get pod IP and construct endpoint with port 50050"""
         try:
-            # Get pod name from HOSTNAME (Kubernetes sets this automatically)
+            # Get pod name
             pod_name = os.environ.get('HOSTNAME', socket.gethostname())
             
-            # Get namespace from environment (must be set in K8s deployment)
+            # Get namespace
             namespace = os.environ.get('POD_NAMESPACE', 'default')
             
-            # Get service endpoint - construct from environment or defaults
-            service_name = os.environ.get('SERVICE_NAME', pod_name)
-            service_port = os.environ.get('GRPC_SERVICE_PORT', '50055')
+            # GET THE FUCKING POD IP
+            import subprocess
+            result = subprocess.run(['kubectl', 'get', 'pod', pod_name, '-o', 'jsonpath={.status.podIP}'], 
+                                capture_output=True, text=True)
             
-            # Construct endpoint for service discovery
-            # In Kubernetes, services are accessible via: service-name.namespace.svc.cluster.local
-            if namespace != 'default':
-                endpoint = f"{service_name}.{namespace}.svc.cluster.local:{service_port}"
+            if result.returncode == 0 and result.stdout.strip():
+                pod_ip = result.stdout.strip()
             else:
-                endpoint = f"{service_name}:{service_port}"
+                raise RuntimeError(f"Failed to get pod IP: {result.stderr}")
             
-            # Optional metadata
-            node_name = os.environ.get('NODE_NAME')
-            cluster_name = os.environ.get('CLUSTER_NAME')
+            # Construct endpoint: IP:50050
+            endpoint = f"{pod_ip}:50050"
             
             metadata = KubernetesMetadata(
                 pod_name=pod_name,
                 namespace=namespace,
-                endpoint=endpoint,
-                node_name=node_name,
-                cluster_name=cluster_name
+                endpoint=endpoint
             )
             
-            self.logger.info(f"📍 Kubernetes Metadata Collected:")
-            self.logger.info(f"   - Pod Name: {metadata.pod_name}")
-            self.logger.info(f"   - Namespace: {metadata.namespace}")
-            self.logger.info(f"   - Endpoint: {metadata.endpoint}")
-            self.logger.info(f"   - Node: {metadata.node_name or 'unknown'}")
+            self.logger.info(f"📍 Pod IP: {pod_ip}, Endpoint: {endpoint}")
             
             return metadata
             
         except Exception as e:
-            self.logger.error(f"❌ Failed to collect Kubernetes metadata: {e}")
+            self.logger.error(f"❌ Failed to get pod IP: {e}")
             raise
     
     def get_exchange_configuration(self) -> tuple[str, str]:

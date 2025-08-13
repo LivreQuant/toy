@@ -391,8 +391,8 @@ class CoreExchangeServiceManager:
             # STEP 2: Start core exchange (required foundation)
             await self.start_core_exchange()
 
-            # Register exchange service for service discovery
-            #await self.register_exchange_service()
+            # Register exchange service for service discovery (FOR PROD: SESSION TO FIND EXCHANGE)
+            await self.register_exchange_service()
 
             # STEP 3: Start market data connection (background task)
             await self.start_persistent_market_data_connection()
