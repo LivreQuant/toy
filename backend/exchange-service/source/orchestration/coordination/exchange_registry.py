@@ -50,23 +50,18 @@ class ExchangeRegistry:
     def get_kubernetes_metadata(self) -> KubernetesMetadata:
         """Get pod IP and construct endpoint with port 50050"""
         try:
-            # Get pod name
-            pod_name = os.environ.get('HOSTNAME', socket.gethostname())
-            
-            # Get namespace
+            # Kubernetes automatically sets these environment variables
+            pod_name = os.environ.get('POD_NAME', os.environ.get('HOSTNAME', socket.gethostname()))
             namespace = os.environ.get('POD_NAMESPACE', 'default')
+            pod_ip = os.environ.get('POD_IP')
+
+            print(f"POD INFO: {pod_name} - {pod_ip} - {namespace}")
             
-            # GET THE FUCKING POD IP
-            import subprocess
-            result = subprocess.run(['kubectl', 'get', 'pod', pod_name, '-o', 'jsonpath={.status.podIP}'], 
-                                capture_output=True, text=True)
+            if not pod_ip:
+                # Fallback if Downward API not configured
+                pod_ip = socket.gethostbyname(socket.gethostname())
+                self.logger.warning(f"⚠️ POD_IP not set, using fallback: {pod_ip}")
             
-            if result.returncode == 0 and result.stdout.strip():
-                pod_ip = result.stdout.strip()
-            else:
-                raise RuntimeError(f"Failed to get pod IP: {result.stderr}")
-            
-            # Construct endpoint: IP:50050
             endpoint = f"{pod_ip}:50050"
             
             metadata = KubernetesMetadata(
@@ -76,7 +71,6 @@ class ExchangeRegistry:
             )
             
             self.logger.info(f"📍 Pod IP: {pod_ip}, Endpoint: {endpoint}")
-            
             return metadata
             
         except Exception as e:
