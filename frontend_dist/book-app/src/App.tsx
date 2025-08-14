@@ -38,6 +38,8 @@ import SessionDeactivatedPage from './pages/SessionDeactivatedPage';
 // DEV AUTH HELPER
 import { attemptDevAuthentication, DEV_AUTH_CONFIG } from './utils/dev-auth-helper';
 
+import { debugExchangeDataFlow } from './debug-exchange-data';
+
 // Initialize Logging First
 initializeLogging();
 
@@ -297,6 +299,10 @@ const AuthenticatedApp: React.FC<{
 
  useEffect(() => {
    logger.info('🎯 Book App component mounted, services available globally');
+
+   // ✅ ADD THIS LINE TO START DEBUGGING:
+   debugExchangeDataFlow();
+
  }, []);
 
  return (

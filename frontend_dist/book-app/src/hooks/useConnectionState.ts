@@ -17,8 +17,8 @@ export function useConnectionState() {
     simulatorStatus: state.simulatorStatus,
     lastError: state.lastConnectionError,
     
-    // State derivations
-    isSimulatorRunning: state.simulatorStatus === 'RUNNING',
+    // State derivations - ✅ FIX: Update to handle 'CONNECTED' status
+    isSimulatorRunning: state.simulatorStatus === 'RUNNING' || state.simulatorStatus === 'CONNECTED',
     isSimulatorBusy: state.simulatorStatus === 'STARTING' || state.simulatorStatus === 'STOPPING',
     
     // Helpers

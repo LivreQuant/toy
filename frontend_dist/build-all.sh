@@ -22,8 +22,8 @@ cd packages/assets && npm run build && cd ../..
 cd packages/ui && npm run build && cd ../..
 
 echo "Building land, main, and book app..."
-cd land-app && npm install && npm run build & cd ..
-cd main-app && npm install && npm run build & cd ..
+#cd land-app && npm install && npm run build & cd ..
+#cd main-app && npm install && npm run build & cd ..
 cd book-app && npm install && npm run build & cd ..
 
 echo "All builds completed!"

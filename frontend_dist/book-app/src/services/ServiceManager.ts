@@ -1,9 +1,10 @@
-// src/services/ServiceManager.ts
+// frontend_dist/book-app/src/services/ServiceManager.ts
 import { getLogger } from '@trading-app/logging';
 import { AuthFactory } from '@trading-app/auth';
 import { ApiFactory } from '@trading-app/api';
 import { ConnectionManager, createConnectionManagerWithGlobalDeps } from '@trading-app/websocket';
 import { ConvictionManager } from './convictions/conviction-manager';
+import { ExchangeDataHandler } from './ExchangeDataHandler'; // ✅ ADD THIS IMPORT
 
 const logger = getLogger('ServiceManager');
 
@@ -13,6 +14,7 @@ class ServiceManager {
   private apiClients: any = null;
   private connectionManager: ConnectionManager | null = null;
   private convictionManager: ConvictionManager | null = null;
+  private exchangeDataHandler: ExchangeDataHandler | null = null; // ✅ ADD THIS PROPERTY
   private isInitialized = false;
 
   private constructor() {
@@ -34,14 +36,16 @@ class ServiceManager {
     apiClients: any;
     connectionManager: ConnectionManager;
     convictionManager: ConvictionManager;
+    exchangeDataHandler: ExchangeDataHandler; // ✅ ADD TO RETURN TYPE
   }> {
-    if (this.isInitialized && this.authServices && this.apiClients && this.connectionManager && this.convictionManager) {
+    if (this.isInitialized && this.authServices && this.apiClients && this.connectionManager && this.convictionManager && this.exchangeDataHandler) {
       logger.info('🔄 Services already initialized, reusing existing instances');
       return {
         authServices: this.authServices,
         apiClients: this.apiClients,
         connectionManager: this.connectionManager,
-        convictionManager: this.convictionManager
+        convictionManager: this.convictionManager,
+        exchangeDataHandler: this.exchangeDataHandler
       };
     }
 
@@ -81,6 +85,12 @@ class ServiceManager {
       logger.info('✅ ConvictionManager created');
     }
 
+    // ✅ FIX: Create exchange data handler (only once)
+    if (!this.exchangeDataHandler) {
+      this.exchangeDataHandler = new ExchangeDataHandler();
+      logger.info('✅ ExchangeDataHandler created and registered');
+    }
+
     this.isInitialized = true;
     logger.info('🎉 All services initialized successfully');
 
@@ -88,13 +98,18 @@ class ServiceManager {
       authServices: this.authServices,
       apiClients: this.apiClients,
       connectionManager: this.connectionManager,
-      convictionManager: this.convictionManager
+      convictionManager: this.convictionManager,
+      exchangeDataHandler: this.exchangeDataHandler // ✅ ADD TO RETURN
     };
   }
 
-  // FIXED: Remove the problematic getConnectionState method
   getConnectionManager(): ConnectionManager | null {
     return this.connectionManager;
+  }
+
+  // ✅ ADD GETTER FOR EXCHANGE DATA HANDLER
+  getExchangeDataHandler(): ExchangeDataHandler | null {
+    return this.exchangeDataHandler;
   }
 
   // Clean up method for testing or logout
@@ -103,10 +118,15 @@ class ServiceManager {
     if (this.connectionManager) {
       this.connectionManager.disconnect('service_cleanup');
     }
+    // ✅ FIX: Dispose exchange data handler
+    if (this.exchangeDataHandler) {
+      this.exchangeDataHandler.dispose();
+    }
     this.authServices = null;
     this.apiClients = null;
     this.connectionManager = null;
     this.convictionManager = null;
+    this.exchangeDataHandler = null; // ✅ ADD THIS
     this.isInitialized = false;
   }
 

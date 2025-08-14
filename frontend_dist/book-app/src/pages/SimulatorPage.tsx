@@ -16,7 +16,10 @@ const SimulatorPage: React.FC = () => {
 
   // Get simulator status from connection state
   const simulatorStatus = connectionState?.simulatorStatus || 'UNKNOWN';
-  const isSimulatorRunning = simulatorStatus === 'RUNNING';
+  
+  // ✅ FIX: Update the logic to handle both 'RUNNING' and 'CONNECTED' as valid running states
+  // The backend appears to send 'CONNECTED' instead of 'RUNNING' when the simulator is active
+  const isSimulatorRunning = simulatorStatus === 'RUNNING' || simulatorStatus === 'CONNECTED';
   const isSimulatorBusy = simulatorStatus === 'STARTING' || simulatorStatus === 'STOPPING';
 
   // Monitor simulator status and redirect if not running

@@ -5,6 +5,53 @@ import { SocketClient } from '../client/socket-client';
 import { ServerExchangeDataMessage } from '../types/message-types';
 import { StateManager } from '../types/connection-types';
 
+// Global registry for additional exchange data handlers
+interface ExchangeDataHandlerInterface {
+  handleWebSocketMessage(message: any): boolean;
+  handleDisconnection(): void;
+}
+
+class ExchangeDataHandlerRegistry {
+  private handlers: ExchangeDataHandlerInterface[] = [];
+  private logger = getLogger('ExchangeDataHandlerRegistry');
+  
+  register(handler: ExchangeDataHandlerInterface): void {
+    this.handlers.push(handler);
+    this.logger.info('📱 Additional exchange data handler registered', { count: this.handlers.length });
+  }
+  
+  unregister(handler: ExchangeDataHandlerInterface): void {
+    const index = this.handlers.indexOf(handler);
+    if (index > -1) {
+      this.handlers.splice(index, 1);
+      this.logger.info('📱 Exchange data handler unregistered', { count: this.handlers.length });
+    }
+  }
+  
+  forwardMessage(message: any): void {
+    this.handlers.forEach((handler, index) => {
+      try {
+        handler.handleWebSocketMessage(message);
+      } catch (error: any) {
+        this.logger.error(`❌ Error in additional exchange data handler ${index}:`, error);
+      }
+    });
+  }
+  
+  notifyDisconnection(): void {
+    this.handlers.forEach((handler, index) => {
+      try {
+        handler.handleDisconnection();
+      } catch (error: any) {
+        this.logger.error(`❌ Error notifying handler ${index} of disconnection:`, error);
+      }
+    });
+  }
+}
+
+// Export global registry
+export const exchangeDataHandlerRegistry = new ExchangeDataHandlerRegistry();
+
 export class ExchangeDataHandler {
   private logger = getLogger('ExchangeDataHandler');
   private sequenceNumber = 0;
@@ -32,6 +79,9 @@ export class ExchangeDataHandler {
       orderCount: message.data.orders.length,
       hasPortfolio: !!message.data.portfolio
     });
+    
+    // ✅ FIX: Forward to registered handlers (including book app)
+    exchangeDataHandlerRegistry.forwardMessage(message);
     
     // Validate sequence order for delta messages
     if (message.deltaType === 'DELTA' && message.sequence <= this.sequenceNumber) {
@@ -121,6 +171,9 @@ export class ExchangeDataHandler {
     this.equityDataMap.clear();
     this.ordersMap.clear();
     this.sequenceNumber = 0;
+    
+    // Notify registered handlers of disconnection
+    exchangeDataHandlerRegistry.notifyDisconnection();
     
     this.stateManager.updateEquityData([]);
     this.stateManager.updateOrderData([]);
