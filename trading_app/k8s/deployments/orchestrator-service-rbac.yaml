@@ -1,0 +1,53 @@
+# k8s/deployments/orchestrator-service-rbac.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: orchestrator-service-account
+  labels:
+    app: orchestrator-service
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: orchestrator-service-role
+  labels:
+    app: orchestrator-service
+rules:
+# Deployment management
+- apiGroups: ["apps"]
+  resources: ["deployments"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["apps"]
+  resources: ["replicasets"]
+  verbs: ["get", "list", "watch"]
+
+# Service management
+- apiGroups: [""]
+  resources: ["services"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+# Pod monitoring
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "watch"]
+
+# Events (for debugging)
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["get", "list", "watch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: orchestrator-service-role-binding
+  labels:
+    app: orchestrator-service
+subjects:
+- kind: ServiceAccount
+  name: orchestrator-service-account
+  namespace: default
+roleRef:
+  kind: Role
+  name: orchestrator-service-role
+  apiGroup: rbac.authorization.k8s.io

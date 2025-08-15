@@ -4,7 +4,7 @@ import { AuthFactory } from '@trading-app/auth';
 import { ApiFactory } from '@trading-app/api';
 import { ConnectionManager, createConnectionManagerWithGlobalDeps } from '@trading-app/websocket';
 import { ConvictionManager } from './convictions/conviction-manager';
-import { ExchangeDataHandler } from './ExchangeDataHandler'; // ✅ ADD THIS IMPORT
+import { ExchangeDataHandler } from './ExchangeDataHandler';
 
 const logger = getLogger('ServiceManager');
 
@@ -14,7 +14,7 @@ class ServiceManager {
   private apiClients: any = null;
   private connectionManager: ConnectionManager | null = null;
   private convictionManager: ConvictionManager | null = null;
-  private exchangeDataHandler: ExchangeDataHandler | null = null; // ✅ ADD THIS PROPERTY
+  private exchangeDataHandler: ExchangeDataHandler | null = null;
   private isInitialized = false;
 
   private constructor() {
@@ -36,9 +36,15 @@ class ServiceManager {
     apiClients: any;
     connectionManager: ConnectionManager;
     convictionManager: ConvictionManager;
-    exchangeDataHandler: ExchangeDataHandler; // ✅ ADD TO RETURN TYPE
+    exchangeDataHandler: ExchangeDataHandler;
   }> {
-    if (this.isInitialized && this.authServices && this.apiClients && this.connectionManager && this.convictionManager && this.exchangeDataHandler) {
+    // Check if all services are already initialized
+    if (this.isInitialized && 
+        this.authServices && 
+        this.apiClients && 
+        this.connectionManager && 
+        this.convictionManager && 
+        this.exchangeDataHandler) {
       logger.info('🔄 Services already initialized, reusing existing instances');
       return {
         authServices: this.authServices,
@@ -64,15 +70,10 @@ class ServiceManager {
       logger.info('✅ API clients created');
     }
 
-    // Create connection manager (only once)
+    // Create connection manager (only once) - FIXED
     if (!this.connectionManager) {
-      const { stateManager, toastService, configService } = createConnectionManagerWithGlobalDeps();
-      this.connectionManager = new ConnectionManager(
-        this.authServices.tokenManager,
-        stateManager,
-        toastService,
-        configService
-      );
+      // FIXED: Pass the existing TokenManager that already works
+      this.connectionManager = createConnectionManagerWithGlobalDeps(this.authServices.tokenManager);
       logger.info('✅ ConnectionManager created');
     }
 
@@ -85,7 +86,7 @@ class ServiceManager {
       logger.info('✅ ConvictionManager created');
     }
 
-    // ✅ FIX: Create exchange data handler (only once)
+    // Create exchange data handler (only once)
     if (!this.exchangeDataHandler) {
       this.exchangeDataHandler = new ExchangeDataHandler();
       logger.info('✅ ExchangeDataHandler created and registered');
@@ -94,12 +95,13 @@ class ServiceManager {
     this.isInitialized = true;
     logger.info('🎉 All services initialized successfully');
 
+    // FIXED: Add type assertion to ensure non-null values
     return {
-      authServices: this.authServices,
-      apiClients: this.apiClients,
-      connectionManager: this.connectionManager,
-      convictionManager: this.convictionManager,
-      exchangeDataHandler: this.exchangeDataHandler // ✅ ADD TO RETURN
+      authServices: this.authServices!,
+      apiClients: this.apiClients!,
+      connectionManager: this.connectionManager!,
+      convictionManager: this.convictionManager!,
+      exchangeDataHandler: this.exchangeDataHandler!
     };
   }
 
@@ -107,7 +109,6 @@ class ServiceManager {
     return this.connectionManager;
   }
 
-  // ✅ ADD GETTER FOR EXCHANGE DATA HANDLER
   getExchangeDataHandler(): ExchangeDataHandler | null {
     return this.exchangeDataHandler;
   }
@@ -118,7 +119,6 @@ class ServiceManager {
     if (this.connectionManager) {
       this.connectionManager.disconnect('service_cleanup');
     }
-    // ✅ FIX: Dispose exchange data handler
     if (this.exchangeDataHandler) {
       this.exchangeDataHandler.dispose();
     }
@@ -126,7 +126,7 @@ class ServiceManager {
     this.apiClients = null;
     this.connectionManager = null;
     this.convictionManager = null;
-    this.exchangeDataHandler = null; // ✅ ADD THIS
+    this.exchangeDataHandler = null;
     this.isInitialized = false;
   }
 

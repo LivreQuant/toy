@@ -10,6 +10,7 @@ import { SimulatorHandler } from '../handlers/simulator-handler';
 import { Heartbeat } from '../services/heartbeat';
 import { Resilience, ResilienceState } from '../services/resilience';
 import { SimulatorClient } from '../services/simulator-client';
+import { ExchangeDataHandler } from '../handlers/exchange-data-handler';
 
 import { 
   ConnectionDesiredState, 
@@ -26,6 +27,7 @@ export class ConnectionManager implements Disposable {
   private resilience: Resilience;
   private sessionHandler: SessionHandler;
   private simulatorClient: SimulatorClient;
+  private exchangeDataHandler: ExchangeDataHandler; // ADD THIS LINE
   private isDisposed = false;
   private hasAuthInitialized = false;
   
@@ -89,12 +91,17 @@ export class ConnectionManager implements Disposable {
       this.stateManager
     );
     
+    // ADD THIS: Create ExchangeDataHandler
+    this.exchangeDataHandler = new ExchangeDataHandler(this.socketClient, this.stateManager);
+    this.logger.info('🔌 CONNECTION: ExchangeDataHandler created and listening for exchange_data messages');
+    
     // Log instance sharing verification
     this.logger.info('🔌 CONNECTION: Service instances created', {
       socketClientInstance: !!this.socketClient,
       heartbeatSocketClient: !!(this.heartbeat as any).client,
       sessionHandlerSocketClient: !!(this.sessionHandler as any).client,
       simulatorSocketClient: !!(this.simulatorClient as any).socketClient,
+      exchangeDataHandlerClient: !!(this.exchangeDataHandler as any).client,
       allUsingSameInstance: this.verifySharedInstances()
     });
     
@@ -669,19 +676,37 @@ export class ConnectionManager implements Disposable {
     return this.events.on(event, callback);
   }
 
+  // FIXED dispose method
   public dispose(): void {
     if (this.isDisposed) return;
-    this.isDisposed = true;
     
     this.logger.info('🔌 CONNECTION: Disposing ConnectionManager');
+    this.isDisposed = true;
     
-    this.disconnect('dispose');
+    try {
+      // Use the correct dispose methods
+      if (this.heartbeat && typeof this.heartbeat.dispose === 'function') {
+        this.heartbeat.dispose();
+      }
+      
+      // SessionHandler and SimulatorClient might not have dispose methods
+      // Just reset the ExchangeDataHandler
+      if (this.exchangeDataHandler && typeof this.exchangeDataHandler.reset === 'function') {
+        this.exchangeDataHandler.reset();
+      }
+      
+      if (this.socketClient && typeof this.socketClient.dispose === 'function') {
+        this.socketClient.dispose();
+      }
+      
+      if (this.resilience && typeof this.resilience.dispose === 'function') {
+        this.resilience.dispose();
+      }
+    } catch (error: any) {
+      this.logger.error('Error during disposal', { error: error.message });
+    }
     
-    this.heartbeat.dispose();
-    this.resilience.dispose();
-    
-    this.events.clear();
-    
-    this.logger.info('🔌 CONNECTION: ConnectionManager disposed');
+    // Don't call removeAllListeners if it doesn't exist
+    // this.events.removeAllListeners();
   }
 }

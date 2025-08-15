@@ -1,2 +1,2 @@
-instrumentId,side,score,participationRate,tag,convictionId
-AAPL.US,BUY,3,MEDIUM,value,conviction-001
+instrumentId,side,quantity,participationRate,tag,convictionId
+AAPL,BUY,100000,MEDIUM,value,conviction-001

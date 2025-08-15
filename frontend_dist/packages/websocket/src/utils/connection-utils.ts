@@ -9,71 +9,166 @@ import {
 } from '@trading-app/state';
 import { toastService } from '@trading-app/toast';
 import { config } from '@trading-app/config';
+import { TokenManager } from '@trading-app/auth'; // ADD THIS IMPORT
 
 import { StateManager, ToastService, ConfigService } from '../types/connection-types';
 
 const logger = getLogger('ConnectionUtils');
 
 /**
- * Implementation of StateManager that wraps the global state services
+ * ENHANCED GlobalStateManager with comprehensive logging for data flow tracing
  */
 export class GlobalStateManager implements StateManager {
   private logger = getLogger('GlobalStateManager');
 
+  constructor() {
+    this.logger.info('🌐 GLOBAL_STATE: GlobalStateManager initialized');
+  }
+
   updateConnectionState(changes: any): void {
-    this.logger.debug('Updating connection state', { changes });
+    this.logger.debug('🌐 GLOBAL_STATE: Updating connection state', { changes });
     connectionState.updateState(changes);
+    this.logger.debug('🌐 GLOBAL_STATE: Connection state update complete');
   }
 
   updateSimulatorState(changes: any): void {
-    this.logger.debug('Updating simulator state', { changes });
+    this.logger.debug('🌐 GLOBAL_STATE: Updating simulator state', { changes });
     simulatorState.updateState(changes);
+    this.logger.debug('🌐 GLOBAL_STATE: Simulator state update complete');
   }
 
   updateExchangeState(changes: any): void {
-    this.logger.debug('Updating exchange state', { changes });
+    this.logger.debug('🌐 GLOBAL_STATE: Updating exchange state', { changes });
     if (changes.symbols) {
+      this.logger.info('🌐 GLOBAL_STATE: Updating legacy symbols format', {
+        symbolCount: Object.keys(changes.symbols).length
+      });
       exchangeState.updateSymbols(changes.symbols);
     }
+    this.logger.debug('🌐 GLOBAL_STATE: Exchange state update complete');
   }
 
   updatePortfolioState(changes: any): void {
-    this.logger.debug('Updating portfolio state', { changes });
+    this.logger.debug('🌐 GLOBAL_STATE: Updating portfolio state', { changes });
     portfolioState.updateState(changes);
+    this.logger.debug('🌐 GLOBAL_STATE: Portfolio state update complete');
   }
 
+  // CRITICAL: These methods ensure WebSocket exchange data flows to global state
   updateEquityData(data: any[]): void {
-    this.logger.debug('Updating equity data', { count: data.length });
-    // You'll need to add this method to your exchangeState
-    if (exchangeState.updateEquityData) {
+    this.logger.info('🌐 GLOBAL_STATE: EQUITY UPDATE START', { 
+      dataCount: data.length,
+      sampleSymbols: data.slice(0, 3).map(e => e.symbol),
+      samplePrices: data.slice(0, 3).map(e => `${e.symbol}:${e.close}`)
+    });
+    
+    // Check if updateEquityData method exists
+    if (typeof exchangeState.updateEquityData === 'function') {
+      this.logger.info('🌐 GLOBAL_STATE: Calling exchangeState.updateEquityData...');
       exchangeState.updateEquityData(data);
+      this.logger.info('✅ GLOBAL_STATE: exchangeState.updateEquityData COMPLETE');
+    } else {
+      this.logger.error('❌ GLOBAL_STATE: exchangeState.updateEquityData method not available!');
     }
+
+    // Also convert to legacy format for backward compatibility
+    this.logger.info('🌐 GLOBAL_STATE: Converting to legacy symbols format...');
+    const legacySymbols: any = {};
+    data.forEach(equity => {
+      legacySymbols[equity.symbol] = {
+        price: equity.close,
+        open: equity.open,
+        high: equity.high,
+        low: equity.low,
+        close: equity.close,
+        volume: equity.volume
+      };
+    });
+    
+    this.logger.info('🌐 GLOBAL_STATE: Updating legacy symbols', {
+      legacySymbolCount: Object.keys(legacySymbols).length,
+      sampleLegacy: Object.keys(legacySymbols).slice(0, 3)
+    });
+    
+    exchangeState.updateSymbols(legacySymbols);
+    this.logger.info('✅ GLOBAL_STATE: Legacy symbols update complete');
+    
+    // Log final state
+    const finalState = exchangeState.getState();
+    this.logger.info('🌐 GLOBAL_STATE: EQUITY UPDATE COMPLETE', {
+      newEquityDataCount: Object.keys(finalState.equityData).length,
+      newSymbolsCount: Object.keys(finalState.symbols).length,
+      dataSource: finalState.dataSource,
+      lastUpdated: finalState.lastUpdated
+    });
   }
 
   updateOrderData(data: any[]): void {
-    this.logger.debug('Updating order data', { count: data.length });
-    // You'll need to add this method to your portfolioState
-    if (portfolioState.updateOrderData) {
+    this.logger.info('🌐 GLOBAL_STATE: ORDER UPDATE START', { 
+      dataCount: data.length,
+      sampleOrderIds: data.slice(0, 3).map(o => o.orderId)
+    });
+    
+    if (typeof portfolioState.updateOrderData === 'function') {
+      this.logger.info('🌐 GLOBAL_STATE: Calling portfolioState.updateOrderData...');
       portfolioState.updateOrderData(data);
+      this.logger.info('✅ GLOBAL_STATE: portfolioState.updateOrderData COMPLETE');
+    } else {
+      this.logger.error('❌ GLOBAL_STATE: portfolioState.updateOrderData method not available!');
     }
+    
+    // Log final state
+    const finalState = portfolioState.getState();
+    this.logger.info('🌐 GLOBAL_STATE: ORDER UPDATE COMPLETE', {
+      newOrderCount: Object.keys(finalState.orders).length,
+      dataSource: finalState.dataSource,
+      lastUpdated: finalState.lastUpdated
+    });
   }
 
   updatePortfolioData(data: any): void {
-    this.logger.debug('Updating portfolio data', { data });
-    portfolioState.updateState(data);
+    this.logger.info('🌐 GLOBAL_STATE: PORTFOLIO UPDATE START', { 
+      cashBalance: data.cash_balance,
+      totalValue: data.total_value,
+      positionCount: data.positions?.length || 0
+    });
+    
+    if (typeof portfolioState.updatePortfolioData === 'function') {
+      this.logger.info('🌐 GLOBAL_STATE: Calling portfolioState.updatePortfolioData...');
+      portfolioState.updatePortfolioData(data);
+      this.logger.info('✅ GLOBAL_STATE: portfolioState.updatePortfolioData COMPLETE');
+    } else {
+      this.logger.error('❌ GLOBAL_STATE: portfolioState.updatePortfolioData method not available!');
+      // Fallback to generic update
+      this.logger.info('🌐 GLOBAL_STATE: Using fallback generic update...');
+      portfolioState.updateState(data);
+    }
+    
+    // Log final state
+    const finalState = portfolioState.getState();
+    this.logger.info('🌐 GLOBAL_STATE: PORTFOLIO UPDATE COMPLETE', {
+      finalCashBalance: finalState.cashBalance,
+      finalTotalValue: finalState.totalValue,
+      finalPositionCount: Object.keys(finalState.positions).length,
+      dataSource: finalState.dataSource
+    });
   }
 
   getConnectionState(): any {
-    return connectionState.getState();
+    const state = connectionState.getState();
+    this.logger.debug('🌐 GLOBAL_STATE: Connection state requested', { state });
+    return state;
   }
 
   getAuthState(): any {
-    return authState.getState();
+    const state = authState.getState();
+    this.logger.debug('🌐 GLOBAL_STATE: Auth state requested', { state });
+    return state;
   }
 }
 
 /**
- * Implementation of ToastService that wraps the global toast service
+ * Complete refactored ToastService implementation
  */
 export class GlobalToastService implements ToastService {
   info(message: string, duration?: number, id?: string): void {
@@ -94,7 +189,7 @@ export class GlobalToastService implements ToastService {
 }
 
 /**
- * Implementation of ConfigService that wraps the global config
+ * Complete refactored ConfigService implementation - FIXED config access
  */
 export class GlobalConfigService implements ConfigService {
   getWebSocketUrl(): string {
@@ -114,9 +209,9 @@ export class GlobalConfigService implements ConfigService {
 
     // Log the config object content
     logger.info('🔍 CONFIG DEBUG: Global config object', {
-      config,
-      hasWsBaseUrl: !!(config as any)?.wsBaseUrl,
-      wsBaseUrl: (config as any)?.wsBaseUrl,
+      hasConfig: !!config,
+      hasWebsocket: !!(config as any)?.websocket,
+      websocketUrl: (config as any)?.websocket?.url,
       configKeys: config ? Object.keys(config) : 'config is null/undefined'
     });
     
@@ -127,10 +222,10 @@ export class GlobalConfigService implements ConfigService {
       wsUrl = process.env.REACT_APP_WS_URL;
       logger.info('🔍 CONFIG DEBUG: Using REACT_APP_WS_URL (YOUR BACKEND)', { wsUrl });
     }
-    // PRIORITY 2: Global config wsBaseUrl
-    else if ((config as any)?.wsBaseUrl) {
-      wsUrl = (config as any).wsBaseUrl;
-      logger.info('🔍 CONFIG DEBUG: Using config.wsBaseUrl', { wsUrl });
+    // PRIORITY 2: Global config websocket.url
+    else if (config?.websocket?.url) {
+      wsUrl = config.websocket.url;
+      logger.info('🔍 CONFIG DEBUG: Using config.websocket.url', { wsUrl });
     }
     // PRIORITY 3: Development default (YOUR BACKEND)
     else if (process.env.NODE_ENV === 'development') {
@@ -167,6 +262,7 @@ export class GlobalConfigService implements ConfigService {
     jitterFactor: number;
     maxAttempts: number;
   } {
+    // FIXED: Access reconnection config at root level, not under websocket
     const reconnectionConfig = config?.reconnection || {
       initialDelayMs: 1000,
       maxDelayMs: 30000,
@@ -181,12 +277,36 @@ export class GlobalConfigService implements ConfigService {
 }
 
 /**
- * Factory function to create a connection manager with global dependencies
+ * FIXED Factory function - USE EXISTING TOKEN MANAGER!
  */
-export function createConnectionManagerWithGlobalDeps() {
-  return {
-    stateManager: new GlobalStateManager(),
-    toastService: new GlobalToastService(),
-    configService: new GlobalConfigService()
-  };
+export function createConnectionManagerWithGlobalDeps(tokenManager: TokenManager) {
+  logger.info('🔧 FACTORY: Creating ConnectionManager with existing TokenManager...');
+  
+  const stateManager = new GlobalStateManager();
+  const toastService = new GlobalToastService();
+  const configService = new GlobalConfigService();
+  
+  logger.info('🔧 FACTORY: Dependencies created', {
+    hasStateManager: !!stateManager,
+    hasToastService: !!toastService,
+    hasConfigService: !!configService,
+    hasTokenManager: !!tokenManager
+  });
+  
+  // Import ConnectionManager
+  const { ConnectionManager } = require('../client/connection-manager');
+  
+  logger.info('🔧 FACTORY: Creating ConnectionManager with all parameters...');
+  
+  // FIXED: Use the EXISTING tokenManager instead of creating a new one
+  const connectionManager = new ConnectionManager(
+    tokenManager,     // Use the EXISTING working TokenManager
+    stateManager,
+    toastService,
+    configService
+  );
+  
+  logger.info('✅ FACTORY: ConnectionManager created successfully');
+  
+  return connectionManager;
 }
