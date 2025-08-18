@@ -5,29 +5,30 @@ class DeploymentTemplate:
     
     def create(self, exchange, name: str) -> dict:
         """Create deployment manifest for exchange"""
+        # Convert UUID objects to strings for Kubernetes compatibility
+        exch_id_str = str(exchange['exch_id'])
+        
         return {
             "apiVersion": "apps/v1",
             "kind": "Deployment",
             "metadata": {
-                "name": name,  # Changes: exchange-service-{exch_id}
+                "name": name,
                 "labels": {
                     "app": name,
                     "managed-by": "orchestrator",
-                    "exch-id": exchange['exch_id'],
-                    "exchange-id": exchange['exchange_id']
+                    "exch-id": exch_id_str
                 }
             },
             "spec": {
                 "replicas": 1,
                 "selector": {
-                    "matchLabels": {"app": name}  # Changes: unique app name
+                    "matchLabels": {"app": name}
                 },
                 "template": {
                     "metadata": {
                         "labels": {
-                            "app": name,  # Changes: unique app name
-                            "exch-id": exchange['exch_id'],
-                            "exchange-id": exchange['exchange_id']
+                            "app": name,
+                            "exch-id": exch_id_str
                         },
                         "annotations": {
                             "prometheus.io/scrape": "true",
@@ -50,45 +51,44 @@ class DeploymentTemplate:
                             "imagePullPolicy": "Never",
                             "ports": [
                                 {"containerPort": 50050},  # Session service port
-                                {"containerPort": 50055},  # gRPC service port  
+                                {"containerPort": 50055},  # gRPC service port
                                 {"containerPort": 50056},  # HTTP health check port
                                 {"containerPort": 9090}    # Metrics port
                             ],
                             "env": [
-                                # Database configuration (same for all)
+                                # Database configuration
                                 {"name": "DB_HOST", "value": "pgbouncer"},
                                 {"name": "DB_PORT", "value": "5432"},
                                 {"name": "DB_NAME", "value": "opentp"},
                                 {"name": "DB_USER", "valueFrom": {"secretKeyRef": {"name": "db-credentials", "key": "username"}}},
                                 {"name": "DB_PASSWORD", "valueFrom": {"secretKeyRef": {"name": "db-credentials", "key": "password"}}},
                                 
-                                # Service configuration (same for all)
+                                # Service configuration
                                 {"name": "ENVIRONMENT", "value": "production"},
                                 {"name": "LOG_LEVEL", "value": "INFO"},
                                 
-                                # Exchange-specific values (THESE CHANGE!)
-                                {"name": "EXCHANGE_ID", "value": exchange['exchange_id']},      # NYSE, NASDAQ, etc.
-                                {"name": "EXCHANGE_TYPE", "value": exchange['exchange_type']}, # US_EQUITIES
-                                {"name": "EXCH_ID", "value": exchange['exch_id']},            # UUID
+                                # Exchange configuration - ONLY EXCH_ID and EXCHANGE_TYPE
+                                {"name": "EXCHANGE_TYPE", "value": str(exchange.get('exchange_type', 'US_EQUITIES'))},
+                                {"name": "EXCH_ID", "value": exch_id_str},
                                 
-                                # Service ports (same for all)
-                                {"name": "GRPC_SERVICE_PORT", "value": "50055"},
+                                # Service ports
+                                {"name": "GRPC_SERVICE_PORT", "value": "50050"},
                                 {"name": "SESSION_SERVICE_PORT", "value": "50050"},
                                 {"name": "HEALTH_SERVICE_PORT", "value": "50056"},
                                 {"name": "HOST", "value": "0.0.0.0"},
                                 
-                                # Pod info (same for all)
+                                # Pod info for service discovery
                                 {"name": "POD_IP", "valueFrom": {"fieldRef": {"fieldPath": "status.podIP"}}},
                                 {"name": "POD_NAME", "valueFrom": {"fieldRef": {"fieldPath": "metadata.name"}}},
                                 {"name": "POD_NAMESPACE", "valueFrom": {"fieldRef": {"fieldPath": "metadata.namespace"}}},
                                 
-                                # Feature flags (same for all)
+                                # Feature flags
                                 {"name": "ENABLE_METRICS", "value": "true"},
                                 {"name": "ENABLE_TRACING", "value": "true"},
                                 {"name": "ENABLE_SESSION_SERVICE", "value": "true"},
                                 {"name": "ENABLE_CONVICTION_SERVICE", "value": "false"},
                                 
-                                # Service URLs (same for all)
+                                # Service URLs
                                 {"name": "AUTH_SERVICE_URL", "value": "http://auth-service:8000"},
                                 {"name": "MARKET_DATA_HOST", "value": "exch-us-equities-market-data-service"},
                                 {"name": "MARKET_DATA_PORT", "value": "50060"},
@@ -124,20 +124,22 @@ class ServiceTemplate:
     
     def create(self, exchange, name: str) -> dict:
         """Create service manifest for exchange"""
+        # Convert UUID objects to strings for Kubernetes compatibility
+        exch_id_str = str(exchange['exch_id'])
+        
         return {
             "apiVersion": "v1",
             "kind": "Service",
             "metadata": {
-                "name": name,  # Changes: exchange-service-{exch_id}
+                "name": name,
                 "labels": {
                     "app": name,
                     "managed-by": "orchestrator",
-                    "exch-id": exchange['exch_id'],
-                    "exchange-id": exchange['exchange_id']
+                    "exch-id": exch_id_str
                 }
             },
             "spec": {
-                "selector": {"app": name},  # Changes: unique app name
+                "selector": {"app": name},
                 "ports": [
                     {"port": 50055, "targetPort": 50055, "name": "grpc"},
                     {"port": 50056, "targetPort": 50056, "name": "http"}, 

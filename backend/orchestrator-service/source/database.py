@@ -23,7 +23,7 @@ class DatabaseManager:
         logger.info("Database connection pool initialized")
     
     async def get_active_exchanges(self):
-        """Get all active exchanges from database"""
+        """Get all active exchanges from database - ONE RECORD PER EXCHANGE SERVICE"""
         async with self.pool.acquire() as conn:
             # Query using actual schema columns
             rows = await conn.fetch("""
@@ -44,21 +44,21 @@ class DatabaseManager:
                 ORDER BY exch_id
             """)
             
-            # Transform the results to match what the orchestrator expects
-            # Since exchanges is an array, we'll create one record per exchange
+            # Transform the results - ONE RECORD PER EXCHANGE SERVICE (not per exchange name)
             result = []
             for row in rows:
                 # Convert the row to a dict
                 row_dict = dict(row)
                 
-                # Since exchanges is an array, create separate entries for each exchange
-                for exchange_name in row_dict['exchanges']:
-                    exchange_record = row_dict.copy()
-                    # Add fields that the orchestrator expects
-                    exchange_record['exchange_id'] = exchange_name  # Use the exchange name as ID
-                    exchange_record['exchange_name'] = exchange_name
-                    exchange_record['is_active'] = True  # Assume all entries are active
-                    result.append(exchange_record)
+                # Use the first exchange name as the primary exchange ID
+                primary_exchange = row_dict['exchanges'][0] if row_dict['exchanges'] else 'UNKNOWN'
+                
+                # Create ONE record per exchange service
+                exchange_record = row_dict.copy()
+                exchange_record['exchange_id'] = primary_exchange
+                exchange_record['exchange_name'] = primary_exchange
+                exchange_record['is_active'] = True
+                result.append(exchange_record)
             
             return result
     

@@ -69,11 +69,23 @@ case $SECTION in
         ;;
     simulator)
         echo "Resetting exchange service resources..."
+        
+        # Clean up original exchange service (if exists)
         kubectl delete configmap exchange-service-config --ignore-not-found=true
         kubectl delete serviceaccount exchange-service-account --ignore-not-found=true
-        # Clean up any running service pods (they all have service-* in their name)
         kubectl delete deployment exchange-service --ignore-not-found=true
         kubectl delete service exchange-service --ignore-not-found=true
+
+        # Clean up orchestrator-managed exchanges
+        echo "Cleaning up orchestrator-managed exchanges..."
+        kubectl delete deployments -l managed-by=orchestrator --ignore-not-found=true
+        kubectl delete services -l managed-by=orchestrator --ignore-not-found=true
+
+        # Alternative: Clean up any exchange-service-* resources
+        echo "Cleaning up any remaining exchange-service-* resources..."
+        kubectl get deployments | grep exchange-service- | awk '{print $1}' | xargs -r kubectl delete deployment
+        kubectl get services | grep exchange-service- | awk '{print $1}' | xargs -r kubectl delete service
+
         ;;
     exch-us-equities)
         echo "Resetting exch-us-equities market data service..."
