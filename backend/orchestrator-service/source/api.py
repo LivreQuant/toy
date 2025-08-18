@@ -1,5 +1,6 @@
-# orchestrator/api.py
+# api.py
 import logging
+from datetime import datetime
 from fastapi import FastAPI, HTTPException
 from typing import Dict, Any
 
@@ -15,6 +16,25 @@ def create_app(db_manager, k8s_manager, scheduler) -> FastAPI:
         """Health check endpoint"""
         return {"status": "healthy", "timestamp": datetime.utcnow()}
     
+    @app.get("/ready")
+    async def ready_check():
+        """Readiness check endpoint for Kubernetes"""
+        try:
+            # Check if database is accessible
+            if db_manager.pool is None:
+                raise HTTPException(status_code=503, detail="Database not initialized")
+            
+            # Try a simple database query
+            exchanges = await db_manager.get_active_exchanges()
+            return {
+                "status": "ready", 
+                "timestamp": datetime.utcnow(),
+                "exchanges_count": len(exchanges)
+            }
+        except Exception as e:
+            logger.error(f"Readiness check failed: {e}")
+            raise HTTPException(status_code=503, detail=f"Service not ready: {str(e)}")
+    
     @app.get("/status")
     async def get_status():
         """Get overall system status"""
@@ -26,7 +46,15 @@ def create_app(db_manager, k8s_manager, scheduler) -> FastAPI:
                 "total_exchanges": len(exchanges),
                 "running_exchanges": len(running),
                 "running_exchange_ids": list(running),
-                "scheduler_running": scheduler.running
+                "scheduler_running": scheduler.running,
+                "exchanges_detail": [
+                    {
+                        "exch_id": ex['exch_id'],
+                        "exchange_name": ex['exchange_name'],
+                        "exchange_type": ex['exchange_type'],
+                        "is_running": ex['exch_id'] in running
+                    } for ex in exchanges
+                ]
             }
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
@@ -45,6 +73,13 @@ def create_app(db_manager, k8s_manager, scheduler) -> FastAPI:
                     "exchange_id": exchange['exchange_id'],
                     "exchange_name": exchange['exchange_name'],
                     "exchange_type": exchange['exchange_type'],
+                    "timezone": exchange['timezone'],
+                    "market_hours": {
+                        "pre_open": str(exchange['pre_open_time']),
+                        "open": str(exchange['open_time']),
+                        "close": str(exchange['close_time']),
+                        "post_close": str(exchange['post_close_time'])
+                    },
                     "is_running": exchange['exch_id'] in running,
                     "should_be_running": scheduler.should_exchange_be_running(exchange)
                 })
@@ -65,7 +100,7 @@ def create_app(db_manager, k8s_manager, scheduler) -> FastAPI:
             await k8s_manager.start_exchange(exchange)
             
             return {
-                "message": f"Started exchange {exchange['exchange_id']}",
+                "message": f"Started exchange {exchange['exchange_name']}",
                 "exch_id": exch_id
             }
             
@@ -86,7 +121,7 @@ def create_app(db_manager, k8s_manager, scheduler) -> FastAPI:
             await k8s_manager.stop_exchange(exchange)
             
             return {
-                "message": f"Stopped exchange {exchange['exchange_id']}",
+                "message": f"Stopped exchange {exchange['exchange_name']}",
                 "exch_id": exch_id
             }
             
@@ -112,6 +147,7 @@ def create_app(db_manager, k8s_manager, scheduler) -> FastAPI:
                 "exchange_id": exchange['exchange_id'],
                 "exchange_name": exchange['exchange_name'],
                 "exchange_type": exchange['exchange_type'],
+                "timezone": exchange['timezone'],
                 "is_running": is_running,
                 "should_be_running": should_be_running,
                 "market_hours": {
@@ -119,7 +155,8 @@ def create_app(db_manager, k8s_manager, scheduler) -> FastAPI:
                     "open": str(exchange['open_time']),
                     "close": str(exchange['close_time']),
                     "post_close": str(exchange['post_close_time'])
-                }
+                },
+                "exchanges_list": exchange.get('exchanges', [])
             }
             
         except HTTPException:

@@ -14,9 +14,8 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
-COPY orchestrator_service.py .
-COPY config/ config/
+# Copy the entire source directory
+COPY source/ ./
 
 # Create non-root user
 RUN useradd --create-home --shell /bin/bash orchestrator
@@ -30,5 +29,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
 # Expose port
 EXPOSE 8080
 
-# Run the application
-CMD ["python", "orchestrator_service.py"]
+# Run the application directly from the main module
+CMD ["python", "main.py"]
