@@ -36,7 +36,6 @@ ENV PYTHONUNBUFFERED=1 \
     # Service Configuration
     REST_PORT="8001" \
     AUTH_SERVICE_URL="http://auth-service:8000" \
-    ORCHESTRATOR_SERVICE_URL="http://orchestrator-service:8080" \
     # Tracing Configuration
     ENABLE_TRACING="true" \
     METRICS_PORT="9091" \

@@ -3,209 +3,186 @@ import asyncio
 import logging
 import signal
 import sys
+from contextlib import asynccontextmanager
 
-from source.utils.logging import setup_logging
-
-from source.api.rest.routes import setup_app
+import asyncpg
+import uvloop
+from aiohttp import web
 
 from source.config import config
-
-# DB
-from source.db.connection_pool import DatabasePool
+from source.api.rest.routes import setup_app
 from source.db.state_repository import StateRepository
-from source.db.session_repository import SessionRepository
 from source.db.fund_repository import FundRepository
 from source.db.book_repository import BookRepository
 from source.db.conviction_repository import ConvictionRepository
-from source.db.crypto_repository import CryptoRepository
-
-# MANAGERS
+from source.clients.auth_client import AuthClient
 from source.core.state_manager import StateManager
 from source.core.session_manager import SessionManager
 from source.core.fund_manager import FundManager
 from source.core.book_manager import BookManager
-from source.core.crypto_manager import CryptoManager
 from source.core.conviction_manager import ConvictionManager
+from source.core.crypto_manager import CryptoManager
 
-# CLIENTS
-from source.clients.auth_client import AuthClient
-from source.clients.exchange_client import ExchangeClient
-
-# METRICS
-from source.utils.metrics import setup_metrics
-from source.utils.tracing import setup_tracing
-
+# Setup logging
+logging.basicConfig(
+    level=getattr(logging, config.log_level.upper()),
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger('fund_service')
 
+async def setup_database():
+    """Initialize database connection pool"""
+    logger.info("Setting up database connection...")
+    
+    try:
+        pool = await asyncpg.create_pool(
+            host=config.db_host,
+            port=config.db_port,
+            database=config.db_name,
+            user=config.db_user,
+            password=config.db_password,
+            min_size=config.db_min_connections,
+            max_size=config.db_max_connections,
+            command_timeout=60
+        )
+        
+        logger.info("Database connection pool created successfully")
+        return pool
+        
+    except Exception as e:
+        logger.error(f"Failed to create database pool: {e}")
+        raise
 
-class GracefulExit(SystemExit):
-    """Special exception for graceful exit"""
-    pass
-
-
-async def main():
-    """Initialize and run the fund service"""
-    # Setup logging
-    setup_logging()
-
-    logger.info("Starting fund service")
-
-    # Initialize tracing
-    if config.enable_tracing:
-        setup_tracing()
-        logger.info("Distributed tracing initialized")
-
-    # Initialize metrics
-    if config.enable_metrics:
-        setup_metrics()
-        logger.info("Metrics collection initialized")
-
-    # Resources to clean up on shutdown
-    resources = {
-        'runner': None,
-        'db_pool': None,
-        'session_repository': None,
-        'fund_repository': None,
-        'book_repository': None,
-        'conviction_repository': None,
-        'crypto_repository': None,
-        'auth_client': None,
-        'exchange_client': None,
-        'state_manager': None
+# source/main.py (update setup_dependencies function)
+async def setup_dependencies():
+    """Initialize all service dependencies"""
+    logger.info("Setting up service dependencies...")
+    
+    # Database setup
+    db_pool = await setup_database()
+    
+    # Repositories
+    state_repository = StateRepository(db_pool)
+    fund_repository = FundRepository(db_pool)
+    book_repository = BookRepository(db_pool)
+    user_repository = UserRepository(db_pool)  # NEW
+    conviction_repository = ConvictionRepository(db_pool)
+    
+    # Clients
+    auth_client = AuthClient()
+    
+    # Crypto manager
+    crypto_manager = CryptoManager()
+    
+    # Managers
+    state_manager = StateManager(state_repository)
+    session_manager = SessionManager(auth_client)
+    fund_manager = FundManager(fund_repository, crypto_manager)
+    book_manager = BookManager(book_repository, crypto_manager, user_repository)  # UPDATED
+    conviction_manager = ConvictionManager(conviction_repository, crypto_manager)
+    
+    logger.info("Service dependencies initialized successfully")
+    
+    return {
+        'db_pool': db_pool,
+        'state_manager': state_manager,
+        'session_manager': session_manager,
+        'fund_manager': fund_manager,
+        'book_manager': book_manager,
+        'conviction_manager': conviction_manager,
+        'auth_client': auth_client,
+        'crypto_manager': crypto_manager,
+        'user_repository': user_repository  # NEW
     }
 
+async def cleanup_dependencies(dependencies):
+    """Clean up service dependencies"""
+    logger.info("Cleaning up service dependencies...")
+    
+    # Close clients
+    if 'auth_client' in dependencies:
+        await dependencies['auth_client'].close()
+    
+    if 'book_manager' in dependencies:
+        await dependencies['book_manager'].close()
+    
+    # Close database pool
+    if 'db_pool' in dependencies:
+        await dependencies['db_pool'].close()
+    
+    logger.info("Service dependencies cleaned up")
+
+@asynccontextmanager
+async def lifespan_context():
+    """Application lifespan context manager"""
+    dependencies = None
     try:
-
-        # Initialize database
-        db_pool = DatabasePool()
-        await db_pool.get_pool()  # Ensure connection is established
-        resources['db_pool'] = db_pool
-
-        # Initialize state repository
-        state_repository = StateRepository()
-        resources['state_repository'] = state_repository
-
-        # Initialize session repository
-        session_repository = SessionRepository()
-        resources['session_repository'] = session_repository
-
-        # Initialize fund repository
-        fund_repository = FundRepository()
-        resources['fund_repository'] = fund_repository
-
-        # Initialize book repository
-        book_repository = BookRepository()
-        resources['book_repository'] = book_repository
-
-        # Initialize conviction repository
-        conviction_repository = ConvictionRepository()
-        resources['conviction_repository'] = conviction_repository
-
-        # Initialize crypto repository
-        crypto_repository = CryptoRepository()
-        resources['crypto_repository'] = crypto_repository
-        
-        # Initialize API clients
-        auth_client = AuthClient(config.auth_service_url)
-        exchange_client = ExchangeClient()
-        resources['auth_client'] = auth_client
-        resources['exchange_client'] = exchange_client
-
-        # Initialize state manager
-        state_manager = StateManager(state_repository,
-                                     timeout_seconds=30)  # Optional: Set timeout
-        resources['state_manager'] = state_manager
-
-        # Initialize session manager (not state dependent)
-        session_manager = SessionManager(session_repository,
-                                         auth_client)
-
-        # Initialize crypto manager
-        crypto_manager = CryptoManager(crypto_repository)
-
-        # Initialize fund manager
-        fund_manager = FundManager(fund_repository, crypto_manager)
-
-        # Initialize book manager
-        book_manager = BookManager(book_repository, crypto_manager)
-        
-        # Initialize conviction manager
-        conviction_manager = ConvictionManager(conviction_repository,
-                                               book_manager, 
-                                               crypto_manager,
-                                               session_manager, 
-                                               exchange_client)
-
-        # Setup and start REST API
-        app, runner, site = await setup_app(state_manager,
-                                            session_manager,
-                                            fund_manager,
-                                            book_manager,
-                                            conviction_manager)
-        resources['runner'] = runner
-
-        # Set up signal handlers
-        def handle_signal():
-            raise GracefulExit()
-
-        loop = asyncio.get_running_loop()
-        for sig in (signal.SIGINT, signal.SIGTERM):
-            loop.add_signal_handler(sig, handle_signal)
-
-        logger.info(f"Fund service started on port {config.rest_port}")
-
-        # Keep the service running until a signal is received
-        while True:
-            await asyncio.sleep(1)
-
-    except GracefulExit:
-        # Handle graceful exit
-        pass
-    except Exception as e:
-        logger.error(f"Failed to start or run service: {e}")
-        return 1
+        # Setup
+        dependencies = await setup_dependencies()
+        yield dependencies
     finally:
-        # Clean up resources
-        await cleanup_resources(resources)
+        # Cleanup
+        if dependencies:
+            await cleanup_dependencies(dependencies)
 
-    return 0
+async def create_application():
+    """Create and configure the web application"""
+    async with lifespan_context() as dependencies:
+        # Create REST API app
+        app, runner = await setup_app(
+            dependencies['state_manager'],
+            dependencies['session_manager'],
+            dependencies['fund_manager'],
+            dependencies['book_manager'],
+            dependencies['conviction_manager']
+        )
+        
+        return app, runner, dependencies
 
+def setup_signal_handlers(dependencies):
+    """Setup signal handlers for graceful shutdown"""
+    def signal_handler(signum, frame):
+        logger.info(f"Received signal {signum}, shutting down...")
+        asyncio.create_task(cleanup_dependencies(dependencies))
+        sys.exit(0)
+    
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
 
-async def cleanup_resources(resources):
-    """Clean up all resources gracefully"""
-    logger.info("Shutting down server gracefully...")
-
-    # Shutdown REST server
-    if resources['runner']:
-        logger.info("Cleaning up web server...")
-        await resources['runner'].cleanup()
-
-    # Close database connection
-    if resources['db_pool']:
-        logger.info("Closing database connection...")
-        await resources['db_pool'].close()
-
-    # Close auth client
-    if resources['auth_client']:
-        logger.info("Closing auth client...")
-        await resources['auth_client'].close()
-
-    # Close exchange client
-    if resources['exchange_client']:
-        logger.info("Closing exchange client...")
-        await resources['exchange_client'].close()
-
-    # Additional cleanup for state manager if needed
-    if resources.get('state_manager'):
-        logger.info("Resetting state manager...")
-
-    logger.info("Server shutdown complete")
-
+async def main():
+    """Main application entry point"""
+    logger.info("Starting Fund Service...")
+    
+    # Set event loop policy for better performance
+    asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+    
+    try:
+        # Create application with dependencies
+        app, runner, dependencies = await create_application()
+        
+        # Setup signal handlers
+        setup_signal_handlers(dependencies)
+        
+        # Start the web server
+        logger.info(f"Starting web server on {config.host}:{config.rest_port}")
+        await runner.setup()
+        site = web.TCPSite(runner, config.host, config.rest_port)
+        await site.start()
+        
+        logger.info(f"Fund Service started successfully on {config.host}:{config.rest_port}")
+        
+        # Keep the service running
+        try:
+            while True:
+                await asyncio.sleep(1)
+        except KeyboardInterrupt:
+            logger.info("Received keyboard interrupt, shutting down...")
+        
+    except Exception as e:
+        logger.error(f"Failed to start Fund Service: {e}")
+        raise
+    finally:
+        logger.info("Fund Service shutdown complete")
 
 if __name__ == "__main__":
-    try:
-        exit_code = asyncio.run(main())
-        sys.exit(exit_code)
-    except KeyboardInterrupt:
-        logger.info("Received keyboard interrupt")
-        sys.exit(0)
+    asyncio.run(main())
