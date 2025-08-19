@@ -3,7 +3,7 @@ import logging
 import time
 import uuid
 import datetime
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
 from source.db.connection_pool import DatabasePool
 from source.utils.metrics import track_db_operation

@@ -1,0 +1,59 @@
+# Web server and async framework
+aiohttp==3.8.5
+aiohttp-cors==0.7.0
+# Remove asyncio - it's built into Python
+
+# Database
+asyncpg==0.29.0
+
+# gRPC for service-to-service communication
+grpcio==1.62.0
+grpcio-tools==1.62.0
+protobuf==4.25.1
+
+# Data serialization and validation
+pydantic==2.11.4
+pydantic_core==2.33.2
+ujson==5.8.0
+
+# Type hints
+typing-extensions==4.13.2
+
+# Storage
+minio>=7.1.0
+
+# PROMETHEUS TRACING
+prometheus-client>=0.16.0
+
+# JAEGER TRACING
+opentelemetry-api>=1.18.0
+opentelemetry-sdk>=1.18.0
+opentelemetry-instrumentation-aiohttp-client>=0.40b0
+opentelemetry-instrumentation-asyncpg>=0.40b0
+opentelemetry-exporter-otlp-proto-grpc
+
+# Environment variables
+python-dotenv==1.1.0
+
+# Cryptography and Security
+cryptography==43.0.3
+# Remove bcrypt if not needed
+
+# Algorand SDK (use the version from your working project)
+py-algorand-sdk==2.8.0
+
+# Additional crypto dependencies from your working project
+PyJWT==2.10.1
+PyNaCl==1.5.0
+pycryptodomex==3.22.0
+
+# HTTP client
+httpx==0.23.3
+requests==2.32.3
+
+# Utilities
+attrs==25.3.0
+certifi==2025.4.26
+charset-normalizer==3.4.2
+idna==3.10
+urllib3==2.4.0

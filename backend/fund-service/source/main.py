@@ -3,57 +3,62 @@ import asyncio
 import logging
 import signal
 import sys
-from contextlib import asynccontextmanager
 
-import asyncpg
-import uvloop
-from aiohttp import web
-
-from source.config import config
+from source.utils.logging import setup_logging
 from source.api.rest.routes import setup_app
+from source.config import config
+
+# DB
+from source.db.connection_pool import DatabasePool
 from source.db.state_repository import StateRepository
+from source.db.session_repository import SessionRepository
 from source.db.fund_repository import FundRepository
 from source.db.book_repository import BookRepository
+from source.db.user_repository import UserRepository
 from source.db.conviction_repository import ConvictionRepository
-from source.clients.auth_client import AuthClient
+from source.db.crypto_repository import CryptoRepository
+
+# MANAGERS
 from source.core.state_manager import StateManager
 from source.core.session_manager import SessionManager
 from source.core.fund_manager import FundManager
 from source.core.book_manager import BookManager
-from source.core.conviction_manager import ConvictionManager
 from source.core.crypto_manager import CryptoManager
+from source.core.conviction_manager import ConvictionManager
 
-# Setup logging
-logging.basicConfig(
-    level=getattr(logging, config.log_level.upper()),
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+# CLIENTS
+from source.clients.auth_client import AuthClient
+from source.clients.exchange_client import ExchangeClient
+
+# METRICS
+from source.utils.metrics import setup_metrics
+from source.utils.tracing import setup_tracing
+
 logger = logging.getLogger('fund_service')
+
+
+class GracefulExit(SystemExit):
+    """Special exception for graceful exit"""
+    pass
+
 
 async def setup_database():
     """Initialize database connection pool"""
     logger.info("Setting up database connection...")
     
     try:
-        pool = await asyncpg.create_pool(
-            host=config.db_host,
-            port=config.db_port,
-            database=config.db_name,
-            user=config.db_user,
-            password=config.db_password,
-            min_size=config.db_min_connections,
-            max_size=config.db_max_connections,
-            command_timeout=60
-        )
+        # Use the DatabasePool from connection_pool module
+        db_pool = DatabasePool()
+        await db_pool.initialize()
         
         logger.info("Database connection pool created successfully")
-        return pool
+        return db_pool
         
     except Exception as e:
         logger.error(f"Failed to create database pool: {e}")
         raise
 
-# source/main.py (update setup_dependencies function)
+
 async def setup_dependencies():
     """Initialize all service dependencies"""
     logger.info("Setting up service dependencies...")
@@ -65,20 +70,22 @@ async def setup_dependencies():
     state_repository = StateRepository(db_pool)
     fund_repository = FundRepository(db_pool)
     book_repository = BookRepository(db_pool)
-    user_repository = UserRepository(db_pool)  # NEW
+    user_repository = UserRepository(db_pool)
     conviction_repository = ConvictionRepository(db_pool)
+    crypto_repository = CryptoRepository(db_pool)
     
     # Clients
     auth_client = AuthClient()
+    exchange_client = ExchangeClient()
     
     # Crypto manager
-    crypto_manager = CryptoManager()
+    crypto_manager = CryptoManager(crypto_repository)
     
     # Managers
     state_manager = StateManager(state_repository)
     session_manager = SessionManager(auth_client)
     fund_manager = FundManager(fund_repository, crypto_manager)
-    book_manager = BookManager(book_repository, crypto_manager, user_repository)  # UPDATED
+    book_manager = BookManager(book_repository, crypto_manager, user_repository)
     conviction_manager = ConvictionManager(conviction_repository, crypto_manager)
     
     logger.info("Service dependencies initialized successfully")
@@ -91,9 +98,11 @@ async def setup_dependencies():
         'book_manager': book_manager,
         'conviction_manager': conviction_manager,
         'auth_client': auth_client,
+        'exchange_client': exchange_client,
         'crypto_manager': crypto_manager,
-        'user_repository': user_repository  # NEW
+        'user_repository': user_repository
     }
+
 
 async def cleanup_dependencies(dependencies):
     """Clean up service dependencies"""
@@ -102,6 +111,9 @@ async def cleanup_dependencies(dependencies):
     # Close clients
     if 'auth_client' in dependencies:
         await dependencies['auth_client'].close()
+    
+    if 'exchange_client' in dependencies:
+        await dependencies['exchange_client'].close()
     
     if 'book_manager' in dependencies:
         await dependencies['book_manager'].close()
@@ -112,22 +124,29 @@ async def cleanup_dependencies(dependencies):
     
     logger.info("Service dependencies cleaned up")
 
-@asynccontextmanager
-async def lifespan_context():
-    """Application lifespan context manager"""
+
+async def main():
+    """Initialize and run the fund service"""
+    # Setup logging
+    setup_logging()
+
+    logger.info("Starting fund service")
+
+    # Initialize tracing
+    if config.enable_tracing:
+        setup_tracing()
+        logger.info("Distributed tracing initialized")
+
+    # Initialize metrics
+    if config.enable_metrics:
+        setup_metrics()
+        logger.info("Metrics initialized")
+
     dependencies = None
     try:
-        # Setup
+        # Setup dependencies
         dependencies = await setup_dependencies()
-        yield dependencies
-    finally:
-        # Cleanup
-        if dependencies:
-            await cleanup_dependencies(dependencies)
-
-async def create_application():
-    """Create and configure the web application"""
-    async with lifespan_context() as dependencies:
+        
         # Create REST API app
         app, runner = await setup_app(
             dependencies['state_manager'],
@@ -137,39 +156,7 @@ async def create_application():
             dependencies['conviction_manager']
         )
         
-        return app, runner, dependencies
-
-def setup_signal_handlers(dependencies):
-    """Setup signal handlers for graceful shutdown"""
-    def signal_handler(signum, frame):
-        logger.info(f"Received signal {signum}, shutting down...")
-        asyncio.create_task(cleanup_dependencies(dependencies))
-        sys.exit(0)
-    
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
-
-async def main():
-    """Main application entry point"""
-    logger.info("Starting Fund Service...")
-    
-    # Set event loop policy for better performance
-    asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
-    
-    try:
-        # Create application with dependencies
-        app, runner, dependencies = await create_application()
-        
-        # Setup signal handlers
-        setup_signal_handlers(dependencies)
-        
-        # Start the web server
-        logger.info(f"Starting web server on {config.host}:{config.rest_port}")
-        await runner.setup()
-        site = web.TCPSite(runner, config.host, config.rest_port)
-        await site.start()
-        
-        logger.info(f"Fund Service started successfully on {config.host}:{config.rest_port}")
+        logger.info(f"Fund service started successfully on {config.host}:{config.rest_port}")
         
         # Keep the service running
         try:
@@ -179,10 +166,14 @@ async def main():
             logger.info("Received keyboard interrupt, shutting down...")
         
     except Exception as e:
-        logger.error(f"Failed to start Fund Service: {e}")
+        logger.error(f"Failed to start fund service: {e}")
         raise
     finally:
-        logger.info("Fund Service shutdown complete")
+        if dependencies:
+            await cleanup_dependencies(dependencies)
+        logger.info("Fund service shutdown complete")
+
 
 if __name__ == "__main__":
+    # Remove uvloop dependency - use standard asyncio
     asyncio.run(main())
