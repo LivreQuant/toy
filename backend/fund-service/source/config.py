@@ -1,10 +1,14 @@
-# source/config.py
+# backend/fund-service/source/config.py
 import os
 from pathlib import Path
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 class Config:
-    """Configuration class for fund service"""
-    
+    """Application configuration."""
+
     # Environment
     environment = os.getenv('ENVIRONMENT', 'development')
 
@@ -21,9 +25,8 @@ class Config:
     db_min_connections = int(os.getenv('DB_MIN_CONNECTIONS', '10'))
     db_max_connections = int(os.getenv('DB_MAX_CONNECTIONS', '100'))
 
-    # Service URLs
+    # Authentication Service
     auth_service_url = os.getenv('AUTH_SERVICE_URL', 'http://auth-service:8000')
-    orchestrator_service_url = os.getenv('ORCHESTRATOR_SERVICE_URL', 'http://orchestrator-service:8080')
     
     # Logging
     log_level = os.getenv('LOG_LEVEL', 'INFO')
@@ -36,6 +39,8 @@ class Config:
     enable_tracing = os.getenv('ENABLE_TRACING', 'true').lower() == 'true'
 
     # Crypto/Blockchain Configuration
+    
+    # Algorand node connection
     algod_token = os.getenv('ALGOD_TOKEN', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')
     algod_server = os.getenv('ALGOD_SERVER', 'http://localhost')
     algod_port = os.getenv('ALGOD_PORT', '4001')

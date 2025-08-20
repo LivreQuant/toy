@@ -26,9 +26,9 @@ def ensure_json_serializable(data):
 class BookRepository:
     """Data access layer for books using temporal data pattern"""
 
-    def __init__(self, db_pool=None):
+    def __init__(self):
         """Initialize the book repository"""
-        self.db_pool = db_pool or DatabasePool()
+        self.db_pool = DatabasePool()
         # Far future date used for active records
         self.future_date = datetime.datetime(2999, 1, 1, tzinfo=datetime.timezone.utc)
         
@@ -41,11 +41,6 @@ class BookRepository:
             'Investment Approach', 
             'Instrument'
         ]
-
-    async def get_connection(self):
-        """Get database connection for exchange metadata operations"""
-        pool = await self.db_pool.get_pool()
-        return pool.acquire()
 
     async def create_book(self, book_data: Dict[str, Any]) -> Optional[str]:
         """
@@ -86,7 +81,7 @@ class BookRepository:
                 async with conn.transaction():
                     # Insert book
                     logger.info(f"Inserting book record for {book_data['book_id']}")
-                    result = await conn.fetchrow(
+                    book_id = await conn.fetchval(
                         book_query,
                         book_data['book_id'],
                         book_data['user_id'],
@@ -94,37 +89,61 @@ class BookRepository:
                         self.future_date
                     )
                     
-                    if not result:
-                        logger.error(f"Failed to create book record for {book_data['book_id']}")
-                        return None
+                    # Convert UUID to string
+                    if isinstance(book_id, uuid.UUID):
+                        book_id = str(book_id)
                     
-                    book_id = result['book_id']
-                    logger.info(f"Created book record with ID: {book_id}")
-                    
-                    # Insert properties if provided
-                    parameters = book_data.get('parameters', [])
-                    if parameters:
-                        logger.info(f"Inserting {len(parameters)} properties for book {book_id}")
+                    # Process book parameters if present
+                    if 'parameters' in book_data and book_data['parameters']:
+                        logger.info(f"Processing parameters for book {book_id}")
                         
-                        # Group parameters by category and subcategory for better handling
-                        for param in parameters:
-                            if len(param) >= 3:
-                                category, subcategory, value = param[0], param[1], param[2]
-                                
-                                # Handle JSON values
-                                if isinstance(value, (dict, list)):
-                                    value = json.dumps(value)
+                        # For triplet format parameters
+                        if isinstance(book_data['parameters'], list):
+                            logger.info(f"Processing {len(book_data['parameters'])} parameters in list format")
+                            
+                            # Group parameters by category and subcategory
+                            parameter_groups = {}
+                            
+                            for param in book_data['parameters']:
+                                if len(param) >= 3:
+                                    category = param[0]
+                                    subcategory = param[1] if param[1] else ""
+                                    value = param[2]
+                                    
+                                    key = (category, subcategory)
+                                    
+                                    # If this is a field that should be an array
+                                    if category in self.list_categories:
+                                        if key not in parameter_groups:
+                                            parameter_groups[key] = []
+                                        
+                                        parameter_groups[key].append(value)
+                                    else:
+                                        # Regular single-value field
+                                        parameter_groups[key] = value
+                            
+                            # Save each parameter or parameter group
+                            logger.info(f"Saving {len(parameter_groups)} parameter groups")
+                            for (category, subcategory), value in parameter_groups.items():
+                                # Format the value - convert arrays to JSON
+                                if isinstance(value, list):
+                                    value_str = json.dumps(value)
                                 else:
-                                    value = str(value)
+                                    # Convert other non-string values to JSON strings
+                                    value_str = json.dumps(value) if not isinstance(value, str) else value
                                 
-                                logger.debug(f"Inserting property: {category}.{subcategory} = {value}")
+                                # Map UI category to DB category and subcategory
+                                db_category, db_subcategory = self._map_ui_to_db_category(category, subcategory)
                                 
+                                logger.debug(f"Inserting property: category={db_category}, subcategory={db_subcategory}, value={value_str[:50]}...")
+                                
+                                # Insert property
                                 await conn.execute(
                                     property_query,
                                     book_id,
-                                    category,
-                                    subcategory or "",
-                                    value,
+                                    db_category,
+                                    db_subcategory,
+                                    value_str,
                                     now,
                                     self.future_date
                                 )
@@ -132,7 +151,7 @@ class BookRepository:
                     duration = time.time() - start_time
                     track_db_operation("create_book", True, duration)
                     
-                    logger.info(f"Successfully created book {book_id} with {len(parameters)} properties")
+                    logger.info(f"Book created successfully with ID: {book_id}")
                     return book_id
                     
         except Exception as e:
@@ -140,10 +159,84 @@ class BookRepository:
             track_db_operation("create_book", False, duration)
             logger.error(f"Error creating book: {e}", exc_info=True)
             return None
-
-    async def get_books_by_user(self, user_id: str) -> List[Dict[str, Any]]:
+    
+    def _map_ui_to_db_category(self, category: str, subcategory: str) -> tuple:
+        """Map UI category/subcategory to database category/subcategory"""
+        if category == 'Name':
+            return 'property', 'name'
+        if category == 'Region':
+                return 'property', 'region'
+        elif category == 'Market':
+            return 'property', 'market'
+        elif category == 'Instrument':
+            return 'property', 'instrument'
+        elif category == 'Investment Approach':
+            return 'property', 'approach'
+        elif category == 'Investment Timeframe':
+            return 'property', 'timeframe'
+        elif category == 'Sector':
+            return 'property', 'sector'
+        elif category == 'Position' and subcategory == 'Long':
+            return 'position', 'long'
+        elif category == 'Position' and subcategory == 'Short':
+            return 'position', 'short'
+        elif category == 'Allocation':
+            return 'metadata', 'allocation'
+        # Add conviction model mapping
+        elif category == 'Conviction' and subcategory == 'PortfolioApproach':
+            return 'conviction_model', 'portfolio_approach'
+        elif category == 'Conviction' and subcategory == 'TargetConvictionMethod':
+            return 'conviction_model', 'target_conviction_method'
+        elif category == 'Conviction' and subcategory == 'IncrementalConvictionMethod':
+            return 'conviction_model', 'incremental_conviction_method'
+        elif category == 'Conviction' and subcategory == 'MaxScore':
+            return 'conviction_model', 'max_score'
+        elif category == 'Conviction' and subcategory == 'Horizons':
+            return 'conviction_model', 'horizons'
+        else:
+            # Default fallback - use category/subcategory as-is but lowercase
+            return category.lower(), subcategory.lower()
+    
+    def _map_db_to_ui_category(self, category: str, subcategory: str) -> tuple:
+        """Map database category/subcategory to UI category/subcategory"""
+        if category == 'property' and subcategory == 'name':
+            return 'Name', ''
+        if category == 'property' and subcategory == 'region':
+            return 'Region', ''
+        elif category == 'property' and subcategory == 'market':
+            return 'Market', ''
+        elif category == 'property' and subcategory == 'instrument':
+            return 'Instrument', ''
+        elif category == 'property' and subcategory == 'approach':
+            return 'Investment Approach', ''
+        elif category == 'property' and subcategory == 'timeframe':
+            return 'Investment Timeframe', ''
+        elif category == 'property' and subcategory == 'sector':
+            return 'Sector', ''
+        elif category == 'position' and subcategory == 'long':
+            return 'Position', 'Long'
+        elif category == 'position' and subcategory == 'short':
+            return 'Position', 'Short'
+        elif category == 'metadata' and subcategory == 'allocation':
+            return 'Allocation', ''
+        # Add conviction model mapping
+        elif category == 'conviction_model' and subcategory == 'portfolio_approach':
+            return 'Conviction', 'PortfolioApproach'
+        elif category == 'conviction_model' and subcategory == 'target_conviction_method':
+            return 'Conviction', 'TargetConvictionMethod'
+        elif category == 'conviction_model' and subcategory == 'incremental_conviction_method':
+            return 'Conviction', 'IncrementalConvictionMethod'
+        elif category == 'conviction_model' and subcategory == 'max_score':
+            return 'Conviction', 'MaxScore'
+        elif category == 'conviction_model' and subcategory == 'horizons':
+            return 'Conviction', 'Horizons'
+        else:
+            # Default case - first letter uppercase
+            return category.capitalize(), subcategory
+    
+    async def get_user_books(self, user_id: str) -> List[Dict[str, Any]]:
         """
-        Get all books for a user with their properties using temporal data pattern
+        Get all books for a user with their properties
         
         Args:
             user_id: User ID
@@ -156,45 +249,58 @@ class BookRepository:
         logger.info(f"Fetching books for user {user_id}")
         
         book_query = """
-        SELECT book_id, user_id, active_at, expire_at
-        FROM fund.books
+        SELECT DISTINCT ON (book_id)
+            book_id, 
+            user_id, 
+            extract(epoch from active_at) as active_at
+        FROM fund.books 
         WHERE user_id = $1 AND expire_at > NOW()
-        ORDER BY active_at DESC
+        ORDER BY book_id, active_at DESC
         """
         
         property_query = """
-        SELECT category, subcategory, value
+        SELECT 
+            category,
+            subcategory,
+            value
         FROM fund.book_properties
         WHERE book_id = $1 AND expire_at > NOW()
-        ORDER BY category, subcategory, value
+        ORDER BY category, subcategory
         """
         
         start_time = time.time()
         try:
             async with pool.acquire() as conn:
-                # Get all books for the user
+                # Get all books for this user
+                logger.info(f"Executing query to get books for user {user_id}")
                 book_rows = await conn.fetch(book_query, user_id)
                 
+                # Process each book
                 books = []
                 for book_row in book_rows:
                     book_id = book_row['book_id']
+                    if isinstance(book_id, uuid.UUID):
+                        book_id = str(book_id)
                     
-                    # Get properties for this book
+                    logger.info(f"Processing book {book_id}")
+                    
+                    # Get book properties
                     property_rows = await conn.fetch(property_query, book_id)
+                    logger.info(f"Found {len(property_rows)} properties for book {book_id}")
                     
-                    # Convert properties to parameter format
+                    # Process properties into list of triplets for frontend
                     parameters = []
-                    for prop_row in property_rows:
-                        category = prop_row['category']
-                        subcategory = prop_row['subcategory'] or ""
-                        value = prop_row['value']
+                    
+                    for prop in property_rows:
+                        category = prop['category']
+                        subcategory = prop['subcategory']
+                        value = prop['value']
                         
-                        # Map internal categories to UI categories
-                        ui_category = category
-                        ui_subcategory = subcategory
+                        # Map DB category/subcategory to UI category/subcategory
+                        ui_category, ui_subcategory = self._map_db_to_ui_category(category, subcategory)
                         
-                        # Handle list categories that should be expanded
-                        if category in self.list_categories:
+                        # Parse JSON arrays for list fields
+                        if ui_category in self.list_categories:
                             try:
                                 if value and (value.startswith('[') or value.startswith('{')):
                                     parsed_values = json.loads(value)
@@ -238,7 +344,7 @@ class BookRepository:
             track_db_operation("get_user_books", False, duration)
             logger.error(f"Error retrieving books: {e}", exc_info=True)
             return []
-
+    
     async def get_book(self, book_id: str) -> Optional[Dict[str, Any]]:
         """
         Get a single book by ID with its properties
@@ -254,46 +360,58 @@ class BookRepository:
         logger.info(f"Fetching book {book_id} from database")
         
         book_query = """
-        SELECT book_id, user_id, active_at, expire_at
-        FROM fund.books
+        SELECT DISTINCT ON (book_id)
+            book_id, 
+            user_id, 
+            extract(epoch from active_at) as active_at
+        FROM fund.books 
         WHERE book_id = $1 AND expire_at > NOW()
-        ORDER BY active_at DESC
-        LIMIT 1
+        ORDER BY book_id, active_at DESC
         """
         
         property_query = """
-        SELECT category, subcategory, value
+        SELECT 
+            category,
+            subcategory,
+            value
         FROM fund.book_properties
         WHERE book_id = $1 AND expire_at > NOW()
-        ORDER BY category, subcategory, value
+        ORDER BY category, subcategory
         """
         
-        start_time = time.time()
         try:
             async with pool.acquire() as conn:
-                # Get the book
+                # Get book
+                logger.info(f"Executing query to get book {book_id}")
                 book_row = await conn.fetchrow(book_query, book_id)
                 
                 if not book_row:
-                    logger.info(f"Book {book_id} not found")
+                    logger.warning(f"Book {book_id} not found or expired")
                     return None
                 
-                # Get properties for this book
-                property_rows = await conn.fetch(property_query, book_id)
+                # Process book data
+                if isinstance(book_row['book_id'], uuid.UUID):
+                    book_id = str(book_row['book_id'])
+                else:
+                    book_id = book_row['book_id']
                 
-                # Convert properties to parameter format
+                # Get book properties
+                property_rows = await conn.fetch(property_query, book_id)
+                logger.info(f"Found {len(property_rows)} properties for book {book_id}")
+                
+                # Process properties into list of triplets for frontend
                 parameters = []
-                for prop_row in property_rows:
-                    category = prop_row['category']
-                    subcategory = prop_row['subcategory'] or ""
-                    value = prop_row['value']
+                
+                for prop in property_rows:
+                    category = prop['category']
+                    subcategory = prop['subcategory']
+                    value = prop['value']
                     
-                    # Map internal categories to UI categories
-                    ui_category = category
-                    ui_subcategory = subcategory
+                    # Map DB category/subcategory to UI category/subcategory
+                    ui_category, ui_subcategory = self._map_db_to_ui_category(category, subcategory)
                     
-                    # Handle list categories that should be expanded
-                    if category in self.list_categories:
+                    # Parse JSON arrays for list fields
+                    if ui_category in self.list_categories:
                         try:
                             if value and (value.startswith('[') or value.startswith('{')):
                                 parsed_values = json.loads(value)
@@ -323,18 +441,13 @@ class BookRepository:
                     'parameters': parameters
                 }
                 
-                duration = time.time() - start_time
-                track_db_operation("get_book", True, duration)
-                
                 logger.info(f"Successfully retrieved book {book_id}")
                 return ensure_json_serializable(book_data)
                 
         except Exception as e:
-            duration = time.time() - start_time
-            track_db_operation("get_book", False, duration)
             logger.error(f"Error retrieving book {book_id}: {e}", exc_info=True)
             return None
-
+    
     async def update_book(self, book_id: str, update_data: Dict[str, Any]) -> bool:
         """
         Update a book using temporal data pattern (expire and insert new)
@@ -358,7 +471,6 @@ class BookRepository:
         
         logger.info(f"Updating book {book_id} with fields: {list(update_data.keys())} and parameters: {parameters is not None}")
         
-        start_time = time.time()
         try:
             async with pool.acquire() as conn:
                 async with conn.transaction():
@@ -430,116 +542,54 @@ class BookRepository:
                             
                             for param in parameters:
                                 if len(param) >= 3:
-                                    category, subcategory, value = param[0], param[1], param[2]
+                                    category = param[0]
+                                    subcategory = param[1] if param[1] else ""
+                                    value = param[2]
                                     
-                                    # Create key for grouping
-                                    key = (category, subcategory or "")
+                                    key = (category, subcategory)
                                     
-                                    if key not in parameter_groups:
-                                        parameter_groups[key] = []
-                                    
-                                    parameter_groups[key].append(value)
-                            
-                            # Insert grouped parameters
-                            for (category, subcategory), values in parameter_groups.items():
-                                # If it's a list category and has multiple values, store as JSON array
-                                if category in self.list_categories and len(values) > 1:
-                                    value_str = json.dumps(values)
-                                else:
-                                    # For single values or non-list categories, store each separately
-                                    for value in values:
-                                        if isinstance(value, (dict, list)):
-                                            value_str = json.dumps(value)
-                                        else:
-                                            value_str = str(value)
+                                    # If this is a field that should be an array
+                                    if category in self.list_categories:
+                                        if key not in parameter_groups:
+                                            parameter_groups[key] = []
                                         
-                                        await conn.execute(
-                                            property_query,
-                                            book_id,
-                                            category,
-                                            subcategory,
-                                            value_str,
-                                            now,
-                                            self.future_date
-                                        )
-                                    continue
+                                        parameter_groups[key].append(value)
+                                    else:
+                                        # Regular single-value field
+                                        parameter_groups[key] = value
+                            
+                            # Save each parameter or parameter group
+                            for (category, subcategory), value in parameter_groups.items():
+                                # Format the value - convert arrays to JSON
+                                if isinstance(value, list):
+                                    value_str = json.dumps(value)
+                                else:
+                                    # Convert other non-string values to JSON strings
+                                    value_str = json.dumps(value) if not isinstance(value, str) else value
                                 
-                                # Insert the JSON array for list categories
+                                # Map UI category to DB category and subcategory
+                                db_category, db_subcategory = self._map_ui_to_db_category(category, subcategory)
+                                
+                                logger.debug(f"Inserting updated property: {db_category}, {db_subcategory}, {value_str[:50]}...")
+                                
+                                # Insert property
                                 await conn.execute(
                                     property_query,
                                     book_id,
-                                    category,
-                                    subcategory,
+                                    db_category,
+                                    db_subcategory,
                                     value_str,
                                     now,
                                     self.future_date
                                 )
                     
-                    duration = time.time() - start_time
-                    track_db_operation("update_book", True, duration)
-                    
-                    logger.info(f"Successfully updated book {book_id}")
+                    logger.info(f"Book {book_id} update completed successfully")
                     return True
                     
         except Exception as e:
-            duration = time.time() - start_time
-            track_db_operation("update_book", False, duration)
             logger.error(f"Error updating book {book_id}: {e}", exc_info=True)
             return False
-
-    async def delete_book(self, book_id: str) -> bool:
-        """
-        Delete a book using temporal data pattern (expire records)
         
-        Args:
-            book_id: Book ID to delete
-            
-        Returns:
-            True if successful, False otherwise
-        """
-        pool = await self.db_pool.get_pool()
-        now = datetime.datetime.now(datetime.timezone.utc)
-        
-        logger.info(f"Deleting book {book_id}")
-        
-        start_time = time.time()
-        try:
-            async with pool.acquire() as conn:
-                async with conn.transaction():
-                    # Expire the book record
-                    book_result = await conn.execute(
-                        """
-                        UPDATE fund.books
-                        SET expire_at = $1
-                        WHERE book_id = $2 AND expire_at > NOW()
-                        """,
-                        now,
-                        book_id
-                    )
-                    
-                    # Expire all properties
-                    props_result = await conn.execute(
-                        """
-                        UPDATE fund.book_properties
-                        SET expire_at = $1
-                        WHERE book_id = $2 AND expire_at > NOW()
-                        """,
-                        now,
-                        book_id
-                    )
-                    
-                    duration = time.time() - start_time
-                    track_db_operation("delete_book", True, duration)
-                    
-                    logger.info(f"Successfully deleted book {book_id}")
-                    return True
-                    
-        except Exception as e:
-            duration = time.time() - start_time
-            track_db_operation("delete_book", False, duration)
-            logger.error(f"Error deleting book {book_id}: {e}", exc_info=True)
-            return False
-
     async def get_client_config(self, user_id: str, book_id: str) -> str:
         """
         Get client config for a specific user and book
@@ -612,203 +662,3 @@ class BookRepository:
             track_db_operation("upsert_client_config", False, duration)
             logger.error(f"Error upserting client config for user {user_id}, book {book_id}: {e}")
             return False
-
-    async def get_book_statistics(self, user_id: str = None) -> Dict[str, Any]:
-        """
-        Get statistics about books
-        
-        Args:
-            user_id: Optional user ID to filter by
-            
-        Returns:
-            Dictionary with statistics
-        """
-        pool = await self.db_pool.get_pool()
-        
-        base_query = """
-        SELECT 
-            COUNT(*) as total_books,
-            COUNT(DISTINCT user_id) as unique_users,
-            MIN(active_at) as earliest_book,
-            MAX(active_at) as latest_book
-        FROM fund.books
-        WHERE expire_at > NOW()
-        """
-        
-        if user_id:
-            base_query += " AND user_id = $1"
-            params = [user_id]
-        else:
-            params = []
-        
-        start_time = time.time()
-        try:
-            async with pool.acquire() as conn:
-                result = await conn.fetchrow(base_query, *params)
-                
-                duration = time.time() - start_time
-                track_db_operation("get_book_statistics", True, duration)
-                
-                return {
-                    'total_books': result['total_books'],
-                    'unique_users': result['unique_users'],
-                    'earliest_book': result['earliest_book'],
-                    'latest_book': result['latest_book']
-                }
-                
-        except Exception as e:
-            duration = time.time() - start_time
-            track_db_operation("get_book_statistics", False, duration)
-            logger.error(f"Error getting book statistics: {e}")
-            return {}
-
-    async def search_books(self, search_params: Dict[str, Any], user_id: str = None) -> List[Dict[str, Any]]:
-        """
-        Search books by various criteria
-        
-        Args:
-            search_params: Dictionary with search criteria
-            user_id: Optional user ID to filter by
-            
-        Returns:
-            List of matching books
-        """
-        pool = await self.db_pool.get_pool()
-        
-        base_query = """
-        SELECT DISTINCT b.book_id, b.user_id, b.active_at
-        FROM fund.books b
-        LEFT JOIN fund.book_properties bp ON b.book_id = bp.book_id AND bp.expire_at > NOW()
-        WHERE b.expire_at > NOW()
-        """
-        
-        conditions = []
-        params = []
-        param_count = 0
-        
-        if user_id:
-            param_count += 1
-            conditions.append(f"b.user_id = ${param_count}")
-            params.append(user_id)
-        
-        if 'name' in search_params:
-            param_count += 1
-            conditions.append(f"(bp.category = 'Name' AND bp.value ILIKE ${param_count})")
-            params.append(f"%{search_params['name']}%")
-        
-        if 'category' in search_params:
-            param_count += 1
-            conditions.append(f"bp.category = ${param_count}")
-            params.append(search_params['category'])
-        
-        if conditions:
-            base_query += " AND " + " AND ".join(conditions)
-        
-        base_query += " ORDER BY b.active_at DESC"
-        
-        start_time = time.time()
-        try:
-            async with pool.acquire() as conn:
-                rows = await conn.fetch(base_query, *params)
-                
-                # Get full book data for each result
-                books = []
-                for row in rows:
-                    book_data = await self.get_book(row['book_id'])
-                    if book_data:
-                        books.append(book_data)
-                
-                duration = time.time() - start_time
-                track_db_operation("search_books", True, duration)
-                
-                logger.info(f"Found {len(books)} books matching search criteria")
-                return books
-                
-        except Exception as e:
-            duration = time.time() - start_time
-            track_db_operation("search_books", False, duration)
-            logger.error(f"Error searching books: {e}")
-            return []
-
-    async def expire_book(self, book_id: str, reason: str = None) -> bool:
-        """
-        Expire a book (soft delete with reason)
-        
-        Args:
-            book_id: Book ID to expire
-            reason: Optional reason for expiration
-            
-        Returns:
-            True if successful, False otherwise
-        """
-        pool = await self.db_pool.get_pool()
-        now = datetime.datetime.now(datetime.timezone.utc)
-        
-        logger.info(f"Expiring book {book_id} with reason: {reason}")
-        
-        start_time = time.time()
-        try:
-            async with pool.acquire() as conn:
-                async with conn.transaction():
-                    # Add reason as a property if provided
-                    if reason:
-                        await conn.execute(
-                            """
-                            INSERT INTO fund.book_properties (
-                                book_id, category, subcategory, value, active_at, expire_at
-                            ) VALUES ($1, 'System', 'ExpireReason', $2, $3, $4)
-                            """,
-                            book_id,
-                            reason,
-                            now,
-                            self.future_date
-                        )
-                    
-                    # Expire the book
-                    return await self.delete_book(book_id)
-                    
-        except Exception as e:
-            duration = time.time() - start_time
-            track_db_operation("expire_book", False, duration)
-            logger.error(f"Error expiring book {book_id}: {e}")
-            return False
-
-    async def get_book_history(self, book_id: str) -> List[Dict[str, Any]]:
-        """
-        Get the complete history of a book including expired records
-        
-        Args:
-            book_id: Book ID
-            
-        Returns:
-            List of historical records
-        """
-        pool = await self.db_pool.get_pool()
-        
-        query = """
-        SELECT book_id, user_id, active_at, expire_at,
-               CASE WHEN expire_at > NOW() THEN 'active' ELSE 'expired' END as status
-        FROM fund.books
-        WHERE book_id = $1
-        ORDER BY active_at DESC
-        """
-        
-        start_time = time.time()
-        try:
-            async with pool.acquire() as conn:
-                rows = await conn.fetch(query, book_id)
-                
-                history = []
-                for row in rows:
-                    history.append(ensure_json_serializable(dict(row)))
-                
-                duration = time.time() - start_time
-                track_db_operation("get_book_history", True, duration)
-                
-                return history
-                
-        except Exception as e:
-            duration = time.time() - start_time
-            track_db_operation("get_book_history", False, duration)
-            logger.error(f"Error getting book history for {book_id}: {e}")
-            return []
