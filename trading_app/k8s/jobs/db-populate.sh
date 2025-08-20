@@ -93,7 +93,7 @@ if [ "$CREATE_USER" = true ]; then
     
     # Create fake user SQL with proper UUID
     cat > temp_create_user.sql << 'EOF'
--- Create fake user in auth schema with proper UUID (testuser: Test123!)
+-- Create/update user in auth schema (using your actual data)
 INSERT INTO auth.users (
     user_id,
     username,
@@ -104,65 +104,107 @@ INSERT INTO auth.users (
     user_role,
     created_at
 ) VALUES (
-    '00000000-0000-0000-0000-000000000001'::UUID,
+    '16615527-c536-4018-8d79-fb22e51718a5'::UUID,
     'testuser',
-    'test@example.com',
+    'sergio.daniel.marques.amaral@gmail.com',
     '4f6694d10ede2bb286a0559638ac04a5d27e181aa3d83a17be4cb238a30c29d4',
     true,
     true,
     'user',
-    CURRENT_TIMESTAMP
-);
+    '2025-08-20 19:14:04.187409+00'::TIMESTAMP WITH TIME ZONE
+) ON CONFLICT (user_id) DO UPDATE SET
+    username = EXCLUDED.username,
+    email = EXCLUDED.email,
+    email_verified = EXCLUDED.email_verified,
+    is_active = EXCLUDED.is_active;
 
-
--- Create fund for the test user
+-- Create fund for the test user (using your actual data)
 INSERT INTO fund.funds (
     user_id,
     fund_id,
     active_at
 ) VALUES (
-    '00000000-0000-0000-0000-000000000001'::UUID,
-    '0ae5453f-2d9e-4c6a-ade0-df9f66726ad1'::UUID,
-    CURRENT_TIMESTAMP
-);
+    '16615527-c536-4018-8d79-fb22e51718a5'::UUID,
+    '7421c696-bd33-4367-944b-fd37fb6fc2fd'::UUID,
+    '2025-08-20 19:15:42.345176+00'::TIMESTAMP WITH TIME ZONE
+) ON CONFLICT (fund_id) DO UPDATE SET
+    active_at = EXCLUDED.active_at;
 
--- Insert fund properties
+-- Insert fund properties (using your actual data)
 INSERT INTO fund.fund_properties (fund_id, category, subcategory, value, active_at, expire_at) VALUES
-('0ae5453f-2d9e-4c6a-ade0-df9f66726ad1'::UUID, 'property', 'name', 'Test Fund', CURRENT_TIMESTAMP, '2999-01-01 00:00:00+00'),
-('0ae5453f-2d9e-4c6a-ade0-df9f66726ad1'::UUID, 'property', 'legal_structure', 'Personal Account', CURRENT_TIMESTAMP, '2999-01-01 00:00:00+00'),
-('0ae5453f-2d9e-4c6a-ade0-df9f66726ad1'::UUID, 'property', 'state_country', 'Newark, NJ', CURRENT_TIMESTAMP, '2999-01-01 00:00:00+00'),
-('0ae5453f-2d9e-4c6a-ade0-df9f66726ad1'::UUID, 'property', 'year_established', '2025', CURRENT_TIMESTAMP, '2999-01-01 00:00:00+00'),
-('0ae5453f-2d9e-4c6a-ade0-df9f66726ad1'::UUID, 'metadata', 'aum', 'Under $1M', CURRENT_TIMESTAMP, '2999-01-01 00:00:00+00'),
-('0ae5453f-2d9e-4c6a-ade0-df9f66726ad1'::UUID, 'metadata', 'purpose', '["raise_capital", "track_record"]', CURRENT_TIMESTAMP, '2999-01-01 00:00:00+00'),
-('0ae5453f-2d9e-4c6a-ade0-df9f66726ad1'::UUID, 'metadata', 'thesis', 'Test this thing out.', CURRENT_TIMESTAMP, '2999-01-01 00:00:00+00');
+('7421c696-bd33-4367-944b-fd37fb6fc2fd'::UUID, 'property', 'name', 'Sergio''s Fund', '2025-08-20 19:15:42.345176+00'::TIMESTAMP WITH TIME ZONE, '2999-01-01 00:00:00+00'),
+('7421c696-bd33-4367-944b-fd37fb6fc2fd'::UUID, 'property', 'legal_structure', 'Personal Account', '2025-08-20 19:15:42.345176+00'::TIMESTAMP WITH TIME ZONE, '2999-01-01 00:00:00+00'),
+('7421c696-bd33-4367-944b-fd37fb6fc2fd'::UUID, 'property', 'state_country', 'Newark, NJ', '2025-08-20 19:15:42.345176+00'::TIMESTAMP WITH TIME ZONE, '2999-01-01 00:00:00+00'),
+('7421c696-bd33-4367-944b-fd37fb6fc2fd'::UUID, 'property', 'year_established', '2025', '2025-08-20 19:15:42.345176+00'::TIMESTAMP WITH TIME ZONE, '2999-01-01 00:00:00+00'),
+('7421c696-bd33-4367-944b-fd37fb6fc2fd'::UUID, 'metadata', 'aum', 'Under $1M', '2025-08-20 19:15:42.345176+00'::TIMESTAMP WITH TIME ZONE, '2999-01-01 00:00:00+00'),
+('7421c696-bd33-4367-944b-fd37fb6fc2fd'::UUID, 'metadata', 'purpose', '["raise_capital"]', '2025-08-20 19:15:42.345176+00'::TIMESTAMP WITH TIME ZONE, '2999-01-01 00:00:00+00'),
+('7421c696-bd33-4367-944b-fd37fb6fc2fd'::UUID, 'metadata', 'thesis', 'This is dope.', '2025-08-20 19:15:42.345176+00'::TIMESTAMP WITH TIME ZONE, '2999-01-01 00:00:00+00')
+ON CONFLICT (fund_id, category, subcategory) DO UPDATE SET
+    value = EXCLUDED.value,
+    active_at = EXCLUDED.active_at;
 
--- Create team member
+-- Create team member (using your actual data)
 INSERT INTO fund.team_members (
     team_member_id,
     fund_id,
     active_at,
     expire_at
 ) VALUES (
-    '6e46e336-766c-4f05-a96b-21f9359dda61'::UUID,
-    '0ae5453f-2d9e-4c6a-ade0-df9f66726ad1'::UUID,
-    CURRENT_TIMESTAMP,
+    '69530c0c-0daa-477e-bec4-2bc711158c73'::UUID,
+    '7421c696-bd33-4367-944b-fd37fb6fc2fd'::UUID,
+    '2025-08-20 19:15:42.345176+00'::TIMESTAMP WITH TIME ZONE,
     '2999-01-01 00:00:00+00'
-);
+) ON CONFLICT (team_member_id) DO UPDATE SET
+    active_at = EXCLUDED.active_at;
 
--- Insert team member properties
+-- Insert team member properties (using your actual data)
 INSERT INTO fund.team_member_properties (member_id, category, subcategory, value, active_at, expire_at) VALUES
-('6e46e336-766c-4f05-a96b-21f9359dda61'::UUID, 'personal', 'order', '0', CURRENT_TIMESTAMP, '2999-01-01 00:00:00+00'),
-('6e46e336-766c-4f05-a96b-21f9359dda61'::UUID, 'personal', 'firstName', 'Sergio', CURRENT_TIMESTAMP, '2999-01-01 00:00:00+00'),
-('6e46e336-766c-4f05-a96b-21f9359dda61'::UUID, 'personal', 'lastName', 'Amaral', CURRENT_TIMESTAMP, '2999-01-01 00:00:00+00'),
-('6e46e336-766c-4f05-a96b-21f9359dda61'::UUID, 'personal', 'birthDate', '1984-05-19', CURRENT_TIMESTAMP, '2999-01-01 00:00:00+00'),
-('6e46e336-766c-4f05-a96b-21f9359dda61'::UUID, 'professional', 'role', 'Portfolio Manager', CURRENT_TIMESTAMP, '2999-01-01 00:00:00+00'),
-('6e46e336-766c-4f05-a96b-21f9359dda61'::UUID, 'professional', 'yearsExperience', '2', CURRENT_TIMESTAMP, '2999-01-01 00:00:00+00'),
-('6e46e336-766c-4f05-a96b-21f9359dda61'::UUID, 'professional', 'currentEmployment', 'Citadel Shit', CURRENT_TIMESTAMP, '2999-01-01 00:00:00+00'),
-('6e46e336-766c-4f05-a96b-21f9359dda61'::UUID, 'professional', 'investmentExpertise', 'Quantitative', CURRENT_TIMESTAMP, '2999-01-01 00:00:00+00'),
-('6e46e336-766c-4f05-a96b-21f9359dda61'::UUID, 'social', 'linkedin', 'https://google.com', CURRENT_TIMESTAMP, '2999-01-01 00:00:00+00'),
-('6e46e336-766c-4f05-a96b-21f9359dda61'::UUID, 'education', 'education', 'MIT', CURRENT_TIMESTAMP, '2999-01-01 00:00:00+00');
+('69530c0c-0daa-477e-bec4-2bc711158c73'::UUID, 'personal', 'order', '0', '2025-08-20 19:15:42.345176+00'::TIMESTAMP WITH TIME ZONE, '2999-01-01 00:00:00+00'),
+('69530c0c-0daa-477e-bec4-2bc711158c73'::UUID, 'personal', 'firstName', 'Sergio', '2025-08-20 19:15:42.345176+00'::TIMESTAMP WITH TIME ZONE, '2999-01-01 00:00:00+00'),
+('69530c0c-0daa-477e-bec4-2bc711158c73'::UUID, 'personal', 'lastName', 'Amaral', '2025-08-20 19:15:42.345176+00'::TIMESTAMP WITH TIME ZONE, '2999-01-01 00:00:00+00'),
+('69530c0c-0daa-477e-bec4-2bc711158c73'::UUID, 'personal', 'birthDate', '1984-05-19', '2025-08-20 19:15:42.345176+00'::TIMESTAMP WITH TIME ZONE, '2999-01-01 00:00:00+00'),
+('69530c0c-0daa-477e-bec4-2bc711158c73'::UUID, 'professional', 'role', 'PM', '2025-08-20 19:15:42.345176+00'::TIMESTAMP WITH TIME ZONE, '2999-01-01 00:00:00+00'),
+('69530c0c-0daa-477e-bec4-2bc711158c73'::UUID, 'professional', 'yearsExperience', '1', '2025-08-20 19:15:42.345176+00'::TIMESTAMP WITH TIME ZONE, '2999-01-01 00:00:00+00'),
+('69530c0c-0daa-477e-bec4-2bc711158c73'::UUID, 'professional', 'currentEmployment', 'Citadel Shit', '2025-08-20 19:15:42.345176+00'::TIMESTAMP WITH TIME ZONE, '2999-01-01 00:00:00+00'),
+('69530c0c-0daa-477e-bec4-2bc711158c73'::UUID, 'professional', 'investmentExpertise', 'Quant', '2025-08-20 19:15:42.345176+00'::TIMESTAMP WITH TIME ZONE, '2999-01-01 00:00:00+00'),
+('69530c0c-0daa-477e-bec4-2bc711158c73'::UUID, 'social', 'linkedin', 'https://google.com', '2025-08-20 19:15:42.345176+00'::TIMESTAMP WITH TIME ZONE, '2999-01-01 00:00:00+00'),
+('69530c0c-0daa-477e-bec4-2bc711158c73'::UUID, 'education', 'education', 'MIT', '2025-08-20 19:15:42.345176+00'::TIMESTAMP WITH TIME ZONE, '2999-01-01 00:00:00+00')
+ON CONFLICT (member_id, category, subcategory) DO UPDATE SET
+    value = EXCLUDED.value,
+    active_at = EXCLUDED.active_at;
 
-SELECT 'Fake user and fund created/updated successfully!' as status;
+-- Create crypto wallet (using your actual data)
+INSERT INTO crypto.wallets (
+    user_id,
+    fund_id,
+    address,
+    mnemonic,
+    mnemonic_salt,
+    active_at,
+    expire_at
+) VALUES (
+    '16615527-c536-4018-8d79-fb22e51718a5'::UUID,
+    '7421c696-bd33-4367-944b-fd37fb6fc2fd'::UUID,
+    'U34GNHVFKR2OE3GMLSD53MRJDK7MUNVTHIMRZXOFG6XAXULQ3J4HTJKMVA',
+    'Z0FBQUFBQm9waDdmaDNNdm9BRGNoQ19Nb1M3UXVqLTVmZG1EM3ZqNVlKM2dRcXJseXNCd0htWDQ4ZDRZajFWeG9qcVVzTDAxZXFEdlh0QVprVnNjRC13d3gxaGtibmctN2dkaTNaYnNzY1Bxc1UxbnlXd1BhRmM3Nk1hbkk1T3U4WTVlWi1kbFlWMjdTWjl1NkN0TmxJblNJZHZQWTYtbjRFblQ5X2l4MmJOVkdRQV9vS3hpWWJhc0dwaUZKQzVCc1Jxdk53YkwydE10LW5UTjhPUlFYUkNpOHMyZDdmelZNYklZQUhWOFEzSnRobXFOTnVGaTM0QUQ4ZkhLT2RYZnhObEZnYXhSQkxRZzFRZlBhMVJhcjZvUVRaYjEzMGV0dE1UWXlRTG50SDV0ODQxUlJSMXJuYUk9',
+    '480nQOX9r7EJourSu+EdUQ==',
+    '2025-08-20 19:15:45.452+00'::TIMESTAMP WITH TIME ZONE,
+    '2999-01-01 00:00:00+00'
+) ON CONFLICT (user_id, fund_id) DO UPDATE SET
+    address = EXCLUDED.address,
+    active_at = EXCLUDED.active_at;
+
+SELECT 'User, fund, team member, and crypto wallet created/updated successfully!' as status;
+
+-- Show what was created
+SELECT 'DATA SUMMARY:' as info;
+SELECT 'auth.users' as table_name, count(*) as records FROM auth.users WHERE user_id = '16615527-c536-4018-8d79-fb22e51718a5'
+UNION ALL SELECT 'fund.funds', count(*) FROM fund.funds WHERE fund_id = '7421c696-bd33-4367-944b-fd37fb6fc2fd'
+UNION ALL SELECT 'fund.fund_properties', count(*) FROM fund.fund_properties WHERE fund_id = '7421c696-bd33-4367-944b-fd37fb6fc2fd'
+UNION ALL SELECT 'fund.team_members', count(*) FROM fund.team_members WHERE team_member_id = '69530c0c-0daa-477e-bec4-2bc711158c73'
+UNION ALL SELECT 'fund.team_member_properties', count(*) FROM fund.team_member_properties WHERE member_id = '69530c0c-0daa-477e-bec4-2bc711158c73'
+UNION ALL SELECT 'crypto.wallets', count(*) FROM crypto.wallets WHERE user_id = '16615527-c536-4018-8d79-fb22e51718a5'
+ORDER BY table_name;
 EOF
 
     # Copy and execute user creation SQL

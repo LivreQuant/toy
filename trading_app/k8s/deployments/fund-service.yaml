@@ -87,14 +87,18 @@ spec:
           httpGet:
             path: /health
             port: 8001
-          initialDelaySeconds: 5
+          initialDelaySeconds: 45
           periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
         livenessProbe:
           httpGet:
             path: /health
             port: 8001
-          initialDelaySeconds: 15
-          periodSeconds: 20
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
       initContainers:
       - name: wait-for-db
         image: postgres:13

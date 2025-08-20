@@ -90,15 +90,7 @@ class StateManager:
         Returns True if database is accessible, False otherwise
         """
         try:
-            pool = await self.db_pool.get_pool()
-            if not pool:
-                return False
-                
-            # Try a simple query with timeout
-            async with pool.acquire() as conn:
-                result = await conn.fetchval('SELECT 1')
-                return result == 1
-                
+            return await self.state_repository.check_connection()
         except Exception as e:
             logger.warning(f"Database validation failed: {e}")
             return False

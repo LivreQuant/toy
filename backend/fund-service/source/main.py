@@ -4,6 +4,8 @@ import logging
 import signal
 import sys
 
+from aiohttp import web
+
 from source.utils.logging import setup_logging
 
 from source.api.rest.routes import setup_app
@@ -49,21 +51,22 @@ async def main():
     # Setup logging
     setup_logging()
 
-    logger.info("Starting fund service")
+    logger.info("🚀 Starting fund service")
 
     # Initialize tracing
     if config.enable_tracing:
         setup_tracing()
-        logger.info("Distributed tracing initialized")
+        logger.info("📊 Distributed tracing initialized")
 
     # Initialize metrics
     if config.enable_metrics:
         setup_metrics()
-        logger.info("Metrics collection initialized")
+        logger.info("📈 Metrics collection initialized")
 
     # Resources to clean up on shutdown
     resources = {
         'runner': None,
+        'site': None,
         'db_pool': None,
         'session_repository': None,
         'fund_repository': None,
@@ -79,9 +82,11 @@ async def main():
     try:
 
         # Initialize database
+        logger.info("🗄️  Initializing database connection...")
         db_pool = DatabasePool()
         await db_pool.get_pool()  # Ensure connection is established
         resources['db_pool'] = db_pool
+        logger.info("✅ Database connection pool initialized")
 
         # Initialize state repository
         state_repository = StateRepository()
@@ -112,6 +117,7 @@ async def main():
         resources['exchange_repository'] = exchange_repository
         
         # Initialize API clients
+        logger.info("🔗 Initializing API clients...")
         auth_client = AuthClient(config.auth_service_url)
         exchange_client = ExchangeClient()
         resources['auth_client'] = auth_client
@@ -143,12 +149,22 @@ async def main():
                                                exchange_client)
 
         # Setup and start REST API
+        logger.info("🌐 Setting up REST API...")
         app, runner = await setup_app(state_manager,
-                                            session_manager,
-                                            fund_manager,
-                                            book_manager,
-                                            conviction_manager)
+                                      session_manager,
+                                      fund_manager,
+                                      book_manager,
+                                      conviction_manager)
         resources['runner'] = runner
+
+        # THIS IS THE MISSING PART - Actually start the server!
+        logger.info(f"🎯 Creating TCPSite on {config.host}:{config.rest_port}")
+        site = web.TCPSite(runner, config.host, config.rest_port)
+        resources['site'] = site
+        
+        logger.info(f"🏁 Starting server on {config.host}:{config.rest_port}")
+        await site.start()
+        logger.info(f"✅ REST API started on {config.host}:{config.rest_port}")
 
         # Set up signal handlers
         def handle_signal():
@@ -158,7 +174,7 @@ async def main():
         for sig in (signal.SIGINT, signal.SIGTERM):
             loop.add_signal_handler(sig, handle_signal)
 
-        logger.info(f"Fund service started on port {config.rest_port}")
+        logger.info(f"🎉 Fund service started on port {config.rest_port}")
 
         # Keep the service running until a signal is received
         while True:
@@ -168,7 +184,7 @@ async def main():
         # Handle graceful exit
         pass
     except Exception as e:
-        logger.error(f"Failed to start or run service: {e}")
+        logger.error(f"💥 Failed to start or run service: {e}")
         return 1
     finally:
         # Clean up resources
@@ -179,33 +195,37 @@ async def main():
 
 async def cleanup_resources(resources):
     """Clean up all resources gracefully"""
-    logger.info("Shutting down server gracefully...")
+    logger.info("🛑 Shutting down server gracefully...")
 
     # Shutdown REST server
+    if resources['site']:
+        logger.info("🚪 Stopping TCPSite...")
+        await resources['site'].stop()
+        
     if resources['runner']:
-        logger.info("Cleaning up web server...")
+        logger.info("🧹 Cleaning up web server...")
         await resources['runner'].cleanup()
 
     # Close database connection
     if resources['db_pool']:
-        logger.info("Closing database connection...")
+        logger.info("🔌 Closing database connection...")
         await resources['db_pool'].close()
 
     # Close auth client
     if resources['auth_client']:
-        logger.info("Closing auth client...")
+        logger.info("🔐 Closing auth client...")
         await resources['auth_client'].close()
 
     # Close exchange client
     if resources['exchange_client']:
-        logger.info("Closing exchange client...")
+        logger.info("📈 Closing exchange client...")
         await resources['exchange_client'].close()
 
     # Additional cleanup for state manager if needed
     if resources.get('state_manager'):
-        logger.info("Resetting state manager...")
+        logger.info("🔄 Resetting state manager...")
 
-    logger.info("Server shutdown complete")
+    logger.info("✅ Server shutdown complete")
 
 
 if __name__ == "__main__":
@@ -213,5 +233,5 @@ if __name__ == "__main__":
         exit_code = asyncio.run(main())
         sys.exit(exit_code)
     except KeyboardInterrupt:
-        logger.info("Received keyboard interrupt")
+        logger.info("⌨️  Received keyboard interrupt")
         sys.exit(0)

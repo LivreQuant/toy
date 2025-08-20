@@ -59,7 +59,7 @@ EXPOSE 9091
 
 # Health check using our HTTP health endpoint
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8001/health || exit 1
+    CMD curl -f http://localhost:8001/health || (echo "Health check failed at $(date)" && exit 1)
 
 # Run the service
 CMD ["python", "source/main.py"]

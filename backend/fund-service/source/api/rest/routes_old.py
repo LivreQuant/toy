@@ -1,4 +1,4 @@
-# source/api/rest/routes.py
+# source/rest/routes.py
 import logging
 from aiohttp import web
 
@@ -6,6 +6,7 @@ from source.api.rest.state_controller import StateController
 from source.api.rest.fund_controller import FundController
 from source.api.rest.book_controller import BookController
 from source.api.rest.conviction_controller import ConvictionController
+
 
 from source.core.state_manager import StateManager
 from source.core.session_manager import SessionManager
@@ -17,18 +18,6 @@ from source.core.conviction_manager import ConvictionManager
 from source.config import config
 
 logger = logging.getLogger('rest_routes')
-
-@web.middleware
-async def logging_middleware(request, handler):
-    """Log all incoming requests"""
-    logger.info(f"🔵 INCOMING REQUEST: {request.method} {request.path} from {request.remote}")
-    try:
-        response = await handler(request)
-        logger.info(f"🟢 RESPONSE: {request.method} {request.path} -> {response.status}")
-        return response
-    except Exception as e:
-        logger.error(f"🔴 ERROR: {request.method} {request.path} -> {e}")
-        raise
 
 @web.middleware
 async def cors_middleware(request, handler):
@@ -45,7 +34,6 @@ async def cors_middleware(request, handler):
     
     # Handle OPTIONS request (preflight)
     if request.method == 'OPTIONS':
-        logger.info(f"🟡 CORS PREFLIGHT: {request.path}")
         response = web.Response()
         response.headers.update(cors_headers)
         return response
@@ -67,29 +55,21 @@ async def setup_app(
     """
     Set up the REST API application with routes and middleware
     """
-    logger.info("🚀 Setting up REST API application...")
-    
     # Create application with CORS middleware
-    app = web.Application(middlewares=[logging_middleware, cors_middleware])
-    logger.info("📝 Created aiohttp application with middleware")
+    app = web.Application(middlewares=[cors_middleware])
 
     # Add session routes
-    logger.info("🔧 Setting up health check routes...")
     state_controller = StateController(state_manager)
     app.router.add_get('/health', state_controller.health_check)
     app.router.add_get('/readiness', state_controller.readiness_check)
-    logger.info("✅ Health check routes added: /health, /readiness")
 
     # Add fund routes
-    logger.info("🔧 Setting up fund routes...")
     fund_controller = FundController(state_manager, session_manager, fund_manager)
     app.router.add_post('/api/funds', fund_controller.create_fund)
     app.router.add_get('/api/funds', fund_controller.get_fund)
     app.router.add_put('/api/funds', fund_controller.update_fund)
-    logger.info("✅ Fund routes added: /api/funds")
 
     # Add book routes
-    logger.info("🔧 Setting up book routes...")
     book_controller = BookController(state_manager, session_manager, book_manager)
     app.router.add_get('/api/books', book_controller.get_books)
     app.router.add_post('/api/books', book_controller.create_book)
@@ -99,28 +79,18 @@ async def setup_app(
     # Add client config routes
     app.router.add_get('/api/books/{id}/config', book_controller.get_client_config)
     app.router.add_put('/api/books/{id}/config', book_controller.update_client_config)
-    logger.info("✅ Book routes added: /api/books/*")
 
     # Add conviction routes
-    logger.info("🔧 Setting up conviction routes...")
     conviction_controller = ConvictionController(state_manager, session_manager, conviction_manager)
     app.router.add_post('/api/convictions/submit', conviction_controller.submit_convictions)
     app.router.add_post('/api/convictions/cancel', conviction_controller.cancel_convictions)
     app.router.add_post('/api/convictions/encoded_submit', conviction_controller.submit_convictions_encoded)
     app.router.add_post('/api/convictions/encoded_cancel', conviction_controller.cancel_convictions_encoded)
-    logger.info("✅ Conviction routes added: /api/convictions/*")
-
-    # Print all routes for debugging
-    logger.info("🗺️  Registered routes:")
-    for route in app.router.routes():
-        logger.info(f"   {route.method} {route.resource.canonical}")
 
     # Start the application
-    logger.info("🏃 Starting AppRunner...")
     runner = web.AppRunner(app)
     await runner.setup()
-    logger.info("✅ AppRunner setup complete")
 
-    logger.info(f"📡 REST API configured to start on {config.host}:{config.rest_port}")
+    logger.info(f"REST API started on {config.host}:{config.rest_port}")
 
     return app, runner
