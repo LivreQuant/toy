@@ -18,7 +18,6 @@ from source.db.fund_repository import FundRepository
 from source.db.book_repository import BookRepository
 from source.db.conviction_repository import ConvictionRepository
 from source.db.crypto_repository import CryptoRepository
-from source.db.exchange_repository import ExchangeRepository
 
 # MANAGERS
 from source.core.state_manager import StateManager
@@ -70,7 +69,6 @@ async def main():
         'book_repository': None,
         'conviction_repository': None,
         'crypto_repository': None,
-        'exchange_repository': None,
         'auth_client': None,
         'exchange_client': None,
         'state_manager': None
@@ -107,10 +105,6 @@ async def main():
         crypto_repository = CryptoRepository()
         resources['crypto_repository'] = crypto_repository
         
-        # Initialize exchange repository
-        exchange_repository = ExchangeRepository()
-        resources['exchange_repository'] = exchange_repository
-        
         # Initialize API clients
         auth_client = AuthClient(config.auth_service_url)
         exchange_client = ExchangeClient()
@@ -133,7 +127,7 @@ async def main():
         fund_manager = FundManager(fund_repository, crypto_manager)
 
         # Initialize book manager
-        book_manager = BookManager(book_repository, crypto_manager, exchange_repository)
+        book_manager = BookManager(book_repository, crypto_manager)
         
         # Initialize conviction manager
         conviction_manager = ConvictionManager(conviction_repository,

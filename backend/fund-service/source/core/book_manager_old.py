@@ -7,26 +7,22 @@ from typing import Dict, Any, List
 from source.models.book import Book
 
 from source.db.book_repository import BookRepository
-from source.db.exchange_repository import ExchangeRepository
 from source.core.crypto_manager import CryptoManager
 
 from source.utils.metrics import track_book_created
 
 logger = logging.getLogger('book_manager')
 
-
 class BookManager:
     """Manager for book operations"""
 
     def __init__(self, 
                  book_repository: BookRepository,
-                 crypto_manager: CryptoManager,
-                 exchange_repository: ExchangeRepository
+                 crypto_manager: CryptoManager
                  ):
         """Initialize the book manager with dependencies"""
         self.book_repository = book_repository
         self.crypto_manager = crypto_manager
-        self.exchange_repository = exchange_repository
 
     async def create_book(self, book_data: Dict[str, Any], user_id: str) -> Dict[str, Any]:
         """
@@ -147,21 +143,6 @@ class BookManager:
             
             logger.info(f"Smart contract created successfully for book {book.book_id}")
             
-            # STEP 3: Setup exchange for the book
-            logger.info(f"Setting up exchange for book {book.book_id}")
-            initial_capital = book_data.get('initialCapital', 0)
-            
-            exchange_result = await self.exchange_repository.setup_exchange_for_book(
-                user_id=user_id,
-                book_id=book.book_id,
-                initial_nav=initial_capital
-            )
-            
-            if not exchange_result:
-                logger.warning(f"Failed to setup exchange for book {book.book_id} - continuing anyway")
-            else:
-                logger.info(f"Exchange setup completed successfully for book {book.book_id}")
-            
             # Track metrics
             logger.info(f"Book {db_book_id} successfully created, tracking metrics")
             track_book_created(user_id)
@@ -178,8 +159,7 @@ class BookManager:
                 "success": False,
                 "error": f"Error creating book: {str(e)}"
             }
- 
-
+    
     async def get_books(self, user_id: str) -> Dict[str, Any]:
         """
         Get all books for a user and convert to new format with contract information
