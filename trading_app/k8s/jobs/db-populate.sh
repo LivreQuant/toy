@@ -1,4 +1,5 @@
 #!/bin/bash
+# Database population script with user data deletion option
 
 echo "========================================"
 echo "DATABASE POPULATION SCRIPT"
@@ -6,9 +7,27 @@ echo "========================================"
 
 # Parse command line arguments
 CREATE_USER=false
-if [ "$1" = "--create-user" ]; then
-    CREATE_USER=true
-fi
+DELETE_USER_DATA=false
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --create-user)
+            CREATE_USER=true
+            shift
+            ;;
+        --delete-user-data)
+            DELETE_USER_DATA=true
+            shift
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Usage: $0 [--create-user] [--delete-user-data]"
+            echo "  --create-user      Create fake user and fund data"
+            echo "  --delete-user-data Delete specific user tables to test fund service creation"
+            exit 1
+            ;;
+    esac
+done
 
 # Get today's date in YYYY-MM-DD format
 TODAY=$(date +%Y-%m-%d)
@@ -24,6 +43,48 @@ if [ -z "$POSTGRES_POD" ]; then
 fi
 
 echo "Found postgres pod: $POSTGRES_POD"
+
+# Handle delete user data option
+if [ "$DELETE_USER_DATA" = true ]; then
+    echo ""
+    echo "🗑️  DELETING SPECIFIC USER DATA..."
+    echo "This will only delete:"
+    echo "  - exch_us_equity.metadata (exchange metadata)"
+    echo "  - exch_us_equity.users (exchange user data)"  
+    echo "  - exch_us_equity.account_data (user account data)"
+    echo ""
+    
+    read -p "Delete these 3 tables? (y/N): " -n 1 -r
+    echo
+    
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        echo "Operation cancelled."
+        exit 0
+    fi
+    
+    echo "Deleting specific user data..."
+    
+    kubectl exec -it $POSTGRES_POD -- psql -U opentp -d opentp -c \
+    "DELETE FROM exch_us_equity.account_data;
+     DELETE FROM exch_us_equity.users; 
+     DELETE FROM exch_us_equity.metadata;
+     
+     SELECT 'Deleted specific user data successfully!' as status;
+     
+     SELECT 'Remaining records:' as info;
+     SELECT 'metadata' as table_name, count(*) as records FROM exch_us_equity.metadata
+     UNION ALL SELECT 'users', count(*) FROM exch_us_equity.users  
+     UNION ALL SELECT 'account_data', count(*) FROM exch_us_equity.account_data;"
+    
+    if [ $? -ne 0 ]; then
+        echo "ERROR: Failed to delete user data!"
+        exit 1
+    fi
+    
+    echo "✅ Only the 3 specified tables cleared!"
+    echo "Now you can test if fund service creates them properly."
+    exit 0
+fi
 
 # Create fake user if requested
 if [ "$CREATE_USER" = true ]; then

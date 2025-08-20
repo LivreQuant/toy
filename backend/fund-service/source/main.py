@@ -43,15 +43,22 @@ class GracefulExit(SystemExit):
 
 
 async def setup_database():
-    """Initialize database connection pool"""
+    """Initialize database connection pool with proper error handling"""
     logger.info("Setting up database connection...")
     
     try:
-        # Use the DatabasePool from connection_pool module
+        # Create DatabasePool instance
         db_pool = DatabasePool()
+        
+        # Initialize the pool (this now exists and handles retries)
         await db_pool.initialize()
         
-        logger.info("Database connection pool created successfully")
+        # Verify connection works
+        health = await db_pool.health_check()
+        if health['status'] != 'healthy':
+            raise RuntimeError(f"Database health check failed: {health.get('error', 'Unknown error')}")
+        
+        logger.info("Database connection pool created and verified successfully")
         return db_pool
         
     except Exception as e:
@@ -60,77 +67,123 @@ async def setup_database():
 
 
 async def setup_dependencies():
-    """Initialize all service dependencies"""
+    """Setup all service dependencies with proper error handling"""
     logger.info("Setting up service dependencies...")
     
-    # Database setup
-    db_pool = await setup_database()
+    dependencies = {}
     
-    # Repositories
-    state_repository = StateRepository(db_pool)
-    fund_repository = FundRepository(db_pool)
-    book_repository = BookRepository(db_pool)
-    user_repository = UserRepository(db_pool)
-    conviction_repository = ConvictionRepository(db_pool)
-    crypto_repository = CryptoRepository(db_pool)
-    
-    # Clients
-    auth_client = AuthClient()
-    exchange_client = ExchangeClient()
-    
-    # Crypto manager
-    crypto_manager = CryptoManager(crypto_repository)
-    
-    # Managers
-    state_manager = StateManager(state_repository)
-    session_manager = SessionManager(auth_client)
-    fund_manager = FundManager(fund_repository, crypto_manager)
-    book_manager = BookManager(book_repository, crypto_manager, user_repository)
-    conviction_manager = ConvictionManager(conviction_repository, crypto_manager)
-    
-    logger.info("Service dependencies initialized successfully")
-    
-    return {
-        'db_pool': db_pool,
-        'state_manager': state_manager,
-        'session_manager': session_manager,
-        'fund_manager': fund_manager,
-        'book_manager': book_manager,
-        'conviction_manager': conviction_manager,
-        'auth_client': auth_client,
-        'exchange_client': exchange_client,
-        'crypto_manager': crypto_manager,
-        'user_repository': user_repository
-    }
+    try:
+        # Initialize database first
+        dependencies['db_pool'] = await setup_database()
+        
+        # Initialize repositories
+        logger.info("Initializing repositories...")
+        dependencies['state_repository'] = StateRepository()
+        dependencies['session_repository'] = SessionRepository()
+        dependencies['fund_repository'] = FundRepository()
+        dependencies['book_repository'] = BookRepository()
+        dependencies['user_repository'] = UserRepository()
+        dependencies['conviction_repository'] = ConvictionRepository()
+        dependencies['crypto_repository'] = CryptoRepository()
+        
+        # Initialize API clients
+        logger.info("Initializing API clients...")
+        dependencies['auth_client'] = AuthClient(config.auth_service_url)
+        dependencies['exchange_client'] = ExchangeClient()
+        
+        # Initialize managers in the correct dependency order
+        logger.info("Initializing service managers...")
+        dependencies['state_manager'] = StateManager(dependencies['state_repository'])
+        dependencies['session_manager'] = SessionManager(
+            dependencies['session_repository'],
+            dependencies['auth_client']
+        )
+        dependencies['crypto_manager'] = CryptoManager(dependencies['crypto_repository'])
+        
+        # BookManager requires crypto_manager and user_repository
+        dependencies['book_manager'] = BookManager(
+            dependencies['book_repository'],
+            dependencies['user_repository'],
+            dependencies['crypto_manager']
+        )
+        
+        dependencies['fund_manager'] = FundManager(
+            dependencies['fund_repository'],
+            dependencies['crypto_manager']
+        )
+        
+        # ConvictionManager requires ALL these dependencies (this was the missing piece!)
+        dependencies['conviction_manager'] = ConvictionManager(
+            dependencies['conviction_repository'],  # conviction_repository
+            dependencies['book_manager'],           # book_manager  
+            dependencies['crypto_manager'],         # crypto_manager
+            dependencies['session_manager'],        # session_manager
+            dependencies['exchange_client']         # exchange_client
+        )
+        
+        logger.info("All service dependencies initialized successfully")
+        return dependencies
+        
+    except Exception as e:
+        logger.error(f"Failed to setup dependencies: {e}")
+        # Clean up any partially initialized dependencies
+        await cleanup_dependencies(dependencies)
+        raise
 
 
-async def cleanup_dependencies(dependencies):
+async def cleanup_dependencies(dependencies: dict):
     """Clean up service dependencies"""
     logger.info("Cleaning up service dependencies...")
     
-    # Close clients
-    if 'auth_client' in dependencies:
-        await dependencies['auth_client'].close()
+    # Close API clients
+    for client_name in ['auth_client', 'exchange_client']:
+        if client_name in dependencies:
+            try:
+                await dependencies[client_name].close()
+                logger.info(f"Closed {client_name}")
+            except Exception as e:
+                logger.error(f"Error closing {client_name}: {e}")
     
-    if 'exchange_client' in dependencies:
-        await dependencies['exchange_client'].close()
+    # Close managers (if they have close methods)
+    for manager_name in ['book_manager', 'fund_manager', 'session_manager', 'conviction_manager']:
+        if manager_name in dependencies:
+            try:
+                manager = dependencies[manager_name]
+                if hasattr(manager, 'close'):
+                    await manager.close()
+                    logger.info(f"Closed {manager_name}")
+            except Exception as e:
+                logger.error(f"Error closing {manager_name}: {e}")
     
-    if 'book_manager' in dependencies:
-        await dependencies['book_manager'].close()
-    
-    # Close database pool
+    # Close database pool last
     if 'db_pool' in dependencies:
-        await dependencies['db_pool'].close()
+        try:
+            await dependencies['db_pool'].close()
+            logger.info("Closed database pool")
+        except Exception as e:
+            logger.error(f"Error closing database pool: {e}")
     
-    logger.info("Service dependencies cleaned up")
+    logger.info("Service dependencies cleanup complete")
+
+
+def setup_signal_handlers():
+    """Setup signal handlers for graceful shutdown"""
+    def signal_handler(signum, frame):
+        logger.info(f"Received signal {signum}, initiating graceful shutdown...")
+        raise GracefulExit()
+    
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
 
 
 async def main():
     """Initialize and run the fund service"""
     # Setup logging
     setup_logging()
-
     logger.info("Starting fund service")
+    
+    # Setup signal handlers
+    setup_signal_handlers()
 
     # Initialize tracing
     if config.enable_tracing:
@@ -143,17 +196,21 @@ async def main():
         logger.info("Metrics initialized")
 
     dependencies = None
+    runner = None
+    site = None
+    
     try:
         # Setup dependencies
         dependencies = await setup_dependencies()
         
-        # Create REST API app
-        app, runner = await setup_app(
+        # Create REST API app with database pool
+        app, runner, site = await setup_app(
             dependencies['state_manager'],
             dependencies['session_manager'],
             dependencies['fund_manager'],
             dependencies['book_manager'],
-            dependencies['conviction_manager']
+            dependencies['conviction_manager'],
+            dependencies['db_pool']  # Pass db_pool for health checks
         )
         
         logger.info(f"Fund service started successfully on {config.host}:{config.rest_port}")
@@ -162,18 +219,39 @@ async def main():
         try:
             while True:
                 await asyncio.sleep(1)
-        except KeyboardInterrupt:
-            logger.info("Received keyboard interrupt, shutting down...")
+        except (KeyboardInterrupt, GracefulExit):
+            logger.info("Received shutdown signal, shutting down gracefully...")
         
     except Exception as e:
         logger.error(f"Failed to start fund service: {e}")
-        raise
+        sys.exit(1)
     finally:
+        # Cleanup
+        if site:
+            try:
+                await site.stop()
+                logger.info("TCP site stopped")
+            except Exception as e:
+                logger.error(f"Error stopping TCP site: {e}")
+                
+        if runner:
+            try:
+                await runner.cleanup()
+                logger.info("REST API runner cleaned up")
+            except Exception as e:
+                logger.error(f"Error cleaning up REST API runner: {e}")
+        
         if dependencies:
             await cleanup_dependencies(dependencies)
+        
         logger.info("Fund service shutdown complete")
 
 
 if __name__ == "__main__":
-    # Remove uvloop dependency - use standard asyncio
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logger.info("Fund service interrupted")
+    except Exception as e:
+        logger.error(f"Fund service crashed: {e}")
+        sys.exit(1)

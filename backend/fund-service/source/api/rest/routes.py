@@ -51,6 +51,7 @@ async def setup_app(
     fund_manager: FundManager,
     book_manager: BookManager,
     conviction_manager: ConvictionManager,
+    db_pool=None  # Add this parameter
     ) -> tuple:
     """
     Set up the REST API application with routes and middleware
@@ -58,9 +59,14 @@ async def setup_app(
     # Create application with CORS middleware
     app = web.Application(middlewares=[cors_middleware])
 
+    # Store database pool in app context for health checks
+    if db_pool:
+        app['db_pool'] = db_pool
+
     # Add session routes
     state_controller = StateController(state_manager)
     app.router.add_get('/health', state_controller.health_check)
+    app.router.add_get('/simple-health', state_controller.simple_health_check)  # Keep original simple version
     app.router.add_get('/readiness', state_controller.readiness_check)
 
     # Add fund routes
