@@ -14,7 +14,6 @@ from source.utils.metrics import track_book_created
 
 logger = logging.getLogger('book_manager')
 
-
 class BookManager:
     """Manager for book operations"""
 
@@ -178,7 +177,6 @@ class BookManager:
                 "success": False,
                 "error": f"Error creating book: {str(e)}"
             }
- 
 
     async def get_books(self, user_id: str) -> Dict[str, Any]:
         """

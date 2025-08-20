@@ -159,7 +159,7 @@ class BookManager:
                 "success": False,
                 "error": f"Error creating book: {str(e)}"
             }
-    
+
     async def get_books(self, user_id: str) -> Dict[str, Any]:
         """
         Get all books for a user and convert to new format with contract information

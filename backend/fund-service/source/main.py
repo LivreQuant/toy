@@ -143,7 +143,7 @@ async def main():
                                                exchange_client)
 
         # Setup and start REST API
-        app, runner, site = await setup_app(state_manager,
+        app, runner = await setup_app(state_manager,
                                             session_manager,
                                             fund_manager,
                                             book_manager,
