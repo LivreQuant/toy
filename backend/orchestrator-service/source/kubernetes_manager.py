@@ -65,7 +65,7 @@ class KubernetesManager:
         """Start exchange deployment and service"""
         exch_id = exchange['exch_id']
         name = self._get_resource_name(exch_id)
-        exchange_name = exchange.get('exchange_name', f"Exchange-{name}")
+        #exchange_name = exchange.get('exchange_name', f"Exchange-{name}")
         
         logger.info(f"Starting exchange with exch_id: {exch_id} (type: {type(exch_id)})")
         logger.info(f"Generated resource name: {name}")
@@ -76,35 +76,35 @@ class KubernetesManager:
             deployment = self.deployment_template.create(exchange, name)
             
             # DUMP DEPLOYMENT YAML TO LOGS
-            self._dump_yaml_to_logs("Deployment", deployment, exchange_name)
+            # self._dump_yaml_to_logs("Deployment", deployment, exchange_name)
             
             # Create deployment
             await self._create_deployment(deployment)
-            logger.info(f"✅ Deployment created successfully for {exchange_name}")
+            logger.info(f"✅ Deployment created successfully for {exch_id}")
             
             # Create service manifest
             service = self.service_template.create(exchange, name)
             
             # DUMP SERVICE YAML TO LOGS
-            self._dump_yaml_to_logs("Service", service, exchange_name)
+            # self._dump_yaml_to_logs("Service", service, exchange_name)
             
             # Create service
             await self._create_service(service)
-            logger.info(f"✅ Service created successfully for {exchange_name}")
+            logger.info(f"✅ Service created successfully for {exch_id}")
             
             # Use string representation for tracking
             self.running_exchanges.add(str(exch_id))
-            logger.info(f"Started exchange: {exchange_name} ({name})")
+            logger.info(f"Started exchange: {exch_id} ({name})")
             
         except Exception as e:
             if "already exists" not in str(e).lower():
-                logger.error(f"Failed to start {exchange_name}: {e}")
+                logger.error(f"Failed to start {exch_id}: {e}")
                 logger.error(f"Exchange data was: {exchange}")
                 raise
             else:
                 # Already running, add to tracking
                 self.running_exchanges.add(str(exch_id))
-                logger.info(f"Exchange {exchange_name} already running")
+                logger.info(f"Exchange {exch_id} already running")
     
     async def stop_exchange(self, exchange):
         """Stop exchange deployment and service"""

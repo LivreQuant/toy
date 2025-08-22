@@ -10,12 +10,18 @@ from source.utils.metrics import track_db_operation
 
 logger = logging.getLogger('exchange_repository')
 
+def round_down_to_minute(dt: datetime.datetime) -> datetime.datetime:
+    """Round down datetime to the previous minute (remove seconds and microseconds)"""
+    return dt.replace(second=0, microsecond=0)
+
 class ExchangeRepository:
     """Repository for managing exchange metadata and user setup"""
 
     def __init__(self, db_pool=None):
         """Initialize the exchange repository"""
+        logger.info("🏗️ Initializing ExchangeRepository")
         self.db_pool = db_pool or DatabasePool()
+        logger.info(f"✅ ExchangeRepository initialized with db_pool: {self.db_pool is not None}")
 
     async def setup_exchange_for_book(self, user_id: str, book_id: str, initial_nav: float) -> bool:
         """
@@ -29,44 +35,110 @@ class ExchangeRepository:
         Returns:
             True if successful, False otherwise
         """
-        logger.info(f"Setting up exchange for book {book_id}, user {user_id}, initial_nav {initial_nav}")
+        logger.info(f"🚀 EXCHANGE SETUP STARTING: book_id={book_id}, user_id={user_id}, initial_nav={initial_nav}")
+        
+        # Validate inputs
+        if not user_id:
+            logger.error("❌ User ID is empty or None")
+            return False
+        
+        if not book_id:
+            logger.error("❌ Book ID is empty or None")
+            return False
+        
+        if initial_nav < 0:
+            logger.error(f"❌ Initial NAV is negative: {initial_nav}")
+            return False
+        
+        logger.info(f"✅ Input validation passed")
         
         # Generate unique exchange ID based on book ID
         exch_id = str(uuid.uuid4())
+        logger.info(f"🆔 Generated exchange ID: {exch_id}")
         
-        pool = await self.db_pool.get_pool()
+        # Get database pool
+        logger.info("🔌 Getting database connection pool...")
+        try:
+            pool = await self.db_pool.get_pool()
+            logger.info("✅ Successfully retrieved database pool")
+        except Exception as pool_error:
+            logger.error(f"💥 Failed to get database pool: {pool_error}")
+            logger.exception("Database pool exception:")
+            return False
+        
         start_time = time.time()
         
         try:
+            logger.info("🔄 Starting database transaction...")
             async with pool.acquire() as conn:
+                logger.info("✅ Successfully acquired database connection")
+                
                 async with conn.transaction():
+                    logger.info("🔒 Transaction started")
+                    
                     # 1. Create exchange metadata
-                    await self._create_exchange_metadata(conn, exch_id)
+                    logger.info(f"📋 Step 1: Creating exchange metadata for {exch_id}")
+                    try:
+                        await self._create_exchange_metadata(conn, exch_id)
+                        logger.info("✅ Step 1 completed: Exchange metadata created")
+                    except Exception as metadata_error:
+                        logger.error(f"💥 Step 1 failed: {metadata_error}")
+                        logger.exception("Exchange metadata creation exception:")
+                        raise
                     
                     # 2. Create user in exchange
-                    await self._create_exchange_user(conn, user_id, exch_id, initial_nav)
+                    logger.info(f"👤 Step 2: Creating exchange user for {user_id}")
+                    try:
+                        await self._create_exchange_user(conn, user_id, exch_id, initial_nav)
+                        logger.info("✅ Step 2 completed: Exchange user created")
+                    except Exception as user_error:
+                        logger.error(f"💥 Step 2 failed: {user_error}")
+                        logger.exception("Exchange user creation exception:")
+                        raise
                     
                     # 3. Create user operational parameters
-                    await self._create_user_operational_parameters(conn, user_id)
+                    logger.info(f"⚙️ Step 3: Creating operational parameters for {user_id}")
+                    try:
+                        await self._create_user_operational_parameters(conn, user_id)
+                        logger.info("✅ Step 3 completed: Operational parameters created")
+                    except Exception as params_error:
+                        logger.error(f"💥 Step 3 failed: {params_error}")
+                        logger.exception("Operational parameters creation exception:")
+                        raise
                     
                     # 4. Create initial account data
-                    await self._create_initial_account_data(conn, user_id, initial_nav)
+                    logger.info(f"💰 Step 4: Creating initial account data for {user_id}")
+                    try:
+                        await self._create_initial_account_data(conn, user_id, initial_nav)
+                        logger.info("✅ Step 4 completed: Initial account data created")
+                    except Exception as account_error:
+                        logger.error(f"💥 Step 4 failed: {account_error}")
+                        logger.exception("Initial account data creation exception:")
+                        raise
+                    
+                    logger.info("🔓 All steps completed, committing transaction...")
                     
                     duration = time.time() - start_time
                     track_db_operation("setup_exchange_for_book", True, duration)
                     
-                    logger.info(f"Successfully set up exchange {exch_id} for book {book_id}")
+                    logger.info(f"🎉 Successfully set up exchange {exch_id} for book {book_id} in {duration:.2f}s")
                     return True
                     
         except Exception as e:
             duration = time.time() - start_time
             track_db_operation("setup_exchange_for_book", False, duration)
-            logger.error(f"Error setting up exchange for book {book_id}: {e}")
+            logger.error(f"💥 EXCHANGE SETUP FAILED for book {book_id} after {duration:.2f}s: {e}")
+            logger.exception("Full exchange setup exception:")
             return False
 
     async def _create_exchange_metadata(self, conn, exch_id: str):
         """Create exchange metadata entry"""
-        now = datetime.datetime.now(datetime.timezone.utc)
+        logger.info(f"📋 Creating exchange metadata for {exch_id}")
+        
+        now_raw = datetime.datetime.now(datetime.timezone.utc)
+        now = round_down_to_minute(now_raw)
+        logger.info(f"⏰ Raw timestamp: {now_raw}")
+        logger.info(f"⏰ Rounded timestamp: {now}")
         
         query = """
         INSERT INTO exch_us_equity.metadata (
@@ -87,8 +159,16 @@ class ExchangeRepository:
         )
         """
         
-        await conn.execute(
-            query,
+        # Convert time strings to proper time objects
+        import datetime as dt
+        pre_market_open = dt.time(4, 0, 0)      # 04:00:00
+        market_open = dt.time(9, 30, 0)         # 09:30:00  
+        market_close = dt.time(16, 0, 0)        # 16:00:00
+        post_market_close = dt.time(20, 0, 0)   # 20:00:00
+        
+        logger.info(f"🕐 Created time objects: pre_market={pre_market_open}, market_open={market_open}, market_close={market_close}, post_market={post_market_close}")
+        
+        values = (
             exch_id,                                # exch_id
             'US_EQUITIES',                          # exchange_type
             'placeholder_endpoint',                 # endpoint (placeholder)
@@ -97,16 +177,30 @@ class ExchangeRepository:
             'America/New_York',                     # timezone
             ['NYSE', 'NASDAQ', 'ARCA'],            # exchanges
             now,                                    # last_snap
-            '04:00:00',                            # pre_market_open
-            '09:30:00',                            # market_open
-            '16:00:00',                            # market_close
-            '20:00:00'                             # post_market_close
+            pre_market_open,                        # pre_market_open (TIME object)
+            market_open,                            # market_open (TIME object)
+            market_close,                           # market_close (TIME object)
+            post_market_close                       # post_market_close (TIME object)
         )
         
-        logger.info(f"Created exchange metadata for {exch_id}")
+        logger.debug(f"🔍 Executing metadata query with values: {values}")
+        
+        try:
+            await conn.execute(query, *values)
+            logger.info(f"✅ Exchange metadata created successfully for {exch_id}")
+        except Exception as e:
+            logger.error(f"💥 Failed to create exchange metadata for {exch_id}: {e}")
+            logger.error(f"🔍 Query: {query}")
+            logger.error(f"🔍 Values: {values}")
+            raise
 
     async def _create_exchange_user(self, conn, user_id: str, exch_id: str, initial_nav: float):
         """Create user in exch_us_equity.users"""
+        logger.info(f"👤 Creating exchange user: user_id={user_id}, exch_id={exch_id}, initial_nav={initial_nav}")
+        
+        # Convert initial_nav to proper decimal format
+        logger.info(f"💰 Using initial_nav as: {initial_nav}")
+        
         query = """
         INSERT INTO exch_us_equity.users (
             user_id,
@@ -123,23 +217,33 @@ class ExchangeRepository:
         )
         """
         
-        await conn.execute(
-            query,
+        values = (
             user_id,                    # user_id
             exch_id,                    # exch_id
             'America/New_York',         # timezone
             'USD',                      # base_currency
-            int(initial_nav),           # initial_nav (keep as integer, no cents conversion)
+            initial_nav,                # initial_nav (as decimal)
             0,                          # operation_id
             1,                          # engine_id
             0,                          # transaction_cost_model
             0                           # market_impact_model
         )
         
-        logger.info(f"Created exchange user record for {user_id} on exchange {exch_id}")
+        logger.debug(f"🔍 Executing user query with values: {values}")
+        
+        try:
+            await conn.execute(query, *values)
+            logger.info(f"✅ Exchange user record created successfully for {user_id} on exchange {exch_id}")
+        except Exception as e:
+            logger.error(f"💥 Failed to create exchange user for {user_id}: {e}")
+            logger.error(f"🔍 Query: {query}")
+            logger.error(f"🔍 Values: {values}")
+            raise
 
     async def _create_user_operational_parameters(self, conn, user_id: str):
         """Create user operational parameters"""
+        logger.info(f"⚙️ Creating operational parameters for user {user_id}")
+        
         query = """
         INSERT INTO exch_us_equity.user_operational_parameters (
             user_id,
@@ -152,19 +256,32 @@ class ExchangeRepository:
         ON CONFLICT (user_id) DO NOTHING
         """
         
-        await conn.execute(
-            query,
+        values = (
             user_id,    # user_id
             1.0,        # max_position_size_pct (100%)
             0.0,        # min_position_size_pct (0%)
             365         # max_days_to_liquidate
         )
         
-        logger.info(f"Created operational parameters for user {user_id}")
+        logger.debug(f"🔍 Executing operational parameters query with values: {values}")
+        
+        try:
+            result = await conn.execute(query, *values)
+            logger.info(f"✅ Operational parameters created for user {user_id} (result: {result})")
+        except Exception as e:
+            logger.error(f"💥 Failed to create operational parameters for {user_id}: {e}")
+            logger.error(f"🔍 Query: {query}")
+            logger.error(f"🔍 Values: {values}")
+            raise
 
     async def _create_initial_account_data(self, conn, user_id: str, initial_nav: float):
         """Create initial account data records"""
-        now = datetime.datetime.now(datetime.timezone.utc)
+        logger.info(f"💰 Creating initial account data for user {user_id} with initial_nav {initial_nav}")
+        
+        now_raw = datetime.datetime.now(datetime.timezone.utc)
+        now = round_down_to_minute(now_raw)
+        logger.info(f"⏰ Raw timestamp: {now_raw}")
+        logger.info(f"⏰ Rounded timestamp: {now}")
         
         query = """
         INSERT INTO exch_us_equity.account_data (
@@ -188,9 +305,10 @@ class ExchangeRepository:
             ('INVESTOR', 0.0, 0.0, 0.0)
         ]
         
+        logger.info(f"📊 Creating {len(account_types)} account types: {[at[0] for at in account_types]}")
+        
         for account_type, amount, previous_amount, change in account_types:
-            await conn.execute(
-                query,
+            values = (
                 user_id,            # user_id
                 now,                # timestamp
                 account_type,       # type
@@ -200,6 +318,15 @@ class ExchangeRepository:
                 change              # change
             )
             
-            logger.debug(f"Created {account_type} account for user {user_id} with amount {amount}")
+            logger.debug(f"🔍 Creating {account_type} account with values: {values}")
+            
+            try:
+                await conn.execute(query, *values)
+                logger.info(f"✅ Created {account_type} account for user {user_id} with amount {amount}")
+            except Exception as e:
+                logger.error(f"💥 Failed to create {account_type} account for {user_id}: {e}")
+                logger.error(f"🔍 Query: {query}")
+                logger.error(f"🔍 Values: {values}")
+                raise
         
-        logger.info(f"Created initial account data for user {user_id}")
+        logger.info(f"🎉 All initial account data created successfully for user {user_id}")

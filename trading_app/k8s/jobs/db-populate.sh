@@ -260,8 +260,8 @@ sed "s/2024-01-09/$TODAY/g" global_static_data.sql > temp_global_static_data.sql
 kubectl cp temp_global_static_data.sql $POSTGRES_POD:/tmp/global_static_data.sql
 
 # Update user_sample_data.sql
-sed "s/2024-01-09/$TODAY/g" user_sample_data.sql > temp_user_sample_data.sql
-kubectl cp temp_user_sample_data.sql $POSTGRES_POD:/tmp/user_sample_data.sql
+#sed "s/2024-01-09/$TODAY/g" user_sample_data.sql > temp_user_sample_data.sql
+#kubectl cp temp_user_sample_data.sql $POSTGRES_POD:/tmp/user_sample_data.sql
 
 # Execute SQL files
 echo ""
@@ -274,9 +274,9 @@ if [ $? -ne 0 ]; then
    exit 1
 fi
 
-echo ""
-echo "Executing user sample data..."
-kubectl exec -it $POSTGRES_POD -- psql -U opentp -d opentp -f /tmp/user_sample_data.sql
+#echo ""
+#echo "Executing user sample data..."
+#kubectl exec -it $POSTGRES_POD -- psql -U opentp -d opentp -f /tmp/user_sample_data.sql
 
 if [ $? -ne 0 ]; then
    echo "ERROR: Failed to execute user sample data!"

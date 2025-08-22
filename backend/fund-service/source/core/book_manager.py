@@ -29,7 +29,7 @@ class BookManager:
 
     async def create_book(self, book_data: Dict[str, Any], user_id: str) -> Dict[str, Any]:
         """
-        Create a new book for a user with blockchain contract integration
+        Create a new book for a user with blockchain contract integration and exchange setup
         """
         logger.info(f"Creating book for user {user_id}")
         logger.debug(f"Book data: {book_data}")
@@ -147,19 +147,45 @@ class BookManager:
             logger.info(f"Smart contract created successfully for book {book.book_id}")
             
             # STEP 3: Setup exchange for the book
-            logger.info(f"Setting up exchange for book {book.book_id}")
+            logger.info(f"🚀 STARTING EXCHANGE SETUP for book {book.book_id}")
+            logger.info(f"🚀 Exchange repository available: {self.exchange_repository is not None}")
+            
             initial_capital = book_data.get('initialCapital', 0)
+            logger.info(f"🚀 Initial capital value: {initial_capital} (type: {type(initial_capital)})")
             
-            exchange_result = await self.exchange_repository.setup_exchange_for_book(
-                user_id=user_id,
-                book_id=book.book_id,
-                initial_nav=initial_capital
-            )
+            if self.exchange_repository is None:
+                logger.error(f"❌ Exchange repository is None! Cannot setup exchange for book {book.book_id}")
+                return {
+                    "success": False,
+                    "error": "Exchange repository not initialized"
+                }
             
-            if not exchange_result:
-                logger.warning(f"Failed to setup exchange for book {book.book_id} - continuing anyway")
-            else:
-                logger.info(f"Exchange setup completed successfully for book {book.book_id}")
+            if initial_capital <= 0:
+                logger.warning(f"⚠️ Initial capital is {initial_capital}, setting default value of 10000")
+                initial_capital = 10000  # Set a default value
+            
+            try:
+                logger.info(f"🔄 Calling exchange repository setup_exchange_for_book...")
+                exchange_result = await self.exchange_repository.setup_exchange_for_book(
+                    user_id=user_id,
+                    book_id=book.book_id,
+                    initial_nav=float(initial_capital)
+                )
+                
+                logger.info(f"🔄 Exchange setup result: {exchange_result}")
+                
+                if not exchange_result:
+                    logger.error(f"❌ Failed to setup exchange for book {book.book_id} - exchange_result is False")
+                    # For now, we'll log this as an error but continue
+                    # In production, you might want to fail the entire book creation
+                else:
+                    logger.info(f"✅ Exchange setup completed successfully for book {book.book_id}")
+                    
+            except Exception as exchange_error:
+                logger.error(f"💥 Exception during exchange setup for book {book.book_id}: {exchange_error}")
+                logger.exception("Full exchange setup exception:")
+                # For now, we'll log this as an error but continue
+                # In production, you might want to fail the entire book creation
             
             # Track metrics
             logger.info(f"Book {db_book_id} successfully created, tracking metrics")
@@ -173,6 +199,7 @@ class BookManager:
             
         except Exception as e:
             logger.error(f"Error creating book: {e}")
+            logger.exception("Full book creation exception:")
             return {
                 "success": False,
                 "error": f"Error creating book: {str(e)}"
@@ -266,46 +293,44 @@ class BookManager:
                                     # Already a list, use it directly
                                     conviction_schema['horizons'] = value
                                     logger.info(f"Using horizons as-is (already a list): {value}")
-                                else:
-                                    # It's a string, try to parse as JSON
+                                elif isinstance(value, str):
                                     try:
-                                        parsed_horizons = json.loads(value)
-                                        conviction_schema['horizons'] = parsed_horizons
-                                        logger.info(f"Successfully parsed horizons: {parsed_horizons}")
-                                    except (json.JSONDecodeError, TypeError) as e:
-                                        logger.error(f"Failed to parse horizons JSON: {e}")
+                                        # Try to parse as JSON first
+                                        horizons = json.loads(value)
+                                        if isinstance(horizons, list):
+                                            conviction_schema['horizons'] = horizons
+                                            logger.info(f"Parsed horizons from JSON: {horizons}")
+                                        else:
+                                            logger.warning(f"Horizons JSON is not a list: {horizons}")
+                                            conviction_schema['horizons'] = []
+                                    except json.JSONDecodeError:
+                                        logger.warning(f"Failed to parse horizons as JSON: {value}")
                                         conviction_schema['horizons'] = []
-                            else:
-                                logger.warning(f"Unknown Conviction subcategory: '{subcategory}'")
-
-                # GET SMART CONTRACT INFORMATION
-                book_id = book_internal['book_id']
-                logger.info(f"Getting contract information for book {book_id}")
+                                else:
+                                    logger.warning(f"Unknown horizons format: {value} (type: {type(value)})")
+                                    conviction_schema['horizons'] = []
                 
-                contract_data = await self.crypto_manager.get_contract(user_id, book_id)
+                # Add conviction schema to book
+                book['convictionSchema'] = conviction_schema
                 
-                if contract_data:
-                    # Add contract information to the book
-                    book['contract'] = {
-                        'appId': contract_data.get('app_id'),
-                        'appAddress': contract_data.get('app_address'),
-                        'status': contract_data.get('status'),
-                        'blockchainStatus': contract_data.get('blockchain_status'),
-                        'parameters': contract_data.get('parameters'),
-                        'activeAt': contract_data.get('active_at'),
-                        'contractId': contract_data.get('contract_id')
-                    }
-                    logger.info(f"Added contract info for book {book_id}: app_id={contract_data.get('app_id')}")
-                else:
-                    logger.warning(f"No contract found for book {book_id}")
+                # Get contract information for this book
+                logger.info(f"Getting contract information for book {book_internal['book_id']}")
+                try:
+                    contract_info = await self.crypto_manager.get_contract(user_id, book_internal['book_id'])
+                    logger.info(f"Retrieved contract for user {user_id}, book {book_internal['book_id']}")
+                    
+                    if contract_info:
+                        book['contract'] = contract_info
+                        logger.info(f"Added contract info for book {book_internal['book_id']}: app_id={contract_info.get('app_id', 'N/A')}")
+                    else:
+                        logger.warning(f"No contract found for book {book_internal['book_id']}")
+                        book['contract'] = None
+                        
+                except Exception as contract_error:
+                    logger.error(f"Failed to get contract for book {book_internal['book_id']}: {contract_error}")
                     book['contract'] = None
                 
-                # Add conviction schema if any values were found
-                if conviction_schema:
-                    logger.info(f"Final conviction_schema before adding to book: {conviction_schema}")
-                    book['convictionSchema'] = conviction_schema
-                else:
-                    logger.warning("No conviction_schema values found")
+                logger.info(f"Final conviction_schema before adding to book: {conviction_schema}")
                 
                 books.append(book)
             
@@ -313,21 +338,23 @@ class BookManager:
                 "success": True,
                 "books": books
             }
+            
         except Exception as e:
             logger.error(f"Error getting books for user {user_id}: {e}")
+            logger.exception("Full get_books exception:")
             return {
                 "success": False,
                 "error": f"Error getting books: {str(e)}"
             }
-            
+
     async def get_book(self, book_id: str, user_id: str) -> Dict[str, Any]:
         """
-        Get a single book by ID and convert to new format with contract information
+        Get a specific book for a user
         """
         logger.info(f"Getting book {book_id} for user {user_id}")
         
         try:
-            # Get book from repository (in internal format)
+            # Get book from repository
             book_internal = await self.book_repository.get_book(book_id)
             
             if not book_internal:
@@ -336,137 +363,30 @@ class BookManager:
                     "error": "Book not found"
                 }
             
-            # Verify ownership
-            if book_internal['user_id'] != user_id:
-                return {
-                    "success": False,
-                    "error": "Book does not belong to this user"
-                }
+            logger.info(f"Retrieved book {book_id} for user {user_id}")
             
-            # Create a book in the new format
-            book = {
-                'bookId': book_internal['book_id'],
-                'name': '',
-                'regions': [],
-                'markets': [],
-                'instruments': [],
-                'investmentApproaches': [],
-                'investmentTimeframes': [],
-                'sectors': [],
-                'positionTypes': {'long': False, 'short': False},
-                'initialCapital': 0
-            }
-            
-            # Create empty conviction schema
-            conviction_schema = {}
-            
-            # Extract data from parameters
-            parameters = book_internal.get('parameters', [])
-            for param in parameters:
-                if len(param) >= 3:
-                    category, subcategory, value = param
-                    logger.debug(f"Processing param: category='{category}', subcategory='{subcategory}', value='{value}'")
-                    
-                    if category == 'Name':
-                        book['name'] = value
-                    elif category == 'Region':
-                        book['regions'].append(value)
-                    elif category == 'Market':
-                        book['markets'].append(value)
-                    elif category == 'Instrument':
-                        book['instruments'].append(value)
-                    elif category == 'Investment Approach':
-                        book['investmentApproaches'].append(value)
-                    elif category == 'Investment Timeframe':
-                        book['investmentTimeframes'].append(value)
-                    elif category == 'Sector':
-                        book['sectors'].append(value)
-                    elif category == 'Position':
-                        if subcategory == 'Long':
-                            book['positionTypes']['long'] = value.lower() == 'true'
-                        elif subcategory == 'Short':
-                            book['positionTypes']['short'] = value.lower() == 'true'
-                    elif category == 'Allocation':
-                        try:
-                            book['initialCapital'] = int(value)
-                        except (ValueError, TypeError):
-                            book['initialCapital'] = 0
-                    # Handle conviction schema parameters
-                    elif category == 'Conviction':
-                        logger.info(f"Found Conviction parameter: subcategory='{subcategory}', value='{value}'")
-                        if subcategory == 'PortfolioApproach':
-                            conviction_schema['portfolioApproach'] = value
-                            logger.debug(f"Set portfolioApproach = '{value}'")
-                        elif subcategory == 'TargetConvictionMethod':
-                            conviction_schema['targetConvictionMethod'] = value
-                            logger.debug(f"Set targetConvictionMethod = '{value}'")
-                        elif subcategory == 'IncrementalConvictionMethod':
-                            conviction_schema['incrementalConvictionMethod'] = value
-                            logger.debug(f"Set incrementalConvictionMethod = '{value}'")
-                        elif subcategory == 'MaxScore':
-                            try:
-                                conviction_schema['maxScore'] = int(value)
-                                logger.debug(f"Set maxScore = {int(value)}")
-                            except (ValueError, TypeError):
-                                conviction_schema['maxScore'] = value
-                                logger.debug(f"Set maxScore = '{value}' (as string)")
-                        elif subcategory == 'Horizons':
-                            logger.info(f"Processing Horizons: raw value = '{value}', type = {type(value)}")
-                            if isinstance(value, list):
-                                # Already a list, use it directly
-                                conviction_schema['horizons'] = value
-                                logger.info(f"Using horizons as-is (already a list): {value}")
-                            else:
-                                # It's a string, try to parse as JSON
-                                try:
-                                    parsed_horizons = json.loads(value)
-                                    conviction_schema['horizons'] = parsed_horizons
-                                    logger.info(f"Successfully parsed horizons: {parsed_horizons}")
-                                except (json.JSONDecodeError, TypeError) as e:
-                                    logger.error(f"Failed to parse horizons JSON: {e}")
-                                    conviction_schema['horizons'] = []
-                        else:
-                            logger.warning(f"Unknown Conviction subcategory: '{subcategory}'")
-            
-            # GET SMART CONTRACT INFORMATION
-            logger.info(f"Getting contract information for book {book_id}")
-            
-            contract_data = await self.crypto_manager.get_contract(user_id, book_id)
-            
-            if contract_data:
-                # Add contract information to the book
-                book['contract'] = {
-                    'appId': contract_data.get('app_id'),
-                    'appAddress': contract_data.get('app_address'),
-                    'status': contract_data.get('status'),
-                    'blockchainStatus': contract_data.get('blockchain_status'),
-                    'parameters': contract_data.get('parameters'),
-                    'activeAt': contract_data.get('active_at'),
-                    'contractId': contract_data.get('contract_id')
-                }
-                logger.info(f"Added contract info for book {book_id}: app_id={contract_data.get('app_id')}")
-            else:
-                logger.warning(f"No contract found for book {book_id}")
-                book['contract'] = None
-
-            # Add conviction schema if any values were found
-            if conviction_schema:
-                logger.info(f"Final conviction_schema before adding to book: {conviction_schema}")
-                book['convictionSchema'] = conviction_schema
-            else:
-                logger.warning("No conviction_schema values found")
+            # Convert to new format (reuse logic from get_books)
+            books_result = await self.get_books(user_id)
+            if books_result.get("success"):
+                for book in books_result["books"]:
+                    if book["bookId"] == book_id:
+                        return {
+                            "success": True,
+                            "book": book
+                        }
             
             return {
-                "success": True,
-                "book": book
+                "success": False,
+                "error": "Book not found in converted format"
             }
+            
         except Exception as e:
-            logger.error(f"Error getting book {book_id}: {e}")
+            logger.error(f"Error getting book {book_id} for user {user_id}: {e}")
             return {
                 "success": False,
                 "error": f"Error getting book: {str(e)}"
             }
-        
+
     async def update_book(self, book_id: str, book_data: Dict[str, Any], user_id: str) -> Dict[str, Any]:
         """
         Update a book's properties with blockchain contract update
@@ -576,31 +496,39 @@ class BookManager:
                 logger.error(f"Failed to update contract for book {book_id}: {contract_result.get('error')}")
                 return {
                     "success": False,
-                    "error": f"Failed to update contract: {contract_result.get('error')}"
+                    "error": f"Contract update failed: {contract_result.get('error')}"
                 }
             
-            # STEP 2: Apply updates to database using temporal pattern
-            success = await self.book_repository.update_book(book_id, update_data)
+            logger.info(f"Smart contract updated successfully for book {book_id}")
             
-            if success:
-                logger.info(f"Book {book_id} and contract updated successfully")
-                return {
-                    "success": True
-                }
-            else:
+            # STEP 2: Update database record
+            logger.info(f"Updating database record for book {book_id}")
+            success = await self.book_repository.update_book(book_id, user_id, update_data)
+            
+            if not success:
                 logger.error(f"Failed to update book {book_id} in database")
                 return {
                     "success": False,
                     "error": "Failed to update book in database"
                 }
-                
+            
+            logger.info(f"Book {book_id} updated successfully")
+            
+            return {
+                "success": True,
+                "book_id": book_id,
+                "app_id": contract_result.get("app_id")
+            }
+            
         except Exception as e:
             logger.error(f"Error updating book {book_id}: {e}")
+            logger.exception("Full update_book exception:")
             return {
                 "success": False,
                 "error": f"Error updating book: {str(e)}"
             }
-        
+
+
     async def get_book_contract_details(self, book_id: str, user_id: str) -> Dict[str, Any]:
         """
         Get detailed contract information for a book

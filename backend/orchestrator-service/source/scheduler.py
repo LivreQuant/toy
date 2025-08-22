@@ -23,40 +23,56 @@ class Scheduler:
         try:
             exchange_tz = pytz.timezone(exchange_tz_str)
         except Exception as e:
-            logger.error(f"Invalid timezone {exchange_tz_str} for {exchange.get('exchange_name', 'Unknown')}: {e}")
+            logger.error(f"Invalid timezone {exchange_tz_str} for exchange service {exchange.get('exch_id', 'Unknown')}: {e}")
             exchange_tz = pytz.timezone('America/New_York')  # Fallback
         
-        # Convert to exchange local time
-        now_local = now_utc.astimezone(exchange_tz)
-        today_local = now_local.date()
+        # Get today's date in the exchange timezone to handle date rollover correctly
+        today_local = now_utc.astimezone(exchange_tz).date()
         
-        # Skip weekends (Saturday=5, Sunday=6)
-        if now_local.weekday() >= 5:
-            logger.info(f"Weekend detected ({now_local.strftime('%A')}), exchange {exchange.get('exchange_name', 'Unknown')} should not run")
+        # Skip weekends (Saturday=5, Sunday=6) based on exchange local date
+        local_weekday = now_utc.astimezone(exchange_tz).weekday()
+        if local_weekday >= 5:
+            logger.debug(f"Weekend detected in {exchange_tz_str}, exchange service should not run")
             return False
         
-        # Get market hours (these are time objects)
-        pre_open = exchange['pre_open_time']  # e.g., 04:00:00
-        post_close = exchange['post_close_time']  # e.g., 20:00:00
+        # Get market hours from database (these are in exchange local time)
+        pre_open_local = exchange['pre_open_time']      # e.g., 04:00:00 EDT
+        post_close_local = exchange['post_close_time']  # e.g., 13:44:00 EDT
         
-        # Convert times to datetime objects in the exchange timezone
-        pre_open_dt = exchange_tz.localize(datetime.combine(today_local, pre_open))
-        post_close_dt = exchange_tz.localize(datetime.combine(today_local, post_close))
+        # Convert local market hours to UTC datetime objects
+        pre_open_local_dt = exchange_tz.localize(datetime.combine(today_local, pre_open_local))
+        post_close_local_dt = exchange_tz.localize(datetime.combine(today_local, post_close_local))
+        
+        # Convert to UTC
+        pre_open_utc = pre_open_local_dt.astimezone(pytz.UTC)
+        post_close_utc = post_close_local_dt.astimezone(pytz.UTC)
         
         # Add 5-minute buffers
         buffer = timedelta(minutes=5)
-        start_time = pre_open_dt - buffer  # 03:55:00 NY time
-        end_time = post_close_dt + buffer   # 20:05:00 NY time
+        start_time_utc = pre_open_utc - buffer
+        end_time_utc = post_close_utc + buffer
         
-        should_run = start_time <= now_local <= end_time
+        # Check if we should be running (all in UTC)
+        should_run = start_time_utc <= now_utc <= end_time_utc
         
-        # Detailed logging
-        exchange_name = exchange.get('exchange_name', 'Unknown')
-        logger.info(f"🕐 Exchange {exchange_name} time check:")
+        # Detailed logging for debugging
+        exch_id = exchange.get('exch_id', 'Unknown')
+        exchange_type = exchange.get('exchange_type', 'Unknown')
+        
+        logger.info(f"⏰ Exchange service {exch_id} ({exchange_type}) time check:")
         logger.info(f"   Current UTC: {now_utc.strftime('%Y-%m-%d %H:%M:%S %Z')}")
-        logger.info(f"   Current {exchange_tz_str}: {now_local.strftime('%Y-%m-%d %H:%M:%S %Z')}")
-        logger.info(f"   Market window: {start_time.strftime('%H:%M:%S')} - {end_time.strftime('%H:%M:%S')} {exchange_tz_str}")
+        logger.info(f"   Exchange timezone: {exchange_tz_str}")
+        logger.info(f"   Market hours (local): {pre_open_local} - {post_close_local} {exchange_tz_str}")
+        logger.info(f"   Market hours (UTC): {pre_open_utc.strftime('%H:%M:%S')} - {post_close_utc.strftime('%H:%M:%S')} UTC")
+        logger.info(f"   Market window with buffer (UTC): {start_time_utc.strftime('%H:%M:%S')} - {end_time_utc.strftime('%H:%M:%S')} UTC")
         logger.info(f"   Should be running: {should_run}")
+        
+        # Additional debug info
+        if not should_run:
+            if now_utc < start_time_utc:
+                logger.info(f"   Reason: Current UTC time {now_utc.strftime('%H:%M:%S')} is before market start {start_time_utc.strftime('%H:%M:%S')} UTC")
+            elif now_utc > end_time_utc:
+                logger.info(f"   Reason: Current UTC time {now_utc.strftime('%H:%M:%S')} is after market end {end_time_utc.strftime('%H:%M:%S')} UTC")
         
         return should_run
     
@@ -64,39 +80,39 @@ class Scheduler:
         """Main logic: check each exchange and start/stop as needed"""
         try:
             exchanges = await self.db_manager.get_active_exchanges()
-            logger.info(f"🔍 Checking {len(exchanges)} exchanges for market hours")
+            logger.info(f"🔍 Checking {len(exchanges)} exchange services for market hours")
             
             if not exchanges:
-                logger.warning("⚠️  No exchanges found in database!")
+                logger.warning("⚠️ No exchange services found in database!")
                 return
             
             for exchange in exchanges:
                 exch_id = exchange['exch_id']
-                exchange_name = exchange.get('exchange_name', 'Unknown')
+                exchange_type = exchange.get('exchange_type', 'Unknown')
                 
                 should_run = self.should_exchange_be_running(exchange)
-                is_running = exch_id in self.k8s_manager.get_running_exchanges()
+                is_running = str(exch_id) in self.k8s_manager.get_running_exchanges()
                 
-                logger.info(f"📊 Exchange {exchange_name} (ID: {exch_id}): should_run={should_run}, is_running={is_running}")
+                logger.info(f"📊 Exchange service {exch_id} ({exchange_type}): should_run={should_run}, is_running={is_running}")
                 
                 if should_run and not is_running:
-                    logger.info(f"🚀 Market hours: Starting {exchange_name}")
+                    logger.info(f"🚀 Market hours: Starting exchange service {exch_id}")
                     try:
                         await self.k8s_manager.start_exchange(exchange)
-                        logger.info(f"✅ Successfully started {exchange_name}")
+                        logger.info(f"✅ Successfully started exchange service {exch_id}")
                     except Exception as e:
-                        logger.error(f"❌ Failed to start {exchange_name}: {e}")
+                        logger.error(f"❌ Failed to start exchange service {exch_id}: {e}")
                         
                 elif not should_run and is_running:
-                    logger.info(f"🛑 Market closed: Stopping {exchange_name}")
+                    logger.info(f"🛑 Market closed: Stopping exchange service {exch_id}")
                     try:
                         await self.k8s_manager.stop_exchange(exchange)
-                        logger.info(f"✅ Successfully stopped {exchange_name}")
+                        logger.info(f"✅ Successfully stopped exchange service {exch_id}")
                     except Exception as e:
-                        logger.error(f"❌ Failed to stop {exchange_name}: {e}")
+                        logger.error(f"❌ Failed to stop exchange service {exch_id}: {e}")
                         
                 else:
-                    logger.debug(f"😴 No action needed for {exchange_name}")
+                    logger.debug(f"😴 No action needed for exchange service {exch_id}")
                     
         except Exception as e:
             logger.error(f"Error in scheduler check: {e}", exc_info=True)
@@ -109,17 +125,17 @@ class Scheduler:
             running_exchanges = self.k8s_manager.get_running_exchanges()
             
             if not running_exchanges:
-                logger.debug("No running exchanges to health check")
+                logger.debug("No running exchange services to health check")
                 return
             
-            logger.debug(f"🏥 Health checking {len(running_exchanges)} running exchanges")
+            logger.debug(f"🏥 Health checking {len(running_exchanges)} running exchange services")
             
             for exchange in exchanges:
-                if exchange['exch_id'] in running_exchanges:
+                if str(exchange['exch_id']) in running_exchanges:
                     # Check this specific exchange's health
                     is_healthy = await self.k8s_manager.check_exchange_health(exchange)
                     if not is_healthy:
-                        logger.error(f"💔 Exchange {exchange.get('exchange_name', 'Unknown')} failed health check!")
+                        logger.error(f"💔 Exchange service {exchange.get('exch_id', 'Unknown')} failed health check!")
                         # For now, just log the error. In the future, we could restart it here.
                         
         except Exception as e:
