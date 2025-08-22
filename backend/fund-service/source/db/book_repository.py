@@ -662,3 +662,23 @@ class BookRepository:
             track_db_operation("upsert_client_config", False, duration)
             logger.error(f"Error upserting client config for user {user_id}, book {book_id}: {e}")
             return False
+
+    async def verify_book_ownership(self, user_id: str, book_id: str) -> bool:
+        """Verify that user_id owns book_id"""
+        pool = await self.db_pool.get_pool()
+
+        query = '''
+            SELECT 1 FROM fund.books
+            WHERE book_id = $1 AND user_id = $2
+            LIMIT 1
+        '''
+
+        start_time = time.time()
+        try:
+            async with pool.acquire() as conn:
+                result = await conn.fetchval(query, user_id, book_id)
+
+                return result is not None
+        except Exception as e:
+            logger.error(f"Error verifying book ownership: {e}")
+            return False

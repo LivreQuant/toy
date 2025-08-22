@@ -6,6 +6,7 @@ from aiohttp import web
 
 from source.clients.auth_client import AuthClient
 from source.db.session_repository import SessionRepository
+from source.db.book_repository import BookRepository
 
 logger = logging.getLogger('validation_manager')
 
@@ -112,10 +113,10 @@ class SessionManager:
         Returns:
             Tuple of (success, result_dict)
             If success is False, result_dict contains error information with 'status' code
-            If success is True, result_dict contains 'user_id'
+            If success is True, result_dict contains 'user_id', 'book_id'
         """
         # Extract token and device ID
-        token, device_id, csrf_token = await self.get_token(request)
+        token, book_id, device_id, csrf_token = await self.get_token(request)
 
         if not token:
             return False, {
@@ -142,7 +143,15 @@ class SessionManager:
                 "status": 400
             }
 
-        return True, {"user_id": user_id}
+        book_id_valid = await BookRepository.verify_book_ownership(user_id, book_id)
+        if not book_id_valid:
+            return False, {
+                "success": False,
+                "error": "Invalid book ID for this session",
+                "status": 400
+            }
+
+        return True, {"user_id": user_id, "book_id": book_id}
 
     async def authenticate_request(self,
                                    request: web.Request,
@@ -158,10 +167,10 @@ class SessionManager:
         Returns:
             Tuple of (success, result_dict)
             If success is False, result_dict contains error information with 'status' code
-            If success is True, result_dict contains 'user_id'
+            If success is True, result_dict contains 'user_id', 'book_id'
         """
         # Extract token and device ID
-        token, device_id, csrf_token = await self.get_token(request)
+        token, book_id, device_id, csrf_token = await self.get_token(request)
 
         if not token:
             return False, {
@@ -179,4 +188,12 @@ class SessionManager:
                 "status": 401
             }
 
-        return True, {"user_id": user_id}
+        book_id_valid = await BookRepository.verify_book_ownership(user_id, book_id)
+        if not book_id_valid:
+            return False, {
+                "success": False,
+                "error": "Invalid book ID for this session",
+                "status": 400
+            }
+
+        return True, {"user_id": user_id, "book_id": book_id}

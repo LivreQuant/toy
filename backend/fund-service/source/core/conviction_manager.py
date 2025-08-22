@@ -268,7 +268,7 @@ class ConvictionManager:
             logger.info(f"=== STEP 4: SENDING TO OPERATIONS MANAGER ===")
             logger.info(f"Sending {len(convictions_data)} convictions to operations manager")
             
-            exchange_result = await self.operation_manager.submit_convictions(convictions_data, user_id)
+            exchange_result = await self.operation_manager.submit_convictions(convictions_data, book_id)
             
             logger.info(f"Operations manager result: {exchange_result.get('success', False)}")
             if not exchange_result.get('success', False):
@@ -511,7 +511,7 @@ class ConvictionManager:
             logger.info(f"=== STEP 4: SENDING TO OPERATIONS MANAGER ===")
             logger.info(f"Sending {len(conviction_ids)} conviction IDs to operations manager")
             
-            exchange_result = await self.operation_manager.cancel_convictions(conviction_ids, user_id)
+            exchange_result = await self.operation_manager.cancel_convictions(conviction_ids, book_id)
             
             logger.info(f"Operations manager result: {exchange_result.get('success', False)}")
             if not exchange_result.get('success', False):

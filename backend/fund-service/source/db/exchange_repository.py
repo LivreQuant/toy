@@ -86,20 +86,20 @@ class ExchangeRepository:
                         logger.exception("Exchange metadata creation exception:")
                         raise
                     
-                    # 2. Create user in exchange
-                    logger.info(f"👤 Step 2: Creating exchange user for {user_id}")
+                    # 2. Create book in exchange
+                    logger.info(f"👤 Step 2: Creating exchange book for {book_id}")
                     try:
-                        await self._create_exchange_user(conn, user_id, exch_id, initial_nav)
-                        logger.info("✅ Step 2 completed: Exchange user created")
-                    except Exception as user_error:
-                        logger.error(f"💥 Step 2 failed: {user_error}")
-                        logger.exception("Exchange user creation exception:")
+                        await self._create_exchange_book(conn, book_id, exch_id, initial_nav)
+                        logger.info("✅ Step 2 completed: Exchange book created")
+                    except Exception as book_error:
+                        logger.error(f"💥 Step 2 failed: {book_error}")
+                        logger.exception("Exchange book creation exception:")
                         raise
                     
-                    # 3. Create user operational parameters
-                    logger.info(f"⚙️ Step 3: Creating operational parameters for {user_id}")
+                    # 3. Create book operational parameters
+                    logger.info(f"⚙️ Step 3: Creating operational parameters for {book_id}")
                     try:
-                        await self._create_user_operational_parameters(conn, user_id)
+                        await self._create_book_operational_parameters(conn, book_id)
                         logger.info("✅ Step 3 completed: Operational parameters created")
                     except Exception as params_error:
                         logger.error(f"💥 Step 3 failed: {params_error}")
@@ -107,9 +107,9 @@ class ExchangeRepository:
                         raise
                     
                     # 4. Create initial account data
-                    logger.info(f"💰 Step 4: Creating initial account data for {user_id}")
+                    logger.info(f"💰 Step 4: Creating initial account data for {book_id}")
                     try:
-                        await self._create_initial_account_data(conn, user_id, initial_nav)
+                        await self._create_initial_account_data(conn, book_id, initial_nav)
                         logger.info("✅ Step 4 completed: Initial account data created")
                     except Exception as account_error:
                         logger.error(f"💥 Step 4 failed: {account_error}")
@@ -194,16 +194,16 @@ class ExchangeRepository:
             logger.error(f"🔍 Values: {values}")
             raise
 
-    async def _create_exchange_user(self, conn, user_id: str, exch_id: str, initial_nav: float):
-        """Create user in exch_us_equity.users"""
-        logger.info(f"👤 Creating exchange user: user_id={user_id}, exch_id={exch_id}, initial_nav={initial_nav}")
+    async def _create_exchange_book(self, conn, book_id: str, exch_id: str, initial_nav: float):
+        """Create book in exch_us_equity.bookb"""
+        logger.info(f"👤 Creating exchange book: book_id={book_id}, exch_id={exch_id}, initial_nav={initial_nav}")
         
         # Convert initial_nav to proper decimal format
         logger.info(f"💰 Using initial_nav as: {initial_nav}")
         
         query = """
-        INSERT INTO exch_us_equity.users (
-            user_id,
+        INSERT INTO exch_us_equity.books (
+            book_id,
             exch_id,
             timezone,
             base_currency,
@@ -218,7 +218,7 @@ class ExchangeRepository:
         """
         
         values = (
-            user_id,                    # user_id
+            book_id,                    # book_id
             exch_id,                    # exch_id
             'America/New_York',         # timezone
             'USD',                      # base_currency
@@ -229,35 +229,35 @@ class ExchangeRepository:
             0                           # market_impact_model
         )
         
-        logger.debug(f"🔍 Executing user query with values: {values}")
+        logger.debug(f"🔍 Executing book query with values: {values}")
         
         try:
             await conn.execute(query, *values)
-            logger.info(f"✅ Exchange user record created successfully for {user_id} on exchange {exch_id}")
+            logger.info(f"✅ Exchange book record created successfully for {book_id} on exchange {exch_id}")
         except Exception as e:
-            logger.error(f"💥 Failed to create exchange user for {user_id}: {e}")
+            logger.error(f"💥 Failed to create exchange book for {book_id}: {e}")
             logger.error(f"🔍 Query: {query}")
             logger.error(f"🔍 Values: {values}")
             raise
 
-    async def _create_user_operational_parameters(self, conn, user_id: str):
-        """Create user operational parameters"""
-        logger.info(f"⚙️ Creating operational parameters for user {user_id}")
+    async def _create_book_operational_parameters(self, conn, book_id: str):
+        """Create book operational parameters"""
+        logger.info(f"⚙️ Creating operational parameters for book {book_id}")
         
         query = """
-        INSERT INTO exch_us_equity.user_operational_parameters (
-            user_id,
+        INSERT INTO exch_us_equity.book_operational_parameters (
+            book_id,
             max_position_size_pct,
             min_position_size_pct,
             max_days_to_liquidate
         ) VALUES (
             $1, $2, $3, $4
         )
-        ON CONFLICT (user_id) DO NOTHING
+        ON CONFLICT (book_id) DO NOTHING
         """
         
         values = (
-            user_id,    # user_id
+            book_id,    # book_id
             1.0,        # max_position_size_pct (100%)
             0.0,        # min_position_size_pct (0%)
             365         # max_days_to_liquidate
@@ -267,16 +267,16 @@ class ExchangeRepository:
         
         try:
             result = await conn.execute(query, *values)
-            logger.info(f"✅ Operational parameters created for user {user_id} (result: {result})")
+            logger.info(f"✅ Operational parameters created for book {book_id} (result: {result})")
         except Exception as e:
-            logger.error(f"💥 Failed to create operational parameters for {user_id}: {e}")
+            logger.error(f"💥 Failed to create operational parameters for {book_id}: {e}")
             logger.error(f"🔍 Query: {query}")
             logger.error(f"🔍 Values: {values}")
             raise
 
-    async def _create_initial_account_data(self, conn, user_id: str, initial_nav: float):
+    async def _create_initial_account_data(self, conn, book_id: str, initial_nav: float):
         """Create initial account data records"""
-        logger.info(f"💰 Creating initial account data for user {user_id} with initial_nav {initial_nav}")
+        logger.info(f"💰 Creating initial account data for book {book_id} with initial_nav {initial_nav}")
         
         now_raw = datetime.datetime.now(datetime.timezone.utc)
         now = round_down_to_minute(now_raw)
@@ -285,7 +285,7 @@ class ExchangeRepository:
         
         query = """
         INSERT INTO exch_us_equity.account_data (
-            user_id,
+            book_id,
             timestamp,
             type,
             currency,
@@ -309,7 +309,7 @@ class ExchangeRepository:
         
         for account_type, amount, previous_amount, change in account_types:
             values = (
-                user_id,            # user_id
+                book_id,            # book_id
                 now,                # timestamp
                 account_type,       # type
                 'USD',              # currency
@@ -322,11 +322,11 @@ class ExchangeRepository:
             
             try:
                 await conn.execute(query, *values)
-                logger.info(f"✅ Created {account_type} account for user {user_id} with amount {amount}")
+                logger.info(f"✅ Created {account_type} account for book {book_id} with amount {amount}")
             except Exception as e:
-                logger.error(f"💥 Failed to create {account_type} account for {user_id}: {e}")
+                logger.error(f"💥 Failed to create {account_type} account for {book_id}: {e}")
                 logger.error(f"🔍 Query: {query}")
                 logger.error(f"🔍 Values: {values}")
                 raise
         
-        logger.info(f"🎉 All initial account data created successfully for user {user_id}")
+        logger.info(f"🎉 All initial account data created successfully for book {book_id}")

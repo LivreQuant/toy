@@ -4,8 +4,6 @@ import time
 import uuid
 from typing import Dict, Any, List
 
-from source.models.enums import Side
-
 from source.models.conviction import ConvictionData
 from source.utils.metrics import track_conviction_submission_latency
 
@@ -34,13 +32,13 @@ class OperationManager:
         self.db_manager = db_manager
         self.exchange_manager = exchange_manager
 
-    async def submit_convictions(self, convictions_data: List[Dict[str, Any]], user_id: str) -> Dict[str, Any]:
+    async def submit_convictions(self, convictions_data: List[Dict[str, Any]], book_id: str) -> Dict[str, Any]:
         """
         Submit convictions in batch - first cancel existing open convictions for the same symbols
         
         Args:
             convictions_data: List of conviction data dictionaries
-            user_id: User ID
+            book_id: Book ID
             
         Returns:
             Batch submission result
@@ -50,8 +48,8 @@ class OperationManager:
         # Extract all symbols from the new convictions
         symbols = list(set(conviction.get('symbol') for conviction in convictions_data if conviction.get('symbol')))
         
-        # 1. Get simulator information for the user
-        simulator = await self.session_manager.session_repository.get_session_simulator(user_id)
+        # 1. Get simulator information for the book
+        simulator = await self.session_manager.session_repository.get_session_simulator(book_id)
         simulator_id = simulator.get('simulator_id') if simulator else None
         simulator_endpoint = simulator.get('endpoint') if simulator else None
         
@@ -64,7 +62,7 @@ class OperationManager:
         duplicate_responses = {}
         if request_ids:
             duplicate_responses = await self.conviction_repository.check_duplicate_requests(
-                user_id, request_ids
+                book_id, request_ids
             )
         
         # 6. Process each conviction - validation and object creation (in memory)
@@ -153,7 +151,7 @@ class OperationManager:
                     for conviction in convictions_to_submit:
                         # Create new row with REJECTED status
                         await self.db_manager.save_conviction_status(
-                            conviction.conviction_id, user_id, error_msg
+                            conviction.conviction_id, book_id, error_msg
                         )
                         
                         # Update results
@@ -189,21 +187,21 @@ class OperationManager:
             ]
         }
 
-    async def cancel_convictions(self, conviction_ids: List[str], user_id: str) -> Dict[str, Any]:
+    async def cancel_convictions(self, conviction_ids: List[str], book_id: str) -> Dict[str, Any]:
         """
         Cancel convictions in batch
         
         Args:
             conviction_ids: List of conviction IDs to cancel
-            user_id: User ID
+            book_id: Book ID
             
         Returns:
             Batch cancellation result
         """
         start_time = time.time()
         
-        # 1. Get simulator information for the user
-        simulator = await self.session_manager.session_repository.get_session_simulator(user_id)
+        # 1. Get simulator information for the book
+        simulator = await self.session_manager.session_repository.get_session_simulator(book_id)
         simulator_endpoint = simulator.get('endpoint') if simulator else None
         
         # 2. Process each conviction ID - create minimal objects for exchange

@@ -39,9 +39,9 @@ CONVICTION_STATUS_CHANGES = Counter(
 
 # User Activity Metrics
 USER_CONVICTION_COUNT = Counter(
-    'user_conviction_count_total',
-    'Total number of conviction per user',
-    ['user_id']
+    'book_conviction_count_total',
+    'Total number of conviction per book',
+    ['book_id']
 )
 
 # External Service Metrics
@@ -138,9 +138,9 @@ def track_conviction_status_change(from_status, to_status):
     CONVICTION_STATUS_CHANGES.labels(from_status=from_status, to_status=to_status).inc()
 
 
-def track_user_conviction(user_id):
+def track_book_conviction(book_id):
     """Track conviction per user"""
-    USER_CONVICTION_COUNT.labels(user_id=user_id).inc()
+    USER_CONVICTION_COUNT.labels(book_id=book_id).inc()
 
 
 def track_book_created(user_id):

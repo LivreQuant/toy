@@ -7,7 +7,7 @@ from typing import Dict, Any, Optional
 
 from source.models.conviction import ConvictionData
 from source.db.conviction_repository import ConvictionRepository
-from source.utils.metrics import track_conviction_created, track_user_conviction
+from source.utils.metrics import track_conviction_created, track_book_conviction
 
 logger = logging.getLogger('db_manager')
 
@@ -94,7 +94,7 @@ class DBManager:
         except Exception as e:
             logger.error(f"Error cleaning up old requests: {e}")
 
-    async def save_conviction(self, conviction_params: Dict[str, Any], user_id: str,
+    async def save_conviction(self, conviction_params: Dict[str, Any], user_id: str, book_id: str,
                            request_id: str = None,
                            simulator_id: str = None) -> ConvictionData:
         """
@@ -117,6 +117,7 @@ class DBManager:
             conviction_type=conviction_params.get('conviction_type'),
             price=conviction_params.get('price'),
             user_id=user_id,
+            book_id=book_id,
             request_id=request_id,
             conviction_id=str(uuid.uuid4()),  # Generate new conviction ID
             created_at=time.time(),
@@ -126,7 +127,7 @@ class DBManager:
 
         # Track oconviction creation metrics
         track_conviction_created(conviction.conviction_type, conviction.symbol, conviction.side)
-        track_user_conviction(user_id)
+        track_book_conviction(book_id)
 
         # Save to database
         success = await self.conviction_repository.save_conviction(conviction)
@@ -272,27 +273,3 @@ class DBManager:
         except Exception as e:
             logger.error(f"Error getting fund_id for user {user_id}: {e}")
             return user_id  # fallback to user_id
-
-    async def store_submit_conviction_data(self, tx_id: str, book_id: str, convictions_data: list) -> bool:
-        """Store submission data via repository"""
-        try:
-            return await self.conviction_repository.store_submit_conviction_data(
-                tx_id=tx_id,
-                book_id=book_id,
-                convictions_data=convictions_data
-            )
-        except Exception as e:
-            logger.error(f"Error storing submission data: {e}")
-            return False
-
-    async def store_cancel_conviction_data(self, tx_id: str, book_id: str, conviction_ids: list) -> bool:
-        """Store cancellation data via repository"""
-        try:
-            return await self.conviction_repository.store_cancel_conviction_data(
-                tx_id=tx_id,
-                book_id=book_id,
-                conviction_ids=conviction_ids
-            )
-        except Exception as e:
-            logger.error(f"Error storing cancellation data: {e}")
-            return False

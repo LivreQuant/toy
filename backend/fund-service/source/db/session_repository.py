@@ -55,12 +55,12 @@ class SessionRepository:
             logger.warning("⚠️ Skipping device ID validation due to database error")
             return True
     
-    async def get_session_simulator(self, user_id: str) -> Optional[Dict[str, Any]]:
+    async def get_session_simulator(self, book_id: str) -> Optional[Dict[str, Any]]:
         """
         Get simulator information for a user
         
         Args:
-            user_id: User ID
+            book_id: Book ID
             
         Returns:
             Dictionary with simulator information or None
@@ -70,7 +70,7 @@ class SessionRepository:
         query = """
         SELECT simulator_id, endpoint, status
         FROM simulator.instances
-        WHERE user_id = $1 
+        WHERE book_id = $1 
         AND status IN ('RUNNING')
         ORDER BY created_at DESC
         LIMIT 1
@@ -78,7 +78,7 @@ class SessionRepository:
 
         try:
             async with pool.acquire() as conn:
-                row = await conn.fetchrow(query, user_id)
+                row = await conn.fetchrow(query, book_id)
                 if not row:
                     return None
                 return dict(row)

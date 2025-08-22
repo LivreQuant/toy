@@ -17,7 +17,7 @@ class ConvictionRepository:
         """Initialize the conviction repository"""
         self.db_pool = DatabasePool()
         
-    async def check_duplicate_requests(self, user_id: str, request_ids: List[str]) -> Dict[str, Dict[str, Any]]:
+    async def check_duplicate_requests(self, book_id: str, request_ids: List[str]) -> Dict[str, Dict[str, Any]]:
         """Check multiple request IDs for duplicates in a single query"""
         if not request_ids:
             return {}
@@ -31,10 +31,10 @@ class ConvictionRepository:
                 SELECT DISTINCT ON (conviction_id) 
                     conviction_id, book_id, tx_id
                 FROM conv.submit
-                WHERE conviction_id = ANY($1::text[])
+                WHERE conviction_id = ANY($2::text[]) AND book_id = $1
                 ORDER BY conviction_id, tx_id DESC
                 """
-                rows = await conn.fetch(query, request_ids)
+                rows = await conn.fetch(query, book_id, request_ids)
                 
                 # Create mapping of request_id to basic response structure
                 results = {}
