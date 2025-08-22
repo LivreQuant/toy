@@ -1,9 +1,8 @@
 # source/simulation/managers/conviction.py
-from threading import RLock
 from typing import Dict, Optional, List
 from datetime import datetime
-import logging
 from source.simulation.managers.utils import TrackingManager
+from source.utils.timezone_utils import to_iso_string
 
 
 class ConvictionManager(TrackingManager):
@@ -26,7 +25,6 @@ class ConvictionManager(TrackingManager):
 
     def _prepare_conviction_data(self, conviction_data: Dict) -> List[Dict]:
         """Prepare conviction data for storage"""
-        from source.utils.timezone_utils import to_iso_string
 
         return [{
             'timestamp': to_iso_string(datetime.utcnow()),

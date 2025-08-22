@@ -6,11 +6,13 @@ Utility functions for replay functionality
 import os
 import glob
 import logging
-import asyncio
-import threading 
+import threading
 from typing import List
 from concurrent.futures import ThreadPoolExecutor
+import concurrent.futures
+import asyncio
 
+from source.db.db_manager import DatabaseManager
 from source.config import app_config
 
 
@@ -38,7 +40,6 @@ class ReplayUtils:
     def _get_thread_db_manager(self):
         """Get or create thread-local database manager"""
         if not hasattr(self._thread_local, 'db_manager'):
-            from source.db.db_manager import DatabaseManager
             self._thread_local.db_manager = DatabaseManager()
             self._thread_local.loop = asyncio.new_event_loop()
             asyncio.set_event_loop(self._thread_local.loop)
@@ -98,11 +99,9 @@ class ReplayUtils:
                 return await db_manager.get_available_bin_snap_timestamps()
 
             # Use asyncio to run the async function
-            import asyncio
             loop = asyncio.get_event_loop()
             if loop.is_running():
                 # If we're already in an async context, create a new event loop
-                import concurrent.futures
                 with concurrent.futures.ThreadPoolExecutor() as executor:
                     future = executor.submit(asyncio.run, get_timestamps_async())
                     timestamps = future.result()

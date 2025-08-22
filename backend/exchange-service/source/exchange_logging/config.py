@@ -4,7 +4,6 @@ import os
 import logging
 import logging.handlers
 from datetime import datetime
-from typing import Optional
 from dataclasses import dataclass
 
 

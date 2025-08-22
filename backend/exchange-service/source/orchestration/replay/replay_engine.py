@@ -3,8 +3,8 @@
 Core replay mode execution engine
 """
 
-import os
 import time
+import traceback
 import threading
 import logging
 from datetime import datetime, timedelta
@@ -89,7 +89,6 @@ class ReplayEngine:
 
         except Exception as e:
             self.logger.error(f"❌ Error entering replay mode: {e}")
-            import traceback
             self.logger.error(f"❌ Full traceback: {traceback.format_exc()}")
             self.state = ReplayModeState.ERROR
             if self.current_progress:
@@ -128,7 +127,6 @@ class ReplayEngine:
             self.logger.error("❌ CRITICAL ERROR IN REPLAY THREAD WRAPPER!")
             self.logger.error(f"❌ Exception type: {type(e).__name__}")
             self.logger.error(f"❌ Exception message: {str(e)}")
-            import traceback
             self.logger.error(f"❌ Full traceback: {traceback.format_exc()}")
 
             self.state = ReplayModeState.ERROR
@@ -257,7 +255,6 @@ class ReplayEngine:
             self.logger.error("❌ CRITICAL ERROR IN REPLAY LOOP!")
             self.logger.error(f"❌ Exception type: {type(e).__name__}")
             self.logger.error(f"❌ Exception message: {str(e)}")
-            import traceback
             self.logger.error(f"❌ Full traceback: {traceback.format_exc()}")
 
             self.state = ReplayModeState.ERROR
@@ -368,7 +365,6 @@ class ReplayEngine:
         except Exception as e:
             print(f"❌ Error in _wait_and_process_bin_snap_pair for {minute_time}: {e}")
             self.logger.error(f"❌ Error in _wait_and_process_bin_snap_pair for {minute_time}: {e}")
-            import traceback
             self.logger.error(f"❌ Full traceback: {traceback.format_exc()}")
             return False
 
@@ -384,9 +380,9 @@ class ReplayEngine:
                 return False
 
             # Process the data through the unified processor with bypass flag
-            users = self.exchange_group_manager.get_all_users()
-            if users:
-                self.logger.info(f"👥 Processing data for {len(users)} users: {users}")
+            books = self.exchange_group_manager.get_all_books()
+            if books:
+                self.logger.info(f"👥 Processing data for {len(books)} books: {books}")
 
                 # Use bypass flag to avoid circular replay detection
                 self.market_data_processor.process_market_data_bin(
@@ -403,12 +399,11 @@ class ReplayEngine:
                 self.logger.info(f"   💱 FX rates: {len(fx_rates) if fx_rates else 0}")
                 return True
             else:
-                self.logger.error("❌ No users found in exchange group manager")
+                self.logger.error("❌ No books found in exchange group manager")
                 return False
 
         except Exception as e:
             self.logger.error(f"❌ Error processing bin snap data for {minute_time}: {e}")
-            import traceback
             self.logger.error(f"❌ Full traceback: {traceback.format_exc()}")
             return False
 

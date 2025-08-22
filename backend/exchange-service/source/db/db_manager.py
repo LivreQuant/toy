@@ -19,7 +19,7 @@ class DatabaseManager:
     def _init_table_managers(self):
         """Initialize all table-specific managers"""
         from source.db.managers.metadata import MetadataManager
-        from source.db.managers.users import UsersManager
+        from source.db.managers.books import BooksManager
         from source.db.managers.universe_data import UniverseDataManager
         from source.db.managers.risk_factor_data import RiskFactorDataManager
         from source.db.managers.equity_data import EquityDataManager
@@ -31,11 +31,11 @@ class DatabaseManager:
         from source.db.managers.return_data import ReturnDataManager
         from source.db.managers.trade_data import TradeDataManager
         from source.db.managers.cash_flow_data import CashFlowDataManager
-        from source.db.managers.user_operational_parameters import UserOperationalParametersManager
+        from source.db.managers.book_operational_parameters import BookOperationalParametersManager
 
         # Initialize managers (they will receive the pool when it's created)
         self.metadata = MetadataManager(self)
-        self.users = UsersManager(self)
+        self.books = BooksManager(self)
         self.universe_data = UniverseDataManager(self)
         self.risk_factor_data = RiskFactorDataManager(self)
 
@@ -52,7 +52,7 @@ class DatabaseManager:
         self.cash_flow_data = CashFlowDataManager(self)
 
         # New parameter managers
-        self.user_operational_parameters = UserOperationalParametersManager(self)
+        self.book_operational_parameters = BookOperationalParametersManager(self)
 
     async def initialize(self):
         """Initialize database connection pool"""
@@ -97,7 +97,7 @@ class DatabaseManager:
 
     async def load_risk_factor_data(self, timestamp_str: str):
         """Load risk factor data - delegates to risk factor manager"""
-        return await self.risk_factor_data.load_user_data(timestamp_str)
+        return await self.risk_factor_data.load_book_data(timestamp_str)
 
     async def load_universe_data(self, timestamp_str: str):
         """Load universe data - delegates to universe manager"""
@@ -111,38 +111,38 @@ class DatabaseManager:
         """Load FX data - delegates to fx manager"""
         return await self.fx_data.load_fx_data(timestamp_str)
 
-    # USER SPECIFIC
+    # BOOK SPECIFIC
 
-    async def load_users_for_exchange(self, exch_id: str):
-        """Load users for exchange - delegates to users manager"""
-        return await self.users.load_users_for_exchange(exch_id)
+    async def load_books_for_exchange(self, exch_id: str):
+        """Load books for exchange - delegates to books manager"""
+        return await self.books.load_books_for_exchange(exch_id)
 
-    async def load_user_portfolio_data(self, user_id: str, timestamp_str: str):
-        """Load user portfolio data - delegates to portfolio manager"""
-        return await self.portfolio_data.load_user_data(user_id, timestamp_str)
+    async def load_book_portfolio_data(self, book_id: str, timestamp_str: str):
+        """Load book portfolio data - delegates to portfolio manager"""
+        return await self.portfolio_data.load_book_data(book_id, timestamp_str)
 
-    async def load_user_account_data(self, user_id: str, timestamp_str: str):
-        """Load user account data - delegates to account manager"""
-        return await self.account_data.load_user_data(user_id, timestamp_str)
+    async def load_book_account_data(self, book_id: str, timestamp_str: str):
+        """Load book account data - delegates to account manager"""
+        return await self.account_data.load_book_data(book_id, timestamp_str)
 
-    async def load_user_impact_data(self, user_id: str, timestamp_str: str):
-        """Load user impact data - delegates to impact manager"""
-        return await self.impact_data.load_user_data(user_id, timestamp_str)
+    async def load_book_impact_data(self, book_id: str, timestamp_str: str):
+        """Load book impact data - delegates to impact manager"""
+        return await self.impact_data.load_book_data(book_id, timestamp_str)
 
-    async def load_user_order_data(self, user_id: str, timestamp_str: str):
-        """Load user orders data - delegates to order manager"""
-        return await self.order_data.load_user_data(user_id, timestamp_str)
+    async def load_book_order_data(self, book_id: str, timestamp_str: str):
+        """Load book orders data - delegates to order manager"""
+        return await self.order_data.load_book_data(book_id, timestamp_str)
 
-    async def load_user_return_data(self, user_id: str, timestamp_str: str):
-        """Load user returns data - delegates to return manager"""
-        return await self.return_data.load_user_data(user_id, timestamp_str)
+    async def load_book_return_data(self, book_id: str, timestamp_str: str):
+        """Load book returns data - delegates to return manager"""
+        return await self.return_data.load_book_data(book_id, timestamp_str)
 
     # Add convenience methods
-    async def load_user_operational_parameters(self, user_id: str):
-        """Load PM operational parameters for user"""
-        return await self.user_operational_parameters.load_parameters_for_user(user_id)
+    async def load_book_operational_parameters(self, book_id: str):
+        """Load PM operational parameters for book"""
+        return await self.book_operational_parameters.load_parameters_for_book(book_id)
 
-    async def insert_simulation_data(self, table_name: str, data, user_id: str, timestamp):
+    async def insert_simulation_data(self, table_name: str, data, book_id: str, timestamp):
         """Insert simulation data - routes to appropriate table manager"""
         table_manager_map = {
             'account_data': self.account_data,
@@ -156,7 +156,7 @@ class DatabaseManager:
         }
 
         if table_name in table_manager_map:
-            return await table_manager_map[table_name].insert_simulation_data(data, user_id, timestamp)
+            return await table_manager_map[table_name].insert_simulation_data(data, book_id, timestamp)
         else:
             self.logger.error(f"❌ Unknown table name: {table_name}")
             return 0

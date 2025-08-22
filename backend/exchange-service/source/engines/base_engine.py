@@ -21,9 +21,9 @@ class BaseEngine(ABC):
 
     @abstractmethod
     def convert_convictions_to_orders(self,
-                                      user_id: str,
+                                      book_id: str,
                                       convictions: List[Dict[str, Any]],
-                                      user_context: Any) -> List[Dict[str, Any]]:
+                                      book_context: Any) -> List[Dict[str, Any]]:
         """Convert convictions to executable orders."""
         pass
 
@@ -40,26 +40,26 @@ class BaseEngine(ABC):
     # NOTIONAL BASED FUNCTIONS #
     ############################
 
-    def get_current_notional_portfolio_from_manager(self, user_context: Any) -> Dict[str, float]:
+    def get_current_notional_portfolio_from_manager(self, book_context: Any) -> Dict[str, float]:
         """
-        SHARED METHOD: Get current portfolio notionals from portfolio manager in user_context.
-        All notionals will be converted to user's base currency.
+        SHARED METHOD: Get current portfolio notionals from portfolio manager in book_context.
+        All notionals will be converted to book's base currency.
         """
         try:
-            # Get portfolio manager from user_context
-            app_state = user_context.app_state
+            # Get portfolio manager from book_context
+            app_state = book_context.app_state
             portfolio_manager = app_state.portfolio_manager
 
-            base_currency = user_context.base_currency
+            base_currency = book_context.base_currency
 
             if not portfolio_manager:
-                self.logger.warning("No portfolio manager in user_context")
+                self.logger.warning("No portfolio manager in book_context")
                 return {}
 
             # Get current positions
             if hasattr(portfolio_manager, 'get_all_positions'):
                 positions = portfolio_manager.get_all_positions()
-                return self._convert_positions_to_notional(positions, base_currency, user_context)
+                return self._convert_positions_to_notional(positions, base_currency, book_context)
             else:
                 self.logger.warning(f"Portfolio manager has no get_all_positions method: {type(portfolio_manager)}")
                 return {}
@@ -68,7 +68,7 @@ class BaseEngine(ABC):
             self.logger.error(f"Error getting current portfolio from manager: {e}")
             return {}
 
-    def _convert_positions_to_notional(self, positions: Dict, base_currency: str, user_context: Any) -> Dict[
+    def _convert_positions_to_notional(self, positions: Dict, base_currency: str, book_context: Any) -> Dict[
         str, float]:
         """Convert position objects to portfolio notionals in base currency."""
         try:
@@ -83,11 +83,11 @@ class BaseEngine(ABC):
 
                         # If position doesn't have currency, get it from symbol
                         if position_currency is None:
-                            position_currency = self.utils.get_symbol_currency(symbol, user_context)
+                            position_currency = self.utils.get_symbol_currency(symbol, book_context)
 
                         # Convert to base currency
                         notional_value = self.utils.convert_to_base_currency(
-                            position_value, position_currency, base_currency, user_context
+                            position_value, position_currency, base_currency, book_context
                         )
 
                         notionals[symbol] = float(notional_value)
@@ -107,7 +107,7 @@ class BaseEngine(ABC):
     def _generate_orders_from_notional_solution(self,
                                                 current_portfolio: Dict[str, float],
                                                 optimal_portfolio: Dict[str, float],
-                                                user_context: Any,
+                                                book_context: Any,
                                                 convictions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Generate orders from optimization solution."""
         orders = []
@@ -139,7 +139,7 @@ class BaseEngine(ABC):
                 symbol=symbol,
                 notional_delta=notional_delta,
                 conviction=conviction,
-                user_context=user_context
+                book_context=book_context
             )
 
             if order:
@@ -151,13 +151,13 @@ class BaseEngine(ABC):
                                            symbol: str,
                                            notional_delta: float,
                                            conviction: Dict[str, Any],
-                                           user_context: Any) -> Optional[Dict[str, Any]]:
+                                           book_context: Any) -> Optional[Dict[str, Any]]:
         """Create order from notional change, converting to symbol quantity."""
         try:
-            base_currency = user_context.base_currency
+            base_currency = book_context.base_currency
 
             # Get latest price for the symbol
-            latest_price = self.utils.get_symbol_latest_price(symbol, user_context)
+            latest_price = self.utils.get_symbol_latest_price(symbol, book_context)
             if latest_price is None:
                 self.logger.error(f"No price available for {symbol}, cannot create order")
                 return None
@@ -165,11 +165,11 @@ class BaseEngine(ABC):
             print(f"B: LATEST PRICE: {latest_price}")
 
             # Get symbol's native currency
-            symbol_currency = self.utils.get_symbol_currency(symbol, user_context)
+            symbol_currency = self.utils.get_symbol_currency(symbol, book_context)
 
             # Convert notional delta from base currency to symbol currency
             notional_in_symbol_currency = self.utils.convert_to_base_currency(
-                Decimal(str(abs(notional_delta))), base_currency, symbol_currency, user_context
+                Decimal(str(abs(notional_delta))), base_currency, symbol_currency, book_context
             )
 
             # Convert to symbol quantity
@@ -213,7 +213,7 @@ class BaseEngine(ABC):
                 submit_timestamp = app_state.get_current_timestamp()
 
             return {
-                'user_id': user_context.user_id,
+                'book_id': book_context.book_id,
 
                 # Order identification
                 'order_id': order_id,
@@ -252,24 +252,24 @@ class BaseEngine(ABC):
     # WEIGHT BASED FUNCTIONS #
     ##########################
 
-    def get_current_weight_portfolio_from_manager(self, user_context: Any) -> Dict[str, float]:
+    def get_current_weight_portfolio_from_manager(self, book_context: Any) -> Dict[str, float]:
         """
-        SHARED METHOD: Get current portfolio weights from portfolio manager in user_context.
+        SHARED METHOD: Get current portfolio weights from portfolio manager in book_context.
         This is the same across all engines.
         """
         try:
-            # Get portfolio manager from user_context
-            app_state = user_context.app_state
+            # Get portfolio manager from book_context
+            app_state = book_context.app_state
             portfolio_manager = app_state.portfolio_manager
 
             if not portfolio_manager:
-                self.logger.warning("No portfolio manager in user_context")
+                self.logger.warning("No portfolio manager in book_context")
                 return {}
 
             # Get current positions
             if hasattr(portfolio_manager, 'get_all_positions'):
                 positions = portfolio_manager.get_all_positions()
-                return self._convert_positions_to_weights(positions, user_context)
+                return self._convert_positions_to_weights(positions, book_context)
             else:
                 self.logger.warning(f"Portfolio manager has no get_all_positions method: {type(portfolio_manager)}")
                 return {}
@@ -278,14 +278,14 @@ class BaseEngine(ABC):
             self.logger.error(f"Error getting current portfolio from manager: {e}")
             return {}
 
-    def _convert_positions_to_weights(self, positions: Dict, user_context: Any) -> Dict[str, float]:
+    def _convert_positions_to_weights(self, positions: Dict, book_context: Any) -> Dict[str, float]:
         """Convert position objects to portfolio weights in base currency."""
         try:
             weights = {}
-            base_currency = user_context.base_currency
+            base_currency = book_context.base_currency
 
             # Get AUM from account for weight calculation (if available)
-            account_manager = user_context.app_state.account_manager
+            account_manager = book_context.app_state.account_manager
 
             if hasattr(account_manager, 'get_total_value'):
                 total_value = float(account_manager.get_total_value())
@@ -302,11 +302,11 @@ class BaseEngine(ABC):
 
                         # If position doesn't have currency, get it from symbol
                         if position_currency is None:
-                            position_currency = self.utils.get_symbol_currency(symbol, user_context)
+                            position_currency = self.utils.get_symbol_currency(symbol, book_context)
 
                         # Convert to base currency
                         position_value_base = self.utils.convert_to_base_currency(
-                            position_value, position_currency, base_currency, user_context
+                            position_value, position_currency, base_currency, book_context
                         )
 
                         weight = float(position_value_base) / total_value
@@ -327,11 +327,11 @@ class BaseEngine(ABC):
                                          symbol: str,
                                          weight_delta: float,
                                          conviction: Dict[str, Any],
-                                         user_context: Any) -> Optional[Dict[str, Any]]:
+                                         book_context: Any) -> Optional[Dict[str, Any]]:
         """Create order from weight change."""
         try:
             # Get AUM to convert weight to notional
-            account_manager = user_context.app_state.account_manager
+            account_manager = book_context.app_state.account_manager
             total_value = 100000000.0  # Default AUM fallback
 
             if hasattr(account_manager, 'get_total_value'):
@@ -345,7 +345,7 @@ class BaseEngine(ABC):
                 symbol=symbol,
                 notional_delta=notional_delta,
                 conviction=conviction,
-                user_context=user_context
+                book_context=book_context
             )
 
         except Exception as e:
@@ -355,7 +355,7 @@ class BaseEngine(ABC):
     def _generate_orders_from_weight_solution(self,
                                               current_portfolio: Dict[str, float],
                                               optimal_portfolio: Dict[str, float],
-                                              user_context: Any,
+                                              book_context: Any,
                                               convictions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Generate orders from weight-based optimization solution."""
         orders = []
@@ -385,7 +385,7 @@ class BaseEngine(ABC):
                 symbol=symbol,
                 weight_delta=weight_delta,
                 conviction=conviction,
-                user_context=user_context
+                book_context=book_context
             )
 
             if order:

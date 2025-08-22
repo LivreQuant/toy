@@ -3,13 +3,15 @@ import asyncio
 import csv
 import logging
 import os
+import traceback
 import queue
-import threading
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from threading import RLock, Thread
 from typing import Dict, List, Optional, Callable, Any, TypeVar, Generic
+
+from source.db.db_manager import DatabaseManager
 
 # Global database queue instance
 _db_queue = None
@@ -43,7 +45,6 @@ class DatabaseQueue:
         # Initialize database manager
         db_manager = None
         try:
-            from source.db.db_manager import DatabaseManager
             db_manager = DatabaseManager()
             loop.run_until_complete(db_manager.initialize())
             self.logger.info("✅ Database worker initialized successfully")
@@ -62,15 +63,14 @@ class DatabaseQueue:
                 if item is None:  # Shutdown signal
                     break
 
-                table_name, data, user_id, timestamp = item
+                table_name, data, book_id, timestamp = item
 
                 # Process the database write
                 try:
-                    loop.run_until_complete(self._write_to_database(db_manager, table_name, data, user_id, timestamp))
+                    loop.run_until_complete(self._write_to_database(db_manager, table_name, data, book_id, timestamp))
                     self.logger.info(f"✅ Successfully wrote {len(data)} records to {table_name}")
                 except Exception as e:
                     self.logger.error(f"❌ Database write error for {table_name}: {e}")
-                    import traceback
                     self.logger.error(f"❌ Full traceback: {traceback.format_exc()}")
                 finally:
                     self._queue.task_done()
@@ -87,21 +87,21 @@ class DatabaseQueue:
 
         loop.close()
 
-    async def _write_to_database(self, db_manager: 'DatabaseManager', table_name: str, data: List[Dict], user_id: str,
+    async def _write_to_database(self, db_manager: 'DatabaseManager', table_name: str, data: List[Dict], book_id: str,
                                  timestamp: datetime):
         """Write data to database using the manager"""
         if not db_manager.connected:
             raise Exception("Database not connected")
 
         # Use the centralized insert method
-        result = await db_manager.insert_simulation_data(table_name, data, user_id, timestamp)
+        result = await db_manager.insert_simulation_data(table_name, data, book_id, timestamp)
         return result
 
-    def enqueue_write(self, table_name: str, data: List[Dict], user_id: str, timestamp: datetime):
+    def enqueue_write(self, table_name: str, data: List[Dict], book_id: str, timestamp: datetime):
         """Enqueue a database write operation"""
         if not self._shutdown:
             self.logger.debug(f"🔄 Enqueuing {len(data)} records for {table_name}")
-            self._queue.put((table_name, data, user_id, timestamp))
+            self._queue.put((table_name, data, book_id, timestamp))
 
     def shutdown(self):
         """Shutdown the database queue"""
@@ -135,8 +135,8 @@ class TrackingManager:
         self._lock = RLock()
         self.logger = logging.getLogger(f"{self.__class__.__name__}.{manager_name}")
 
-        # Store current user_id context for database writes
-        self._current_user_id: Optional[str] = None
+        # Store current book_id context for database writes
+        self._current_book_id: Optional[str] = None
 
         # Initialize database queue if using database storage
         from source.config import app_config
@@ -149,15 +149,15 @@ class TrackingManager:
         if not app_config.use_database_storage:
             self._init_csv_file()
 
-    def set_user_context(self, user_id: str) -> None:
-        """Set the current user context for this manager instance"""
-        self._current_user_id = user_id
-        self.logger.debug(f"📋 {self.manager_name} user context set to: {user_id}")
+    def set_book_context(self, book_id: str) -> None:
+        """Set the current book context for this manager instance"""
+        self._current_book_id = book_id
+        self.logger.debug(f"📋 {self.manager_name} book context set to: {book_id}")
 
     def _init_csv_file(self):
         """Initialize CSV file for development mode"""
         try:
-            data_dir = self._get_user_data_dir()
+            data_dir = self._get_book_data_dir()
             if data_dir:
                 self.csv_file = os.path.join(data_dir, f"{self.table_name}.csv")
                 if not os.path.exists(self.csv_file):
@@ -167,18 +167,18 @@ class TrackingManager:
         except Exception as e:
             self.logger.error(f"Error initializing CSV file: {e}")
 
-    def _get_user_data_dir(self) -> Optional[str]:
-        """Get user-specific data directory"""
+    def _get_book_data_dir(self) -> Optional[str]:
+        """Get book-specific data directory"""
         try:
             from source.config import app_config
-            user_id = self._get_current_user_id()
+            book_id = self._get_current_book_id()
 
-            if user_id and hasattr(app_config, 'data_directory') and app_config.data_directory:
-                user_data_dir = os.path.join(app_config.data_directory, f"USER_{user_id}", self.table_name)
-                os.makedirs(user_data_dir, exist_ok=True)
-                return user_data_dir
+            if book_id and hasattr(app_config, 'data_directory') and app_config.data_directory:
+                book_data_dir = os.path.join(app_config.data_directory, f"BOOK_{book_id}", self.table_name)
+                os.makedirs(book_data_dir, exist_ok=True)
+                return book_data_dir
         except Exception as e:
-            self.logger.warning(f"Could not create user data directory: {e}")
+            self.logger.warning(f"Could not create book data directory: {e}")
 
         return None
 
@@ -191,28 +191,28 @@ class TrackingManager:
         if not data:
             return
 
-        # Get the correct user ID from app_state
-        user_id = self._get_current_user_id()
+        # Get the correct book ID from app_state
+        book_id = self._get_current_book_id()
 
         from source.config import app_config
 
         # Route based on environment: Production = Database, Development = Files
         if app_config.use_database_storage:
             # Production mode: Write to database only
-            self._queue_database_write(data, timestamp, user_id)
+            self._queue_database_write(data, timestamp, book_id)
             self.logger.debug(f"📤 DATABASE: Queued {len(data)} {self.table_name} records")
         else:
             # Development mode: Write to file only
             self._write_to_file(data)
             self.logger.debug(f"📁 FILE: Wrote {len(data)} {self.table_name} records")
 
-    def _queue_database_write(self, data: List[Dict], timestamp: Optional[datetime], user_id: str):
+    def _queue_database_write(self, data: List[Dict], timestamp: Optional[datetime], book_id: str):
         """Queue database write operation"""
         try:
             global _db_queue
             if _db_queue is None:
                 _db_queue = get_database_queue()
-            _db_queue.enqueue_write(self.table_name, data, user_id, timestamp or datetime.now())
+            _db_queue.enqueue_write(self.table_name, data, book_id, timestamp or datetime.now())
         except Exception as e:
             self.logger.error(f"❌ Database queue error: {e}")
 
@@ -227,26 +227,26 @@ class TrackingManager:
             self.logger.error(f"❌ Error writing to file: {e}")
             raise
 
-    def _get_current_user_id(self) -> str:
-        """Get the current user ID from stored context or app_state"""
-        # First try stored user context
-        if self._current_user_id:
-            self.logger.debug(f"📍 Using {self.manager_name} user context: {self._current_user_id}")
-            return self._current_user_id
+    def _get_current_book_id(self) -> str:
+        """Get the current book ID from stored context or app_state"""
+        # First try stored book context
+        if self._current_book_id:
+            self.logger.debug(f"📍 Using {self.manager_name} book context: {self._current_book_id}")
+            return self._current_book_id
 
         # Fallback to app_state
         try:
             from source.orchestration.app_state.state_manager import app_state
-            user_id = app_state.get_user_id()
-            self.logger.debug(f"📍 Got user ID from app_state: {user_id}")
-            if user_id:
-                return user_id
+            book_id = app_state.get_book_id()
+            self.logger.debug(f"📍 Got book ID from app_state: {book_id}")
+            if book_id:
+                return book_id
         except Exception as e:
-            self.logger.warning(f"⚠️ Error getting user ID from app_state: {e}")
+            self.logger.warning(f"⚠️ Error getting book ID from app_state: {e}")
 
         # Final fallback - raise error
-        self.logger.error(f"❌ No user context available in {self.manager_name}")
-        raise ValueError(f"No user context available for database write in {self.manager_name}")
+        self.logger.error(f"❌ No book context available in {self.manager_name}")
+        raise ValueError(f"No book context available for database write in {self.manager_name}")
 
     def get_status(self) -> Dict[str, Any]:
         """Get status information for this manager"""
@@ -254,14 +254,14 @@ class TrackingManager:
             'manager_name': self.manager_name,
             'table_name': self.table_name,
             'tracking': self.tracking,
-            'user_context': self._current_user_id,
+            'book_context': self._current_book_id,
             'csv_file': self.csv_file
         }
 
     def reset(self):
         """Reset manager to initial state"""
         with self._lock:
-            self._current_user_id = None
+            self._current_book_id = None
             self.logger.info(f"🔄 {self.manager_name} reset to initial state")
 
     def validate(self) -> Dict[str, Any]:
@@ -280,8 +280,8 @@ class TrackingManager:
             validation['valid'] = False
             validation['errors'].append("No table name defined")
 
-        if self.tracking and not self._current_user_id:
-            validation['warnings'].append("Tracking enabled but no user context set")
+        if self.tracking and not self._current_book_id:
+            validation['warnings'].append("Tracking enabled but no book context set")
 
         return validation
 

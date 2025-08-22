@@ -16,7 +16,7 @@ The refactored system uses a **delegation pattern** where the main `AppState` cl
 │  • Provides unified public API                                 │
 │  • Delegates to specialized modules                            │
 │  • Maintains thread safety                                     │
-│  • Handles user context management                             │
+│  • Handles book context management                             │
 └─────────────┬─────────────┬─────────────┬─────────────┬─────────┘
               │             │             │             │
       ┌───────▼──────┐ ┌────▼────┐ ┌──────▼──────┐ ┌────▼────┐
@@ -49,7 +49,7 @@ source/orchestration/app_state/
 - Maintains backward compatibility with existing code
 - Delegates operations to appropriate modules
 - Handles thread safety with centralized locking
-- Manages user context (user_id, base_currency)
+- Manages book context (book_id, base_currency)
 
 **Key Methods**:
 ```python
@@ -212,8 +212,8 @@ class ExchangeConfig:
     MAX_DATA_WAIT_MINUTES = 60
     DATA_CHECK_INTERVAL_SECONDS = 5
     REQUIRED_GLOBAL_DATA_TYPES = ["equity", "fx"]
-    REQUIRED_USER_DATA_TYPES = ["portfolio", "accounts"]
-    OPTIONAL_USER_DATA_TYPES = ["orders", "impact", "returns"]
+    REQUIRED_BOOK_DATA_TYPES = ["portfolio", "accounts"]
+    OPTIONAL_BOOK_DATA_TYPES = ["orders", "impact", "returns"]
 ```
 
 ## Usage Examples

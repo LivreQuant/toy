@@ -6,10 +6,12 @@ COMPLETE Session Server Implementation - FIXED BATCHING
 import logging
 import queue
 import grpc
-import uuid
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Dict, List
 from concurrent import futures
+from dateutil.parser import parse
+import traceback
+import uuid
 
 from source.orchestration.servers.utils import BaseServiceImpl
 from source.api.grpc.session_exchange_interface_pb2 import (
@@ -24,11 +26,13 @@ from source.api.grpc.session_exchange_interface_pb2 import (
 from source.api.grpc.session_exchange_interface_pb2_grpc import SessionExchangeSimulatorServicer, \
     add_SessionExchangeSimulatorServicer_to_server
 
+from source.api.grpc.session_exchange_interface_pb2 import SessionStatusResponse
+
 # Import the new state managers
 from .state_managers import CompositeStateManager
 
 
-class MultiUserSessionServiceImpl(SessionExchangeSimulatorServicer, BaseServiceImpl):
+class MultiBookSessionServiceImpl(SessionExchangeSimulatorServicer, BaseServiceImpl):
     def __init__(self, exchange_group_manager, snapshot_manager=None):
         super().__init__()
         self.logger = logging.getLogger(self.__class__.__name__)
@@ -50,8 +54,8 @@ class MultiUserSessionServiceImpl(SessionExchangeSimulatorServicer, BaseServiceI
             print(f"🔥🔥🔥 SESSION SERVICE: Composite state manager not available: {e}")
             self.logger.warning(f"🔧 SESSION SERVICE: Composite state manager not available: {e}")
 
-        # Per-user stream queues
-        self._user_stream_queues: Dict[str, queue.Queue] = {}
+        # Per-book stream queues
+        self._book_stream_queues: Dict[str, queue.Queue] = {}
         self._active_streams: Dict[str, grpc.ServicerContext] = {}
 
         # gRPC Server components
@@ -80,22 +84,21 @@ class MultiUserSessionServiceImpl(SessionExchangeSimulatorServicer, BaseServiceI
             self.port = port
             self.running = True
 
-            users = self.exchange_group_manager.get_all_users()
+            books = self.exchange_group_manager.get_all_books()
             self.logger.info(f"✅ Session Service: STARTED on port {port}")
-            self.logger.info(f"🔗 Session Service: Ready for up to {len(users)} concurrent user connections")
+            self.logger.info(f"🔗 Session Service: Ready for up to {len(books)} concurrent book connections")
 
         except Exception as e:
             self.logger.error(f"❌ SESSION SERVICE: Failed to start server: {e}")
             raise
 
     def GetSessionStatus(self, request, context):
-        """Get session connection status for a user"""
+        """Get session connection status for a book"""
         try:
-            from source.api.grpc.session_exchange_interface_pb2 import SessionStatusResponse
-            
+
             response = SessionStatusResponse()
-            response.user_id = request.user_id
-            response.is_connected = request.user_id in self._active_streams
+            response.book_id = request.book_id
+            response.is_connected = request.book_id in self._active_streams
             response.connection_count = 1 if response.is_connected else 0
             response.last_update_timestamp = int(datetime.now().timestamp() * 1000)
             response.next_sequence_number = 0
@@ -103,7 +106,7 @@ class MultiUserSessionServiceImpl(SessionExchangeSimulatorServicer, BaseServiceI
             if response.is_connected:
                 response.active_session_instances.append(request.session_instance_id)
             
-            self.logger.info(f"📊 SESSION_STATUS: User {request.user_id} - connected: {response.is_connected}")
+            self.logger.info(f"📊 SESSION_STATUS: book {request.book_id} - connected: {response.is_connected}")
             return response
             
         except Exception as e:
@@ -112,33 +115,31 @@ class MultiUserSessionServiceImpl(SessionExchangeSimulatorServicer, BaseServiceI
             context.set_details(f'Internal error: {e}')
             
             # Return empty response on error
-            from source.api.grpc.session_exchange_interface_pb2 import SessionStatusResponse
             return SessionStatusResponse()
         
     def GetHealth(self, request: HealthRequest, context: grpc.ServicerContext):
         """Get server health status"""
         try:
             response = HealthResponse()
-            user_id_str = request.user_id
+            book_id_str = request.book_id
 
-            import uuid
             try:
-                user_id = uuid.UUID(user_id_str)
+                book_id = uuid.UUID(book_id_str)
             except ValueError:
                 response.status = "error"
-                response.market_state = f"Invalid user ID format"
+                response.market_state = f"Invalid book ID format"
                 response.timestamp = int(datetime.now().timestamp() * 1000)
                 return response
 
-            if self.exchange_group_manager and hasattr(self.exchange_group_manager, 'user_contexts'):
-                user_context = self.exchange_group_manager.user_contexts.get(user_id)
-                if user_context and user_context.app_state:
-                    app_state_status = user_context.app_state.get_app_state()
+            if self.exchange_group_manager and hasattr(self.exchange_group_manager, 'book_contexts'):
+                book_context = self.exchange_group_manager.book_contexts.get(book_id)
+                if book_context and book_context.app_state:
+                    app_state_status = book_context.app_state.get_app_state()
                     response.status = "healthy" if app_state_status == "ACTIVE" else "error"
-                    response.market_state = f"User {user_id}: {app_state_status}"
+                    response.market_state = f"book {book_id}: {app_state_status}"
                 else:
                     response.status = "error"
-                    response.market_state = f"User {user_id} not found"
+                    response.market_state = f"book {book_id} not found"
             else:
                 response.status = "initializing"
                 response.market_state = "No exchange group manager"
@@ -155,77 +156,76 @@ class MultiUserSessionServiceImpl(SessionExchangeSimulatorServicer, BaseServiceI
 
     def StreamExchangeData(self, request: StreamRequest, context: grpc.ServicerContext):
         """Stream exchange data to client"""
-        user_id_str = request.user_id
+        book_id_str = request.book_id
 
-        import uuid
         try:
-            user_id = uuid.UUID(user_id_str)
+            book_id = uuid.UUID(book_id_str)
         except ValueError:
-            context.abort(grpc.StatusCode.INVALID_ARGUMENT, f"Invalid user ID format: {user_id_str}")
+            context.abort(grpc.StatusCode.INVALID_ARGUMENT, f"Invalid book ID format: {book_id_str}")
             return
 
-        self.logger.info(f"🌊 STREAM REQUEST: New stream request from user: {user_id}")
+        self.logger.info(f"🌊 STREAM REQUEST: New stream request from book: {book_id}")
 
-        if not self.exchange_group_manager or not hasattr(self.exchange_group_manager, 'user_contexts'):
-            context.abort(grpc.StatusCode.INTERNAL, "No user contexts available")
+        if not self.exchange_group_manager or not hasattr(self.exchange_group_manager, 'book_contexts'):
+            context.abort(grpc.StatusCode.INTERNAL, "No book contexts available")
             return
 
-        if user_id not in self.exchange_group_manager.user_contexts:
-            context.abort(grpc.StatusCode.NOT_FOUND, f"User {user_id} not found")
+        if book_id not in self.exchange_group_manager.book_contexts:
+            context.abort(grpc.StatusCode.NOT_FOUND, f"book {book_id} not found")
             return
 
         # Track this stream
-        self._active_streams[user_id] = context
-        user_queue = self._get_or_create_user_queue(user_id)
+        self._active_streams[book_id] = context
+        book_queue = self._get_or_create_book_queue(book_id)
 
         try:
-            self.logger.info(f"🌊 STREAM REQUEST: Starting stream for user {user_id}")
-            self._send_initial_state_for_user(user_id)
+            self.logger.info(f"🌊 STREAM REQUEST: Starting stream for book {book_id}")
+            self._send_initial_state_for_book(book_id)
 
             # Stream updates
             while context.is_active():
                 try:
-                    update = user_queue.get(timeout=1.0)
+                    update = book_queue.get(timeout=1.0)
                     yield update
                 except queue.Empty:
                     continue
                 except Exception as e:
-                    self.logger.error(f"❌ Error sending update to user {user_id}: {e}")
+                    self.logger.error(f"❌ Error sending update to book {book_id}: {e}")
                     break
 
         except grpc.RpcError as e:
-            self.logger.info(f"🔌 Stream disconnected for user {user_id}: {e}")
+            self.logger.info(f"🔌 Stream disconnected for book {book_id}: {e}")
         except Exception as e:
-            self.logger.error(f"❌ Unexpected error in stream for user {user_id}: {e}")
+            self.logger.error(f"❌ Unexpected error in stream for book {book_id}: {e}")
         finally:
-            if user_id in self._active_streams:
-                del self._active_streams[user_id]
-            if user_id in self._user_stream_queues:
-                del self._user_stream_queues[user_id]
-            self.logger.info(f"🧹 Cleaned up stream for user {user_id}")
+            if book_id in self._active_streams:
+                del self._active_streams[book_id]
+            if book_id in self._book_stream_queues:
+                del self._book_stream_queues[book_id]
+            self.logger.info(f"🧹 Cleaned up stream for book {book_id}")
 
     def _setup_master_callback(self):
-        """Register with first user's equity manager as master trigger"""
+        """Register with first book's equity manager as master trigger"""
         print(f"🔥🔥🔥 SESSION SERVICE: _setup_master_callback CALLED")
 
         if self._callback_registered:
             return
 
-        if not self.exchange_group_manager or not hasattr(self.exchange_group_manager, 'user_contexts'):
+        if not self.exchange_group_manager or not hasattr(self.exchange_group_manager, 'book_contexts'):
             return
 
-        users = self.exchange_group_manager.get_all_users()
-        if not users:
+        books = self.exchange_group_manager.get_all_books()
+        if not books:
             return
 
-        master_user = users[0]
-        print(f"🔥🔥🔥 SESSION SERVICE: Using master user: {master_user}")
+        master_book = books[0]
+        print(f"🔥🔥🔥 SESSION SERVICE: Using master book: {master_book}")
 
         try:
-            user_context = self.exchange_group_manager.user_contexts.get(master_user)
-            if user_context and hasattr(user_context, 'app_state') and user_context.app_state:
-                if hasattr(user_context.app_state, 'equity_manager') and user_context.app_state.equity_manager:
-                    equity_manager = user_context.app_state.equity_manager
+            book_context = self.exchange_group_manager.book_contexts.get(master_book)
+            if book_context and hasattr(book_context, 'app_state') and book_context.app_state:
+                if hasattr(book_context.app_state, 'equity_manager') and book_context.app_state.equity_manager:
+                    equity_manager = book_context.app_state.equity_manager
                     if hasattr(equity_manager, 'register_update_callback'):
                         equity_manager.register_update_callback(self._on_market_data_update)
                         self._callback_registered = True
@@ -238,15 +238,15 @@ class MultiUserSessionServiceImpl(SessionExchangeSimulatorServicer, BaseServiceI
         self._sequence_counter += 1
         return self._sequence_counter
 
-    def _get_or_create_user_queue(self, user_id: str) -> queue.Queue:
-        """Get or create queue for user"""
-        if user_id not in self._user_stream_queues:
-            self._user_stream_queues[user_id] = queue.Queue()
-        return self._user_stream_queues[user_id]
+    def _get_or_create_book_queue(self, book_id: str) -> queue.Queue:
+        """Get or create queue for book"""
+        if book_id not in self._book_stream_queues:
+            self._book_stream_queues[book_id] = queue.Queue()
+        return self._book_stream_queues[book_id]
 
-    def _send_initial_state_for_user(self, user_id: str):
-        """Send initial state to user"""
-        self.logger.info(f"📤 INITIAL STATE: Sending to user {user_id}")
+    def _send_initial_state_for_book(self, book_id: str):
+        """Send initial state to book"""
+        self.logger.info(f"📤 INITIAL STATE: Sending to book {book_id}")
 
     def _on_market_data_update(self, update_data):
         """Handle market data updates - MAIN CALLBACK - FIXED FOR BATCHING"""
@@ -260,21 +260,20 @@ class MultiUserSessionServiceImpl(SessionExchangeSimulatorServicer, BaseServiceI
             # FIXED: Create a SINGLE batched exchange update with ALL equity data
             batched_exchange_update = self._create_batched_exchange_update(update_data)
 
-            # Queue the SINGLE batched update for all active users
-            for user_id in self._active_streams:
-                user_exchange_update = ExchangeDataUpdate()
-                user_exchange_update.CopyFrom(batched_exchange_update)
-                user_exchange_update.user_id = str(user_id)  # Convert UUID to string
+            # Queue the SINGLE batched update for all active books
+            for book_id in self._active_streams:
+                book_exchange_update = ExchangeDataUpdate()
+                book_exchange_update.CopyFrom(batched_exchange_update)
+                book_exchange_update.book_id = str(book_id)  # Convert UUID to string
 
-                if user_id in self._user_stream_queues:
-                    self._user_stream_queues[user_id].put(user_exchange_update)
+                if book_id in self._book_stream_queues:
+                    self._book_stream_queues[book_id].put(book_exchange_update)
 
             self.logger.info(
                 f"✅ SESSION SERVICE: Queued 1 BATCHED update (containing {len(update_data)} equity updates) for {len(self._active_streams)} active streams")
 
         except Exception as e:
             print(f"🔥🔥🔥 SESSION SERVICE: EXCEPTION in _on_market_data_update: {e}")
-            import traceback
             print(f"🔥🔥🔥 SESSION SERVICE: Traceback:\n{traceback.format_exc()}")
 
     def _create_batched_exchange_update(self, update_data_list: List) -> ExchangeDataUpdate:
@@ -292,7 +291,6 @@ class MultiUserSessionServiceImpl(SessionExchangeSimulatorServicer, BaseServiceI
                 timestamp_str = first_update['timestamp']
                 try:
                     if isinstance(timestamp_str, str):
-                        from dateutil.parser import parse
                         market_dt = parse(timestamp_str)
                         update.timestamp = int(market_dt.timestamp() * 1000)
                     else:
@@ -306,7 +304,6 @@ class MultiUserSessionServiceImpl(SessionExchangeSimulatorServicer, BaseServiceI
             update.sequence_number = self._get_next_sequence()
 
             # Generate unique broadcast ID
-            import uuid
             update.broadcast_id = str(uuid.uuid4())
 
             # FIXED: Add ALL equity data to the SAME message
@@ -326,25 +323,24 @@ class MultiUserSessionServiceImpl(SessionExchangeSimulatorServicer, BaseServiceI
 
             print(f"🔥🔥🔥 SESSION SERVICE: BATCHED update contains {len(update.equity_data)} equity entries")
 
-            # FIXED: Add complete exchange state for all users
-            users = self.exchange_group_manager.get_all_users()
+            # FIXED: Add complete exchange state for all books
+            books = self.exchange_group_manager.get_all_books()
 
-            for user_id in users:
-                user_context = self.exchange_group_manager.user_contexts.get(user_id)
-                if user_context and user_context.app_state:
+            for book_id in books:
+                book_context = self.exchange_group_manager.book_contexts.get(book_id)
+                if book_context and book_context.app_state:
                     # Use composite state manager if available
                     if self._composite_state_manager:
-                        self._composite_state_manager.add_user_state(update, user_context)
+                        self._composite_state_manager.add_book_state(update, book_context)
                     else:
                         # Fallback to manual collection
-                        self._add_complete_user_state_FIXED(update, user_context)
+                        self._add_complete_book_state_FIXED(update, book_context)
 
             print(f"🔥🔥🔥 SESSION SERVICE: COMPLETE exchange update created with seq#{update.sequence_number}")
             return update
 
         except Exception as e:
             print(f"🔥🔥🔥 SESSION SERVICE: EXCEPTION creating batched exchange update: {e}")
-            import traceback
             print(f"🔥🔥🔥 SESSION SERVICE: Traceback:\n{traceback.format_exc()}")
             raise
 
@@ -354,22 +350,22 @@ class MultiUserSessionServiceImpl(SessionExchangeSimulatorServicer, BaseServiceI
         # The new batching approach is in _create_batched_exchange_update
         return self._create_batched_exchange_update([market_data])
 
-    def _add_complete_user_state_FIXED(self, update, user_context):
-        """FIXED: Add complete user state to the exchange update"""
-        print(f"🔥🔥🔥 SESSION SERVICE: Adding COMPLETE state for user {user_context.user_id}")
+    def _add_complete_book_state_FIXED(self, update, book_context):
+        """FIXED: Add complete book state to the exchange update"""
+        print(f"🔥🔥🔥 SESSION SERVICE: Adding COMPLETE state for book {book_context.book_id}")
 
         import source.orchestration.app_state.state_manager as app_state_module
         original_app_state = app_state_module.app_state
 
         try:
-            app_state_module.app_state = user_context.app_state
+            app_state_module.app_state = book_context.app_state
 
             # Add all state components
-            self._add_portfolio_state_FIXED(update, user_context.app_state)
-            self._add_account_state_FIXED(update, user_context.app_state)
-            self._add_order_state_FIXED(update, user_context.app_state)
-            self._add_trade_state_FIXED(update, user_context.app_state)
-            self._add_fx_state_FIXED(update, user_context.app_state)
+            self._add_portfolio_state_FIXED(update, book_context.app_state)
+            self._add_account_state_FIXED(update, book_context.app_state)
+            self._add_order_state_FIXED(update, book_context.app_state)
+            self._add_trade_state_FIXED(update, book_context.app_state)
+            self._add_fx_state_FIXED(update, book_context.app_state)
 
         finally:
             app_state_module.app_state = original_app_state
@@ -436,7 +432,6 @@ class MultiUserSessionServiceImpl(SessionExchangeSimulatorServicer, BaseServiceI
 
         except Exception as e:
             print(f"🔥🔥🔥 SESSION SERVICE: Error adding portfolio state: {e}")
-            import traceback
             print(f"🔥🔥🔥 SESSION SERVICE: Portfolio traceback: {traceback.format_exc()}")
 
     def _add_order_state_FIXED(self, update, app_state):
@@ -566,7 +561,7 @@ class MultiUserSessionServiceImpl(SessionExchangeSimulatorServicer, BaseServiceI
     def Heartbeat(self, request: HeartbeatRequest, context: grpc.ServicerContext) -> HeartbeatResponse:
         """Enhanced heartbeat with session status information"""
         try:
-            self.logger.info(f"🏥 HEARTBEAT: Received heartbeat request from user {request.user_id}")
+            self.logger.info(f"🏥 HEARTBEAT: Received heartbeat request from book {request.book_id}")
             
             response = HeartbeatResponse()
             response.status = "OK"
@@ -582,11 +577,11 @@ class MultiUserSessionServiceImpl(SessionExchangeSimulatorServicer, BaseServiceI
                 response.connection_info.last_sent_timestamp = response.timestamp
                 response.connection_info.is_primary_connection = True
             
-            self.logger.info(f"🏥 HEARTBEAT: Responding with status {response.status} for user {request.user_id}")
+            self.logger.info(f"🏥 HEARTBEAT: Responding with status {response.status} for book {request.book_id}")
             return response
             
         except Exception as e:
-            self.logger.error(f"❌ HEARTBEAT: Error processing heartbeat for user {request.user_id}: {e}")
+            self.logger.error(f"❌ HEARTBEAT: Error processing heartbeat for book {request.book_id}: {e}")
             
             response = HeartbeatResponse()
             response.status = "ERROR"

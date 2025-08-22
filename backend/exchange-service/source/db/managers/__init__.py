@@ -8,7 +8,8 @@ providing a clean separation of concerns and better maintainability.
 
 from .base_manager import BaseTableManager
 from .metadata import MetadataManager
-from .users import UsersManager
+from .books import BooksManager
+from .book_operational_parameters import BookOperationalParametersManager
 from .universe_data import UniverseDataManager
 from .risk_factor_data import RiskFactorDataManager
 from .equity_data import EquityDataManager
@@ -23,7 +24,8 @@ from .trade_data import TradeDataManager
 __all__ = [
     'BaseTableManager',
     'MetadataManager',
-    'UsersManager',
+    'BooksManager',
+    'BookOperationalParametersManager',
     'UniverseDataManager',
     'RiskFactorDataManager',
     'EquityDataManager',

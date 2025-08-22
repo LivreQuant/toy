@@ -1,10 +1,7 @@
 # source/api/rest/health.py - Updated for orchestration architecture
 import logging
-import asyncio
 import time
-import grpc
 from aiohttp import web
-from typing import Optional, Dict, Any
 
 logger = logging.getLogger('health_service')
 
@@ -120,14 +117,14 @@ class OrchestrationHealthService:
             'market_data_connected': market_data_ready,
             'services': self.services_ready.copy(),
             'enabled_services': list(self.service_manager.enabled_services) if self.service_manager else [],
-            'user_count': len(self.exchange_group_manager.get_all_users()) if self.exchange_group_manager else 0
+            'book_count': len(self.exchange_group_manager.get_all_books()) if self.exchange_group_manager else 0
         }, status=status_code)
 
     async def metrics_endpoint(self, request):
         """Metrics endpoint for monitoring"""
         metrics = {
             'uptime_seconds': time.time() - self.startup_time,
-            'users_count': len(self.exchange_group_manager.get_all_users()) if self.exchange_group_manager else 0,
+            'books_count': len(self.exchange_group_manager.get_all_books()) if self.exchange_group_manager else 0,
             'enabled_services_count': len(self.service_manager.enabled_services) if self.service_manager else 0,
             'core_exchange_ready': self._check_core_exchange_ready(),
             'market_data_connected': self._check_market_data_ready(),
@@ -144,7 +141,7 @@ class OrchestrationHealthService:
             'initialization_complete': self.initialization_complete,
             'core_exchange': {
                 'ready': self._check_core_exchange_ready(),
-                'users': self.exchange_group_manager.get_all_users() if self.exchange_group_manager else [],
+                'books': self.exchange_group_manager.get_all_books() if self.exchange_group_manager else [],
                 'last_snap_time': str(self.exchange_group_manager.last_snap_time) if self.exchange_group_manager else None
             },
             'market_data': {
@@ -164,8 +161,8 @@ class OrchestrationHealthService:
             return False
         
         try:
-            users = self.exchange_group_manager.get_all_users()
-            return len(users) > 0 and self.exchange_group_manager.last_snap_time is not None
+            books = self.exchange_group_manager.get_all_books()
+            return len(books) > 0 and self.exchange_group_manager.last_snap_time is not None
         except Exception:
             return False
 

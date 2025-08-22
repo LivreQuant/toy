@@ -4,13 +4,13 @@ Manager modules for snapshot initialization
 """
 
 from .manager_initializer import ManagerInitializer
-from .user_context_manager import UserContextManager
+from .book_context_manager import BookContextManager
 from .shared_data_manager import SharedDataManager
 from .snapshot_validator import SnapshotValidator
 
 __all__ = [
     'ManagerInitializer',
-    'UserContextManager',
+    'BookContextManager',
     'SharedDataManager',
     'SnapshotValidator'
 ]

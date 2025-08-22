@@ -7,12 +7,10 @@ import os
 import logging
 import socket
 import uuid
-from datetime import datetime
 from typing import Optional, Dict, Any
 from dataclasses import dataclass
 
 from source.db.db_manager import db_manager
-from source.config import app_config
 
 
 @dataclass

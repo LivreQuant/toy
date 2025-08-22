@@ -5,6 +5,8 @@ Extracted from session_server_impl.py to reduce file size
 """
 
 import logging
+from dateutil.parser import parse
+import traceback
 from source.api.grpc.session_exchange_interface_pb2 import ExchangeDataUpdate, Trade
 
 
@@ -50,7 +52,6 @@ class TradeStateManager:
 
                 if start_timestamp:
                     if isinstance(start_timestamp, str):
-                        from dateutil.parser import parse
                         start_dt = parse(start_timestamp)
                         trade_data.start_timestamp = int(start_dt.timestamp() * 1000)
                     else:
@@ -59,7 +60,6 @@ class TradeStateManager:
 
                 if end_timestamp:
                     if isinstance(end_timestamp, str):
-                        from dateutil.parser import parse
                         end_dt = parse(end_timestamp)
                         trade_data.end_timestamp = int(end_dt.timestamp() * 1000)
                     else:
@@ -80,6 +80,5 @@ class TradeStateManager:
 
         except Exception as e:
             print(f"🔥🔥🔥 COMPOSITE STATE: Error adding trades state: {e}")
-            import traceback
             print(f"🔥🔥🔥 COMPOSITE STATE: Trade error traceback: {traceback.format_exc()}")
             self.logger.error(f"Error adding trades state: {e}")

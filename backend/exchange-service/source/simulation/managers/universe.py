@@ -7,7 +7,7 @@ from source.simulation.managers.utils import CallbackManager
 
 class UniverseManager(CallbackManager[Dict[str, Dict]]):
     def __init__(self, tracking: bool = False):
-        # Universe is global data, not user-specific, so don't inherit from FileTrackingManager
+        # Universe is global data, not book-specific, so don't inherit from FileTrackingManager
         CallbackManager.__init__(self)
 
         self._lock = RLock()

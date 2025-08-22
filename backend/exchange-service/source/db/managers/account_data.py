@@ -2,45 +2,35 @@
 from typing import Dict, List
 from datetime import datetime
 from decimal import Decimal
+
 from source.simulation.managers.account import AccountBalance
+from source.simulation.managers.account import AccountManager
+
 from source.db.managers.base_manager import BaseTableManager
 
 
 class AccountDataManager(BaseTableManager):
     """Manager for account data table"""
 
-    async def load_user_data(self, user_id: str, timestamp_str: str) -> Dict[str, Dict[str, AccountBalance]]:
-        """Load user account data from PostgreSQL"""
+    async def load_book_data(self, book_id: str, timestamp_str: str) -> Dict[str, Dict[str, AccountBalance]]:
+        """Load book account data from PostgreSQL"""
         await self.ensure_connection()
 
         try:
             async with self.pool.acquire() as conn:
                 # Convert timestamp string to actual datetime object
-                from datetime import datetime
-
-                if len(timestamp_str) >= 13 and '_' in timestamp_str:
-                    date_part = timestamp_str[:8]  # "20240109"
-                    time_part = timestamp_str[9:]  # "1932"
-                    formatted_date = f"{date_part[:4]}-{date_part[4:6]}-{date_part[6:8]}"  # "2024-01-09"
-                    formatted_time = f"{time_part[:2]}:{time_part[2:]}:00"  # "19:32:00"
-                    timestamp_string = f"{formatted_date} {formatted_time}+00"
-
-                    # Convert to actual datetime object
-                    target_datetime = datetime.fromisoformat(timestamp_string.replace('+00', '+00:00'))
-                else:
-                    target_datetime = datetime.fromisoformat(timestamp_str)
+                target_datetime = self._get_timestamp_str(timestamp_str)
 
                 query = """
-                    SELECT user_id, timestamp, type, currency, amount, 
+                    SELECT book_id, timestamp, type, currency, amount, 
                            previous_amount, change
                     FROM exch_us_equity.account_data 
-                    WHERE user_id = $1 AND timestamp = $2
+                    WHERE book_id = $1 AND timestamp = $2
                 """
 
-                rows = await conn.fetch(query, user_id, target_datetime)
+                rows = await conn.fetch(query, book_id, target_datetime)
 
                 # Initialize account structure
-                from source.simulation.managers.account import AccountManager
                 accounts = {balance_type: {} for balance_type in AccountManager.VALID_TYPES}
 
                 for row in rows:
@@ -55,14 +45,14 @@ class AccountDataManager(BaseTableManager):
                         )
 
                 total_balances = sum(len(balances) for balances in accounts.values())
-                self.logger.info(f"✅ Loaded account data for {user_id}: {total_balances} balances")
+                self.logger.info(f"✅ Loaded account data for {book_id}: {total_balances} balances")
                 return accounts
 
         except Exception as e:
-            self.logger.error(f"❌ Error loading account data for {user_id}: {e}")
+            self.logger.error(f"❌ Error loading account data for {book_id}: {e}")
             return {}
 
-    async def insert_simulation_data(self, data: List[Dict], user_id: str, timestamp: datetime) -> int:
+    async def insert_simulation_data(self, data: List[Dict], book_id: str, timestamp: datetime) -> int:
         """Insert account simulation data"""
         await self.ensure_connection()
 
@@ -73,16 +63,15 @@ class AccountDataManager(BaseTableManager):
             async with self.pool.acquire() as conn:
                 query = """
                     INSERT INTO exch_us_equity.account_data (
-                        user_id, timestamp, type, currency, amount,
+                        book_id, timestamp, type, currency, amount,
                         previous_amount, change
                     ) VALUES ($1, $2, $3, $4, $5, $6, $7)
                 """
 
-                import uuid
                 records = []
                 for record in data:
                     records.append((
-                        user_id,
+                        book_id,
                         timestamp,
                         record['type'],
                         record['currency'],
@@ -93,7 +82,7 @@ class AccountDataManager(BaseTableManager):
 
                 await conn.executemany(query, records)
 
-                self.logger.info(f"✅ Inserted {len(records)} account records for {user_id}")
+                self.logger.info(f"✅ Inserted {len(records)} account records for {book_id}")
                 return len(records)
 
         except Exception as e:

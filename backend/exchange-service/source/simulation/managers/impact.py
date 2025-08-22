@@ -4,6 +4,7 @@ from typing import Dict, Optional, List
 from datetime import datetime
 from decimal import Decimal
 from source.simulation.managers.utils import TrackingManager
+from source.utils.timezone_utils import to_iso_string
 
 
 @dataclass
@@ -86,8 +87,6 @@ class ImpactManager(TrackingManager):
 
             # Calculate current impact percentage
             current_impact = (impacted_price / base_price) - Decimal('1')
-
-            from source.utils.timezone_utils import to_iso_string
 
             # Update state
             self.impacts[symbol] = ImpactState(

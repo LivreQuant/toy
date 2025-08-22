@@ -3,24 +3,24 @@ import logging
 from typing import Dict
 
 from source.orchestration.persistence.managers.manager_initializer import ManagerInitializer
-from source.orchestration.persistence.managers.user_context_manager import UserContextManager
+from source.orchestration.persistence.managers.book_context_manager import BookContextManager
 
 
 class SharedDataManager:
-    """Manages shared data initialization across all users"""
+    """Manages shared data initialization across all books"""
 
-    def __init__(self, user_context_manager: UserContextManager):
+    def __init__(self, book_context_manager: BookContextManager):
         self.logger = logging.getLogger(self.__class__.__name__)
-        self.user_context_manager = user_context_manager
+        self.book_context_manager = book_context_manager
         self.manager_initializer = ManagerInitializer()
 
     def initialize_shared_data(self, global_data: Dict) -> bool:
-        """Initialize shared data that's common to all users (universe, equity, fx)"""
+        """Initialize shared data that's common to all books (universe, equity, fx)"""
         try:
             self.logger.info("🌍 INITIALIZING SHARED DATA")
             self.logger.info("=" * 60)
 
-            # Set universe for all users
+            # Set universe for all books
             universe_data = global_data.get('universe', {})
             if not universe_data:
                 self.logger.warning("⚠️ No universe data found")
@@ -28,20 +28,20 @@ class SharedDataManager:
 
             self.logger.info(f"📊 Initializing universe with {len(universe_data)} symbols")
 
-            user_contexts = self.user_context_manager.get_all_user_contexts()
+            book_contexts = self.book_context_manager.get_all_book_contexts()
 
-            for user_id, user_context in user_contexts.items():
-                self.logger.debug(f"🔄 Setting universe for user {user_id}")
+            for book_id, book_context in book_contexts.items():
+                self.logger.debug(f"🔄 Setting universe for book {book_id}")
 
                 def _init_universe():
                     return self.manager_initializer.initialize_universe(universe_data)
 
-                success = self.user_context_manager.execute_with_user_context(user_id, _init_universe)
+                success = self.book_context_manager.execute_with_book_context(book_id, _init_universe)
                 if not success:
-                    self.logger.error(f"❌ Failed to initialize universe for user {user_id}")
+                    self.logger.error(f"❌ Failed to initialize universe for book {book_id}")
                     return False
 
-            self.logger.info("✅ Shared data (universe) initialized for all users")
+            self.logger.info("✅ Shared data (universe) initialized for all books")
             return True
 
         except Exception as e:

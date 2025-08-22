@@ -6,6 +6,8 @@ import logging
 from threading import RLock
 from datetime import datetime, timedelta
 from typing import Optional
+import traceback
+import threading
 
 from source.utils.timezone_utils import ensure_utc
 
@@ -55,9 +57,6 @@ class MarketTiming:
 
     def advance_bin(self):
         with self._lock:
-            import traceback
-            import threading
-
             # ✅ ADD DETAILED LOGGING
             self.logger.info("🚨 ADVANCE_BIN CALLED! 🚨")
             self.logger.info(f"🧵 Thread: {threading.current_thread().name}")

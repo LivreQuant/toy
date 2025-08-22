@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from typing import Dict, Optional
 from datetime import datetime
 from decimal import Decimal
+from source.utils.timezone_utils import to_iso_string
 from source.simulation.managers.utils import TrackingManager
 
 
@@ -155,7 +156,6 @@ class PortfolioManager(TrackingManager):
 
     def _prepare_position_data(self, position: Position, timestamp: datetime) -> Dict:
         """Prepare position data for storage"""
-        from source.utils.timezone_utils import to_iso_string
 
         return {
             'timestamp': to_iso_string(timestamp),

@@ -8,8 +8,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import List, Optional
 
-from source.simulation.managers.equity import EquityBar
-from source.simulation.managers.fx import FXRate
+from source.simulation.core.models.models import EquityBar, FXRate
 
 
 class GapHandler:
@@ -20,8 +19,7 @@ class GapHandler:
         self.logger = logging.getLogger(self.__class__.__name__)
 
     def handle_gaps_and_replay(self, incoming_market_time: datetime, last_market_time: datetime,
-                               equity_bars: List[EquityBar], fx: Optional[List[FXRate]],
-                               users: List[str]) -> bool:
+                               equity_bars: List[EquityBar], fx: Optional[List[FXRate]]) -> bool:
         """
         Handle gaps - any gap triggers replay mode
         Returns True if replay mode was activated, False if no gap

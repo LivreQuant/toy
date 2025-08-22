@@ -26,8 +26,8 @@ class AppState:
         self.service_health = ServiceHealth()
         self.components = ComponentManagers()
 
-        # User context only
-        self._user_id: Optional[str] = None
+        # book context only
+        self._book_id: Optional[str] = None
 
         # Parameters
         self._base_currency = 'USD'
@@ -235,29 +235,29 @@ class AppState:
     def get_service_status(self, service_name: str) -> str:
         return self.service_health.get_service_status(service_name)
 
-    # User management
-    def get_user_id(self) -> Optional[str]:
+    # book management
+    def get_book_id(self) -> Optional[str]:
         with self._lock:
-            return self._user_id
+            return self._book_id
 
-    def set_user_id(self, user_id: str):
+    def set_book_id(self, book_id: str):
         with self._lock:
-            old_user_id = self._user_id
-            self._user_id = user_id
+            old_book_id = self._book_id
+            self._book_id = book_id
 
-            # Set user context in all managers
-            self.components.set_user_context(user_id)
+            # Set book context in all managers
+            self.components.set_book_context(book_id)
 
-            self.logger.info(f"🆔 App state assigned to user: {user_id}")
-            if old_user_id and old_user_id != user_id:
-                self.logger.info(f"🔄 User context changed from {old_user_id} to {user_id}")
+            self.logger.info(f"🆔 App state assigned to book: {book_id}")
+            if old_book_id and old_book_id != book_id:
+                self.logger.info(f"🔄 book context changed from {old_book_id} to {book_id}")
 
-    def clear_user_context(self):
-        """Clear user context"""
+    def clear_book_context(self):
+        """Clear book context"""
         with self._lock:
-            old_user_id = self._user_id
-            self._user_id = None
-            self.logger.info(f"🧹 Cleared user context (was: {old_user_id})")
+            old_book_id = self._book_id
+            self._book_id = None
+            self.logger.info(f"🧹 Cleared book context (was: {old_book_id})")
 
     # Component manager delegation
     @property
@@ -390,7 +390,7 @@ class AppState:
             return {
                 'app_state': self.get_app_state(),
                 'current_state': self.get_current_state(),
-                'user_id': self._user_id,
+                'book_id': self._book_id,
                 'initialized': self.is_initialized(),
                 'healthy': self.is_healthy(),
                 'last_update': self._last_update_time.isoformat(),
@@ -428,9 +428,9 @@ class AppState:
                 validation['valid'] = False
                 validation['errors'].append(f"Component validation error: {e}")
 
-            # Validate user context
-            if not self._user_id:
-                validation['warnings'].append("No user context set")
+            # Validate book context
+            if not self._book_id:
+                validation['warnings'].append("No book context set")
 
             # Validate initialization
             if not self._initialization_complete:
@@ -450,7 +450,7 @@ class AppState:
             self.components.reset_all_managers()
 
             # Reset parameters
-            self._user_id = None
+            self._book_id = None
             self._base_currency = 'USD'
             self._timezone = 'America/New_York'
             self._initial_nav = 100000000

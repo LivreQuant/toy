@@ -3,6 +3,7 @@
 Impact State Management Component - FIXED
 """
 
+import traceback
 import logging
 from source.api.grpc.session_exchange_interface_pb2 import ExchangeDataUpdate, ImpactStatus, ImpactData
 
@@ -56,6 +57,5 @@ class ImpactStateManager:
 
         except Exception as e:
             print(f"🔥🔥🔥 COMPOSITE STATE: Error adding impact state: {e}")
-            import traceback
             print(f"🔥🔥🔥 COMPOSITE STATE: Impact error traceback: {traceback.format_exc()}")
             self.logger.error(f"Error adding impact state: {e}")

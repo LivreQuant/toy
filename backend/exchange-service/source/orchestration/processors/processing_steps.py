@@ -6,11 +6,12 @@ Processing Steps - Handles individual processing steps for market data
 import logging
 import time
 from datetime import datetime
+import traceback
+import threading
 from typing import List, Optional
 from decimal import Decimal
 
-from source.simulation.managers.equity import EquityBar
-from source.simulation.managers.fx import FXRate
+from source.simulation.core.models.models import EquityBar, FXRate
 
 
 class ProcessingSteps:
@@ -129,12 +130,12 @@ class ProcessingSteps:
             self.logger.info("💰 STEP 4.5: CASH FLOW DATA SAVE")
             cash_flows = app_state.cash_flow_manager.get_current_flows()
             if cash_flows:
-                for user_id, flows in cash_flows.items():
-                    self.logger.info(f"   Saving {len(flows)} cash flow records for user {user_id}")
+                for book_id, flows in cash_flows.items():
+                    self.logger.info(f"   Saving {len(flows)} cash flow records for book {book_id}")
                     app_state.db_manager.insert_simulation_data(
                         table_name='cash_flow_data',
                         data=flows,
-                        user_id=user_id,
+                        book_id=book_id,
                         timestamp=timestamp
                     )
             else:
@@ -186,8 +187,6 @@ class ProcessingSteps:
     def advance_market_bin(self) -> None:
         """Advance to next market bin"""
         from source.orchestration.app_state.state_manager import app_state
-        import traceback
-        import threading
 
         step_start = time.time()
 

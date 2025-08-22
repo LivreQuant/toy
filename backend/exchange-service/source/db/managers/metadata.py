@@ -1,5 +1,4 @@
 # source/db/managers/metadata.py
-import json
 from typing import Dict
 from source.db.managers.base_manager import BaseTableManager
 
@@ -7,33 +6,22 @@ from source.db.managers.base_manager import BaseTableManager
 class MetadataManager(BaseTableManager):
     """Manager for exchange metadata table"""
 
-    async def load_exchange_metadata(self, exch_id: str = None) -> Dict:
+    async def load_exchange_metadata(self, exch_id: str) -> Dict:
         """Load exchange metadata from PostgreSQL"""
         await self.ensure_connection()
 
         try:
             async with self.pool.acquire() as conn:
-                if exch_id:
-                    query = """
-                        SELECT exch_id, exchange_type, timezone, exchanges, 
-                               last_snap, pre_market_open, market_open, market_close, 
-                               post_market_close, updated_time
-                        FROM exch_us_equity.metadata 
-                        WHERE exch_id = $1
-                        ORDER BY updated_time DESC
-                        LIMIT 1
-                    """
-                    row = await conn.fetchrow(query, exch_id)
-                else:
-                    query = """
-                        SELECT exch_id, exchange_type, timezone, exchanges, 
-                               last_snap, pre_market_open, market_open, market_close, 
-                               post_market_close, updated_time
-                        FROM exch_us_equity.metadata 
-                        ORDER BY updated_time DESC
-                        LIMIT 1
-                    """
-                    row = await conn.fetchrow(query)
+                query = """
+                    SELECT exch_id, exchange_type, timezone, exchanges, 
+                           last_snap, pre_market_open, market_open, market_close, 
+                           post_market_close, updated_time
+                    FROM exch_us_equity.metadata 
+                    WHERE exch_id = $1
+                    ORDER BY updated_time DESC
+                    LIMIT 1
+                """
+                row = await conn.fetchrow(query, exch_id)
 
                 if row:
                     metadata = {

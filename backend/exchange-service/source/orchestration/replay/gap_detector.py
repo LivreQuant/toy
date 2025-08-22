@@ -4,6 +4,7 @@ Gap detection functionality for market data timestamps
 """
 
 import logging
+import traceback
 from datetime import datetime, timedelta
 from typing import Optional, Tuple
 
@@ -67,6 +68,5 @@ class GapDetector:
 
         except Exception as e:
             self.logger.error(f"❌ Error in gap detection: {e}")
-            import traceback
             self.logger.error(f"❌ Full traceback: {traceback.format_exc()}")
             return None

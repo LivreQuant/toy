@@ -2,50 +2,12 @@ from threading import RLock
 from typing import Dict, Optional, List
 from datetime import datetime
 import logging
-from dataclasses import dataclass
 from decimal import Decimal
 from source.simulation.core.interfaces.exchange import Exchange_ABC
 from source.simulation.managers.utils import CallbackManager
-from source.simulation.managers.fx import FXRate
-
-
-@dataclass
-class EquityState:
-    last_update_time: datetime
-    last_currency: str
-    last_price: Decimal
-    last_volume: int
-
-
-@dataclass
-class EquityBar:
-    symbol: str
-    timestamp: str
-    currency: str
-    open: Decimal
-    high: Decimal
-    low: Decimal
-    close: Decimal
-    volume: int
-    count: int
-    vwap: Decimal
-    vwas: Decimal
-    vwav: Decimal
-
-    def __init__(self, symbol: str, timestamp: str, currency: str, open: float, high: float,
-                 low: float, close: float, volume: int, count: int, vwap: float, vwas: float, vwav: float):
-        self.symbol = symbol
-        self.timestamp = timestamp
-        self.currency = currency
-        self.open = Decimal(str(open))
-        self.high = Decimal(str(high))
-        self.low = Decimal(str(low))
-        self.close = Decimal(str(close))
-        self.volume = volume
-        self.count = count
-        self.vwap = Decimal(str(vwap))
-        self.vwas = Decimal(str(vwas))
-        self.vwav = Decimal(str(vwav))
+from source.orchestration.processors.market_data_processor import MarketDataProcessor
+from source.utils.timezone_utils import to_iso_string
+from source.simulation.core.models.models import EquityBar, EquityState, FXRate
 
 
 class EquityManager(CallbackManager[List[Dict]]):
@@ -82,19 +44,17 @@ class EquityManager(CallbackManager[List[Dict]]):
                 )
 
     def _trigger_market_data_processing(self, equity_bars: List[EquityBar], fx: Optional[List[FXRate]]) -> None:
-        """Trigger market data processing - multi-user mode only"""
+        """Trigger market data processing - multi-book mode only"""
         try:
-            from source.orchestration.processors.market_data_processor import MarketDataProcessor
             processor = MarketDataProcessor(self.exchange_group_manager)
             processor.process_market_data_bin(equity_bars, fx)
 
         except Exception as e:
-            self.logger.error(f"❌ Error in multi-user market data processing: {e}")
+            self.logger.error(f"❌ Error in multi-book market data processing: {e}")
             raise
 
     def _prepare_snapshot_data(self, equity_bars: List[EquityBar]) -> List[Dict]:
         """Prepare equity data for callbacks"""
-        from source.utils.timezone_utils import to_iso_string
         snapshot_data = []
         for bar in equity_bars:
             event = {
@@ -195,12 +155,12 @@ class EquityManager(CallbackManager[List[Dict]]):
             }
 
     def set_exchange_group_manager(self, exchange_group_manager):
-        """Set the exchange group manager for multi-user mode"""
+        """Set the exchange group manager for multi-book mode"""
         self.exchange_group_manager = exchange_group_manager
-        self.logger.info("📡 Multi-user mode enabled - will broadcast to all users")
+        self.logger.info("📡 Multi-book mode enabled - will broadcast to all books")
 
     def record_equity_data_batch(self, equity_bars: List[EquityBar], fx: Optional[List[FXRate]] = None) -> None:
-        """Process incoming equity data batch for all users"""
+        """Process incoming equity data batch for all books"""
         try:
             self.logger.info(f"🚀 EQUITY MANAGER PROCESSING {len(equity_bars)} EQUITY BARS")
 
@@ -212,7 +172,7 @@ class EquityManager(CallbackManager[List[Dict]]):
             self.logger.info("📊 STEP 1: Updating symbol states...")
             self._update_symbol_states(equity_bars)
 
-            # Step 2: Trigger multi-user market data processing
+            # Step 2: Trigger multi-book market data processing
             self.logger.info("🔄 STEP 2: Triggering market data processing...")
             self._trigger_market_data_processing(equity_bars, fx)
 

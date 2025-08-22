@@ -4,7 +4,7 @@ import grpc
 import logging
 import socket
 from datetime import datetime
-from typing import Optional, Callable
+from typing import Callable
 from threading import Thread, Event
 
 from source.api.grpc.market_exchange_interface_pb2 import SubscriptionRequest

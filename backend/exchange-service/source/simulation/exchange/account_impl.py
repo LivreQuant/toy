@@ -3,8 +3,10 @@ import datetime
 from threading import RLock
 from decimal import Decimal
 from typing import Optional
+
 from source.simulation.core.enums.side import Side, LS
 from source.simulation.exchange.order_impl import Order
+from source.utils.timezone_utils import ensure_utc
 
 
 class Account:
@@ -140,7 +142,6 @@ class Account:
             fx = app_state.fx_manager.get_rate(from_currency=currency, to_currency=base_currency)
 
             # ✅ FIX: Use current market timestamp instead of the passed timestamp
-            from source.utils.timezone_utils import ensure_utc
             cash_flow_timestamp = ensure_utc(timestamp)
 
             if withdraw:

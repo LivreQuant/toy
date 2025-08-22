@@ -25,12 +25,12 @@ class ExchangeConfig:
     MAX_DATA_WAIT_MINUTES = 60
     DATA_CHECK_INTERVAL_SECONDS = 5
     REQUIRED_GLOBAL_DATA_TYPES = ["equity", "fx"]
-    REQUIRED_USER_DATA_TYPES = ["portfolio", "accounts"]
-    OPTIONAL_USER_DATA_TYPES = ["orders", "impact", "returns"]
+    REQUIRED_BOOK_DATA_TYPES = ["portfolio", "accounts"]
+    OPTIONAL_BOOK_DATA_TYPES = ["orders", "impact", "returns"]
 
 
 class ComponentManagers:
-    """Manages component instances and business logic managers"""
+    """Manages component instances and bbookiness logic managers"""
 
     def __init__(self):
         self._lock = RLock()
@@ -69,44 +69,44 @@ class ComponentManagers:
         else:
             self.logger.info(f"🔧 DEVELOPMENT MODE: File tracking ENABLED - using file storage only")
 
-    def set_user_context(self, user_id: str) -> None:
-        """Set user context for all managers that need it"""
+    def set_book_context(self, book_id: str) -> None:
+        """Set book context for all managers that need it"""
         with self._lock:
             if self._order_manager:
-                self._order_manager.set_user_context(user_id)
-                self.logger.debug(f"📋 Set user context {user_id} in OrderManager")
+                self._order_manager.set_book_context(book_id)
+                self.logger.debug(f"📋 Set book context {book_id} in OrderManager")
 
-            if self._trade_manager and hasattr(self._trade_manager, 'set_user_context'):
-                self._trade_manager.set_user_context(user_id)
-                self.logger.debug(f"📋 Set user context {user_id} in TradeManager")
+            if self._trade_manager and hasattr(self._trade_manager, 'set_book_context'):
+                self._trade_manager.set_book_context(book_id)
+                self.logger.debug(f"📋 Set book context {book_id} in TradeManager")
 
-            if self._portfolio_manager and hasattr(self._portfolio_manager, 'set_user_context'):
-                self._portfolio_manager.set_user_context(user_id)
-                self.logger.debug(f"📋 Set user context {user_id} in PortfolioManager")
+            if self._portfolio_manager and hasattr(self._portfolio_manager, 'set_book_context'):
+                self._portfolio_manager.set_book_context(book_id)
+                self.logger.debug(f"📋 Set book context {book_id} in PortfolioManager")
 
-            if self._account_manager and hasattr(self._account_manager, 'set_user_context'):
-                self._account_manager.set_user_context(user_id)
-                self.logger.debug(f"📋 Set user context {user_id} in AccountManager")
+            if self._account_manager and hasattr(self._account_manager, 'set_book_context'):
+                self._account_manager.set_book_context(book_id)
+                self.logger.debug(f"📋 Set book context {book_id} in AccountManager")
 
-            if self._cash_flow_manager and hasattr(self._cash_flow_manager, 'set_user_context'):
-                self._cash_flow_manager.set_user_context(user_id)
-                self.logger.debug(f"📋 Set user context {user_id} in CashFlowManager")
+            if self._cash_flow_manager and hasattr(self._cash_flow_manager, 'set_book_context'):
+                self._cash_flow_manager.set_book_context(book_id)
+                self.logger.debug(f"📋 Set book context {book_id} in CashFlowManager")
 
-            if self._returns_manager and hasattr(self._returns_manager, 'set_user_context'):
-                self._returns_manager.set_user_context(user_id)
-                self.logger.debug(f"📋 Set user context {user_id} in ReturnsManager")
+            if self._returns_manager and hasattr(self._returns_manager, 'set_book_context'):
+                self._returns_manager.set_book_context(book_id)
+                self.logger.debug(f"📋 Set book context {book_id} in ReturnsManager")
 
-            if self._impact_manager and hasattr(self._impact_manager, 'set_user_context'):
-                self._impact_manager.set_user_context(user_id)
-                self.logger.debug(f"📋 Set user context {user_id} in ImpactManager")
+            if self._impact_manager and hasattr(self._impact_manager, 'set_book_context'):
+                self._impact_manager.set_book_context(book_id)
+                self.logger.debug(f"📋 Set book context {book_id} in ImpactManager")
 
-            if self._risk_manager and hasattr(self._risk_manager, 'set_user_context'):
-                self._risk_manager.set_user_context(user_id)
-                self.logger.debug(f"📋 Set user context {user_id} in RiskManager")
+            if self._risk_manager and hasattr(self._risk_manager, 'set_book_context'):
+                self._risk_manager.set_book_context(book_id)
+                self.logger.debug(f"📋 Set book context {book_id} in RiskManager")
 
-            if self._order_view_manager and hasattr(self._order_view_manager, 'set_user_context'):
-                self._order_view_manager.set_user_context(user_id)
-                self.logger.debug(f"📋 Set user context {user_id} in OrderViewManager")
+            if self._order_view_manager and hasattr(self._order_view_manager, 'set_book_context'):
+                self._order_view_manager.set_book_context(book_id)
+                self.logger.debug(f"📋 Set book context {book_id} in OrderViewManager")
 
     def is_initialized(self) -> bool:
         with self._lock:

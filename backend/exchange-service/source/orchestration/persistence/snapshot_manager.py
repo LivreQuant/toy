@@ -1,6 +1,5 @@
 # source/orchestration/persistence/snapshot_manager.py
 import logging
-import os
 from datetime import datetime
 from typing import Dict, List, Optional
 
@@ -9,13 +8,13 @@ from source.orchestration.coordination.exchange_manager import ExchangeGroupMana
 from source.orchestration.persistence.snapshot_loader import LastSnapLoader
 
 from source.orchestration.persistence.managers.manager_initializer import ManagerInitializer
-from source.orchestration.persistence.managers.user_context_manager import UserContextManager
+from source.orchestration.persistence.managers.book_context_manager import BookContextManager
 from source.orchestration.persistence.managers.shared_data_manager import SharedDataManager
 from source.orchestration.persistence.managers.snapshot_validator import SnapshotValidator
 
 
 class SnapshotManager:
-    """Unified snapshot management for multi-user scenarios"""
+    """Unified snapshot management for multi-book scenarios"""
 
     def __init__(self, exch_id: str = ""):
         self.logger = logging.getLogger(self.__class__.__name__)
@@ -34,15 +33,15 @@ class SnapshotManager:
 
         # Initialize specialized modules (will be set up when exchange_group_manager is available)
         self.manager_initializer = ManagerInitializer()
-        self.user_context_manager = None
+        self.book_context_manager = None
         self.shared_data_manager = None
         self.snapshot_validator = SnapshotValidator()
 
-    async def initialize_multi_user_from_snapshot(self) -> bool:
-        """Initialize multi-user exchange from last snapshot - NOW ASYNC"""
+    async def initialize_multi_book_from_snapshot(self) -> bool:
+        """Initialize multi-book exchange from last snapshot - NOW ASYNC"""
         try:
             self.logger.info("=" * 80)
-            self.logger.info("=== MULTI-USER SNAPSHOT INITIALIZATION ===")
+            self.logger.info("=== MULTI-book SNAPSHOT INITIALIZATION ===")
             self.logger.info("=" * 80)
 
             # Step 1: Initialize exchange group manager
@@ -53,8 +52,8 @@ class SnapshotManager:
                 return False
 
             # Step 2: Initialize specialized modules now that we have exchange_group_manager
-            self.user_context_manager = UserContextManager(self.exchange_group_manager)
-            self.shared_data_manager = SharedDataManager(self.user_context_manager)
+            self.book_context_manager = BookContextManager(self.exchange_group_manager)
+            self.shared_data_manager = SharedDataManager(self.book_context_manager)
 
             # Step 3: Load snapshot data - NOW ASYNC
             snapshot_date = self.exchange_group_manager.last_snap_time
@@ -62,41 +61,41 @@ class SnapshotManager:
                 snapshot_date, self.exchange_group_manager
             )
 
-            # Step 4: Initialize shared data across all users
+            # Step 4: Initialize shared data across all books
             if not self.shared_data_manager.initialize_shared_data(last_snap_data['global_data']):
                 return False
 
-            # Step 5: Initialize each user's managers
-            if not self._initialize_all_users(last_snap_data):
+            # Step 5: Initialize each book's managers
+            if not self._initialize_all_books(last_snap_data):
                 return False
 
             # Step 6: Validate initialization
             if not self.snapshot_validator.validate_initialization_completeness(self.exchange_group_manager):
                 return False
 
-            self.logger.info("=== MULTI-USER SNAPSHOT INITIALIZATION COMPLETE ===")
+            self.logger.info("=== MULTI-book SNAPSHOT INITIALIZATION COMPLETE ===")
             return True
 
         except Exception as e:
-            self.logger.error(f"❌ Error during multi-user snapshot initialization: {e}")
+            self.logger.error(f"❌ Error during multi-book snapshot initialization: {e}")
             return False
 
-    def _initialize_all_users(self, last_snap_data: Dict) -> bool:
-        """Initialize all users with their specific data"""
+    def _initialize_all_books(self, last_snap_data: Dict) -> bool:
+        """Initialize all books with their specific data"""
         try:
-            self.logger.info("👥 INITIALIZING ALL USERS")
+            self.logger.info("👥 INITIALIZING ALL bookS")
             self.logger.info("=" * 60)
 
-            users = self.exchange_group_manager.get_all_users()
+            books = self.exchange_group_manager.get_all_books()
             global_data = last_snap_data['global_data']
 
-            for user_id in users:
-                self.logger.info(f"🔄 Initializing user {user_id}")
+            for book_id in books:
+                self.logger.info(f"🔄 Initializing book {book_id}")
 
-                user_data = last_snap_data['user_data'].get(user_id, {})
-                if not user_data:
-                    self.logger.warning(f"⚠️ No data found for user {user_id}, using empty data")
-                    user_data = {
+                book_data = last_snap_data['book_data'].get(book_id, {})
+                if not book_data:
+                    self.logger.warning(f"⚠️ No data found for book {book_id}, using empty data")
+                    book_data = {
                         'portfolio': {},
                         'accounts': {},
                         'impact': {},
@@ -104,21 +103,21 @@ class SnapshotManager:
                         'returns': {}
                     }
 
-                success = self.user_context_manager.initialize_user_managers(
-                    user_id, user_data, global_data, self.manager_initializer
+                success = self.book_context_manager.initialize_book_managers(
+                    book_id, book_data, global_data, self.manager_initializer
                 )
 
                 if not success:
-                    self.logger.error(f"❌ Failed to initialize user {user_id}")
+                    self.logger.error(f"❌ Failed to initialize book {book_id}")
                     return False
 
-                self.logger.info(f"✅ User {user_id} initialized successfully")
+                self.logger.info(f"✅ book {book_id} initialized successfully")
 
-            self.logger.info("✅ All users initialized successfully")
+            self.logger.info("✅ All books initialized successfully")
             return True
 
         except Exception as e:
-            self.logger.error(f"❌ Error initializing users: {e}")
+            self.logger.error(f"❌ Error initializing books: {e}")
             return False
 
     def get_exchange_group_manager(self) -> Optional[ExchangeGroupManager]:

@@ -4,25 +4,7 @@ from datetime import datetime
 from threading import RLock
 import logging
 from decimal import Decimal
-
-
-@dataclass
-class FXRate:
-    from_currency: str
-    to_currency: str
-    rate: Decimal
-
-    def __init__(self, from_currency: str, to_currency: str, rate: Decimal):
-        self.from_currency = from_currency
-        self.to_currency = to_currency
-        self.rate = Decimal(str(rate))  # Ensure it's always a Decimal
-
-    def to_dict(self) -> Dict:
-        return {
-            'from_currency': self.from_currency,
-            'to_currency': self.to_currency,
-            'rate': str(self.rate),
-        }
+from source.simulation.core.models.models import FXRate
 
 
 class FXManager:

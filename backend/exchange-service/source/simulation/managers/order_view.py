@@ -3,6 +3,7 @@ from typing import Dict, Optional, List
 from datetime import datetime
 from dataclasses import dataclass
 from source.simulation.managers.utils import TrackingManager
+from source.utils.timezone_utils import to_iso_string
 
 
 @dataclass
@@ -28,7 +29,6 @@ class OrderViewEvent:
 
     def to_dict(self) -> Dict:
         """Convert to dictionary for CSV writing"""
-        from source.utils.timezone_utils import to_iso_string
 
         data = {
             'timestamp': to_iso_string(self.timestamp) if isinstance(self.timestamp, datetime) else self.timestamp,

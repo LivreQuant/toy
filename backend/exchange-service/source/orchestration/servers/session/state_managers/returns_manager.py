@@ -3,6 +3,7 @@
 Returns State Management Component - FIXED
 """
 
+import traceback
 import logging
 from source.api.grpc.session_exchange_interface_pb2 import ExchangeDataUpdate, ReturnsStatus, ReturnData
 
@@ -70,6 +71,5 @@ class ReturnsStateManager:
 
         except Exception as e:
             print(f"🔥🔥🔥 COMPOSITE STATE: Error adding returns state: {e}")
-            import traceback
             print(f"🔥🔥🔥 COMPOSITE STATE: Returns error traceback: {traceback.format_exc()}")
             self.logger.error(f"Error adding returns state: {e}")

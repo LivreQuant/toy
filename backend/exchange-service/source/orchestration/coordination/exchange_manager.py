@@ -1,12 +1,13 @@
 # source/orchestration/coordination/exchange_manager.py
 import logging
-import asyncio
 from typing import Dict, List, Optional
 from datetime import datetime
 from threading import RLock
+import threading
+import asyncio
 
 from source.config import app_config
-from source.orchestration.coordination.user_context import UserContext, initialize_user_context
+from source.orchestration.coordination.book_context import BookContext, initialize_book_context
 from source.orchestration.coordination.metadata_handler import (
     load_metadata_from_file, load_metadata_from_postgres, parse_last_snap, parse_market_hours, get_file_timestamp_str
 )
@@ -18,9 +19,11 @@ from source.orchestration.coordination.market_data_processing import (
 )
 from source.utils.timezone_utils import ensure_utc, to_iso_string
 
+from source.orchestration.replay.replay_manager import ReplayManager
+from source.db.db_manager import DatabaseManager
 
 class ExchangeGroupManager:
-    """Manages multiple users in a single exchange group - ALL TIMES IN UTC"""
+    """Manages multiple bookrs in a single exchange group - ALL TIMES IN UTC"""
 
     def __init__(self, exch_id: str):
         self.exch_id = exch_id
@@ -29,7 +32,7 @@ class ExchangeGroupManager:
 
         # Core state
         self.metadata = None
-        self.user_contexts: Dict[str, UserContext] = {}
+        self.book_contexts: Dict[str, BookContext] = {}
         self.last_snap_time: Optional[datetime] = None
         self.exchange_timezone = None
         self.exchanges = None
@@ -38,7 +41,7 @@ class ExchangeGroupManager:
         self.replay_manager = None
 
         # Parameter storage
-        self.user_parameters: Dict[str, Dict] = {}
+        self.book_parameters: Dict[str, Dict] = {}
 
     async def initialize(self) -> bool:
         """Initialize the exchange group from metadata"""
@@ -67,18 +70,18 @@ class ExchangeGroupManager:
                 self.metadata, self.exchange_timezone, self.last_snap_time
             )
 
-            # Load user-specific PM operational parameters
-            await self._load_user_parameters()
+            # Load book-specific PM operational parameters
+            await self._load_book_parameters()
 
-            # Initialize user contexts
-            for user_id, user_config in self.metadata['users'].items():
-                user_context = initialize_user_context(
-                    user_id, user_config, self.last_snap_time, self.market_hours_utc
+            # Initialize book contexts
+            for book_id, book_config in self.metadata['books'].items():
+                book_context = initialize_book_context(
+                    book_id, book_config, self.last_snap_time, self.market_hours_utc
                 )
-                self.user_contexts[user_id] = user_context
-                self.logger.info(f"EXCHANGE OBJECT IN EXCHANGE MANAGER: {id(user_context.app_state.exchange)}")
+                self.book_contexts[book_id] = book_context
+                self.logger.info(f"EXCHANGE OBJECT IN EXCHANGE MANAGER: {id(book_context.app_state.exchange)}")
 
-            self.logger.info(f"✅ Exchange group {self.exch_id} initialized with {len(self.user_contexts)} users")
+            self.logger.info(f"✅ Exchange group {self.exch_id} initialized with {len(self.book_contexts)} books")
             return True
 
         except Exception as e:
@@ -89,35 +92,34 @@ class ExchangeGroupManager:
         """Check for gaps between market timestamps"""
         return detect_gap(self.last_snap_time, incoming_market_time, self.replay_manager)
 
-    async def _load_user_parameters(self):
-        """Load PM operational parameters for all users"""
+    async def _load_book_parameters(self):
+        """Load PM operational parameters for all books"""
         try:
-            from source.db.db_manager import DatabaseManager
             db_manager = DatabaseManager()
             await db_manager.initialize()
 
-            for user_id in self.metadata['users'].keys():
-                user_params = await db_manager.load_user_operational_parameters(user_id)
+            for book_id in self.metadata['books'].keys():
+                book_params = await db_manager.load_book_operational_parameters(book_id)
 
-                if not user_params:
-                    self.logger.warning(f"No PM parameters found for user {user_id}, creating defaults")
-                    await db_manager.user_operational_parameters.create_default_parameters_for_user(user_id)
-                    user_params = await db_manager.load_user_operational_parameters(user_id)
+                if not book_params:
+                    self.logger.warning(f"No PM parameters found for book {book_id}, creating defaults")
+                    await db_manager.book_operational_parameters.create_default_parameters_for_book(book_id)
+                    book_params = await db_manager.load_book_operational_parameters(book_id)
 
-                self.user_parameters[user_id] = user_params
-                self.logger.info(f"✅ Loaded PM operational parameters for user {user_id}")
+                self.book_parameters[book_id] = book_params
+                self.logger.info(f"✅ Loaded PM operational parameters for book {book_id}")
 
         except Exception as e:
-            self.logger.error(f"❌ Failed to load user PM parameters: {e}")
+            self.logger.error(f"❌ Failed to load book PM parameters: {e}")
             raise
 
-    def get_user_parameters(self, user_id: str) -> Dict:
-        """Get PM operational parameters for a specific user"""
-        return self.user_parameters.get(user_id, {})
+    def get_book_parameters(self, book_id: str) -> Dict:
+        """Get PM operational parameters for a specific book"""
+        return self.book_parameters.get(book_id, {})
 
-    def get_all_user_parameters(self) -> Dict[str, Dict]:
-        """Get PM operational parameters for all users"""
-        return self.user_parameters
+    def get_all_book_parameters(self) -> Dict[str, Dict]:
+        """Get PM operational parameters for all books"""
+        return self.book_parameters
 
     def load_missing_market_data(self, gap_start: datetime, gap_end: datetime):
         """Load missing market data for the gap period"""
@@ -127,11 +129,11 @@ class ExchangeGroupManager:
         """Get timestamp string for file operations"""
         return get_file_timestamp_str(self._original_last_snap_str, self.last_snap_time)
 
-    def get_all_users(self) -> List[str]:
-        return list(self.user_contexts.keys())
+    def get_all_books(self) -> List[str]:
+        return list(self.book_contexts.keys())
 
-    def get_user_context(self, user_id: str) -> Optional[UserContext]:
-        return self.user_contexts.get(user_id)
+    def get_book_context(self, book_id: str) -> Optional[BookContext]:
+        return self.book_contexts.get(book_id)
 
     def get_metadata(self) -> dict:
         return self.metadata
@@ -146,11 +148,8 @@ class ExchangeGroupManager:
 
         # Persist to database in production mode
         if app_config.is_production and self.metadata:
-            import threading
 
             def persist_in_background():
-                import asyncio
-                from source.db.db_manager import DatabaseManager
 
                 # Create new database manager for this thread
                 db_manager = DatabaseManager()
@@ -202,11 +201,11 @@ class EnhancedExchangeGroupManager(ExchangeGroupManager):
     def __init__(self, exch_id: str):
         super().__init__(exch_id)
         self.logger = logging.getLogger(self.__class__.__name__)
-        self.unified_replay_manager: Optional['ReplayManager'] = None
+        self.unified_replay_manager: Optional[ReplayManager] = None
         self.replay_queue: List = []
         self.live_data_queue: List = []
 
-    def set_replay_manager(self, replay_manager: 'ReplayManager'):
+    def set_replay_manager(self, replay_manager: ReplayManager):
         """Set the unified replay manager"""
         self.unified_replay_manager = replay_manager
         self.replay_manager = replay_manager

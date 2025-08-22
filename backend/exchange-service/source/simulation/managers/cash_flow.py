@@ -5,6 +5,9 @@ from datetime import datetime
 from dataclasses import dataclass
 from decimal import Decimal
 import uuid
+
+from source.utils.timezone_utils import ensure_utc
+from source.utils.timezone_utils import to_iso_string
 from source.simulation.managers.utils import TrackingManager
 
 
@@ -33,7 +36,6 @@ class CashFlow:
     description: Optional[str] = None
 
     def to_dict(self) -> Dict:
-        from source.utils.timezone_utils import to_iso_string
 
         return {
             'timestamp': to_iso_string(self.timestamp) if isinstance(self.timestamp, datetime) else self.timestamp,
@@ -123,7 +125,6 @@ class CashFlowManager(TrackingManager):
         """Record trade-related cash flows"""
 
         # Use current market timestamp
-        from source.utils.timezone_utils import ensure_utc
         cash_flow_timestamp = ensure_utc(timestamp)
 
         from_account = "PORTFOLIO" if is_inflow else account_type

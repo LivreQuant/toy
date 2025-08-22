@@ -22,7 +22,7 @@ class EngineFactory:
         Create an engine instance based on engine ID.
 
         Args:
-            engine_id: Engine identifier from user database
+            engine_id: Engine identifier from book database
             config: Optional engine-specific configuration
 
         Returns:

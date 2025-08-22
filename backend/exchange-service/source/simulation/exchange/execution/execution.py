@@ -4,6 +4,7 @@ from datetime import datetime
 import uuid
 import time
 from threading import RLock
+from datetime import timedelta
 from typing import Dict
 
 from source.simulation.core.enums.side import Side, LS
@@ -749,7 +750,6 @@ class ExecutionManager:
                 self.logger.info(f"📊 TRADE_MANAGER_RECORDING:")
 
                 # ✅ FIX: Calculate bin start from execution time (end_timestamp)
-                from datetime import timedelta
 
                 # The end_timestamp is the execution time (e.g., 19:33)
                 # The bin start should be 1 minute earlier (e.g., 19:32)

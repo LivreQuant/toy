@@ -39,33 +39,33 @@ class DataPathResolver:
         """Get path to risk factor file (daily snapshot, JSON format)"""
         return os.path.join(self.data_directory, "risk_factors", f"{daily_timestamp}.json")
 
-    def get_user_directory(self, user_id: str) -> str:
-        """Get user directory path"""
-        return os.path.join(self.data_directory, user_id)
+    def get_book_directory(self, book_id: str) -> str:
+        """Get book directory path"""
+        return os.path.join(self.data_directory, book_id)
 
-    def get_user_file_path(self, user_id: str, data_type: str, intraday_timestamp_str: str) -> str:
-        """Get path to user-specific data file (JSON format)"""
-        return os.path.join(self.data_directory, user_id, data_type, f"{intraday_timestamp_str}.json")
+    def get_book_file_path(self, book_id: str, data_type: str, intraday_timestamp_str: str) -> str:
+        """Get path to book-specific data file (JSON format)"""
+        return os.path.join(self.data_directory, book_id, data_type, f"{intraday_timestamp_str}.json")
 
-    def get_portfolio_file_path(self, user_id: str, intraday_timestamp_str: str) -> str:
+    def get_portfolio_file_path(self, book_id: str, intraday_timestamp_str: str) -> str:
         """Get path to portfolio file (JSON format)"""
-        return os.path.join(self.data_directory, user_id, "portfolio", f"{intraday_timestamp_str}.json")
+        return os.path.join(self.data_directory, book_id, "portfolio", f"{intraday_timestamp_str}.json")
 
-    def get_account_file_path(self, user_id: str, intraday_timestamp_str: str) -> str:
+    def get_account_file_path(self, book_id: str, intraday_timestamp_str: str) -> str:
         """Get path to account file (JSON format)"""
-        return os.path.join(self.data_directory, user_id, "accounts", f"{intraday_timestamp_str}.json")
+        return os.path.join(self.data_directory, book_id, "accounts", f"{intraday_timestamp_str}.json")
 
-    def get_impact_file_path(self, user_id: str, intraday_timestamp_str: str) -> str:
+    def get_impact_file_path(self, book_id: str, intraday_timestamp_str: str) -> str:
         """Get path to impact file (JSON format)"""
-        return os.path.join(self.data_directory, user_id, "impact", f"{intraday_timestamp_str}.json")
+        return os.path.join(self.data_directory, book_id, "impact", f"{intraday_timestamp_str}.json")
 
-    def get_order_file_path(self, user_id: str, intraday_timestamp_str: str) -> str:
+    def get_order_file_path(self, book_id: str, intraday_timestamp_str: str) -> str:
         """Get path to order file (JSON format)"""
-        return os.path.join(self.data_directory, user_id, "orders", f"{intraday_timestamp_str}.json")
+        return os.path.join(self.data_directory, book_id, "orders", f"{intraday_timestamp_str}.json")
 
-    def get_returns_file_path(self, user_id: str, intraday_timestamp_str: str) -> str:
+    def get_returns_file_path(self, book_id: str, intraday_timestamp_str: str) -> str:
         """Get path to returns file (JSON format)"""
-        return os.path.join(self.data_directory, user_id, "returns", f"{intraday_timestamp_str}.json")
+        return os.path.join(self.data_directory, book_id, "returns", f"{intraday_timestamp_str}.json")
 
     def get_exchange_metadata_file_path(self) -> str:
         """Get path to exchange metadata file"""
@@ -81,25 +81,25 @@ class DataPathResolver:
                 self.logger.warning(f"⚠️ Optional file not found: {file_path}")
         return exists
 
-    def list_available_users(self) -> List[str]:
-        """List available user directories"""
+    def list_available_books(self) -> List[str]:
+        """List available book directories"""
         if not os.path.exists(self.data_directory):
             return []
 
-        user_dirs = []
+        book_dirs = []
         for item in os.listdir(self.data_directory):
             item_path = os.path.join(self.data_directory, item)
-            if os.path.isdir(item_path) and item.startswith("USER_"):
-                user_dirs.append(item)
+            if os.path.isdir(item_path) and item.startswith("BOOK_"):
+                book_dirs.append(item)
 
-        return sorted(user_dirs)
+        return sorted(book_dirs)
 
     def get_file_discovery_info(self) -> Dict:
         """Get comprehensive file discovery information for debugging"""
         info = {
             'data_directory': self.data_directory,
             'data_directory_exists': os.path.exists(self.data_directory),
-            'available_users': self.list_available_users(),
+            'available_books': self.list_available_books(),
             'subdirectories': []
         }
 

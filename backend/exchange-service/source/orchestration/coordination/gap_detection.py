@@ -1,7 +1,9 @@
 # source/orchestration/coordination/gap_detection.py
 from datetime import datetime, timedelta
 import logging
+import traceback
 
+from source.utils.timezone_utils import ensure_utc
 
 def detect_gap(last_time: datetime, incoming_time: datetime, replay_manager=None) -> tuple:
     """Check for gaps between market timestamps with comprehensive logging"""
@@ -9,9 +11,6 @@ def detect_gap(last_time: datetime, incoming_time: datetime, replay_manager=None
     logger = logging.getLogger("GapDetection")
 
     try:
-        from source.utils.timezone_utils import ensure_utc
-        from datetime import timedelta
-
         last_time = ensure_utc(last_time)
         incoming_time = ensure_utc(incoming_time)
 
@@ -81,7 +80,6 @@ def detect_gap(last_time: datetime, incoming_time: datetime, replay_manager=None
         logger.error(f"❌ Error details: {e}")
         logger.error("❌ Returning None to continue with normal processing")
 
-        import traceback
         logger.error(f"❌ Full traceback: {traceback.format_exc()}")
         logger.info("=" * 80)
         return None
@@ -121,7 +119,6 @@ def load_missing_data(gap_start: datetime, gap_end: datetime, replay_manager):
         logger.error("❌ ERROR LOADING MISSING DATA")
         logger.error(f"❌ Error details: {e}")
 
-        import traceback
         logger.error(f"❌ Full traceback: {traceback.format_exc()}")
         logger.info("=" * 80)
         return False

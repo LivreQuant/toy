@@ -1,7 +1,10 @@
 # source/engines/v01/engine.py
 from typing import Dict, List, Any, Tuple
-import asyncio
-from ..base_engine import BaseEngine
+import traceback
+import numpy as np
+from scipy.optimize import minimize
+
+from source.engines.base_engine import BaseEngine
 
 
 class ENGINE_v01(BaseEngine):
@@ -9,11 +12,11 @@ class ENGINE_v01(BaseEngine):
     Portfolio optimization engine that properly uses existing managers.
 
     Process:
-    1. Get user's base currency from database
-    2. Get current portfolio from portfolio manager in user_context (converted to base currency)
+    1. Get book's base currency from database
+    2. Get current portfolio from portfolio manager in book_context (converted to base currency)
     3. Get target portfolio from convictions (engine-specific logic)
     4. Get exchange parameters using db_manager.load_exchange_parameters()
-    5. Get user parameters using db_manager.load_user_operational_parameters()
+    5. Get book parameters using db_manager.load_book_operational_parameters()
     6. Solve optimization problem in base currency notionals
     7. Generate orders from solution (converting back to symbol quantities using latest prices)
     """
@@ -44,32 +47,32 @@ class ENGINE_v01(BaseEngine):
         return ""
 
     async def convert_convictions_to_orders(self,
-                                            user_id: str,
+                                            book_id: str,
                                             convictions: List[Dict[str, Any]],
-                                            user_context: Any) -> List[Dict[str, Any]]:
+                                            book_context: Any) -> List[Dict[str, Any]]:
         """Convert convictions to orders using portfolio optimization."""
-        return await self._async_portfolio_optimization(user_id, convictions, user_context)
+        return await self._async_portfolio_optimization(book_id, convictions, book_context)
 
     async def _async_portfolio_optimization(self,
-                                            user_id: str,
+                                            book_id: str,
                                             convictions: List[Dict[str, Any]],
-                                            user_context: Dict[str, Any]) -> List[Dict[str, Any]]:
+                                            book_context: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Main optimization workflow using existing managers."""
 
         try:
-            # Step 1: Get current portfolio from user_context portfolio manager (in base currency)
-            current_portfolio = self.get_current_notional_portfolio_from_manager(user_context)
-            self.logger.info(f"Current portfolio for {user_id}: {len(current_portfolio)}")
+            # Step 1: Get current portfolio from book_context portfolio manager (in base currency)
+            current_portfolio = self.get_current_notional_portfolio_from_manager(book_context)
+            self.logger.info(f"Current portfolio for {book_id}: {len(current_portfolio)}")
 
             # Step 2: Get target portfolio from convictions (ENGINE SPECIFIC) (in base currency)
             target_portfolio = self._get_target_notional_portfolio_from_convictions(
-                current_portfolio, convictions, user_context
+                current_portfolio, convictions, book_context
             )
             self.logger.info(f"Target portfolio from convictions: {len(target_portfolio)}")
 
             # Step 5: Solve optimization problem in base currency
             optimal_portfolio, optimization_result = self._solve_optimization_problem(
-                user_context=user_context,
+                book_context=book_context,
                 current_portfolio=current_portfolio,
                 target_portfolio=target_portfolio
             )
@@ -80,28 +83,28 @@ class ENGINE_v01(BaseEngine):
             orders = self._generate_orders_from_notional_solution(
                 current_portfolio=current_portfolio,
                 optimal_portfolio=optimal_portfolio,
-                user_context=user_context,
+                book_context=book_context,
                 convictions=convictions
             )
 
             print(f"ORDER: {orders}")
 
-            self.logger.info(f"Generated {len(orders)} orders from optimization for {user_id}")
+            self.logger.info(f"Generated {len(orders)} orders from optimization for {book_id}")
             return orders
 
         except Exception as e:
-            self.logger.error(f"Error in portfolio optimization for user {user_id}: {e}")
+            self.logger.error(f"Error in portfolio optimization for book {book_id}: {e}")
             return []
 
     def _get_target_notional_portfolio_from_convictions(self,
                                                         current_portfolio: Dict[str, float],
                                                         convictions: List[Dict[str, Any]],
-                                                        user_context: Any) -> Dict[str, float]:
+                                                        book_context: Any) -> Dict[str, float]:
         """
         ENGINE SPECIFIC: Convert convictions to target portfolio notionals in base currency.
         This is specific to ENGINE_v01 logic.
         """
-        base_currency = user_context.base_currency
+        base_currency = book_context.base_currency
 
         target_portfolio = {}
 
@@ -120,7 +123,7 @@ class ENGINE_v01(BaseEngine):
                 quantity = float(conviction.get('quantity', 0))
 
                 # Get latest price for the symbol
-                latest_price = self.utils.get_symbol_latest_price(symbol, user_context)
+                latest_price = self.utils.get_symbol_latest_price(symbol, book_context)
                 if latest_price is None:
                     self.logger.warning(f"No price available for {symbol}, skipping")
                     continue
@@ -131,9 +134,9 @@ class ENGINE_v01(BaseEngine):
                 delta_notional_value = quantity * float(latest_price)
 
                 # Get symbol currency and convert to base currency
-                symbol_currency = self.utils.get_symbol_currency(symbol, user_context)
+                symbol_currency = self.utils.get_symbol_currency(symbol, book_context)
                 delta_notional_value = self.utils.convert_to_base_currency(
-                    delta_notional_value, symbol_currency, base_currency, user_context
+                    delta_notional_value, symbol_currency, base_currency, book_context
                 )
 
                 # Apply side (BUY = positive, SELL = negative)
@@ -151,7 +154,7 @@ class ENGINE_v01(BaseEngine):
         return target_portfolio
 
     def _solve_optimization_problem(self,
-                                    user_context: Any,
+                                    book_context: Any,
                                     current_portfolio: Dict[str, float],
                                     target_portfolio: Dict[str, float]
                                     ) -> Tuple[Dict[str, float], Dict]:
@@ -161,19 +164,17 @@ class ENGINE_v01(BaseEngine):
         Framework:
         1. Set up decision variables (positions for each symbol)
         2. Define objective function (minimize deviation from target)
-        3. Add constraints (user min/max limits, budget constraint)
+        3. Add constraints (book min/max limits, budget constraint)
         4. Solve using optimization solver
         5. Return optimal portfolio and result metadata
         """
-        base_currency = user_context.base_currency
+        base_currency = book_context.base_currency
         self.logger.info(f"Setting up optimization problem in {base_currency}")
 
         print(f"CURRENT: {current_portfolio}")
         print(f"TARGET: {target_portfolio}")
 
         try:
-            import numpy as np
-            from scipy.optimize import minimize
 
             print("1")
 
@@ -225,11 +226,11 @@ class ENGINE_v01(BaseEngine):
             bounds = []
 
             # Get NAV from account manager (this is your total budget)
-            account_manager = user_context.app_state.account_manager
+            account_manager = book_context.app_state.account_manager
             if hasattr(account_manager, 'get_nav') or hasattr(account_manager, 'get_total_value'):
                 total_budget = account_manager.get_nav()  # or get_total_value()
             else:
-                total_budget = user_context.initial_nav
+                total_budget = book_context.initial_nav
 
             print(f"4: TOTAL: {total_budget}")
 
@@ -250,24 +251,24 @@ class ENGINE_v01(BaseEngine):
 
             print(f"5: BASE CURRENCY: {base_currency}")
 
-            # B) User position limits (min/max constraints per symbol)
+            # B) book position limits (min/max constraints per symbol)
             for i, symbol in enumerate(all_symbols):
                 symbol_min = None
                 symbol_max = None
 
-                # Check user parameters for symbol-specific limits
+                # Check book parameters for symbol-specific limits
                 """
-                if user_params:
-                    position_limits = user_params.get('position_limits', {})
+                if book_params:
+                    position_limits = book_params.get('position_limits', {})
                     if symbol in position_limits:
                         symbol_min = position_limits[symbol].get('min_position_size_pct')
                         symbol_max = position_limits[symbol].get('max_position_size_pct')
 
                     # Global limits as fallback
                     if symbol_min is None:
-                        symbol_min = user_params.get('min_position_size_pct')
+                        symbol_min = book_params.get('min_position_size_pct')
                     if symbol_max is None:
-                        symbol_max = user_params.get('max_position_size_pct')
+                        symbol_max = book_params.get('max_position_size_pct')
                 """
 
                 # Set bounds for this symbol
@@ -395,7 +396,6 @@ class ENGINE_v01(BaseEngine):
 
         except Exception as e:
             self.logger.error(f"❌ Error in optimization: {e}")
-            import traceback
             self.logger.error(f"Full traceback: {traceback.format_exc()}")
 
             # Fallback to simple target following

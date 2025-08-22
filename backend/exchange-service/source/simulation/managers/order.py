@@ -2,17 +2,13 @@
 
 import csv
 import os
-import time
-import uuid
-import logging
-from decimal import Decimal
 from datetime import datetime
-from threading import RLock
 from typing import Dict, List, Optional, Any, Callable
 from dataclasses import dataclass
 
 from source.simulation.managers.utils import TrackingManager, CallbackManager
-from source.utils.timezone_utils import to_iso_string, ensure_timezone_aware
+from source.simulation.core.enums.side import Side
+from source.utils.timezone_utils import to_iso_string
 
 
 @dataclass
@@ -151,7 +147,7 @@ class OrderProgress:
 class OrderManager(TrackingManager, CallbackManager):
     def __init__(self, tracking: bool = False):
         headers = [
-            'user_id', 'timestamp', 'order_id', 'cl_order_id', 'symbol', 'side',
+            'book_id', 'timestamp', 'order_id', 'cl_order_id', 'symbol', 'side',
             'original_qty', 'remaining_qty', 'completed_qty', 'currency', 'price',
             'order_type', 'participation_rate', 'order_state', 'submit_timestamp',
             'start_timestamp', 'market_bin', 'tag', 'conviction_id'
@@ -168,33 +164,33 @@ class OrderManager(TrackingManager, CallbackManager):
 
         self._orders: Dict[str, Order] = {}
         self._order_progress: Dict[str, OrderProgress] = {}
-        # Store current user_id context for database writes
-        self._current_user_id: Optional[str] = None
+        # Store current book_id context for database writes
+        self._current_book_id: Optional[str] = None
 
-    def set_user_context(self, user_id: str) -> None:
-        """Set the current user context for this OrderManager instance"""
-        self._current_user_id = user_id
-        self.logger.debug(f"📋 OrderManager user context set to: {user_id}")
+    def set_book_context(self, book_id: str) -> None:
+        """Set the current book context for this OrderManager instance"""
+        self._current_book_id = book_id
+        self.logger.debug(f"📋 OrderManager book context set to: {book_id}")
 
-    def _get_current_user_id(self) -> str:
-        """Override parent method to use stored user context"""
-        if self._current_user_id:
-            self.logger.debug(f"📍 Using OrderManager user context: {self._current_user_id}")
-            return self._current_user_id
+    def _get_current_book_id(self) -> str:
+        """Override parent method to use stored book context"""
+        if self._current_book_id:
+            self.logger.debug(f"📍 Using OrderManager book context: {self._current_book_id}")
+            return self._current_book_id
 
         # Fallback to parent implementation
         try:
             from source.orchestration.app_state.state_manager import app_state
-            user_id = app_state.get_user_id()
-            self.logger.debug(f"📍 Got user ID from app_state: {user_id}")
-            if user_id:
-                return user_id
+            book_id = app_state.get_book_id()
+            self.logger.debug(f"📍 Got book ID from app_state: {book_id}")
+            if book_id:
+                return book_id
         except Exception as e:
-            self.logger.warning(f"⚠️ Error getting user ID from app_state: {e}")
+            self.logger.warning(f"⚠️ Error getting book ID from app_state: {e}")
 
         # Final fallback - raise error
-        self.logger.error(f"❌ No user context available in OrderManager")
-        raise ValueError("No user context available for database write")
+        self.logger.error(f"❌ No book context available in OrderManager")
+        raise ValueError("No book context available for database write")
 
     def initialize_orders(self, orders: Dict[str, Dict], timestamp: datetime) -> None:
         """Initialize orders from snapshot data with progress tracking"""
@@ -305,7 +301,7 @@ class OrderManager(TrackingManager, CallbackManager):
 
             # Create tracking record as DICTIONARY matching the headers
             tracking_data = {
-                'user_id': self._get_current_user_id(),
+                'book_id': self._get_current_book_id(),
                 'timestamp': current_time,
                 'order_id': order.order_id,
                 'cl_order_id': order.cl_order_id,
@@ -507,7 +503,7 @@ class OrderManager(TrackingManager, CallbackManager):
 
             # Convert progress to tracking data format
             tracking_data = {
-                'user_id': self._get_current_user_id(),
+                'book_id': self._get_current_book_id(),
                 'timestamp': progress.last_update_timestamp,
                 'order_id': progress.order_id,
                 'cl_order_id': progress.cl_order_id,
@@ -772,7 +768,7 @@ class OrderManager(TrackingManager, CallbackManager):
             if not app_state.exchange:
                 self.logger.error("❌ No exchange available for order submission")
                 self.logger.error("❌ This indicates the exchange was not properly initialized in app_state")
-                self.logger.error("❌ Check exchange initialization in user context setup")
+                self.logger.error("❌ Check exchange initialization in book context setup")
                 return
 
             # Validate exchange is properly initialized
@@ -794,7 +790,6 @@ class OrderManager(TrackingManager, CallbackManager):
                 return
 
             # Convert side string to enum
-            from source.simulation.core.enums.side import Side
             try:
                 side = Side.Buy if order.side.upper() == 'BUY' else Side.Sell
             except Exception as e:

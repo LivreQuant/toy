@@ -4,6 +4,7 @@ Unified replay and gap detection manager - refactored into manageable modules
 """
 
 import logging
+import traceback
 from datetime import datetime
 from typing import Optional, Callable, List, Tuple
 
@@ -184,7 +185,6 @@ class ReplayManager:
             return result
         except Exception as e:
             self.logger.error(f"❌ Error in check_and_handle_market_data_gap: {e}")
-            import traceback
             self.logger.error(f"❌ Traceback: {traceback.format_exc()}")
             return None
 

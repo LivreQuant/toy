@@ -2,8 +2,8 @@
 import os
 import json
 import logging
-import asyncio
 from typing import Dict, List
+import traceback
 from decimal import Decimal
 
 from source.config import app_config
@@ -12,7 +12,7 @@ from source.orchestration.persistence.loaders.data_path_resolver import DataPath
 
 
 class GlobalDataLoader:
-    """Handles loading of global data shared across all users"""
+    """Handles loading of global data shared across all books"""
 
     def __init__(self):
         self.logger = logging.getLogger(self.__class__.__name__)
@@ -225,7 +225,6 @@ class GlobalDataLoader:
 
         except Exception as e:
             self.logger.error(f"❌ Error loading universe data from PostgreSQL: {e}")
-            import traceback
             self.logger.error(f"❌ Full traceback: {traceback.format_exc()}")
             return {}
 
@@ -300,7 +299,6 @@ class GlobalDataLoader:
 
         except Exception as e:
             self.logger.error(f"❌ Error loading FX data from PostgreSQL: {e}")
-            import traceback
             self.logger.error(f"❌ Full traceback: {traceback.format_exc()}")
             return []
 

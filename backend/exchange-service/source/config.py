@@ -7,8 +7,7 @@ from typing import List
 
 
 class SimulatorConfig(BaseModel):
-    user_id: str = Field(default=os.getenv('USER_ID', 'test'))
-    desk_id: str = Field(default=os.getenv('DESK_ID', 'test'))
+    book_id: str = Field(default=os.getenv('book_ID', '00000000-0000-0000-0000-000000000001'))
     default_symbols: List[str] = Field(default=['AAPL', 'GOOGL', 'MSFT', 'AMZN'])
     initial_cash: float = Field(default=100_000.0)
 
@@ -20,7 +19,7 @@ class ServerConfig(BaseModel):
 
 
 class DatabaseConfig(BaseModel):
-    host: str = Field(default=os.getenv('DB_HOST', 'postgres'))
+    host: str = Field(default=os.getenv('DB_HOST', 'localhost'))
     port: int = Field(default=int(os.getenv('DB_PORT', '5432')))
     database: str = Field(default=os.getenv('DB_NAME', 'opentp'))
     user: str = Field(default=os.getenv('DB_USER', 'opentp'))
@@ -54,7 +53,7 @@ class Config:
         self.use_database_storage = self.is_production
 
         # Exchange configuration
-        self.exch_id = os.getenv('EXCH_ID', '123e4567-e89b-12d3-a456-426614174000')
+        self.exch_id = os.getenv('EXCH_ID', '00000000-0000-0000-0000-000000000002')
         self.exchange_type = os.getenv('EXCHANGE_TYPE', 'US_EQUITIES')
 
         # Service configuration

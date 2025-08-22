@@ -34,14 +34,14 @@ class CompositeStateManager:
         self.returns_manager = ReturnsStateManager()
         self.impact_manager = ImpactStateManager()
 
-    def add_user_state(self, update: ExchangeDataUpdate, user_context):
-        """Add state from a single user using all state managers"""
+    def add_book_state(self, update: ExchangeDataUpdate, book_context):
+        """Add state from a single book using all state managers"""
         # Temporarily set app_state to get data
         import source.orchestration.app_state.state_manager as app_state_module
         original_app_state = app_state_module.app_state
 
         try:
-            app_state_module.app_state = user_context.app_state
+            app_state_module.app_state = book_context.app_state
 
             # Use all state managers to populate the update
             self.order_manager.add_current_orders_state(update)

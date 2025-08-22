@@ -12,7 +12,7 @@ class StorageInterface(ABC):
 
     @abstractmethod
     async def write_data(self, data: List[Dict[str, Any]], table_name: str,
-                         user_id: str, timestamp: datetime) -> bool:
+                         book_id: str, timestamp: datetime) -> bool:
         """Write data to storage"""
         pass
 
@@ -40,15 +40,15 @@ class FileStorageHandler(StorageInterface):
         self.logger = logging.getLogger(self.__class__.__name__)
 
     async def write_data(self, data: List[Dict[str, Any]], table_name: str,
-                         user_id: str, timestamp: datetime) -> bool:
+                         book_id: str, timestamp: datetime) -> bool:
         """Write data to CSV files"""
         if not data:
             return True
 
         try:
-            # Create user-specific directory
-            user_data_dir = os.path.join(self.base_directory, f"USER_{user_id}", table_name)
-            os.makedirs(user_data_dir, exist_ok=True)
+            # Create book-specific directory
+            book_data_dir = os.path.join(self.base_directory, f"BOOK_{book_id}", table_name)
+            os.makedirs(book_data_dir, exist_ok=True)
 
             # Generate filename with timestamp
             try:
@@ -58,7 +58,7 @@ class FileStorageHandler(StorageInterface):
                 current_timestamp = timestamp
 
             filename = current_timestamp.strftime('%Y%m%d_%H%M.csv')
-            filepath = os.path.join(user_data_dir, filename)
+            filepath = os.path.join(book_data_dir, filename)
 
             # Write CSV file
             with open(filepath, 'w', newline='') as f:
@@ -100,14 +100,14 @@ class DatabaseStorageHandler(StorageInterface):
         self.logger = logging.getLogger(self.__class__.__name__)
 
     async def write_data(self, data: List[Dict[str, Any]], table_name: str,
-                         user_id: str, timestamp: datetime) -> bool:
+                         book_id: str, timestamp: datetime) -> bool:
         """Write data to database"""
         if not data:
             return True
 
         try:
             rows_inserted = await self.db_manager.insert_simulation_data(
-                table_name, data, user_id, timestamp
+                table_name, data, book_id, timestamp
             )
             self.logger.info(f"💾 Inserted {rows_inserted} records into {table_name}")
             return True
@@ -156,7 +156,7 @@ class StorageManager:
         self.logger.info("✅ Storage manager initialized")
 
     async def write_data(self, data: List[Dict[str, Any]], table_name: str,
-                         user_id: str, timestamp: datetime) -> bool:
+                         book_id: str, timestamp: datetime) -> bool:
         """Write data - throw error if it fails"""
         if not self._initialized:
             await self.initialize()
@@ -164,7 +164,7 @@ class StorageManager:
         if not await self.storage.is_available():
             raise Exception("Storage is not available")
 
-        return await self.storage.write_data(data, table_name, user_id, timestamp)
+        return await self.storage.write_data(data, table_name, book_id, timestamp)
 
     async def cleanup(self):
         """Cleanup storage resources"""

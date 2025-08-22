@@ -1,7 +1,7 @@
 # source/orchestration/processors/market_data_processor.py
 """
-Market Data Processor - Unified processor for multi-user exchange
-Always handles a list of users, gap detection, and replay mode
+Market Data Processor - Unified processor for multi-book exchange
+Always handles a list of books, gap detection, and replay mode
 """
 import logging
 import time
@@ -9,17 +9,16 @@ from uuid import UUID
 from datetime import datetime
 from typing import List, Optional, Dict, Any
 
-from source.simulation.managers.equity import EquityBar
-from source.simulation.managers.fx import FXRate
+from source.simulation.core.models.models import EquityBar, FXRate
 from source.utils.timezone_utils import to_iso_string
-from source.orchestration.processors.user_processor import UserProcessor
+from source.orchestration.processors.book_processor import BookProcessor
 from source.orchestration.processors.gap_handler import GapHandler
 
 
 class MarketDataProcessor:
     """
-    Unified market data processor that always handles multiple users
-    (even if it's just one user) with gap detection and replay mode support
+    Unified market data processor that always handles multiple books
+    (even if it's just one book) with gap detection and replay mode support
     """
 
     def __init__(self, exchange_group_manager):
@@ -27,16 +26,16 @@ class MarketDataProcessor:
         self.logger = logging.getLogger(self.__class__.__name__)
 
         # Initialize components
-        self.user_processor = UserProcessor()
+        self.book_processor = BookProcessor()
         self.gap_handler = GapHandler(exchange_group_manager)
 
-        users = exchange_group_manager.get_all_users()
-        self.logger.info(f"🔧 MarketDataProcessor initialized for {len(users)} users: {users}")
+        books = exchange_group_manager.get_all_books()
+        self.logger.info(f"🔧 MarketDataProcessor initialized for {len(books)} books: {books}")
 
     def process_market_data_bin(self, equity_bars: List[EquityBar], fx: Optional[List[FXRate]] = None,
                                 bypass_replay_detection: bool = False):
         """
-        Process market data for all users with session service notification.
+        Process market data for all books with session service notification.
 
         This is the MASTER ENTRY POINT for all market data processing.
         It orchestrates the entire flow including triggering session service callbacks.
@@ -46,14 +45,14 @@ class MarketDataProcessor:
         print(f"🔥🔥🔥 DEBUG: process_market_data_bin called")
 
         try:
-            # Get users and validate
-            users = self.exchange_group_manager.get_all_users()
-            print(f"🔥🔥🔥 DEBUG: users = {users} (count: {len(users)})")
+            # Get books and validate
+            books = self.exchange_group_manager.get_all_books()
+            print(f"🔥🔥🔥 DEBUG: books = {books} (count: {len(books)})")
             print(f"🔥🔥🔥 DEBUG: equity_bars count = {len(equity_bars) if equity_bars else 0}")
             print(f"🔥🔥🔥 DEBUG: bypass_replay_detection = {bypass_replay_detection}")
 
-            if not users:
-                self.logger.warning("⚠️ No users found in exchange group manager")
+            if not books:
+                self.logger.warning("⚠️ No books found in exchange group manager")
                 return
 
             if not equity_bars:
@@ -67,7 +66,7 @@ class MarketDataProcessor:
             self.logger.info("=" * 120)
             self.logger.info(f"🔄 MARKET DATA BIN PROCESSING STARTED")
             self.logger.info(f"📊 Processing {len(equity_bars)} equity bars, {len(fx) if fx else 0} FX rates")
-            self.logger.info(f"👥 Users: {len(users)}")
+            self.logger.info(f"👥 books: {len(books)}")
             self.logger.info(f"⏰ Incoming time: {incoming_market_time}")
             self.logger.info(f"🕐 Last snap: {last_market_time}")
             self.logger.info(f"🎬 Bypass replay: {bypass_replay_detection}")
@@ -81,15 +80,15 @@ class MarketDataProcessor:
 
                 # Handle gaps and replay mode
                 gap_handled = self.gap_handler.handle_gaps_and_replay(
-                    incoming_market_time, last_market_time, equity_bars, fx, users
+                    incoming_market_time, last_market_time, equity_bars, fx
                 )
 
                 # If gap handler didn't process the data, process it normally
                 if not gap_handled:
-                    self._process_current_data(users, equity_bars, fx, incoming_market_time)
+                    self._process_current_data(books, equity_bars, fx, incoming_market_time)
             else:
                 # Process data directly (replay/backfill mode)
-                self._process_current_data(users, equity_bars, fx, incoming_market_time, is_backfill=True)
+                self._process_current_data(books, equity_bars, fx, incoming_market_time, is_backfill=True)
 
             # Update last snap time with database persistence
             self.exchange_group_manager.update_last_snap_time(incoming_market_time)
@@ -103,20 +102,20 @@ class MarketDataProcessor:
             self.logger.error(f"❌ Error in market data processing: {e}", exc_info=True)
             raise
 
-    def _process_current_data(self, users: List[UUID], equity_bars: List[EquityBar],
+    def _process_current_data(self, books: List[UUID], equity_bars: List[EquityBar],
                               fx: Optional[List[FXRate]], market_time: datetime,
                               is_backfill: bool = False):
-        """Process current market data for all users"""
+        """Process current market data for all books"""
         try:
             mode = "BACKFILL" if is_backfill else "LIVE"
-            self.logger.info(f"📊 Processing {mode} data for {len(users)} users at {market_time}")
+            self.logger.info(f"📊 Processing {mode} data for {len(books)} books at {market_time}")
 
-            # Process for each user
-            self.user_processor.process_users_sequentially(
-                users, equity_bars, fx, self.exchange_group_manager, is_backfill
+            # Process for each book
+            self.book_processor.process_books_sequentially(
+                books, equity_bars, fx, self.exchange_group_manager, is_backfill
             )
 
-            self.logger.info(f"✅ {mode} data processing complete for all users")
+            self.logger.info(f"✅ {mode} data processing complete for all books")
 
         except Exception as e:
             self.logger.error(f"❌ Error processing {mode} data: {e}", exc_info=True)
@@ -125,7 +124,7 @@ class MarketDataProcessor:
     def get_processing_stats(self) -> Dict[str, Any]:
         """Get statistics about market data processing"""
         return {
-            'total_users': len(self.exchange_group_manager.get_all_users()),
+            'total_books': len(self.exchange_group_manager.get_all_books()),
             'last_snap_time': to_iso_string(self.exchange_group_manager.last_snap_time),
             'replay_status': self.gap_handler.get_replay_status() if self.gap_handler else None
         }
@@ -136,12 +135,12 @@ class MarketDataProcessor:
             if not equity_bars:
                 return
 
-            users = self.exchange_group_manager.get_all_users()
+            books = self.exchange_group_manager.get_all_books()
             timestamp = datetime.fromisoformat(equity_bars[0].timestamp)
 
             self.logger.info(f"🎬 Processing replay data for {timestamp}")
-            self.user_processor.process_users_sequentially(
-                users, equity_bars, fx, self.exchange_group_manager, is_backfill=True
+            self.book_processor.process_books_sequentially(
+                books, equity_bars, fx, self.exchange_group_manager, is_backfill=True
             )
 
             from source.utils.timezone_utils import ensure_utc

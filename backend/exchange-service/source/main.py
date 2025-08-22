@@ -18,8 +18,8 @@ from source.orchestration.coordination.exchange_registry import ExchangeRegistra
 from source.orchestration.persistence.snapshot_manager import SnapshotManager
 
 # Server implementations
-from source.orchestration.servers.market_data.market_data_server_impl import EnhancedMultiUserMarketDataClient
-from source.orchestration.servers.session.session_server_impl import MultiUserSessionServiceImpl
+from source.orchestration.servers.market_data.market_data_server_impl import EnhancedMultiBookMarketDataClient
+from source.orchestration.servers.session.session_server_impl import MultiBookSessionServiceImpl
 from source.orchestration.servers.conviction.conviction_server_impl import ConvictionServiceImpl
 
 # Health service integration
@@ -50,12 +50,12 @@ class CoreExchangeServiceManager:
         self.running = False
 
         # Market data connection management
-        self.market_data_client: Optional[EnhancedMultiUserMarketDataClient] = None
+        self.market_data_client: Optional[EnhancedMultiBookMarketDataClient] = None
         self.market_data_connected = False
         self.market_data_connection_task: Optional[asyncio.Task] = None
 
         # Optional gRPC services
-        self.session_service: Optional[MultiUserSessionServiceImpl] = None
+        self.session_service: Optional[MultiBookSessionServiceImpl] = None
         self.conviction_service: Optional[ConvictionServiceImpl] = None
 
         # Track which services are enabled and running
@@ -145,7 +145,7 @@ class CoreExchangeServiceManager:
         Start the core exchange simulation - THE FOUNDATION OF ALL SERVICES
         
         This initializes the core exchange simulation that all other services depend on.
-        It validates that user contexts are loaded and exchange state is ready.
+        It validates that book contexts are loaded and exchange state is ready.
         
         Core exchange must be running before any gRPC services can operate.
         """
@@ -156,16 +156,16 @@ class CoreExchangeServiceManager:
             if not self.exchange_group_manager:
                 raise RuntimeError("Exchange group manager not initialized")
 
-            # Get user contexts to validate initialization
-            users = self.exchange_group_manager.get_all_users()
-            if not users:
-                raise RuntimeError("No users found in exchange group manager")
+            # Get book contexts to validate initialization
+            books = self.exchange_group_manager.get_all_books()
+            if not books:
+                raise RuntimeError("No books found in exchange group manager")
 
             # Validate last snap time is set (required for market timing)
             if not self.exchange_group_manager.last_snap_time:
                 raise RuntimeError("Last snap time not set in exchange group manager")
 
-            self.logger.info(f"👥 Core exchange initialized for {len(users)} users: {[str(user) for user in users]}")
+            self.logger.info(f"👥 Core exchange initialized for {len(books)} books: {[str(book) for book in books]}")
             self.logger.info(f"📅 Market time: {self.exchange_group_manager.last_snap_time}")
 
             # Mark core exchange as ready in health service
@@ -197,7 +197,7 @@ class CoreExchangeServiceManager:
             self.logger.info(f"📍 Target: {self.market_data_host}:{self.market_data_port}")
 
             # Create market data client
-            self.market_data_client = EnhancedMultiUserMarketDataClient(
+            self.market_data_client = EnhancedMultiBookMarketDataClient(
                 self.exchange_group_manager,
                 host=self.market_data_host,
                 port=self.market_data_port
@@ -283,19 +283,19 @@ class CoreExchangeServiceManager:
                 f"🔗 SESSION SERVICE STARTUP: exchange_group_manager type: {type(self.exchange_group_manager)}")
 
             if self.exchange_group_manager:
-                users = self.exchange_group_manager.get_all_users()
-                self.logger.info(f"🔗 SESSION SERVICE STARTUP: Found {len(users)} users")
-                for user in users:
-                    self.logger.info(f"🔗 SESSION SERVICE STARTUP: User: {user} (type: {type(user)})")
+                books = self.exchange_group_manager.get_all_books()
+                self.logger.info(f"🔗 SESSION SERVICE STARTUP: Found {len(books)} books")
+                for book in books:
+                    self.logger.info(f"🔗 SESSION SERVICE STARTUP: book: {book} (type: {type(book)})")
             else:
                 self.logger.error("🔗 SESSION SERVICE STARTUP: exchange_group_manager is None!")
 
             self.logger.info("🔗 Starting Session Service")
 
             # Create session service implementation
-            self.logger.info("🔗 SESSION SERVICE STARTUP: Creating MultiUserSessionServiceImpl")
-            self.session_service = MultiUserSessionServiceImpl(self.exchange_group_manager)
-            self.logger.info("🔗 SESSION SERVICE STARTUP: MultiUserSessionServiceImpl created")
+            self.logger.info("🔗 SESSION SERVICE STARTUP: Creating MultibookSessionServiceImpl")
+            self.session_service = MultiBookSessionServiceImpl(self.exchange_group_manager)
+            self.logger.info("🔗 SESSION SERVICE STARTUP: MultibookSessionServiceImpl created")
 
             # Get port from environment
             session_port = int(os.environ.get("SESSION_SERVICE_PORT", "50050"))
@@ -307,7 +307,7 @@ class CoreExchangeServiceManager:
             self.logger.info("🔗 SESSION SERVICE STARTUP: gRPC server start_sync_server completed")
 
             # Track service state
-            users = self.exchange_group_manager.get_all_users()
+            books = self.exchange_group_manager.get_all_books()
             self.enabled_services.add("session")
 
             # Update health service
@@ -316,11 +316,10 @@ class CoreExchangeServiceManager:
                 self.logger.info("🔗 SESSION SERVICE STARTUP: Health service updated")
 
             self.logger.info(f"✅ Session Service: STARTED on port {session_port}")
-            self.logger.info(f"🔗 Session Service: Ready for up to {len(users)} concurrent user connections")
+            self.logger.info(f"🔗 Session Service: Ready for up to {len(books)} concurrent book connections")
 
         except Exception as e:
             self.logger.error(f"❌ Session Service failed to start: {e}")
-            import traceback
             self.logger.error(f"❌ Session Service traceback: {traceback.format_exc()}")
             # Mark as failed in health service
             if self.health_service:
@@ -353,7 +352,7 @@ class CoreExchangeServiceManager:
             await self.conviction_service.start_server(port=conviction_port)
 
             # Track service state
-            users = self.exchange_group_manager.get_all_users()
+            books = self.exchange_group_manager.get_all_books()
             self.enabled_services.add("conviction")
 
             # Update health service
@@ -361,7 +360,7 @@ class CoreExchangeServiceManager:
                 self.health_service.mark_service_ready('conviction_service', True)
 
             self.logger.info(f"✅ Conviction Service: STARTED on port {conviction_port}")
-            self.logger.info(f"⚖️ Conviction Service: Ready for up to {len(users)} concurrent user connections")
+            self.logger.info(f"⚖️ Conviction Service: Ready for up to {len(books)} concurrent book connections")
 
         except Exception as e:
             self.logger.error(f"❌ Conviction Service failed to start: {e}")
@@ -420,13 +419,13 @@ class CoreExchangeServiceManager:
 
     def _log_startup_summary(self):
         """Log comprehensive startup summary for operations visibility."""
-        users = self.exchange_group_manager.get_all_users()
+        books = self.exchange_group_manager.get_all_books()
 
         self.logger.info("=" * 80)
         self.logger.info("🎯 EXCHANGE SERVICE STARTUP COMPLETE")
         self.logger.info("=" * 80)
-        self.logger.info(f"🏦 Core Exchange: RUNNING ({len(users)} users)")
-        self.logger.info(f"👥 Users: {', '.join(str(user) for user in users)}")
+        self.logger.info(f"🏦 Core Exchange: RUNNING ({len(books)} books)")
+        self.logger.info(f"👥 books: {', '.join(str(book) for book in books)}")
         self.logger.info(f"📅 Market Time: {self.exchange_group_manager.last_snap_time}")
         self.logger.info(f"📡 Market Data: {'CONNECTING' if not self.market_data_connected else 'CONNECTED'}")
         self.logger.info(f"   - Host: {self.market_data_host}:{self.market_data_port}")
@@ -552,7 +551,7 @@ async def initialize_core_exchange(exch_id: str) -> EnhancedExchangeGroupManager
     This function handles the complex initialization process:
     1. Create snapshot manager
     2. Load last snap data from files/database
-    3. Initialize all user contexts and managers
+    3. Initialize all book contexts and managers
     4. Create enhanced exchange group manager
     5. Validate initialization completeness
     
@@ -576,7 +575,7 @@ async def initialize_core_exchange(exch_id: str) -> EnhancedExchangeGroupManager
 
         # Step 2: Initialize from snapshot data
         logger.info("📊 Step 2: Initializing from snapshot data...")
-        snapshot_initialized = await snapshot_manager.initialize_multi_user_from_snapshot()
+        snapshot_initialized = await snapshot_manager.initialize_multi_book_from_snapshot()
 
         if not snapshot_initialized:
             raise RuntimeError("Failed to initialize from snapshot data")
@@ -601,7 +600,7 @@ async def initialize_core_exchange(exch_id: str) -> EnhancedExchangeGroupManager
         # Step 5: Copy all initialized state to enhanced manager
         logger.info("📋 Step 5: Copying initialized state...")
         enhanced_exchange_group_manager.metadata = regular_exchange_group_manager.metadata
-        enhanced_exchange_group_manager.user_contexts = regular_exchange_group_manager.user_contexts
+        enhanced_exchange_group_manager.book_contexts = regular_exchange_group_manager.book_contexts
         enhanced_exchange_group_manager.last_snap_time = regular_exchange_group_manager.last_snap_time
         enhanced_exchange_group_manager.exchange_timezone = regular_exchange_group_manager.exchange_timezone
         enhanced_exchange_group_manager.exchanges = regular_exchange_group_manager.exchanges
@@ -619,11 +618,11 @@ async def initialize_core_exchange(exch_id: str) -> EnhancedExchangeGroupManager
 
         # Step 6: Final validation and logging
         logger.info("✅ Step 6: Final validation...")
-        users = enhanced_exchange_group_manager.get_all_users()
+        books = enhanced_exchange_group_manager.get_all_books()
         market_time = enhanced_exchange_group_manager.last_snap_time
 
-        if not users:
-            raise RuntimeError("No users found after initialization")
+        if not books:
+            raise RuntimeError("No books found after initialization")
 
         if not market_time:
             raise RuntimeError("Market time not set after initialization")
@@ -632,8 +631,8 @@ async def initialize_core_exchange(exch_id: str) -> EnhancedExchangeGroupManager
         logger.info("=" * 80)
         logger.info("🎉 CORE EXCHANGE INITIALIZATION COMPLETE")
         logger.info("=" * 80)
-        logger.info(f"✅ CORE EXCHANGE initialized for {len(users)} users")
-        logger.info(f"👥 Users: {', '.join(str(user) for user in users)}")
+        logger.info(f"✅ CORE EXCHANGE initialized for {len(books)} books")
+        logger.info(f"👥 books: {', '.join(str(book) for book in books)}")
         logger.info(f"📍 Market time: {market_time}")
         logger.info(f"🏦 Exchange simulation ready for services")
         logger.info("=" * 80)

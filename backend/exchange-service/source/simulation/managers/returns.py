@@ -6,6 +6,7 @@ from decimal import Decimal
 from collections import defaultdict
 
 from source.simulation.managers.returns_utils import ReturnsCalculator
+from source.utils.timezone_utils import to_iso_string
 from source.simulation.managers.utils import TrackingManager
 
 
@@ -137,7 +138,6 @@ class ReturnsManager(TrackingManager, ReturnsCalculator):
         if not hasattr(self, '_pending_returns'):
             self._pending_returns = []
 
-        from source.utils.timezone_utils import to_iso_string
         return_data = {
             'timestamp': to_iso_string(timestamp),
             'category': category,

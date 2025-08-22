@@ -44,7 +44,7 @@ class ReplayCoordinator:
 
         return True
 
-    def process_queued_data_after_replay(self, user_processor) -> None:
+    def process_queued_data_after_replay(self, book_processor) -> None:
         """Process all queued live data after replay completes"""
         if not self.live_data_queue:
             self.logger.info("🎬 No queued data to process after replay")
@@ -53,7 +53,7 @@ class ReplayCoordinator:
         queue_size = len(self.live_data_queue)
         self.logger.info(f"🎬 Processing {queue_size} queued data items after replay completion")
 
-        users = self.exchange_group_manager.get_all_users()
+        books = self.exchange_group_manager.get_all_books()
 
         while self.live_data_queue:
             queued_item = self.live_data_queue.popleft()
@@ -64,8 +64,8 @@ class ReplayCoordinator:
             self.logger.info(f"🎬 Processing queued data from {timestamp}")
 
             try:
-                user_processor.process_users_sequentially(
-                    users, equity_bars, fx, self.exchange_group_manager, is_backfill=False
+                book_processor.process_books_sequentially(
+                    books, equity_bars, fx, self.exchange_group_manager, is_backfill=False
                 )
 
                 # Update timing

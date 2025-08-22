@@ -8,7 +8,7 @@ from source.orchestration.coordination.exchange_manager import ExchangeGroupMana
 from source.utils.timezone_utils import ensure_timezone_aware
 
 from source.orchestration.persistence.loaders.global_data_loader import GlobalDataLoader
-from source.orchestration.persistence.loaders.user_data_loader import UserDataLoader
+from source.orchestration.persistence.loaders.book_data_loader import BookDataLoader
 from source.orchestration.persistence.loaders.data_validator import DataValidator
 
 from source.orchestration.coordination.metadata_handler import (
@@ -26,7 +26,7 @@ class LastSnapLoader:
 
         # data loaders
         self.global_loader = GlobalDataLoader()
-        self.user_loader = UserDataLoader()
+        self.book_loader = BookDataLoader()
 
         self.validator = DataValidator()
 
@@ -58,14 +58,14 @@ class LastSnapLoader:
             # Load global data - NOW ASYNC
             global_data = await self.global_loader.load_global_data(daily_timestamp_str, intraday_timestamp_str)
 
-            # Load user data - NOW ASYNC
-            user_data = await self._load_all_user_data(intraday_timestamp_str, date, exchange_group_manager)
+            # Load book data - NOW ASYNC
+            book_data = await self._load_all_book_data(intraday_timestamp_str, date, exchange_group_manager)
 
             # Compile all data
             last_snap_data = {
                 'exchange_metadata': exchange_metadata,
                 'global_data': global_data,
-                'user_data': user_data
+                'book_data': book_data
             }
 
             # Validate and log summary
@@ -82,42 +82,42 @@ class LastSnapLoader:
             self.logger.error(f"❌ Error loading Last Snapshot data: {e}")
             raise
 
-    async def _load_all_user_data(self, intraday_timestamp_str: str, date: datetime, exchange_group_manager=None) -> Dict:
-        """Load data for all users - NOW ASYNC"""
-        all_user_data = {}
+    async def _load_all_book_data(self, intraday_timestamp_str: str, date: datetime, exchange_group_manager=None) -> Dict:
+        """Load data for all books - NOW ASYNC"""
+        all_book_data = {}
 
         if exchange_group_manager:
-            # Multi-user mode: get users from exchange group manager
-            users = exchange_group_manager.get_all_users()
-            self.logger.info(f"👥 Loading data for {len(users)} users: {users}")
+            # Multi-book mode: get books from exchange group manager
+            books = exchange_group_manager.get_all_books()
+            self.logger.info(f"👥 Loading data for {len(books)} books: {books}")
 
-            for user_id in users:
-                user_data = await self.user_loader.load_user_data(user_id, intraday_timestamp_str, date)  # NOW ASYNC
-                all_user_data[user_id] = user_data
+            for book_id in books:
+                book_data = await self.book_loader.load_book_data(book_id, intraday_timestamp_str, date)  # NOW ASYNC
+                all_book_data[book_id] = book_data
         else:
-            # Single-user mode: find available user directories
-            available_users = None  # self.path_resolver.list_available_users()
+            # Single-book mode: find available book directories
+            available_books = None  # self.path_resolver.list_available_books()
 
-            if not available_users:
-                self.logger.warning("⚠️ No user directories found, creating default single user data")
-                raise ValueError(f'No user found')
+            if not available_books:
+                self.logger.warning("⚠️ No book directories found, creating default single book data")
+                raise ValueError(f'No book found')
             else:
-                # Load first available user for single-user mode
-                user_id = available_users[0]
-                self.logger.info(f"👤 Single-user mode: loading data for {user_id}")
-                user_data = await self.user_loader.load_user_data(user_id, intraday_timestamp_str, date)  # NOW ASYNC
-                all_user_data[user_id] = user_data
+                # Load first available book for single-book mode
+                book_id = available_books[0]
+                self.logger.info(f"👤 Single-book mode: loading data for {book_id}")
+                book_data = await self.book_loader.load_book_data(book_id, intraday_timestamp_str, date)  # NOW ASYNC
+                all_book_data[book_id] = book_data
 
-        return all_user_data
+        return all_book_data
 
     def _get_global_data(self, daily_timestamp_str: str, intraday_timestamp_str: str) -> Dict:
         """Backward compatibility method"""
         return self.global_loader.load_global_data(daily_timestamp_str, intraday_timestamp_str)
 
-    def _load_user_data_from_directory(self, user_id: str, intraday_timestamp_str: str,
+    def _load_book_data_from_directory(self, book_id: str, intraday_timestamp_str: str,
                                        fallback_date: datetime) -> Dict:
         """Backward compatibility method"""
-        return self.user_loader.load_user_data(user_id, intraday_timestamp_str, fallback_date)
+        return self.book_loader.load_book_data(book_id, intraday_timestamp_str, fallback_date)
 
     def _validate_last_snap_data(self, last_snap_data: Dict):
         """Backward compatibility method"""

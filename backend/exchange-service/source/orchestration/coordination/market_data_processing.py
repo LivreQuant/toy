@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import List, Optional
 import logging
 
+from source.utils.timezone_utils import ensure_utc
 
 def process_market_data_with_replay_awareness(equity_bars: List, fx: Optional[List],
                                               unified_replay_manager, last_snap_time: datetime,
@@ -16,7 +17,6 @@ def process_market_data_with_replay_awareness(equity_bars: List, fx: Optional[Li
 
         # Get incoming timestamp
         incoming_timestamp = datetime.fromisoformat(equity_bars[0].timestamp)
-        from source.utils.timezone_utils import ensure_utc
         incoming_timestamp = ensure_utc(incoming_timestamp)
 
         # Check if we need replay mode

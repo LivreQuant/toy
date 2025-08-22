@@ -1,13 +1,10 @@
 # source/simulation/managers/risk.py
-from threading import RLock
-from typing import Dict, Optional, List, Callable, Tuple, TYPE_CHECKING
+from typing import Dict, Optional, List, Callable
 from datetime import datetime
+import traceback
 from dataclasses import dataclass, field
-import logging
-from source.simulation.managers.utils import TrackingManager, CallbackManager
 
-if TYPE_CHECKING:
-    from typing import Tuple
+from source.simulation.managers.utils import TrackingManager, CallbackManager
 
 
 @dataclass
@@ -340,7 +337,6 @@ class RiskManager(TrackingManager, CallbackManager):
 
         except Exception as e:
             self.logger.error(f"Error in portfolio risk evaluation: {e}")
-            import traceback
             self.logger.error(f"Risk evaluation traceback: {traceback.format_exc()}")
 
     def _prepare_symbol_risk_data(self) -> List[Dict]:
@@ -438,7 +434,6 @@ class RiskManager(TrackingManager, CallbackManager):
                                 portfolio_headers.append(f'factor_{factor}')
 
                         # Create temporary manager for portfolio risk
-                        from source.simulation.managers.utils import TrackingManager
                         portfolio_manager = TrackingManager(
                             manager_name="PortfolioRiskManager",
                             table_name="portfolio_risk_data",

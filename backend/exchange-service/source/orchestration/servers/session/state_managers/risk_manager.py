@@ -4,6 +4,7 @@ Risk State Management Component
 Extracted from session_server_impl.py to reduce file size
 """
 
+import traceback
 import logging
 from source.api.grpc.session_exchange_interface_pb2 import (
     ExchangeDataUpdate, RiskStatus, EquityRiskData, PortfolioRiskData,
@@ -40,7 +41,6 @@ class RiskStateManager:
         except Exception as e:
             print(f"🔥🔥🔥 COMPOSITE STATE: Error adding risk state: {e}")
             self.logger.error(f"Error adding risk state: {e}")
-            import traceback
             print(f"🔥🔥🔥 COMPOSITE STATE: Traceback: {traceback.format_exc()}")
 
     def build_risk_status(self, symbol_risk_data, portfolio_risk_data) -> RiskStatus:

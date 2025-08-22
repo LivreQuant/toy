@@ -3,6 +3,9 @@ from typing import Dict, Optional, List
 from datetime import datetime, timezone
 from dataclasses import dataclass
 from decimal import Decimal
+
+from source.simulation.core.enums.side import Side
+from source.utils.timezone_utils import to_iso_string
 from source.simulation.managers.utils import TrackingManager
 
 
@@ -47,7 +50,6 @@ class AccountManager(TrackingManager):
     def _prepare_balance_data(self, timestamp: datetime, balance_type: str, currency: str,
                               old_amount: Decimal, new_amount: Decimal) -> List[Dict]:
         """Prepare balance data for storage"""
-        from source.utils.timezone_utils import to_iso_string
 
         return [{
             'timestamp': to_iso_string(timestamp),
@@ -60,7 +62,6 @@ class AccountManager(TrackingManager):
 
     def _prepare_all_balances_data(self, timestamp: datetime) -> List[Dict]:
         """Prepare all balances data for storage"""
-        from source.utils.timezone_utils import to_iso_string
 
         all_balance_data = []
         for balance_type, currencies in self.balances.items():
@@ -466,7 +467,6 @@ class AccountManager(TrackingManager):
                 # - SUPPLY SHORT CREDIT
                 pass
             else:
-                from source.simulation.core.enums.side import Side
                 if order.get_side() == Side.Buy:
                     # CREDIT
                     # - USE DEBIT TO SUPPLY CREDIT
@@ -530,7 +530,6 @@ class AccountManager(TrackingManager):
                     trade_id=trade_id
                 )
             else:
-                from source.simulation.core.enums.side import Side
                 if order.get_side() == Side.Buy:
                     # CREDIT
                     # - WITHDRAW CREDIT
@@ -627,7 +626,7 @@ class AccountManager(TrackingManager):
             description=""
         )
 
-    def rebalance_capital(self, user_context: Dict[str, int], timestamp: datetime):
+    def rebalance_capital(self, book_context: Dict[str, int], timestamp: datetime):
         """
         Mode 1: Constant AUM (Strategy Testing) - REBALANCE
         Mode 2: Compound Growth (Real-world Simulation) - DO NOT REBALANCE

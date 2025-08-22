@@ -2,6 +2,7 @@
 import grpc
 import os
 import logging
+import traceback
 import threading
 import time
 from datetime import datetime
@@ -24,7 +25,7 @@ RETRY_INTERVAL_SECONDS = 10
 CONNECTION_TIMEOUT_SECONDS = 5
 
 
-class EnhancedMultiUserMarketDataClient:
+class EnhancedMultiBookMarketDataClient:
     """Enhanced client with unified replay mode support for handling missing minute bars"""
 
     def __init__(self, exchange_group_manager, host: str = "localhost", port: int = 50051):
@@ -67,7 +68,7 @@ class EnhancedMultiUserMarketDataClient:
         self.replay_sessions = 0
 
         # Setup logging
-        self.logger = logging.getLogger('ENHANCED_MULTI_USER_MARKET_DATA_CLIENT')
+        self.logger = logging.getLogger('ENHANCED_MULTI_BOOK_MARKET_DATA_CLIENT')
         self._setup_logging()
         self._log_initialization_header()
 
@@ -101,13 +102,13 @@ class EnhancedMultiUserMarketDataClient:
         else:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-        self.log_file_path = os.path.join(logs_dir, f"enhanced_multi_user_market_data_feed_{timestamp}.log")
+        self.log_file_path = os.path.join(logs_dir, f"enhanced_multi_book_market_data_feed_{timestamp}.log")
 
         # IMPORTANT: Don't create a separate file handler here - use the exchange logging system
         # The logger should already be configured by the exchange_logging system
         # Just make sure we're using the right logger name that's configured in exchange_logging
 
-        # The logger name 'ENHANCED_MULTI_USER_MARKET_DATA_CLIENT' is already configured
+        # The logger name 'ENHANCED_MULTI_book_MARKET_DATA_CLIENT' is already configured
         # in the exchange_logging config to inherit from the exchange logger
 
         # Log the file path for reference, but the actual logging will go to exchange log
@@ -120,16 +121,16 @@ class EnhancedMultiUserMarketDataClient:
     def _log_initialization_header(self):
         """Log initialization header with market time"""
         market_time = self.exchange_group_manager.last_snap_time
-        users = self.exchange_group_manager.get_all_users()
+        books = self.exchange_group_manager.get_all_books()
 
         self.logger.info("█" * 120)
-        self.logger.info("█" + " " * 30 + "ENHANCED MULTI-USER MARKET DATA CLIENT WITH UNIFIED REPLAY" + " " * 30 + "█")
+        self.logger.info("█" + " " * 30 + "ENHANCED MULTI-book MARKET DATA CLIENT WITH UNIFIED REPLAY" + " " * 30 + "█")
         self.logger.info("█" * 120)
         self.logger.info("")
         self.logger.info(f"📁 LOG FILE: {self.log_file_path}")
         self.logger.info(f"🎯 TARGET HOST: {self.host}")
         self.logger.info(f"🔌 TARGET PORT: {self.port}")
-        self.logger.info(f"👥 USERS: {len(users)} users ({', '.join(str(user) for user in users)})")
+        self.logger.info(f"👥 bookS: {len(books)} books ({', '.join(str(book) for book in books)})")
         self.logger.info(f"🏛️ EXCHANGE ID: {self.exchange_group_manager.exch_id}")
         self.logger.info(f"📍 MARKET TIME (FROZEN): {market_time}")
         self.logger.info(f"🎬 REPLAY MODE: Available (Unified)")
@@ -141,11 +142,11 @@ class EnhancedMultiUserMarketDataClient:
         """Start the enhanced market data client"""
         try:
             self.logger.info("")
-            self.logger.info("🚀 STARTING ENHANCED MULTI-USER MARKET DATA CLIENT WITH UNIFIED REPLAY")
+            self.logger.info("🚀 STARTING ENHANCED MULTI-book MARKET DATA CLIENT WITH UNIFIED REPLAY")
             self.logger.info("=" * 120)
 
-            users = self.exchange_group_manager.get_all_users()
-            print(f"🚀 Enhanced multi-user market data client starting for {len(users)} users")
+            books = self.exchange_group_manager.get_all_books()
+            print(f"🚀 Enhanced multi-book market data client starting for {len(books)} books")
             print(f"📍 Market time frozen at: {self.exchange_group_manager.last_snap_time}")
             print(f"🎬 Replay mode: Available (Unified)")
             print(f"📁 Detailed logs: {self.log_file_path}")
@@ -165,7 +166,7 @@ class EnhancedMultiUserMarketDataClient:
     def stop(self):
         """Stop the enhanced market data client"""
         try:
-            self.logger.info("🛑 Stopping enhanced multi-user market data client")
+            self.logger.info("🛑 Stopping enhanced multi-book market data client")
             self.running = False
             self.stop_event.set()
 
@@ -178,7 +179,7 @@ class EnhancedMultiUserMarketDataClient:
             # Stop replay manager
             self.replay_manager.stop_replay()
 
-            self.logger.info("✅ Enhanced multi-user market data client stopped")
+            self.logger.info("✅ Enhanced multi-book market data client stopped")
 
         except Exception as e:
             self.logger.error(f"❌ Error stopping market data client: {e}")
@@ -196,7 +197,6 @@ class EnhancedMultiUserMarketDataClient:
 
             except Exception as e:
                 self.logger.error(f"❌ Error in client loop: {e}")
-                import traceback
                 self.logger.error(f"❌ Full traceback: {traceback.format_exc()}")
                 if self.running:
                     time.sleep(RETRY_INTERVAL_SECONDS)
@@ -225,7 +225,7 @@ class EnhancedMultiUserMarketDataClient:
             self.logger.info("=" * 60)
 
             print(
-                f"✅ Connected to market data service for {len(self.exchange_group_manager.get_all_users())} users (attempt #{self.connection_attempts})")
+                f"✅ Connected to market data service for {len(self.exchange_group_manager.get_all_books())} books (attempt #{self.connection_attempts})")
             return True
 
         except grpc.FutureTimeoutError:
@@ -241,12 +241,12 @@ class EnhancedMultiUserMarketDataClient:
         """Stream market data from service"""
         try:
             self.logger.info("")
-            self.logger.info("🔄 STARTING ENHANCED MULTI-USER MARKET DATA STREAM")
+            self.logger.info("🔄 STARTING ENHANCED MULTI-book MARKET DATA STREAM")
             self.logger.info("=" * 120)
 
             # Create subscription request
             request = SubscriptionRequest()
-            request.subscriber_id = f"enhanced_multi_user_exchange_{id(self)}"
+            request.subscriber_id = f"enhanced_multi_book_exchange_{id(self)}"
             request.include_history = True
 
             self.logger.info(f"📨 Subscription ID: {request.subscriber_id}")
@@ -255,7 +255,7 @@ class EnhancedMultiUserMarketDataClient:
             self.logger.info("=" * 120)
 
             print(
-                f"🔄 Enhanced multi-user market data stream started for {len(self.exchange_group_manager.get_all_users())} users - receiving data...")
+                f"🔄 Enhanced multi-book market data stream started for {len(self.exchange_group_manager.get_all_books())} books - receiving data...")
 
             # Use the correct method name
             self.stream = self.stub.SubscribeToMarketData(request)
@@ -267,7 +267,7 @@ class EnhancedMultiUserMarketDataClient:
                     break
 
                 self.logger.debug(f"📥 Received stream data: {type(stream_data)}")
-                self._process_market_data_for_all_users(stream_data)
+                self._process_market_data_for_all_books(stream_data)
 
             self.logger.info("🔄 Stream iteration completed")
 
@@ -277,14 +277,13 @@ class EnhancedMultiUserMarketDataClient:
             self.logger.error(f"❌ gRPC error details: {e.details()}")
         except Exception as e:
             self.logger.error(f"❌ Error in market data stream: {e}")
-            import traceback
             self.logger.error(f"❌ Full traceback: {traceback.format_exc()}")
             self.processing_errors += 1
 
-    def _process_market_data_for_all_users(self, stream_data: MarketDataStream):
+    def _process_market_data_for_all_books(self, stream_data: MarketDataStream):
         """Process incoming market data with unified replay mode detection and live mode transition"""
         try:
-            self.logger.debug("🔄 Starting _process_market_data_for_all_users")
+            self.logger.debug("🔄 Starting _process_market_data_for_all_books")
 
             start_time = time.time()
             self.batches_received += 1
@@ -297,16 +296,16 @@ class EnhancedMultiUserMarketDataClient:
             self.logger.info(f"📡 Updating replay manager with latest live timestamp: {incoming_timestamp}")
             self.replay_manager.update_latest_live_timestamp(incoming_timestamp)
 
-            users = self.exchange_group_manager.get_all_users()
+            books = self.exchange_group_manager.get_all_books()
 
             # Header logging
             self.logger.info("")
             self.logger.info("█" * 120)
-            self.logger.info(f"📦 BATCH #{stream_data.batch_number:04d} RECEIVED FOR {len(users)} USERS")
+            self.logger.info(f"📦 BATCH #{stream_data.batch_number:04d} RECEIVED FOR {len(books)} bookS")
             self.logger.info("█" * 120)
             self.logger.info(f"⏰ Market Timestamp: {incoming_timestamp.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]}")
             self.logger.info(f"🕒 Bin Time: {stream_data.bin_time}")
-            self.logger.info(f"👥 Users: {', '.join(str(user) for user in users)}")
+            self.logger.info(f"👥 books: {', '.join(str(book) for book in books)}")
             self.logger.info(f"🔄 Total Batches: {self.batches_received}")
             self.logger.info(f"🎬 Replay Mode: {self.replay_manager.state.value}")
 
@@ -333,7 +332,7 @@ class EnhancedMultiUserMarketDataClient:
                 # Now process current data
                 self.logger.info("🔄 Processing current live data after replay completion")
                 print("🔄 Processing current live data after replay completion")
-                self._process_normal_market_data(stream_data, users, incoming_timestamp)
+                self._process_normal_market_data(stream_data, books, incoming_timestamp)
                 return
 
             # If in replay mode, queue for later processing
@@ -382,7 +381,6 @@ class EnhancedMultiUserMarketDataClient:
 
             except Exception as e:
                 self.logger.error(f"❌ Error in gap detection: {e}")
-                import traceback
                 self.logger.error(f"❌ Traceback: {traceback.format_exc()}")
 
                 # Normal processing for live data
@@ -396,7 +394,6 @@ class EnhancedMultiUserMarketDataClient:
 
         except Exception as e:
             self.logger.error(f"❌ Error processing market data: {e}")
-            import traceback
             self.logger.error(f"❌ Full traceback: {traceback.format_exc()}")
             self.processing_errors += 1
 
@@ -434,7 +431,6 @@ class EnhancedMultiUserMarketDataClient:
 
         except Exception as e:
             self.logger.error(f"❌ Error in normal market data processing: {e}")
-            import traceback
             self.logger.error(f"❌ Full traceback: {traceback.format_exc()}")
             raise
 
@@ -508,7 +504,7 @@ class EnhancedMultiUserMarketDataClient:
             print(f"🔄 Processing {len(self.live_data_queue)} queued live data items")
 
             for i, stream_data in enumerate(self.live_data_queue):
-                # users = self.exchange_group_manager.get_all_users()
+                # books = self.exchange_group_manager.get_all_books()
                 incoming_timestamp = datetime.fromtimestamp(stream_data.timestamp / 1000)
                 incoming_timestamp = ensure_utc(incoming_timestamp)
 

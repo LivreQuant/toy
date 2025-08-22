@@ -1,12 +1,10 @@
 # source/orchestration/servers/conviction/conviction_server_impl.py
-import asyncio
 import logging
 import traceback
 import uuid
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 
-import grpc
 from grpc import aio
 
 from source.api.grpc.conviction_exchange_interface_pb2 import (
@@ -20,6 +18,7 @@ from source.api.grpc.conviction_exchange_interface_pb2_grpc import (
 )
 from source.engines.engine_factory import EngineFactory
 from source.orchestration.coordination.exchange_manager import ExchangeGroupManager
+from source.api.grpc.conviction_exchange_interface_pb2 import BatchCancelResponse
 
 
 class ConvictionServiceImpl(ConvictionExchangeSimulatorServicer):
@@ -36,9 +35,9 @@ class ConvictionServiceImpl(ConvictionExchangeSimulatorServicer):
         self.logger.info("=" * 80)
         self.logger.info("📥 CONVICTION SERVICE: SubmitConvictions called")
         self.logger.info(f"📥 Request type: {type(request)}")
-        self.logger.info(f"📥 Request has user_id: {hasattr(request, 'user_id')}")
-        self.logger.info(f"📥 Request.user_id: {request.user_id}")
-        self.logger.info(f"📥 Request.user_id type: {type(request.user_id)}")
+        self.logger.info(f"📥 Request has book_id: {hasattr(request, 'book_id')}")
+        self.logger.info(f"📥 Request.book_id: {request.book_id}")
+        self.logger.info(f"📥 Request.book_id type: {type(request.book_id)}")
         self.logger.info(f"📥 Request.convictions count: {len(request.convictions)}")
         self.logger.info(f"📥 Request attributes: {[attr for attr in dir(request) if not attr.startswith('_')]}")
 
@@ -56,94 +55,94 @@ class ConvictionServiceImpl(ConvictionExchangeSimulatorServicer):
             )
 
     async def _async_submit_convictions(self, request: BatchConvictionRequest, context) -> BatchConvictionResponse:
-        """Async implementation of submit_convictions with proper user context switching"""
+        """Async implementation of submit_convictions with proper book context switching"""
         self.logger.info("🔄 Inside async submit_convictions")
 
-        # Extract user_id from request
+        # Extract book_id from request
         try:
-            self.logger.info("🔄 Attempting to get user_id from request...")
-            user_id_str = request.user_id
-            self.logger.info(f"✅ Got user_id_str: {user_id_str}")
+            self.logger.info("🔄 Attempting to get book_id from request...")
+            book_id_str = request.book_id
+            self.logger.info(f"✅ Got book_id_str: {book_id_str}")
         except AttributeError as e:
-            self.logger.error(f"❌ Request does not have user_id attribute: {e}")
+            self.logger.error(f"❌ Request does not have book_id attribute: {e}")
             return BatchConvictionResponse(
                 success=False,
                 results=[],
-                error_message=f"Request missing user_id: {e}"
+                error_message=f"Request missing book_id: {e}"
             )
         except Exception as e:
-            self.logger.error(f"❌ Unexpected error getting user_id: {e}")
+            self.logger.error(f"❌ Unexpected error getting book_id: {e}")
             self.logger.error(f"   Traceback: {traceback.format_exc()}")
             return BatchConvictionResponse(
                 success=False,
                 results=[],
-                error_message=f"Error accessing user_id: {e}"
+                error_message=f"Error accessing book_id: {e}"
             )
 
-        self.logger.info(f"📊 Received {len(request.convictions)} convictions from user {user_id_str}")
+        self.logger.info(f"📊 Received {len(request.convictions)} convictions from book {book_id_str}")
 
         # Convert string to UUID
-        user_id = self._convert_user_id(user_id_str)
-        if user_id is None:
+        book_id = self._convert_book_id(book_id_str)
+        if book_id is None:
             return BatchConvictionResponse(
                 success=False,
                 results=[],
-                error_message=f"Invalid user ID or user not found: {user_id_str}"
+                error_message=f"Invalid book ID or book not found: {book_id_str}"
             )
 
-        # Get user context
+        # Get book context
         try:
-            user_context = self.exchange_group_manager.user_contexts[user_id]
-            self.logger.info(f"✅ Got user context for {user_id}")
+            book_context = self.exchange_group_manager.book_contexts[book_id]
+            self.logger.info(f"✅ Got book context for {book_id}")
 
-            # CRITICAL FIX: Switch global app_state to user's app_state
+            # CRITICAL FIX: Switch global app_state to book's app_state
             import source.orchestration.app_state.state_manager as app_state_module
             original_app_state = app_state_module.app_state
 
             try:
-                # Set user's app_state as current (like user_processor.py does)
-                app_state_module.app_state = user_context.app_state
-                self.logger.info(f"✅ Switched global app_state to user {user_id}'s app_state")
+                # Set book's app_state as current (like book_processor.py does)
+                app_state_module.app_state = book_context.app_state
+                self.logger.info(f"✅ Switched global app_state to book {book_id}'s app_state")
 
                 # Verify exchange is available
                 if app_state_module.app_state.exchange:
                     self.logger.info(
-                        f"✅ Exchange available in user app_state: {id(app_state_module.app_state.exchange)}")
+                        f"✅ Exchange available in book app_state: {id(app_state_module.app_state.exchange)}")
                 else:
-                    self.logger.error(f"❌ No exchange in user app_state for {user_id}")
+                    self.logger.error(f"❌ No exchange in book app_state for {book_id}")
                     return BatchConvictionResponse(
                         success=False,
                         results=[],
-                        error_message=f"No exchange available for user {user_id_str}"
+                        error_message=f"No exchange available for book {book_id_str}"
                     )
 
-                # Set the user_id in the app_state for this user_context
-                user_context.app_state.set_user_id(str(user_id))
-                self.logger.info(f"✅ Set user_id {user_id} in app_state for this context")
+                # Set the book_id in the app_state for this book_context
+                book_context.app_state.set_book_id(str(book_id))
+                self.logger.info(f"✅ Set book_id {book_id} in app_state for this context")
 
-                # CRITICAL FIX: Set user context in OrderManager
-                if user_context.app_state.order_manager:
-                    user_context.app_state.order_manager.set_user_context(str(user_id))
-                    self.logger.info(f"✅ Set user context in OrderManager for {user_id}")
+                # CRITICAL FIX: Set book context in OrderManager
+                if book_context.app_state.order_manager:
+                    book_context.app_state.order_manager.set_book_context(str(book_id))
+                    self.logger.info(f"✅ Set book context in OrderManager for {book_id}")
                 else:
-                    self.logger.warning(f"⚠️ No OrderManager found in user context for {user_id}")
+                    self.logger.warning(f"⚠️ No OrderManager found in book context for {book_id}")
 
-                # Also set user context in component managers
-                if hasattr(user_context.app_state, 'components'):
-                    user_context.app_state.components.set_user_context(str(user_id))
-                    self.logger.info(f"✅ Set user context in ComponentManagers for {user_id}")
+                # Also set book context in component managers
+                if hasattr(book_context.app_state, 'components'):
+                    book_context.app_state.components.set_book_context(str(book_id))
+                    self.logger.info(f"✅ Set book context in ComponentManagers for {book_id}")
 
                 results = []
                 current_time = datetime.now()
 
                 try:
-                    # Get user's engine type from database
+                    # Get book's engine type from database
                     self.logger.info("🔄 Getting engine ID...")
-                    engine_id = user_context.app_state.get_engine_id()
+                    engine_id = book_context.app_state.get_engine_id()
                     self.logger.info(f"✅ Engine ID: {engine_id}")
 
                     if engine_id is None:
-                        error_msg = f"Could not determine engine for user {user_id}"
+                        error_msg = f"Could not determine engine for book {book_id}"
                         self.logger.error(f"❌ {error_msg}")
                         return BatchConvictionResponse(
                             success=False,
@@ -183,9 +182,9 @@ class ConvictionServiceImpl(ConvictionExchangeSimulatorServicer):
 
                         # FIXED: Use correct engine method name and await it
                         all_orders = await engine.convert_convictions_to_orders(
-                            user_id=str(user_id),
+                            book_id=str(book_id),
                             convictions=conviction_dicts,
-                            user_context=user_context
+                            book_context=book_context
                         )
 
                         self.logger.info(
@@ -246,7 +245,7 @@ class ConvictionServiceImpl(ConvictionExchangeSimulatorServicer):
                                 }
 
                                 # Add order to OrderManager (which will now have proper exchange access)
-                                success = user_context.app_state.order_manager.add_order(order_data)
+                                success = book_context.app_state.order_manager.add_order(order_data)
                                 if success:
                                     orders_submitted += 1
                                     self.logger.info(f"✅ Added order {order['order_id']} to OrderManager")
@@ -283,11 +282,11 @@ class ConvictionServiceImpl(ConvictionExchangeSimulatorServicer):
                 self.logger.info("✅ Restored original app_state")
 
         except KeyError:
-            self.logger.error(f"❌ User {user_id} not found in exchange contexts")
+            self.logger.error(f"❌ book {book_id} not found in exchange contexts")
             return BatchConvictionResponse(
                 success=False,
                 results=[],
-                error_message=f"User {user_id_str} not found in exchange"
+                error_message=f"book {book_id_str} not found in exchange"
             )
         except Exception as e:
             self.logger.error(f"❌ Unexpected error in conviction processing: {e}")
@@ -303,30 +302,29 @@ class ConvictionServiceImpl(ConvictionExchangeSimulatorServicer):
         self.logger.info("📥 CONVICTION SERVICE: CancelConvictions called")
 
         # Return empty response for now
-        from source.api.grpc.conviction_exchange_interface_pb2 import BatchCancelResponse
         return BatchCancelResponse(
             success=True,
             results=[],
             error_message=""
         )
 
-    def _convert_user_id(self, user_id_str: str) -> Optional[uuid.UUID]:
-        """Convert user_id string to UUID and validate it exists"""
-        self.logger.info(f"🔄 Converting user_id: {user_id_str} (type: {type(user_id_str)})")
+    def _convert_book_id(self, book_id_str: str) -> Optional[uuid.UUID]:
+        """Convert book_id string to UUID and validate it exists"""
+        self.logger.info(f"🔄 Converting book_id: {book_id_str} (type: {type(book_id_str)})")
 
         try:
-            user_id = uuid.UUID(user_id_str)
-            self.logger.info(f"✅ Converted to UUID: {user_id} (type: {type(user_id)})")
+            book_id = uuid.UUID(book_id_str)
+            self.logger.info(f"✅ Converted to UUID: {book_id} (type: {type(book_id)})")
 
-            if user_id in self.exchange_group_manager.user_contexts:
-                self.logger.info(f"✅ User {user_id} found in exchange contexts")
-                return user_id
+            if book_id in self.exchange_group_manager.book_contexts:
+                self.logger.info(f"✅ book {book_id} found in exchange contexts")
+                return book_id
             else:
-                self.logger.error(f"❌ User {user_id} not found in exchange contexts")
+                self.logger.error(f"❌ book {book_id} not found in exchange contexts")
                 return None
 
         except ValueError as e:
-            self.logger.error(f"❌ Invalid UUID format: {user_id_str}: {e}")
+            self.logger.error(f"❌ Invalid UUID format: {book_id_str}: {e}")
             return None
 
     def _protobuf_to_dict(self, conviction) -> Dict[str, Any]:
@@ -362,18 +360,18 @@ class ConvictionServiceImpl(ConvictionExchangeSimulatorServicer):
 
         return conviction_dict
 
-    async def _cancel_existing_orders(self, user_id: uuid.UUID, conviction_id: str) -> bool:
+    async def _cancel_existing_orders(self, book_id: uuid.UUID, conviction_id: str) -> bool:
         """Cancel all orders where cl_order_id matches conviction_id"""
         try:
-            if user_id not in self.exchange_group_manager.user_contexts:
-                self.logger.error(f"❌ No exchange context found for user {user_id}")
+            if book_id not in self.exchange_group_manager.book_contexts:
+                self.logger.error(f"❌ No exchange context found for book {book_id}")
                 return False
 
-            user_context = self.exchange_group_manager.user_contexts[user_id]
+            book_context = self.exchange_group_manager.book_contexts[book_id]
 
             # Cancel orders using cl_order_id = conviction_id
-            if hasattr(user_context.app_state, 'order_manager') and user_context.app_state.order_manager:
-                cancel_result = user_context.app_state.order_manager.cancel_orders_by_cl_order_id(conviction_id)
+            if hasattr(book_context.app_state, 'order_manager') and book_context.app_state.order_manager:
+                cancel_result = book_context.app_state.order_manager.cancel_orders_by_cl_order_id(conviction_id)
                 if cancel_result:
                     self.logger.info(f"✅ Cancelled orders with cl_order_id={conviction_id}")
                     return True
@@ -381,7 +379,7 @@ class ConvictionServiceImpl(ConvictionExchangeSimulatorServicer):
                     self.logger.warning(f"⚠️ No active orders found with cl_order_id={conviction_id}")
                     return True  # No orders to cancel is considered success
             else:
-                self.logger.warning(f"⚠️ No order_manager found in user context")
+                self.logger.warning(f"⚠️ No order_manager found in book context")
                 return True
 
         except Exception as e:
@@ -389,27 +387,27 @@ class ConvictionServiceImpl(ConvictionExchangeSimulatorServicer):
             self.logger.error(f"   Traceback: {traceback.format_exc()}")
             return False
 
-    async def _submit_orders_to_exchange(self, user_id: uuid.UUID, orders: List[Dict[str, Any]]):
+    async def _submit_orders_to_exchange(self, book_id: uuid.UUID, orders: List[Dict[str, Any]]):
         """Submit generated orders to the exchange simulator"""
         try:
-            if user_id not in self.exchange_group_manager.user_contexts:
-                raise Exception(f"No exchange context found for user {user_id}")
+            if book_id not in self.exchange_group_manager.book_contexts:
+                raise Exception(f"No exchange context found for book {book_id}")
 
-            user_context = self.exchange_group_manager.user_contexts[user_id]
+            book_context = self.exchange_group_manager.book_contexts[book_id]
 
             for order in orders:
                 print(f"WTF: {order}")
-                # Submit order to user's exchange simulator through OrderManager
-                if user_context.app_state.order_manager:
-                    user_context.app_state.order_manager.add_order(order)
+                # Submit order to book's exchange simulator through OrderManager
+                if book_context.app_state.order_manager:
+                    book_context.app_state.order_manager.add_order(order)
                     self.logger.info(f"✅ Added order {order.get('order_id', 'unknown')} to OrderManager")
-                elif hasattr(user_context.app_state, 'components') and user_context.app_state.components.order_manager:
-                    user_context.app_state.components.order_manager.add_order(order)
+                elif hasattr(book_context.app_state, 'components') and book_context.app_state.components.order_manager:
+                    book_context.app_state.components.order_manager.add_order(order)
                     self.logger.info(
                         f"✅ Added order {order.get('order_id', 'unknown')} to ComponentManager OrderManager")
                 else:
-                    self.logger.error(f"❌ No order_manager found in user context")
-                    raise Exception("No order_manager found in user context")
+                    self.logger.error(f"❌ No order_manager found in book context")
+                    raise Exception("No order_manager found in book context")
 
         except Exception as e:
             self.logger.error(f"❌ Failed to submit orders to exchange: {e}")

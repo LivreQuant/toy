@@ -25,25 +25,25 @@ class DataValidator:
         if not global_data.get('fx'):
             errors.append("No FX rates loaded")
 
-        # Check user data
-        if not last_snap_data.get('user_data'):
-            errors.append("No user data loaded")
+        # Check book data
+        if not last_snap_data.get('book_data'):
+            errors.append("No book data loaded")
         else:
-            for user_id, user_data in last_snap_data['user_data'].items():
-                # Check accounts for each user
-                if not any(user_data.get('accounts', {}).values()):
-                    errors.append(f"No account balances loaded for user {user_id}")
+            for book_id, book_data in last_snap_data['book_data'].items():
+                # Check accounts for each book
+                if not any(book_data.get('accounts', {}).values()):
+                    errors.append(f"No account balances loaded for book {book_id}")
 
         # Log warnings for optional data
-        for user_id, user_data in last_snap_data.get('user_data', {}).items():
-            if not user_data.get('portfolio'):
-                self.logger.warning(f"⚠️ No portfolio positions loaded for user {user_id} (this may be intentional)")
+        for book_id, book_data in last_snap_data.get('book_data', {}).items():
+            if not book_data.get('portfolio'):
+                self.logger.warning(f"⚠️ No portfolio positions loaded for book {book_id} (this may be intentional)")
 
-            if not user_data.get('orders'):
-                self.logger.warning(f"⚠️ No orders loaded for user {user_id} (this may be intentional)")
+            if not book_data.get('orders'):
+                self.logger.warning(f"⚠️ No orders loaded for book {book_id} (this may be intentional)")
 
-            if not user_data.get('returns'):
-                self.logger.warning(f"⚠️ No returns period baselines loaded for user {user_id} (this may be intentional)")
+            if not book_data.get('returns'):
+                self.logger.warning(f"⚠️ No returns period baselines loaded for book {book_id} (this may be intentional)")
 
         # Fail if critical data is missing
         if errors:
@@ -53,9 +53,9 @@ class DataValidator:
 
     def log_last_snap_summary(self, last_snap_data: Dict):
         """Log summary of loaded Last Snap data"""
-        total_users = len(last_snap_data['user_data'])
+        total_books = len(last_snap_data['book_data'])
         summary = {
-            'total_users': total_users,
+            'total_books': total_books,
             'exch_id': last_snap_data['exchange_metadata'].get('exch_id', 'UNKNOWN'),
             'exchange_type': last_snap_data['exchange_metadata'].get('exchange_type', 'UNKNOWN'),
             'universe_symbols': len(last_snap_data['global_data']['universe']),
@@ -63,12 +63,12 @@ class DataValidator:
             'fx': len(last_snap_data['global_data']['fx']),
         }
 
-        # Add per-user summaries
-        for user_id, user_data in last_snap_data['user_data'].items():
-            summary[f'{user_id}_portfolio_positions'] = len(user_data['portfolio'])
-            summary[f'{user_id}_account_balances'] = sum(
-                len(accounts) for accounts in user_data['accounts'].values())
-            summary[f'{user_id}_orders'] = len(user_data['orders'])
+        # Add per-book summaries
+        for book_id, book_data in last_snap_data['book_data'].items():
+            summary[f'{book_id}_portfolio_positions'] = len(book_data['portfolio'])
+            summary[f'{book_id}_account_balances'] = sum(
+                len(accounts) for accounts in book_data['accounts'].values())
+            summary[f'{book_id}_orders'] = len(book_data['orders'])
 
         self.logger.info(f"✅ Last Snap Data loaded successfully: {summary}")
 
@@ -88,13 +88,13 @@ class DataValidator:
             summary['errors'].append(str(e))
 
         # Collect statistics
-        if last_snap_data.get('user_data'):
+        if last_snap_data.get('book_data'):
             summary['statistics'] = {
-                'total_users': len(last_snap_data['user_data']),
-                'total_positions': sum(len(user_data.get('portfolio', {}))
-                                     for user_data in last_snap_data['user_data'].values()),
-                'total_orders': sum(len(user_data.get('orders', {}))
-                                  for user_data in last_snap_data['user_data'].values()),
+                'total_books': len(last_snap_data['book_data']),
+                'total_positions': sum(len(book_data.get('portfolio', {}))
+                                     for book_data in last_snap_data['book_data'].values()),
+                'total_orders': sum(len(book_data.get('orders', {}))
+                                  for book_data in last_snap_data['book_data'].values()),
                 'universe_size': len(last_snap_data.get('global_data', {}).get('universe', {})),
                 'fx_rates_count': len(last_snap_data.get('global_data', {}).get('fx', []))
             }

@@ -23,7 +23,6 @@ class TradeManager(TrackingManager):
 
     def _prepare_trade_data(self, trade_data: Dict) -> List[Dict]:
         """Prepare trade data for storage"""
-        from source.utils.timezone_utils import to_iso_string
 
         return [{
             'start_timestamp': trade_data.get('start_timestamp'),  # Keep as datetime

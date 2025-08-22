@@ -6,6 +6,9 @@ import traceback
 import logging
 from datetime import datetime
 
+from source.utils.timezone_utils import parse_iso_timestamp
+from source.utils.timezone_utils import parse_market_hours_to_utc
+
 # Use standard Python logging initially
 logger = logging.getLogger(__name__)
 
@@ -65,31 +68,31 @@ async def load_metadata_from_postgres(exch_id: str) -> dict:
 
         print(f"🔍 Found exch_id: {exch_id}")
 
-        # Load users for this exchange
-        print(f"🔄 Loading users for exch_id: {exch_id}")
-        users_data = await db_manager.load_users_for_exchange(exch_id)
+        # Load books for this exchange
+        print(f"🔄 Loading books for exch_id: {exch_id}")
+        books_data = await db_manager.load_books_for_exchange(exch_id)
 
-        if not users_data:
-            print(f"❌ No users found for exch_id: {exch_id}")
-            raise ValueError(f"No users found for exchange: {exch_id}")
+        if not books_data:
+            print(f"❌ No books found for exch_id: {exch_id}")
+            raise ValueError(f"No books found for exchange: {exch_id}")
 
-        print(f"✅ Found {len(users_data)} users for exchange")
+        print(f"✅ Found {len(books_data)} books for exchange")
 
-        # Convert users list to the expected format
-        users_dict = {}
-        for user in users_data:
-            user_id = user.get('user_id')
-            if user_id:
-                users_dict[user_id] = {
-                    'user_id': user_id,
-                    'timezone': user.get('timezone', metadata.get('timezone', 'America/New_York')),
-                    'base_currency': user.get('base_currency', 'USD'),
-                    'initial_nav': user.get('initial_nav', 0),
-                    'operation_id': user.get('operation_id', 0),
-                    'engine_id': user.get('engine_id', 0),
+        # Convert books list to the expected format
+        books_dict = {}
+        for book in books_data:
+            book_id = book.get('book_id')
+            if book_id:
+                books_dict[book_id] = {
+                    'book_id': book_id,
+                    'timezone': book.get('timezone', metadata.get('timezone', 'America/New_York')),
+                    'base_currency': book.get('base_currency', 'USD'),
+                    'initial_nav': book.get('initial_nav', 0),
+                    'operation_id': book.get('operation_id', 0),
+                    'engine_id': book.get('engine_id', 0),
                 }
 
-        metadata['users'] = users_dict
+        metadata['books'] = books_dict
 
         # FIX: Convert datetime objects to strings if needed
         if 'last_snap' in metadata and isinstance(metadata['last_snap'], datetime):
@@ -109,8 +112,8 @@ async def load_metadata_from_postgres(exch_id: str) -> dict:
 
         print("🔍 DEBUG: Final metadata structure:")
         for key, value in metadata.items():
-            if key == 'users':
-                print(f"   {key}: dict with {len(value)} users: {list(value.keys())}")
+            if key == 'books':
+                print(f"   {key}: dict with {len(value)} books: {list(value.keys())}")
             else:
                 print(f"   {key}: {type(value).__name__} = {value}")
 
@@ -125,8 +128,6 @@ def parse_last_snap(metadata: dict) -> tuple[datetime, str]:
     """Parse last snapshot timestamp to UTC and preserve original string"""
     try:
         print("🔄 Parsing last snap timestamp...")
-
-        from source.utils.timezone_utils import parse_iso_timestamp
 
         original_str = metadata.get('last_snap')
         if not original_str:
@@ -164,7 +165,6 @@ def parse_market_hours(metadata: dict, exchange_timezone: str, last_snap_time: d
         market_hours_data = metadata.get('market_hours', {})
         print(f"📊 Market hours data: {market_hours_data}")
 
-        from source.utils.timezone_utils import parse_market_hours_to_utc
 
         market_hours = parse_market_hours_to_utc(
             market_hours_data,
@@ -188,7 +188,6 @@ def get_file_timestamp_str(original_timestamp_str: str, last_snap_time: datetime
     try:
         if original_timestamp_str:
             try:
-                from source.utils.timezone_utils import parse_iso_timestamp
                 dt = parse_iso_timestamp(original_timestamp_str)
                 timestamp_str = dt.strftime('%Y%m%d_%H%M')
                 print(f"📅 File timestamp from original: {timestamp_str}")

@@ -1,6 +1,7 @@
 # source/orchestration/persistence/managers/manager_initializer.py
 import logging
 from datetime import datetime
+import traceback
 from typing import Dict, List
 from decimal import Decimal
 
@@ -104,7 +105,6 @@ class ManagerInitializer:
 
         except Exception as e:
             self.logger.error(f"❌ Error initializing portfolio: {e}")
-            import traceback
             self.logger.error(f"   Full traceback: {traceback.format_exc()}")
             return False
 
@@ -246,7 +246,6 @@ class ManagerInitializer:
 
         except Exception as e:
             self.logger.error(f"❌ Error initializing returns: {e}")
-            import traceback
             self.logger.error(f"   Full traceback: {traceback.format_exc()}")
             return False
 
