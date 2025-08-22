@@ -21,7 +21,7 @@ async def handle_start_simulator(
         ws: web.WebSocketResponse,
         user_id: str,
         client_id: str,
-        device_id: str,
+        book_id: str,
         message: Dict[str, Any],
         session_manager: SessionManager,
         tracer: trace.Tracer,
@@ -31,6 +31,7 @@ async def handle_start_simulator(
     with optional_trace_span(tracer, "handle_start_simulator_message") as span:
         span.set_attribute("client_id", client_id)
         span.set_attribute("user_id", user_id)
+        span.set_attribute("book_id", book_id)
         
         request_id = message.get('requestId', f'start-sim-{time.time_ns()}')
         span.set_attribute("request_id", request_id)
@@ -60,7 +61,7 @@ async def handle_start_simulator(
             logger.info(f"Simulator connecting for user {user_id}")
         else:
             # Try to start connection
-            await session_manager.simulator_manager.start_connection_retry(user_id)
+            await session_manager.simulator_manager.start_connection_retry(book_id)
             
             response = {
                 'type': 'simulator_started',

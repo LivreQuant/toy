@@ -19,8 +19,8 @@ from source.api.websocket.handlers import (
     heartbeat_handler,
     reconnect_handler,
     session_handler,
-    simulator_handler,
-    refresh_handler  # Add the new refresh handler
+    # simulator_handler,
+    # refresh_handler  # Add the new refresh handler
 )
 
 logger = logging.getLogger('websocket_dispatcher')
@@ -47,15 +47,15 @@ class WebSocketDispatcher:
             'stop_session': session_handler.handle_stop_session,
 
             # Simulator handlers
-            'start_simulator': simulator_handler.handle_start_simulator,
-            'stop_simulator': simulator_handler.handle_stop_simulator,
+            #'start_simulator': simulator_handler.handle_start_simulator,
+            #'stop_simulator': simulator_handler.handle_stop_simulator,
             
             # Delta compression handlers
-            'request_full_refresh': refresh_handler.handle_request_full_refresh,
+            #'request_full_refresh': refresh_handler.handle_request_full_refresh,
         }
         logger.info(f"WebSocketDispatcher initialized with handlers for: {list(self.message_handlers.keys())}")
 
-    async def dispatch_message(self, ws: web.WebSocketResponse, user_id: str,
+    async def dispatch_message(self, ws: web.WebSocketResponse, user_id: str, book_id: str,
                                client_id: str, device_id: str, raw_data: str, 
                                websocket_manager=None) -> None:
         """
@@ -64,6 +64,7 @@ class WebSocketDispatcher:
         Args:
             ws: WebSocket connection
             user_id: User ID
+            book_id: Book ID
             client_id: Client ID
             device_id: Device ID
             raw_data: Raw message data
@@ -103,6 +104,7 @@ class WebSocketDispatcher:
             await handler(
                 ws=ws,
                 user_id=user_id,
+                book_id=book_id,
                 client_id=client_id,
                 device_id=device_id,
                 message=message,

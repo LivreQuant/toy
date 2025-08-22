@@ -40,7 +40,7 @@ class SessionExchangeSimulatorServicer(object):
     """Missing associated documentation comment in .proto file."""
 
     def StreamExchangeData(self, request, context):
-        """Single unified stream for all exchange data - user-aware with broadcasting
+        """Single unified stream for all exchange data - book-aware with broadcasting
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -54,14 +54,14 @@ class SessionExchangeSimulatorServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def GetHealth(self, request, context):
-        """Health check with service and user status
+        """Health check with service and book status
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def GetSessionStatus(self, request, context):
-        """New: Get session connection status for a user
+        """New: Get session connection status for a book
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')

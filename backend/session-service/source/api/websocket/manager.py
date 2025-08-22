@@ -64,7 +64,7 @@ class WebSocketManager:
             try:
                 self.logger.info(f"WebSocket connection request received from {request.remote}")
 
-                user_id, device_id = await authenticate_websocket_request(request, self.session_manager)
+                user_id, book_id, device_id = await authenticate_websocket_request(request, self.session_manager)
                 client_id = f"{device_id}-{time.time_ns()}"
 
                 # Check if the user already has an active session
@@ -77,7 +77,7 @@ class WebSocketManager:
                     # If different device ID, mark this as the new active device
                     if existing_device_id and existing_device_id != device_id:
                         self.logger.info(
-                            f"User {user_id} connecting with new device {device_id}, replacing {existing_device_id}")
+                            f"User {user_id} - {book_id} connecting with new device {device_id}, replacing {existing_device_id}")
                         request['previous_device_id'] = existing_device_id
 
                         # Update session details with the new device ID
@@ -119,6 +119,7 @@ class WebSocketManager:
             self.active_connections[device_id] = ws
             self.connection_metadata[device_id] = {
                 'user_id': user_id,
+                'book_id': book_id,
                 'client_id': client_id,
                 'connected_at': time.time(),
                 'last_activity': time.time()
@@ -127,7 +128,7 @@ class WebSocketManager:
             # Connection handler
             try:
                 # Process messages - use the existing method name from your codebase
-                await self._connection_loop(ws, user_id, device_id, client_id)
+                await self._connection_loop(ws, user_id, book_id, device_id, client_id)
             except Exception as e:
                 self.logger.error(f"WebSocket connection error: {e}")
                 await error_emitter.send_error(
@@ -148,7 +149,7 @@ class WebSocketManager:
 
             return ws
         
-    async def _connection_loop(self, ws: web.WebSocketResponse, user_id: str, device_id: str, client_id: str):
+    async def _connection_loop(self, ws: web.WebSocketResponse, user_id: str, book_id: str, device_id: str, client_id: str):
         """Handle incoming WebSocket messages until connection closes"""
         try:
             self.logger.info(f"Starting message processing loop for client {client_id}")
@@ -164,6 +165,7 @@ class WebSocketManager:
                     await self.dispatcher.dispatch_message(
                         ws=ws,
                         user_id=user_id,
+                        book_id=book_id,
                         client_id=client_id,
                         device_id=device_id,
                         raw_data=msg.data,

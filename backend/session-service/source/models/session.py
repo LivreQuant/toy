@@ -29,6 +29,7 @@ class Session(BaseModel):
     """Core Session model - essential session properties only"""
     session_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     user_id: str
+    book_id: str
     status: SessionStatus = SessionStatus.INACTIVE
     created_at: float = Field(default_factory=time.time)
     last_active: float = Field(default_factory=time.time)
@@ -115,6 +116,10 @@ class SessionWithDetails(BaseModel):
         return self.session.user_id
 
     @property
+    def book_id(self) -> str:
+        return self.session.book_id
+
+    @property
     def status(self) -> SessionStatus:
         return self.session.status
 
@@ -144,6 +149,7 @@ class SessionWithDetails(BaseModel):
 
             # Device and connection information
             "user_id": self.session.user_id,
+            "book_id": self.session.book_id,
             "device_id": self.details.device_id,
             "user_agent": self.details.user_agent,
             "ip_address": self.details.ip_address,

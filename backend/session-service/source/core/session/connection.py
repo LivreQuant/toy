@@ -32,6 +32,7 @@ class Connection:
             self,
             session_id: str,
             user_id: str,
+            book_id: str,
             metrics: Dict[str, Any]
     ) -> Tuple[str, bool]:
         """
@@ -40,6 +41,7 @@ class Connection:
         with optional_trace_span(self.tracer, "update_connection_quality") as span:
             span.set_attribute("session_id", session_id)
             span.set_attribute("user_id", user_id)
+            span.set_attribute("book_id", book_id)
             span.set_attribute("metrics.latency_ms", metrics.get('latency_ms', -1))
             span.set_attribute("metrics.missed_heartbeats", metrics.get('missed_heartbeats', -1))
             span.set_attribute("metrics.connection_type", metrics.get('connection_type', 'unknown'))
@@ -87,6 +89,7 @@ class Connection:
             self,
             session_id: str,
             user_id: str,
+            book_id: str,
             device_id: str,
             attempt: int = 1
     ) -> Tuple[Dict[str, Any], str]:
@@ -96,6 +99,7 @@ class Connection:
         with optional_trace_span(self.tracer, "reconnect_session") as span:
             span.set_attribute("session_id", session_id)
             span.set_attribute("user_id", user_id)
+            span.set_attribute("book_id", book_id)
             span.set_attribute("device_id", device_id)
             span.set_attribute("reconnect_attempt", attempt)
 
@@ -132,6 +136,7 @@ class Connection:
             session_data = {
                 'session_id': session.session_id,
                 'user_id': session.user_id,
+                'book_id': session.book_id,
                 'status': session.status.value,
                 'created_at': session.created_at,
                 'expires_at': session.expires_at,

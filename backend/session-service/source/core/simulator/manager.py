@@ -28,7 +28,7 @@ class SimulatorManager:
         # Current connection info
         self.current_simulator_id = None
         self.current_endpoint = None
-        self.current_user_id = None
+        self.current_book_id = None
         
         # Data callback
         self.data_callback = None
@@ -47,41 +47,41 @@ class SimulatorManager:
         """Set callback for exchange data"""
         self.data_callback = callback
 
-    async def find_user_simulator(self, user_id: str) -> Tuple[Optional[Dict], str]:
-        """Find user's exchange pod from database"""
-        with optional_trace_span(self.tracer, "find_user_simulator") as span:
-            span.set_attribute("user_id", user_id)
+    async def find_book_simulator(self, book_id: str) -> Tuple[Optional[Dict], str]:
+        """Find book's exchange pod from database"""
+        with optional_trace_span(self.tracer, "find_book_simulator") as span:
+            span.set_attribute("book_id", book_id)
             
             try:
                 pool = await self.store_manager.session_store._get_pool()
                 async with pool.acquire() as conn:
-                    # Get user's exchange info INCLUDING ENDPOINT from database
+                    # Get book's exchange info INCLUDING ENDPOINT from database
                     row = await conn.fetchrow('''
-                        SELECT u.user_id, u.exch_id, m.pod_name, m.namespace, 
+                        SELECT u.book_id, u.exch_id, m.pod_name, m.namespace, 
                             m.exchange_type, m.endpoint
-                        FROM exch_us_equity.users u
+                        FROM exch_us_equity.books u
                         JOIN exch_us_equity.metadata m ON u.exch_id = m.exch_id
-                        WHERE u.user_id = $1
+                        WHERE u.book_id = $1
                         LIMIT 1
-                    ''', user_id)
+                    ''', book_id)
                     
                     if not row:
-                        return None, f"User {user_id} not found"
+                        return None, f"book {book_id} not found"
                     
                     pod_name = row['pod_name']
                     namespace = row['namespace'] or 'default'
                     endpoint = row['endpoint']  # GET FROM DATABASE
                     
                     if not pod_name:
-                        return None, f"No pod name configured for user {user_id}"
+                        return None, f"No pod name configured for book {book_id}"
                     
                     if not endpoint:
-                        return None, f"No endpoint configured for user {user_id}"
+                        return None, f"No endpoint configured for book {book_id}"
                     
                     # REMOVE ALL KUBERNETES API CALLS - USE DATABASE ONLY
                     simulator_info = {
                         'simulator_id': f"sim-{pod_name}",
-                        'user_id': user_id,
+                        'book_id': book_id,
                         'exch_id': str(row['exch_id']),
                         'pod_name': pod_name,
                         'endpoint': endpoint,  # USE DATABASE ENDPOINT
@@ -90,31 +90,30 @@ class SimulatorManager:
                         'status': 'RUNNING'
                     }
                     
-                    logger.info(f"Found simulator for user {user_id}: {pod_name} -> {endpoint}")
+                    logger.info(f"Found simulator for book {book_id}: {pod_name} -> {endpoint}")
                     return simulator_info, ""
                     
             except Exception as e:
-                logger.error(f"Error finding simulator for user {user_id}: {e}", exc_info=True)
+                logger.error(f"Error finding simulator for book {book_id}: {e}", exc_info=True)
                 return None, f"Database error: {str(e)}"
-            
 
-    async def connect_to_simulator(self, user_id: str) -> Tuple[bool, str]:
+    async def connect_to_simulator(self, book_id: str) -> Tuple[bool, str]:
         """
-        Connect to user's simulator pod
+        Connect to book's simulator pod
         
         Args:
-            user_id: User ID
+            book_id: Book ID
             
         Returns:
             Tuple of (success, error_message)
         """
         with optional_trace_span(self.tracer, "connect_to_simulator") as span:
-            span.set_attribute("user_id", user_id)
+            span.set_attribute("book_id", book_id)
             
             start_time = time.time()
             
             # Find the simulator
-            simulator_info, error = await self.find_user_simulator(user_id)
+            simulator_info, error = await self.find_book_simulator(book_id)
             if not simulator_info:
                 track_simulator_connection_attempt('failed_not_found')
                 return False, error
@@ -128,7 +127,7 @@ class SimulatorManager:
             # Test connection
             try:
                 heartbeat_result = await self.exchange_client.send_heartbeat(
-                    endpoint, user_id, f"connect-{user_id}"
+                    endpoint, book_id, f"connect-{book_id}"
                 )
                 
                 if not heartbeat_result.get('success', False):
@@ -141,12 +140,12 @@ class SimulatorManager:
                 # Success
                 self.current_simulator_id = simulator_id
                 self.current_endpoint = endpoint
-                self.current_user_id = user_id
+                self.current_book_id = book_id
                 
                 track_simulator_connection_attempt('success')
                 track_simulator_connection_time(time.time() - start_time, 'success')
                 
-                logger.info(f"Connected to simulator {simulator_id} for user {user_id}")
+                logger.info(f"Connected to simulator {simulator_id} for book {book_id}")
                 return True, ""
                 
             except Exception as e:
@@ -155,7 +154,7 @@ class SimulatorManager:
                 track_simulator_connection_time(time.time() - start_time, 'failed')
                 return False, f"Connection error: {str(e)}"
 
-    async def connect_with_retry(self, user_id: str) -> None:
+    async def connect_with_retry(self, book_id: str) -> None:
         """Connect with retry logic"""
         max_attempts = config.simulator.max_reconnect_attempts or 0
         base_delay = config.simulator.reconnect_delay
@@ -169,15 +168,15 @@ class SimulatorManager:
         while self._should_retry and (max_attempts == 0 or attempt < max_attempts):
             attempt += 1
             
-            connected, error = await self.connect_to_simulator(user_id)
+            connected, error = await self.connect_to_simulator(book_id)
             
             if connected:
-                logger.info(f"Connected to simulator for user {user_id} after {attempt} attempts")
+                logger.info(f"Connected to simulator for book {book_id} after {attempt} attempts")
                 if self.data_callback:
                     await self._notify_connection_status("CONNECTED", None)
                 return
             
-            logger.warning(f"Connection attempt {attempt} failed for user {user_id}: {error}")
+            logger.warning(f"Connection attempt {attempt} failed for book {book_id}: {error}")
             if self.data_callback:
                 await self._notify_connection_status("CONNECTING", f"Attempt {attempt} failed: {error}")
             
@@ -205,7 +204,7 @@ class SimulatorManager:
             'type': 'simulator_connection_status',
             'status': status,
             'simulator_id': self.current_simulator_id,
-            'user_id': self.current_user_id,
+            'book_id': self.current_book_id,
             'timestamp': int(time.time() * 1000)
         }
         
@@ -220,12 +219,12 @@ class SimulatorManager:
         except Exception as e:
             logger.error(f"Error in connection status callback: {e}")
 
-    async def start_connection_retry(self, user_id: str):
+    async def start_connection_retry(self, book_id: str):
         """Start retry task"""
         if self._connection_retry_task and not self._connection_retry_task.done():
             self._connection_retry_task.cancel()
         
-        self._connection_retry_task = asyncio.create_task(self.connect_with_retry(user_id))
+        self._connection_retry_task = asyncio.create_task(self.connect_with_retry(book_id))
 
     async def stop_connection_retry(self):
         """Stop retry task"""
@@ -233,7 +232,7 @@ class SimulatorManager:
         if self._connection_retry_task and not self._connection_retry_task.done():
             self._connection_retry_task.cancel()
 
-    async def stream_exchange_data(self, session_id: str, client_id: str, user_id: str):
+    async def stream_exchange_data(self, session_id: str, client_id: str, book_id: str):
         """Stream data from connected simulator"""
         if not self.current_endpoint:
             raise ValueError("No simulator connected")
@@ -242,7 +241,7 @@ class SimulatorManager:
         
         try:
             async for data in self.exchange_client.stream_exchange_data(
-                self.current_endpoint, session_id, client_id, user_id, ExchangeType.EQUITIES
+                self.current_endpoint, session_id, client_id, book_id, ExchangeType.EQUITIES
             ):
                 if self.data_callback:
                     try:
@@ -259,7 +258,7 @@ class SimulatorManager:
             logger.error(f"Stream error from simulator {self.current_simulator_id}: {e}")
             self.current_simulator_id = None
             self.current_endpoint = None
-            self.current_user_id = None
+            self.current_book_id = None
             
             if self.data_callback:
                 await self._notify_connection_status("DISCONNECTED", f"Stream error: {str(e)}")
@@ -273,7 +272,7 @@ class SimulatorManager:
         await self.stop_connection_retry()
         self.current_simulator_id = None
         self.current_endpoint = None
-        self.current_user_id = None
+        self.current_book_id = None
 
     def get_connection_info(self) -> Dict[str, Any]:
         """Get connection info"""
@@ -281,7 +280,7 @@ class SimulatorManager:
             'connected': self.current_simulator_id is not None,
             'simulator_id': self.current_simulator_id,
             'endpoint': self.current_endpoint,
-            'user_id': self.current_user_id,
+            'book_id': self.current_book_id,
             'retrying': self._connection_retry_task is not None and not self._connection_retry_task.done()
         }
 

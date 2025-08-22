@@ -23,6 +23,7 @@ class StateManager:
         self._is_ready = True
         self._session_id = None
         self._user_id = None
+        self._book_id = None
         self._start_time = None
 
     async def initialize(self):
@@ -31,10 +32,11 @@ class StateManager:
             self._is_ready = True
             self._session_id = None
             self._user_id = None
+            self._book_id = None
             self._start_time = None
             logger.info("State manager initialized to READY state")
 
-    async def set_active(self, user_id: str):
+    async def set_active(self, user_id: str, book_id: str):
         """
         Mark the service as actively serving a session.
 
@@ -45,6 +47,7 @@ class StateManager:
             self._is_ready = False
             self._session_id = str(uuid.uuid4())
             self._user_id = user_id
+            self._book_id = book_id
             self._start_time = time.time()
             logger.info(f"Service state set to ACTIVE for session {self._session_id}")
             return True
@@ -65,6 +68,10 @@ class StateManager:
         """Get the user id"""
         return self._user_id
 
+    def get_book_id(self):
+        """Get the book id"""
+        return self._book_id
+
     def get_uptime_seconds(self):
         """Get the time this session has been active"""
         if not self._start_time:
@@ -78,6 +85,7 @@ class StateManager:
             "is_active": self._session_id is not None,
             "active_session_id": self._session_id,
             "active_user_id": self._user_id,
+            "active_book_id": self._book_id,
             "start_time": self._start_time,
             "uptime_seconds": self.get_uptime_seconds(),
         }
@@ -95,6 +103,7 @@ class StateManager:
             self._is_ready = True
             self._session_id = None
             self._user_id = None
+            self._book_id = None
             self._start_time = None
             if old_session:
                 logger.info(

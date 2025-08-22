@@ -128,7 +128,7 @@ class ExchangeClient(BaseClient):
             self.stubs.clear()
             logger.info("Finished closing gRPC channels.")
 
-    async def send_heartbeat(self, endpoint: str, user_id: str, client_id: str) -> Dict[str, Any]:
+    async def send_heartbeat(self, endpoint: str, book_id: str, client_id: str) -> Dict[str, Any]:
         """
         Send heartbeat to the simulator and get detailed status.
         TEMPORARILY bypassing circuit breaker for testing.
@@ -137,11 +137,11 @@ class ExchangeClient(BaseClient):
             span.set_attribute("rpc.service", "ExchangeSimulator")
             span.set_attribute("rpc.method", "Heartbeat")
             span.set_attribute("net.peer.name", endpoint)
-            span.set_attribute("app.user_id", user_id)
+            span.set_attribute("app.book_id", book_id)
             try:
                 # BYPASS CIRCUIT BREAKER FOR TESTING - call directly
                 logger.info(f"BYPASS: Calling heartbeat directly without circuit breaker")
-                response = await self._heartbeat_request(endpoint, user_id, client_id)
+                response = await self._heartbeat_request(endpoint, book_id, client_id)
                 
                 span.set_attribute("app.success", response.get('success', False))
                 span.set_attribute("app.simulator_status", response.get('status', 'UNKNOWN'))
@@ -153,24 +153,24 @@ class ExchangeClient(BaseClient):
                 span.set_attribute("error.message", str(e))
                 return {'success': False, 'error': str(e), 'status': 'ERROR'}
 
-    async def _heartbeat_request(self, endpoint: str, user_id: str, client_id: str) -> Dict[str, Any]:
+    async def _heartbeat_request(self, endpoint: str, book_id: str, client_id: str) -> Dict[str, Any]:
         """Make the actual heartbeat request with detailed logging."""
-        logger.info(f"DETAILED: About to send heartbeat to {endpoint} for user {user_id}")
-        logger.info(f"DETAILED: client_id={client_id}, user_id={user_id}")
+        logger.info(f"DETAILED: About to send heartbeat to {endpoint} for Book {book_id}")
+        logger.info(f"DETAILED: client_id={client_id}, book_id={book_id}")
         
         _, stub = await self.get_channel(endpoint)
 
         # Use the correct fields from the protobuf definition
         request = HeartbeatRequest(
             client_id=client_id,
-            user_id=user_id,
-            session_instance_id=f"session-{user_id}",
+            book_id=book_id,
+            session_instance_id=f"session-{book_id}",
             last_received_sequence=0
         )
 
         logger.info(f"DETAILED: Created HeartbeatRequest:")
         logger.info(f"  - client_id: {request.client_id}")
-        logger.info(f"  - user_id: {request.user_id}")
+        logger.info(f"  - book_id: {request.book_id}")
         logger.info(f"  - session_instance_id: {request.session_instance_id}")
         logger.info(f"  - last_received_sequence: {request.last_received_sequence}")
 
@@ -217,7 +217,7 @@ class ExchangeClient(BaseClient):
         endpoint: str,
         session_id: str,
         client_id: str,
-        user_id: str,  # ADD user_id parameter
+        book_id: str,  # ADD book_id parameter
         exchange_type: ExchangeType = None,
     ) -> AsyncGenerator[ExchangeDataUpdate, None]:
         """Stream exchange data with better error handling for pod termination"""
@@ -238,7 +238,7 @@ class ExchangeClient(BaseClient):
                 # Use the correct protobuf fields for StreamRequest
                 request = StreamRequest(
                     client_id=client_id,
-                    user_id=user_id,  # Use session_id as user_id
+                    book_id=book_id,  # Use session_id as book_id
                     connection_timestamp=int(time.time() * 1000),
                     session_instance_id=f"session-{session_id}",
                     request_initial_state=True

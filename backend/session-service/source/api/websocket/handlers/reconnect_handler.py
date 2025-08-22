@@ -21,6 +21,7 @@ async def handle_reconnect(
         *,
         ws: web.WebSocketResponse,
         user_id: str,
+        book_id: str,
         client_id: str,
         device_id: str,
         message: Dict[str, Any],
@@ -35,6 +36,7 @@ async def handle_reconnect(
     Args:
         ws: The WebSocket connection.
         user_id: User ID (from initial connection auth).
+        book_ID: Book ID.
         client_id: Client ID.
         message: The parsed reconnect message dictionary.
         session_manager: Direct access to SessionManager.

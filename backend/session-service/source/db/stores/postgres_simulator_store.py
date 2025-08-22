@@ -27,10 +27,10 @@ class PostgresSimulatorStore(PostgresRepository[Simulator]):
         )
         logger.info(f"PostgresSimulatorStore initialized for {schema_name}.{table_name}")
 
-    async def get_simulator_by_user(self, user_id: str) -> Optional[Simulator]:
+    async def get_simulator_by_user(self, book_id: str) -> Optional[Simulator]:
         """Get simulator for a specific user"""
         with optional_trace_span(self.tracer, "pg_store_get_simulator_by_user") as span:
-            span.set_attribute("user_id", user_id)
+            span.set_attribute("book_id", book_id)
 
             try:
                 pool = await self._get_pool()
@@ -38,16 +38,16 @@ class PostgresSimulatorStore(PostgresRepository[Simulator]):
                     async with pool.acquire() as conn:
                         row = await conn.fetchrow(f'''
                             SELECT * FROM {self.full_table_name}
-                            WHERE user_id = $1 AND status = 'RUNNING'
+                            WHERE book_id = $1 AND status = 'RUNNING'
                             LIMIT 1
-                        ''', user_id)
+                        ''', book_id)
 
                         if not row:
                             return None
 
                         return self._row_to_entity(row)
             except Exception as e:
-                logger.error(f"Error getting simulator for user {user_id}: {e}")
+                logger.error(f"Error getting simulator for user {book_id}: {e}")
                 span.record_exception(e)
                 track_db_error("pg_get_simulator_by_user")
                 return None

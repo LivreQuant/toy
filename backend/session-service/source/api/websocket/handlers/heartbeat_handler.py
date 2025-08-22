@@ -21,6 +21,7 @@ async def handle_heartbeat(
         *,
         ws: web.WebSocketResponse,
         user_id: str,
+        book_id: str,
         client_id: str,
         device_id: str,
         message: Dict[str, Any],

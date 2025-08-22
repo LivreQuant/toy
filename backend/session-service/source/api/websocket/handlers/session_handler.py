@@ -20,6 +20,7 @@ async def handle_session_info(
         *,
         ws: web.WebSocketResponse,
         user_id: str,
+        book_id: str,
         client_id: str,
         device_id: str,
         message: Dict[str, Any],
@@ -34,10 +35,10 @@ async def handle_session_info(
         request_id = message.get('requestId', f'session-info-{time.time_ns()}')
         span.set_attribute("request_id", request_id)
 
-        logger.info(f"Processing session info request for user {user_id} with device {device_id}")
+        logger.info(f"Processing session info request for user {user_id} - {book_id} with device {device_id}")
 
         # Start session (connects to existing simulator)
-        success, error = await session_manager.start_session(user_id, device_id)
+        success, error = await session_manager.start_session(user_id, book_id, device_id)
         
         if not success:
             logger.error(f"Failed to start session: {error}")
@@ -93,6 +94,7 @@ async def handle_stop_session(
         *,
         ws: web.WebSocketResponse,
         user_id: str,
+        book_id: str,
         client_id: str,
         device_id: str,
         message: Dict[str, Any],
@@ -107,7 +109,7 @@ async def handle_stop_session(
        request_id = message.get('requestId', f'stop-session-{time.time_ns()}')
        span.set_attribute("request_id", request_id)
 
-       logger.info(f"Stopping session for user {user_id}")
+       logger.info(f"Stopping session for user {user_id} - {book_id}")
 
        try:
            # Clean up session
@@ -131,7 +133,7 @@ async def handle_stop_session(
                logger.error(f"Failed to send session_stopped for client {client_id}: {e}")
                span.record_exception(e)
                
-           logger.info(f"Session for user {user_id} stopped successfully")
+           logger.info(f"Session for user {user_id} - {book_id} stopped successfully")
 
        except Exception as e:
            logger.error(f"Error stopping session: {e}", exc_info=True)

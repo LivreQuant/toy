@@ -33,7 +33,7 @@ class PostgresSessionStore(PostgresRepository[Session]):
         )
         logger.info("PostgresSessionStore initialized.")
 
-    async def create_session(self, session_id: str, user_id: str, device_id: Optional[str] = None,
+    async def create_session(self, session_id: str, user_id: str, book_id: str, device_id: Optional[str] = None,
                              ip_address: Optional[str] = None) -> bool:
         """
         Create a new session with a specific ID (for singleton mode).
@@ -41,6 +41,7 @@ class PostgresSessionStore(PostgresRepository[Session]):
         Args:
             session_id: The session ID to use
             user_id: The user ID to associate with this session
+            book_id: The book ID to associate with this session
             device_id: Optional device ID for details
             ip_address: Optional IP address for details
 
@@ -50,6 +51,7 @@ class PostgresSessionStore(PostgresRepository[Session]):
         with optional_trace_span(self.tracer, "pg_store_create_session_with_id") as span:
             span.set_attribute("session_id", session_id)
             span.set_attribute("user_id", user_id)
+            span.set_attribute("book_id", book_id)
             if device_id: span.set_attribute("device_id", device_id)
             if ip_address: span.set_attribute("ip_address", ip_address)
 
@@ -77,14 +79,15 @@ class PostgresSessionStore(PostgresRepository[Session]):
                             current_time = time.time()
                             expires_at = current_time + config.session.timeout_seconds
 
-                            logger.info(f"Creating new session with ID {session_id} for user {user_id}.")
+                            logger.info(f"Creating new session with ID {session_id} for user {user_id} - {book_id}.")
                             await conn.execute('''
                                 INSERT INTO session.active_sessions
-                                (session_id, user_id, status, created_at, last_active, expires_at)
-                                VALUES ($1, $2, $3, to_timestamp($4), to_timestamp($5), to_timestamp($6))
+                                (session_id, user_id, book_id, status, created_at, last_active, expires_at)
+                                VALUES ($1, $2, $3, $4, to_timestamp($5), to_timestamp($6), to_timestamp($7))
                             ''',
                                                session_id,
                                                user_id,
+                                               book_id,
                                                SessionStatus.ACTIVE.value,  # Start as ACTIVE
                                                current_time,
                                                current_time,
@@ -106,7 +109,7 @@ class PostgresSessionStore(PostgresRepository[Session]):
                         return True
 
             except Exception as e:
-                logger.error(f"Error creating session with ID {session_id} for user {user_id} in PostgreSQL: {e}",
+                logger.error(f"Error creating session with ID {session_id} for user {user_id} - {book_id} in PostgreSQL: {e}",
                              exc_info=True)
                 span.record_exception(e)
                 track_db_error("pg_create_session_with_id")
@@ -287,18 +290,20 @@ class PostgresSessionStore(PostgresRepository[Session]):
                 track_db_error("pg_update_session_activity")
                 return False
 
-    async def find_user_active_sessions(self, user_id: str) -> List[Dict[str, Any]]:
+    async def find_user_active_sessions(self, user_id: str, book_id: str) -> List[Dict[str, Any]]:
         """
         Find active sessions for a specific user.
 
         Args:
             user_id: The user ID to search for
+            book_id: The book ID to search for
 
         Returns:
             List of session records
         """
         with optional_trace_span(self.tracer, "pg_store_find_user_active_sessions") as span:
             span.set_attribute("user_id", user_id)
+            span.set_attribute("book_id", book_id)
 
             pool = await self._get_pool()
             try:
@@ -306,7 +311,7 @@ class PostgresSessionStore(PostgresRepository[Session]):
                     async with pool.acquire() as conn:
                         # Find active sessions for this user
                         rows = await conn.fetch('''
-                            SELECT session_id, user_id, status, created_at, last_active, expires_at
+                            SELECT session_id, user_id, book_id, status, created_at, last_active, expires_at
                             FROM session.active_sessions
                             WHERE user_id = $1
                             AND status = $2
@@ -319,6 +324,7 @@ class PostgresSessionStore(PostgresRepository[Session]):
                             sessions.append({
                                 'session_id': row['session_id'],
                                 'user_id': row['user_id'],
+                                'book_id': row['book_id'],
                                 'status': row['status'],
                                 'created_at': row['created_at'].timestamp() if row['created_at'] else None,
                                 'last_active': row['last_active'].timestamp() if row['last_active'] else None,
@@ -327,7 +333,7 @@ class PostgresSessionStore(PostgresRepository[Session]):
 
                         return sessions
             except Exception as e:
-                logger.error(f"Error finding active sessions for user {user_id} in PostgreSQL: {e}", exc_info=True)
+                logger.error(f"Error finding active sessions for user {user_id} - {book_id} in PostgreSQL: {e}", exc_info=True)
                 span.record_exception(e)
                 track_db_error("pg_find_user_active_sessions")
                 return []
@@ -382,6 +388,7 @@ class PostgresSessionStore(PostgresRepository[Session]):
         session = Session(
             session_id=session_row['session_id'],
             user_id=session_row['user_id'],
+            book_id=session_row['book_id'],
             status=SessionStatus(session_row['status']),
             created_at=session_row['created_at'].timestamp(),
             last_active=session_row['last_active'].timestamp(),
@@ -436,6 +443,7 @@ class PostgresSessionStore(PostgresRepository[Session]):
         session = Session(
             session_id=session_row['session_id'],
             user_id=session_row['user_id'],
+            book_id=session_row['book_id'],
             status=SessionStatus(session_row['status']),
             created_at=session_row['created_at'].timestamp(),
             last_active=session_row['last_active'].timestamp(),

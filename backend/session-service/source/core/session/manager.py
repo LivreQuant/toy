@@ -69,45 +69,46 @@ class SessionManager:
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
 
-    async def start_session(self, user_id: str, device_id: str) -> Tuple[bool, str]:
+    async def start_session(self, user_id: str, book_id: str, device_id: str) -> Tuple[bool, str]:
         """
         Start a session by connecting to the user's existing simulator
         
         Args:
             user_id: User ID
+            book_id: Book ID
             device_id: Device ID
             
         Returns:
             Tuple of (success, error_message)
         """
-        logger.info(f"Starting session for user {user_id}, device {device_id}")
+        logger.info(f"Starting session for user {user_id} - {book_id}, device {device_id}")
         
         # Set service to active state
-        await self.state_manager.set_active(user_id=user_id)
+        await self.state_manager.set_active(user_id=user_id, book_id=book_id)
         session_id = self.state_manager.get_active_session_id()
         
         # Create session in database
         success = await self.store_manager.session_store.create_session(
-            session_id, user_id, device_id, ip_address="127.0.0.1"
+            session_id, user_id, book_id, device_id, ip_address="127.0.0.1"
         )
         
         if not success:
             return False, "Failed to create session in database"
         
         # Start connection attempt with retry (non-blocking)
-        await self.simulator_manager.start_connection_retry(user_id)
+        await self.simulator_manager.start_connection_retry(book_id)
         
         # Start data streaming task
-        await self._start_data_streaming(session_id, user_id)
+        await self._start_data_streaming(session_id, user_id, book_id)
         
-        logger.info(f"Session started successfully for user {user_id}")
+        logger.info(f"Session started successfully for user {user_id} - {book_id}")
         return True, ""
 
-    async def _start_data_streaming(self, session_id: str, user_id: str):
+    async def _start_data_streaming(self, session_id: str, user_id: str, book_id: str):
         """Start exchange data streaming task"""
         try:
             stream_task = asyncio.create_task(
-                self._stream_simulator_data(session_id, user_id)
+                self._stream_simulator_data(session_id, user_id, book_id)
             )
             stream_task.set_name(f"stream-{session_id}")
             
@@ -119,7 +120,7 @@ class SessionManager:
         except Exception as e:
             logger.error(f"Failed to start data streaming: {e}", exc_info=True)
 
-    async def _stream_simulator_data(self, session_id: str, user_id: str):
+    async def _stream_simulator_data(self, session_id: str, user_id: str, book_id: str):
         """Stream data from connected simulator (with retry logic)"""
         while True:
             try:
@@ -134,7 +135,7 @@ class SessionManager:
                 
                 # Stream data while connected
                 async for data in self.simulator_manager.stream_exchange_data(
-                    session_id, f"stream-{session_id}", user_id
+                    session_id, f"stream-{session_id}", book_id
                 ):
                     # Data is automatically forwarded via callback
                     pass
