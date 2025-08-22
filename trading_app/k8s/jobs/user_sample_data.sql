@@ -51,8 +51,8 @@ INSERT INTO exch_us_equity.metadata (
 -- =====================================================================================
 -- INSERT USER
 -- =====================================================================================
-INSERT INTO exch_us_equity.users (
-    user_id,
+INSERT INTO exch_us_equity.books (
+    book_id,
     exch_id,
     timezone,
     base_currency,
@@ -76,8 +76,8 @@ INSERT INTO exch_us_equity.users (
 -- =====================================================================================
 -- INSERT USER OPERATIONAL PARAMETERS
 -- =====================================================================================
-INSERT INTO exch_us_equity.user_operational_parameters (
-    user_id,
+INSERT INTO exch_us_equity.book_operational_parameters (
+    book_id,
     max_position_size_pct,
     min_position_size_pct,
     max_days_to_liquidate
@@ -94,7 +94,7 @@ INSERT INTO exch_us_equity.user_operational_parameters (
 -- =====================================================================================
 /*
 INSERT INTO exch_us_equity.portfolio_data (
-    user_id,
+    book_id,
     timestamp,
     symbol,
     quantity,
@@ -113,7 +113,7 @@ INSERT INTO exch_us_equity.portfolio_data (
 -- INSERT ACCOUNT DATA
 -- =====================================================================================
 INSERT INTO exch_us_equity.account_data (
-    user_id,
+    book_id,
     timestamp,
     type,
     currency,
@@ -132,7 +132,7 @@ INSERT INTO exch_us_equity.account_data (
 -- =====================================================================================
 /*
 INSERT INTO exch_us_equity.return_data (
-    user_id,
+    book_id,
     timestamp,
     return_id,
     category,

@@ -2,23 +2,23 @@ syntax = "proto3";
 package session_exchange;
 
 service SessionExchangeSimulator {
-  // Single unified stream for all exchange data - user-aware with broadcasting
+  // Single unified stream for all exchange data - book-aware with broadcasting
   rpc StreamExchangeData(StreamRequest) returns (stream ExchangeDataUpdate);
 
   // Enhanced heartbeat with session status information
   rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
 
-  // Health check with service and user status
+  // Health check with service and book status
   rpc GetHealth(HealthRequest) returns (HealthResponse);
 
-  // New: Get session connection status for a user
+  // New: Get session connection status for a book
   rpc GetSessionStatus(SessionStatusRequest) returns (SessionStatusResponse);
 }
 
 // Enhanced stream request with connection metadata
 message StreamRequest {
   string client_id = 1;
-  string user_id = 2;  // User to stream data for
+  string book_id = 2;  // book to stream data for
   int64 connection_timestamp = 3;  // When this connection was established
   string session_instance_id = 4;  // Unique identifier for this session instance
   bool request_initial_state = 5;  // Whether to send initial state snapshot
@@ -27,8 +27,8 @@ message StreamRequest {
 // Enhanced exchange data update with broadcasting metadata
 message ExchangeDataUpdate {
   int64 timestamp = 1;
-  string user_id = 2;  // Which user this update belongs to
-  int64 sequence_number = 3;  // Sequential number for this user's updates
+  string book_id = 2;  // Which book this update belongs to
+  int64 sequence_number = 3;  // Sequential number for this book's updates
   string broadcast_id = 4;  // Unique ID for this broadcast batch
   bool is_initial_state = 5;  // Whether this is initial state data
   bool is_replay_data = 6;  // Whether this is historical replay data
@@ -51,7 +51,7 @@ message ExchangeDataUpdate {
 
 // New: Session metadata for tracking broadcast information
 message SessionMetadata {
-  int32 active_connections = 1;  // Number of active connections for this user
+  int32 active_connections = 1;  // Number of active connections for this book
   int64 last_broadcast_timestamp = 2;  // Last broadcast timestamp
   string source_instance_id = 3;  // Which exchange instance sent this
   ProcessingStatus processing_status = 4;  // Processing state information
@@ -70,7 +70,7 @@ message ProcessingStatus {
 // Enhanced heartbeat with session information
 message HeartbeatRequest {
   string client_id = 1;
-  string user_id = 2;
+  string book_id = 2;
   string session_instance_id = 3;  // Session instance requesting heartbeat
   int64 last_received_sequence = 4;  // Last sequence number received
 }
@@ -81,12 +81,12 @@ message HeartbeatResponse {
   string current_bin = 3;
   string next_bin = 4;
   string market_state = 5;
-  SessionConnectionInfo connection_info = 6;  // Connection status for this user
+  SessionConnectionInfo connection_info = 6;  // Connection status for this book
 }
 
 // New: Session connection information
 message SessionConnectionInfo {
-  int32 active_connections = 1;  // Number of active connections for this user
+  int32 active_connections = 1;  // Number of active connections for this book
   int64 next_expected_sequence = 2;  // Next sequence number to be sent
   int64 last_sent_timestamp = 3;  // Last data sent timestamp
   bool is_primary_connection = 4;  // Whether this is the primary connection
@@ -96,7 +96,7 @@ message SessionConnectionInfo {
 // Enhanced health request
 message HealthRequest {
   string client_id = 1;
-  string user_id = 2;
+  string book_id = 2;
   string session_instance_id = 3;
   bool include_session_stats = 4;  // Whether to include session statistics
 }
@@ -112,18 +112,18 @@ message HealthResponse {
 
 // New: Session service statistics
 message SessionServiceStats {
-  int32 total_active_users = 1;  // Total number of users with active sessions
+  int32 total_active_books = 1;  // Total number of books with active sessions
   int32 total_active_connections = 2;  // Total number of active connections
-  map<string, UserSessionStats> user_stats = 3;  // Per-user session statistics
-  int64 total_updates_sent = 4;  // Total updates sent across all users
+  map<string, BookSessionStats> book_stats = 3;  // Per-book session statistics
+  int64 total_updates_sent = 4;  // Total updates sent across all books
   double average_latency_ms = 5;  // Average processing latency
 }
 
-// New: Per-user session statistics
-message UserSessionStats {
-  string user_id = 1;
-  int32 active_connections = 2;  // Number of active connections for this user
-  int64 updates_sent = 3;  // Total updates sent to this user
+// New: Per-book session statistics
+message BookSessionStats {
+  string book_id = 1;
+  int32 active_connections = 2;  // Number of active connections for this book
+  int64 updates_sent = 3;  // Total updates sent to this book
   int64 last_activity_timestamp = 4;  // Last activity timestamp
   repeated string session_instances = 5;  // Connected session instance IDs
   int64 last_sequence_sent = 6;  // Last sequence number sent
@@ -131,14 +131,14 @@ message UserSessionStats {
 
 // New: Session status request/response
 message SessionStatusRequest {
-  string user_id = 1;
+  string book_id = 1;
   string session_instance_id = 2;
 }
 
 message SessionStatusResponse {
-  string user_id = 1;
+  string book_id = 1;
   bool is_connected = 2;
-  int32 connection_count = 3;  // Number of connections for this user
+  int32 connection_count = 3;  // Number of connections for this book
   int64 last_update_timestamp = 4;
   int64 next_sequence_number = 5;
   repeated string active_session_instances = 6;

@@ -10,6 +10,21 @@ from source.config import config
 logger = logging.getLogger('api_utils')
 
 
+async def verify_book_ownership(user_id: str, book_id: str, session_manager) -> bool:
+    """Verify that user_id owns book_id"""
+    try:
+        pool = await session_manager.store_manager.session_store._get_pool()
+        async with pool.acquire() as conn:
+            result = await conn.fetchval('''
+                SELECT 1 FROM fund.books
+                WHERE book_id = $1 AND user_id = $2
+                LIMIT 1
+            ''', book_id, user_id)
+            return result is not None
+    except Exception as e:
+        logger.error(f"Error verifying book ownership: {e}")
+        return False
+
 async def validate_token_with_auth_service(token: str, headers: dict = None) -> Dict[str, Any]:
     """
     Call the auth service directly to validate a token.

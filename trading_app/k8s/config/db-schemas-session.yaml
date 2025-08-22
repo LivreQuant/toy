@@ -11,6 +11,7 @@ data:
     CREATE TABLE IF NOT EXISTS session.active_sessions (
       session_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
       user_id UUID NOT NULL REFERENCES auth.users(user_id) ON DELETE CASCADE,
+      book_id UUID NOT NULL,
       status TEXT NOT NULL,
       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
       last_active TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,

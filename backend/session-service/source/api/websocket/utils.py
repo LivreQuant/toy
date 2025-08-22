@@ -10,7 +10,7 @@ from typing import Tuple, Any
 from aiohttp import web
 
 from source.core.session.manager import SessionManager
-from source.api.utils import validate_token_with_auth_service
+from source.api.utils import validate_token_with_auth_service, verify_book_ownership
 from source.api.websocket.exceptions import (
     WebSocketError,  # Keep this import
     ClientError,  # Import the new name instead of WebSocketClientError
@@ -32,7 +32,7 @@ async def authenticate_websocket_request(
         session_manager: The session manager instance.
 
     Returns:
-        A tuple containing: (user_id, session_id, device_id)
+        A tuple containing: (user_id, book_id, device_id)
 
     Raises:
         ClientError: If required parameters are missing.
@@ -98,6 +98,16 @@ async def authenticate_websocket_request(
             message="Invalid authentication token - missing user ID",
             error_code="AUTH_FAILED"
         )
+
+    # NEW: Verify book ownership
+    book_id = query.get('bookId')  # Add bookId to query params
+    if not book_id:
+        raise ClientError("Missing required parameter: bookId", "MISSING_PARAMETERS")
+    
+    # Verify user owns this book
+    owns_book = await verify_book_ownership(user_id, book_id, session_manager)
+    if not owns_book:
+        raise WebSocketError("User does not own this book", "UNAUTHORIZED_BOOK_ACCESS")
 
     # Rest of the function remains unchanged...
     # Check if device ID matches existing session

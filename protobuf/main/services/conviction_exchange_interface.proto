@@ -43,7 +43,7 @@ message ConvictionRequest {
 }
 
 message BatchConvictionRequest {
-  string user_id = 1;  // User submitting the convictions
+  string book_id = 1;  // Book submitting the convictions
   repeated ConvictionRequest convictions = 2;
 }
 
@@ -60,7 +60,7 @@ message BatchConvictionResponse {
 }
 
 message BatchCancelRequest {
-  string user_id = 1;  // User canceling the convictions
+  string book_id = 1;  // Book canceling the convictions
   repeated string conviction_id = 2;
 }
 
