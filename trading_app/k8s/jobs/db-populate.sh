@@ -15,15 +15,15 @@ while [[ $# -gt 0 ]]; do
             CREATE_USER=true
             shift
             ;;
-        --delete-user-data)
+        --delete-book-data)
             DELETE_USER_DATA=true
             shift
             ;;
         *)
             echo "Unknown option: $1"
-            echo "Usage: $0 [--create-user] [--delete-user-data]"
+            echo "Usage: $0 [--create-user] [--delete-book-data]"
             echo "  --create-user      Create fake user and fund data"
-            echo "  --delete-user-data Delete specific user tables to test fund service creation"
+            echo "  --delete-book-data Delete specific user tables to test fund service creation"
             exit 1
             ;;
     esac
@@ -50,7 +50,7 @@ if [ "$DELETE_USER_DATA" = true ]; then
     echo "🗑️  DELETING SPECIFIC USER DATA..."
     echo "This will only delete:"
     echo "  - exch_us_equity.metadata (exchange metadata)"
-    echo "  - exch_us_equity.users (exchange user data)"  
+    echo "  - exch_us_equity.books (exchange user data)"  
     echo "  - exch_us_equity.account_data (user account data)"
     echo ""
     
@@ -66,14 +66,14 @@ if [ "$DELETE_USER_DATA" = true ]; then
     
     kubectl exec -it $POSTGRES_POD -- psql -U opentp -d opentp -c \
     "DELETE FROM exch_us_equity.account_data;
-     DELETE FROM exch_us_equity.users; 
+     DELETE FROM exch_us_equity.books; 
      DELETE FROM exch_us_equity.metadata;
      
      SELECT 'Deleted specific user data successfully!' as status;
      
      SELECT 'Remaining records:' as info;
      SELECT 'metadata' as table_name, count(*) as records FROM exch_us_equity.metadata
-     UNION ALL SELECT 'users', count(*) FROM exch_us_equity.users  
+     UNION ALL SELECT 'books', count(*) FROM exch_us_equity.books  
      UNION ALL SELECT 'account_data', count(*) FROM exch_us_equity.account_data;"
     
     if [ $? -ne 0 ]; then
@@ -227,24 +227,6 @@ EOF
     fi
 fi
 
-# Clear existing data
-echo ""
-echo "Clearing existing data..."
-kubectl exec -it $POSTGRES_POD -- psql -U opentp -d opentp -c \
-"TRUNCATE TABLE exch_us_equity.return_data CASCADE;
-TRUNCATE TABLE exch_us_equity.trade_data CASCADE;
-TRUNCATE TABLE exch_us_equity.order_data CASCADE;
-TRUNCATE TABLE exch_us_equity.impact_data CASCADE;
-TRUNCATE TABLE exch_us_equity.portfolio_risk_data CASCADE;
-TRUNCATE TABLE exch_us_equity.cash_flow_data CASCADE;
-TRUNCATE TABLE exch_us_equity.account_data CASCADE;
-TRUNCATE TABLE exch_us_equity.portfolio_data CASCADE;
-TRUNCATE TABLE exch_us_equity.users CASCADE;
-TRUNCATE TABLE exch_us_equity.risk_factor_data CASCADE;
-TRUNCATE TABLE exch_us_equity.risk_symbol_data CASCADE;
-TRUNCATE TABLE exch_us_equity.universe_data CASCADE;
-TRUNCATE TABLE exch_us_equity.metadata CASCADE;"
-
 if [ $? -ne 0 ]; then
    echo "ERROR: Failed to clear data!"
    exit 1
@@ -291,7 +273,7 @@ kubectl exec -it $POSTGRES_POD -- psql -U opentp -d opentp -c \
 "SELECT 'auth.users' as table_name, count(*) as records FROM auth.users
 UNION ALL SELECT 'metadata', count(*) FROM exch_us_equity.metadata
 UNION ALL SELECT 'universe_data', count(*) FROM exch_us_equity.universe_data
-UNION ALL SELECT 'users', count(*) FROM exch_us_equity.users
+UNION ALL SELECT 'books', count(*) FROM exch_us_equity.books
 UNION ALL SELECT 'portfolio_data', count(*) FROM exch_us_equity.portfolio_data
 ORDER BY table_name;"
 

@@ -22,7 +22,7 @@ logger = logging.getLogger('websocket_utils')
 async def authenticate_websocket_request(
         request: web.Request,
         session_manager: SessionManager
-) -> Tuple[Any, str]:
+) -> Tuple[Any, str, str]:
     """
     Authenticates a WebSocket connection request for a single-user service.
     Enhanced with device ID validation.
@@ -115,7 +115,7 @@ async def authenticate_websocket_request(
 
     if not session:
         logger.warning(f"Session not found during WebSocket authentication, continue with new session.")
-        return user_id, device_id
+        return user_id, book_id, device_id
 
     details = session.details if session else None
     existing_device_id = details.device_id if details else None
@@ -140,7 +140,7 @@ async def authenticate_websocket_request(
         'ip_address': request.remote
     })
 
-    return user_id, device_id
+    return user_id, book_id, device_id
 
 
 async def validate_message_params(message: dict, required_params: list) -> Tuple[bool, str]:

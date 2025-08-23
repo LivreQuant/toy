@@ -1,11 +1,11 @@
-# k8s/config/db-schemas-exch-us-equities-user-data.yaml
+# k8s/config/db-schemas-exch-us-equities-book-data.yaml
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: db-schemas-exch-us-equities-user-data
+  name: db-schemas-exch-us-equities-book-data
 data:
-  exch-us-equities-user-data.sql: |
-    -- OpenTP Exchange Service Database Schema - User Data Tables
+  exch-us-equities-book-data.sql: |
+    -- OpenTP Exchange Service Database Schema - Book Data Tables
 
     -- =====================================================================================
     -- EXCHANGE METADATA TABLE
@@ -71,7 +71,7 @@ data:
     -- USER CASH FLOW DATA TABLE
     -- =====================================================================================
     CREATE TABLE IF NOT EXISTS exch_us_equity.cash_flow_data (
-        book_id UUID NOT NULL REFERENCES auth.books(book_id) ON DELETE CASCADE,
+        book_id UUID NOT NULL REFERENCES fund.books(book_id) ON DELETE CASCADE,
         timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
         flow_type VARCHAR(50) NOT NULL,
         from_account VARCHAR(100) NOT NULL,
@@ -99,7 +99,7 @@ data:
     -- USER PORTFOLIO RISK DATA TABLE
     -- =====================================================================================
     CREATE TABLE IF NOT EXISTS exch_us_equity.portfolio_risk_data (
-        book_id UUID NOT NULL REFERENCES auth.books(book_id) ON DELETE CASCADE,
+        book_id UUID NOT NULL REFERENCES fund.books(book_id) ON DELETE CASCADE,
         timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
         total_exposure DECIMAL(15,4) NOT NULL,
         net_exposure DECIMAL(15,4) NOT NULL,
@@ -120,7 +120,7 @@ data:
     -- USER PORTFOLIO DATA TABLE
     -- =====================================================================================
     CREATE TABLE IF NOT EXISTS exch_us_equity.portfolio_data (
-        book_id UUID NOT NULL REFERENCES auth.books(book_id) ON DELETE CASCADE,
+        book_id UUID NOT NULL REFERENCES fund.books(book_id) ON DELETE CASCADE,
         timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
         symbol VARCHAR(20) NOT NULL,
         quantity DECIMAL(12,4) NOT NULL,
@@ -142,7 +142,7 @@ data:
     -- USER ACCOUNTS DATA TABLE
     -- =====================================================================================
     CREATE TABLE IF NOT EXISTS exch_us_equity.account_data (
-        book_id UUID NOT NULL REFERENCES auth.books(book_id) ON DELETE CASCADE,
+        book_id UUID NOT NULL REFERENCES fund.books(book_id) ON DELETE CASCADE,
         timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
         type VARCHAR(50) NOT NULL,
         currency VARCHAR(3) NOT NULL,
@@ -160,7 +160,7 @@ data:
     -- USER IMPACT DATA TABLE
     -- =====================================================================================
     CREATE TABLE IF NOT EXISTS exch_us_equity.impact_data (
-        book_id UUID NOT NULL REFERENCES auth.books(book_id) ON DELETE CASCADE,
+        book_id UUID NOT NULL REFERENCES fund.books(book_id) ON DELETE CASCADE,
         timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
         symbol VARCHAR(20) NOT NULL,
         trade_id VARCHAR(100) NOT NULL,
@@ -185,7 +185,7 @@ data:
     -- USER ORDERS DATA TABLE
     -- =====================================================================================
     CREATE TABLE IF NOT EXISTS exch_us_equity.order_data (
-        book_id UUID NOT NULL REFERENCES auth.books(book_id) ON DELETE CASCADE,
+        book_id UUID NOT NULL REFERENCES fund.books(book_id) ON DELETE CASCADE,
         timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
         order_id VARCHAR(100) NOT NULL,
         cl_order_id VARCHAR(100) NOT NULL,
@@ -215,7 +215,7 @@ data:
     -- USER RETURNS DATA TABLE
     -- =====================================================================================
     CREATE TABLE IF NOT EXISTS exch_us_equity.return_data (
-        book_id UUID NOT NULL REFERENCES auth.books(book_id) ON DELETE CASCADE,
+        book_id UUID NOT NULL REFERENCES fund.books(book_id) ON DELETE CASCADE,
         timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
         return_id VARCHAR(100) NOT NULL,
         category VARCHAR(100) NOT NULL,
@@ -240,7 +240,7 @@ data:
     -- USER TRADES DATA TABLE
     -- =====================================================================================
     CREATE TABLE IF NOT EXISTS exch_us_equity.trade_data (
-        book_id UUID NOT NULL REFERENCES auth.books(book_id) ON DELETE CASCADE,
+        book_id UUID NOT NULL REFERENCES fund.books(book_id) ON DELETE CASCADE,
         start_timestamp TIMESTAMP WITH TIME ZONE,
         end_timestamp TIMESTAMP WITH TIME ZONE,
         trade_id VARCHAR(100) NOT NULL,

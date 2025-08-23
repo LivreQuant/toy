@@ -48,31 +48,40 @@ class MetadataManager(BaseTableManager):
             return {}
 
     async def update_exchange_metadata(self, metadata: Dict) -> bool:
-        """Insert exchange metadata"""
+        """Update only last_snap for existing exchange, or insert full metadata for new exchange"""
         await self.ensure_connection()
-
         try:
             async with self.pool.acquire() as conn:
-                query = """
-                    INSERT INTO exch_us_equity.metadata (
-                        exch_id, exchange_type, timezone, exchanges, 
-                        last_snap, pre_market_open, market_open, market_close, 
-                        post_market_close
-                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-                    ON CONFLICT (exch_id) DO UPDATE SET
-                        exchange_type = EXCLUDED.exchange_type,
-                        timezone = EXCLUDED.timezone,
-                        exchanges = EXCLUDED.exchanges,
-                        last_snap = EXCLUDED.last_snap,
-                        pre_market_open = EXCLUDED.pre_market_open,
-                        market_open = EXCLUDED.market_open,
-                        market_close = EXCLUDED.market_close,
-                        post_market_close = EXCLUDED.post_market_close,
+                # First, try to update only last_snap for existing exchange
+                update_query = """
+                    UPDATE exch_us_equity.metadata 
+                    SET last_snap = $2, 
                         updated_time = CURRENT_TIMESTAMP
+                    WHERE exch_id = $1
                 """
-
+                
+                result = await conn.execute(
+                    update_query,
+                    metadata['exch_id'],
+                    metadata['last_snap']
+                )
+                
+                # Check if the update affected any rows
+                if result == "UPDATE 1":
+                    self.logger.info(f"✅ Updated last_snap for existing exchange: {metadata['exch_id']}")
+                    return True
+                
+                # If no rows were updated, this is a new exchange - do full insert
+                insert_query = """
+                    INSERT INTO exch_us_equity.metadata (
+                        exch_id, exchange_type, timezone, exchanges,
+                        last_snap, pre_market_open, market_open, market_close,
+                        post_market_close, updated_time
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP)
+                """
+                
                 await conn.execute(
-                    query,
+                    insert_query,
                     metadata['exch_id'],
                     metadata['exchange_type'],
                     metadata['timezone'],
@@ -83,10 +92,10 @@ class MetadataManager(BaseTableManager):
                     metadata['market_close'],
                     metadata['post_market_close']
                 )
-
-                self.logger.info(f"✅ Inserted/updated exchange metadata for exch_id: {metadata['exch_id']}")
+                
+                self.logger.info(f"✅ Inserted new exchange metadata for exch_id: {metadata['exch_id']}")
                 return True
-
+                
         except Exception as e:
-            self.logger.error(f"❌ Error inserting exchange metadata: {e}")
+            self.logger.error(f"❌ Error updating exchange metadata: {e}")
             return False

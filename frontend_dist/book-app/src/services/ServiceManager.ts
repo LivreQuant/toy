@@ -31,7 +31,7 @@ class ServiceManager {
     return ServiceManager.instance;
   }
 
-  async initialize(): Promise<{
+  async initialize(bookId: string): Promise<{
     authServices: any;
     apiClients: any;
     connectionManager: ConnectionManager;
@@ -73,7 +73,7 @@ class ServiceManager {
     // Create connection manager (only once) - FIXED
     if (!this.connectionManager) {
       // FIXED: Pass the existing TokenManager that already works
-      this.connectionManager = createConnectionManagerWithGlobalDeps(this.authServices.tokenManager);
+      this.connectionManager = createConnectionManagerWithGlobalDeps(this.authServices.tokenManager, bookId);
       logger.info('✅ ConnectionManager created');
     }
 

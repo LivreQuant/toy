@@ -116,7 +116,7 @@ class SessionManager:
             If success is True, result_dict contains 'user_id', 'book_id'
         """
         # Extract token and device ID
-        token, book_id, device_id, csrf_token = await self.get_token(request)
+        token, device_id, csrf_token = await self.get_token(request)
 
         if not token:
             return False, {
@@ -143,6 +143,7 @@ class SessionManager:
                 "status": 400
             }
 
+        """
         book_id_valid = await BookRepository.verify_book_ownership(user_id, book_id)
         if not book_id_valid:
             return False, {
@@ -150,8 +151,9 @@ class SessionManager:
                 "error": "Invalid book ID for this session",
                 "status": 400
             }
+        """
 
-        return True, {"user_id": user_id, "book_id": book_id}
+        return True, {"user_id": user_id}
 
     async def authenticate_request(self,
                                    request: web.Request,
@@ -170,7 +172,7 @@ class SessionManager:
             If success is True, result_dict contains 'user_id', 'book_id'
         """
         # Extract token and device ID
-        token, book_id, device_id, csrf_token = await self.get_token(request)
+        token, device_id, csrf_token = await self.get_token(request)
 
         if not token:
             return False, {
@@ -188,6 +190,7 @@ class SessionManager:
                 "status": 401
             }
 
+        """
         book_id_valid = await BookRepository.verify_book_ownership(user_id, book_id)
         if not book_id_valid:
             return False, {
@@ -195,5 +198,6 @@ class SessionManager:
                 "error": "Invalid book ID for this session",
                 "status": 400
             }
+        """
 
-        return True, {"user_id": user_id, "book_id": book_id}
+        return True, {"user_id": user_id}

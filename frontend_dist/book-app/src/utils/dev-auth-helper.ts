@@ -32,7 +32,7 @@ console.log('🔧 DEV_AUTH_CONFIG DEBUG:', {
   defaultBookId: DEV_AUTH_CONFIG.defaultBookId
 });
 
-export async function attemptDevAuthentication(): Promise<boolean> {
+export async function attemptDevAuthentication(bookId: string): Promise<boolean> {
   console.log('🔧 DEV MODE: attemptDevAuthentication called', {
     enabled: DEV_AUTH_CONFIG.enabled,
     hasUsername: !!DEV_AUTH_CONFIG.credentials.username,
@@ -54,7 +54,7 @@ export async function attemptDevAuthentication(): Promise<boolean> {
 
   try {
     const serviceManager = ServiceManager.getInstance();
-    const services = await serviceManager.initialize();
+    const services = await serviceManager.initialize(bookId);
 
     console.log('🔧 DEV MODE: Auth services created, attempting login...');
 
@@ -145,13 +145,13 @@ export const DEV_NAVIGATION_HELPERS = {
 
 // FIXED: Updated development authentication helpers
 export const DEV_AUTH_HELPERS = {
-  manualLogin: async (username?: string, password?: string) => {
+  manualLogin: async (username: string, password: string, bookId: string) => {
     const user = username || prompt('Enter username:');
     const pass = password || prompt('Enter password:');
     if (user && pass) {
       try {
         const serviceManager = ServiceManager.getInstance();
-        const services = await serviceManager.initialize();
+        const services = await serviceManager.initialize(bookId);
         
         const response = await services.apiClients.auth.login(user, pass);
         console.log('🔧 DEV MODE: Manual login response:', response);

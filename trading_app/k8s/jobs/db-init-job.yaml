@@ -25,7 +25,7 @@ spec:
             ls -la /schemas-conv/ || echo "No schemas-conv directory"
             ls -la /schemas-exch-us-equities-market-data/ || echo "No schemas-exch-us-equities-market-data directory"
             ls -la /schemas-exch-us-equities-global-data/ || echo "No schemas-exch-us-equities-global-data directory"
-            ls -la /schemas-exch-us-equities-user-data/ || echo "No schemas-exch-us-equities-user-data directory"
+            ls -la /schemas-exch-us-equities-book-data/ || echo "No schemas-exch-us-equities-book-data directory"
             ls -la /schemas/ || echo "No schemas directory"
             
             # Wait for database to be fully ready
@@ -147,17 +147,17 @@ spec:
               fi
             done
 
-            echo "Applying exch-us-equities user schema files..."
-            for schema in exch-us-equities-user-data.sql; do
+            echo "Applying exch-us-equities book schema files..."
+            for schema in exch-us-equities-book-data.sql; do
               echo "Applying $schema..."
-              if [ -f "/schemas-exch-us-equities-user-data/$schema" ]; then
-                PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -f /schemas-exch-us-equities-user-data/$schema
+              if [ -f "/schemas-exch-us-equities-book-data/$schema" ]; then
+                PGPASSWORD=$(cat /db-credentials/password) psql -h postgres -U $(cat /db-credentials/username) -d opentp -f /schemas-exch-us-equities-book-data/$schema
                 if [ $? -ne 0 ]; then
                   echo "Error applying $schema"
                   exit 1
                 fi
               else
-                echo "WARNING: File /schemas-exch-us-equities-user-data/$schema not found"
+                echo "WARNING: File /schemas-exch-us-equities-book-data/$schema not found"
               fi
             done
             
@@ -198,8 +198,8 @@ spec:
           mountPath: /schemas-exch-us-equities-market-data
         - name: db-schemas-exch-us-equities-global-data
           mountPath: /schemas-exch-us-equities-global-data
-        - name: db-schemas-exch-us-equities-user-data
-          mountPath: /schemas-exch-us-equities-user-data
+        - name: db-schemas-exch-us-equities-book-data
+          mountPath: /schemas-exch-us-equities-book-data
         - name: db-credentials
           mountPath: /db-credentials
           readOnly: true
@@ -225,9 +225,9 @@ spec:
       - name: db-schemas-exch-us-equities-global-data
         configMap:
           name: db-schemas-exch-us-equities-global-data
-      - name: db-schemas-exch-us-equities-user-data
+      - name: db-schemas-exch-us-equities-book-data
         configMap:
-          name: db-schemas-exch-us-equities-user-data
+          name: db-schemas-exch-us-equities-book-data
       - name: db-credentials
         secret:
           secretName: db-credentials

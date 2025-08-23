@@ -279,7 +279,7 @@ export class GlobalConfigService implements ConfigService {
 /**
  * FIXED Factory function - USE EXISTING TOKEN MANAGER!
  */
-export function createConnectionManagerWithGlobalDeps(tokenManager: TokenManager) {
+export function createConnectionManagerWithGlobalDeps(tokenManager: TokenManager, bookId: string) {
   logger.info('🔧 FACTORY: Creating ConnectionManager with existing TokenManager...');
   
   const stateManager = new GlobalStateManager();
@@ -303,7 +303,8 @@ export function createConnectionManagerWithGlobalDeps(tokenManager: TokenManager
     tokenManager,     // Use the EXISTING working TokenManager
     stateManager,
     toastService,
-    configService
+    configService,
+    bookId  // ✅ PASS BOOKID
   );
   
   logger.info('✅ FACTORY: ConnectionManager created successfully');

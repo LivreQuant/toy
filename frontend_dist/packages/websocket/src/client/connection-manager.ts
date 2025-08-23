@@ -30,6 +30,7 @@ export class ConnectionManager implements Disposable {
   private exchangeDataHandler: ExchangeDataHandler; // ADD THIS LINE
   private isDisposed = false;
   private hasAuthInitialized = false;
+  private currentBookId: string; // ✅ ADD THIS
   
   public desiredState: ConnectionDesiredState = {
     connected: false,
@@ -47,10 +48,13 @@ export class ConnectionManager implements Disposable {
     private stateManager: StateManager,
     private toastService: ToastService,
     private configService: ConfigService,
+    bookId: string,
     options: ConnectionManagerOptions = {}
   ) {
     this.logger.info('🔌 CONNECTION: Initializing ConnectionManager');
     
+    this.currentBookId = bookId; // ✅ ADD THIS LINE
+
     const reconnectionConfig = this.configService.getReconnectionConfig();
     const mergedOptions: ConnectionManagerOptions = {
       heartbeatInterval: options.heartbeatInterval || 15000,
@@ -384,7 +388,7 @@ export class ConnectionManager implements Disposable {
     });
     
     try {
-      const wsConnected = await this.socketClient.connect();
+      const wsConnected = await this.socketClient.connect(this.currentBookId);
       
       if (!wsConnected) {
         throw new Error('WebSocket connection failed');
@@ -496,7 +500,7 @@ export class ConnectionManager implements Disposable {
     }
   }
 
-  public async attemptRecovery(reason: string = 'manual'): Promise<boolean> {
+  public async attemptRecovery(reason: string): Promise<boolean> {
     if (this.isDisposed) return false;
     
     if (!this.hasAuthInitialized) {

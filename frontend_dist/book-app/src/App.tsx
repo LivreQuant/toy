@@ -91,7 +91,7 @@ console.log('🔧 DEBUG ENV VARS:', {
 });
 
 // Check authentication status and return appropriate component
-async function checkAuthenticationStatus(): Promise<{ 
+async function checkAuthenticationStatus(bookId: string): Promise<{ 
  isValid: boolean, 
  reason?: string,
  authServices?: any,
@@ -126,7 +126,7 @@ async function checkAuthenticationStatus(): Promise<{
  // 🚨 NEW: Attempt development auto-login FIRST
  if (DEV_AUTH_CONFIG.enabled) {
    logger.info('🔧 DEV MODE: Development authentication enabled, attempting auto-login');
-   const devLoginSuccess = await attemptDevAuthentication();
+   const devLoginSuccess = await attemptDevAuthentication(bookId);
    
    if (devLoginSuccess) {
      logger.info('🔧 DEV MODE: Auto-login successful, proceeding with app initialization');
@@ -138,7 +138,7 @@ async function checkAuthenticationStatus(): Promise<{
  // 🔄 USE SINGLETON PATTERN - Only create services once
  try {
    const serviceManager = ServiceManager.getInstance();
-   const services = await serviceManager.initialize();
+   const services = await serviceManager.initialize(bookId);
    
    logger.info('✅ Auth services created', { 
      hasTokenManager: !!services.authServices.tokenManager,
@@ -342,7 +342,8 @@ function App() {
  // Check authentication status on mount
  useEffect(() => {
    const checkAuth = async () => {
-     const result = await checkAuthenticationStatus(); // 🚨 Now async
+     const bookId = window.location.pathname.split('/')[2];
+     const result = await checkAuthenticationStatus(bookId); // 🚨 Now async
      setAuthResult(result);
    };
    

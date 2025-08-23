@@ -84,7 +84,7 @@ export class SocketClient implements Disposable {
   }
 
   // Connect to the WebSocket server
-  public async connect(): Promise<boolean> {
+  public async connect(bookId: string): Promise<boolean> {
     if (this.socket) {
       this.logger.warn(`SocketClient #${this.instanceId}: Connect called with existing socket, cleaning up previous instance`);
       this.cleanup();
@@ -116,6 +116,7 @@ export class SocketClient implements Disposable {
       
       const params = new URLSearchParams({ 
         token, 
+        bookId,
         deviceId,
         csrfToken
       });
@@ -127,6 +128,7 @@ export class SocketClient implements Disposable {
       this.logger.info(`🔍 SocketClient #${this.instanceId}: Constructing connection URL`, {
         baseWsUrl,
         hasToken: !!token,
+        hasBookId: !!bookId,
         hasDeviceId: !!deviceId,
         hasCsrfToken: !!csrfToken,
         paramsString: params.toString(),

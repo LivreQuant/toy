@@ -333,9 +333,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({
   useEffect(() => {
     if (process.env.NODE_ENV === 'development') {
       (window as any).devAuth = {
-        manualLogin: async (username?: string, password?: string) => {
+        manualLogin: async (username?: string, password?: string, bookId?: string) => {
           const user = username || prompt('Enter username:');
           const pass = password || prompt('Enter password:');
+          const book = bookId || prompt('Enter bookId:');
           if (user && pass) {
             return await login({ username: user, password: pass });
           }

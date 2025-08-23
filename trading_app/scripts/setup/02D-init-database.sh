@@ -14,7 +14,7 @@ kubectl apply -f "$K8S_DIR/config/db-schemas-crypto.yaml"
 kubectl apply -f "$K8S_DIR/config/db-schemas-conv.yaml"
 kubectl apply -f "$K8S_DIR/config/db-schemas-exch-us-equities-market-data.yaml"
 kubectl apply -f "$K8S_DIR/config/db-schemas-exch-us-equities-global-data.yaml"
-kubectl apply -f "$K8S_DIR/config/db-schemas-exch-us-equities-user-data.yaml"
+kubectl apply -f "$K8S_DIR/config/db-schemas-exch-us-equities-book-data.yaml"
 
 # Initialize database with the job
 kubectl apply -f "$K8S_DIR/jobs/db-init-job.yaml"
