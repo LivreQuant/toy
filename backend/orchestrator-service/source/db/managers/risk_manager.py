@@ -156,7 +156,100 @@ class RiskManager(BaseManager):
         scaled_volatility = daily_volatility * Decimal(str(holding_period ** 0.5))
         
         # Calculate VaR based on confidence level
-        if confidence_level == Decimal('0.95'):
-            z_score = Decimal('1.645')  # 95% confidence
         elif confidence_level == Decimal('0.99'):
             z_score = Decimal('2.326')  # 99% confidence
+        else:
+            z_score = Decimal('1.96')   # Default 97.5% confidence
+        
+        var_amount = portfolio_value * scaled_volatility * z_score
+        var_percentage = (var_amount / portfolio_value * 100) if portfolio_value > 0 else Decimal('0')
+        
+        # Expected shortfall (simplified as 1.3x VaR)
+        expected_shortfall = var_amount * Decimal('1.3')
+        
+        # Store VaR calculation
+        var_record = {
+            'account_id': account_id,
+            'calculation_date': calculation_date,
+            'confidence_level': confidence_level,
+            'holding_period': holding_period,
+            'var_amount': var_amount,
+            'expected_shortfall': expected_shortfall,
+            'portfolio_value': portfolio_value,
+            'var_percentage': var_percentage,
+            'method': 'PARAMETRIC'
+        }
+        
+        await self.upsert_portfolio_var([var_record])
+        
+        return {
+            'account_id': account_id,
+            'calculation_date': str(calculation_date),
+            'var_amount': float(var_amount),
+            'var_percentage': float(var_percentage),
+            'expected_shortfall': float(expected_shortfall),
+            'portfolio_value': float(portfolio_value),
+            'confidence_level': float(confidence_level)
+        }
+    
+    async def upsert_portfolio_var(self, var_records: List[Dict[str, Any]]) -> int:
+        """Insert or update portfolio VaR records"""
+        if not var_records:
+            return 0
+        
+        queries = []
+        for record in var_records:
+            query = """
+                INSERT INTO risk_metrics.portfolio_var
+                (account_id, calculation_date, confidence_level, holding_period,
+                    var_amount, expected_shortfall, portfolio_value, var_percentage, method)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                ON CONFLICT (account_id, calculation_date, confidence_level, holding_period, method)
+                DO UPDATE SET
+                    var_amount = EXCLUDED.var_amount,
+                    expected_shortfall = EXCLUDED.expected_shortfall,
+                    portfolio_value = EXCLUDED.portfolio_value,
+                    var_percentage = EXCLUDED.var_percentage
+            """
+            
+            params = (
+                record['account_id'], record['calculation_date'],
+                float(record['confidence_level']), record['holding_period'],
+                float(record['var_amount']), float(record['expected_shortfall']),
+                float(record['portfolio_value']), float(record['var_percentage']),
+                record['method']
+            )
+            queries.append((query, params))
+        
+        await self.execute_transaction(queries)
+        return len(queries)
+    
+    async def get_portfolio_var(self, account_id: str, calculation_date: date = None,
+                                start_date: date = None, end_date: date = None) -> List[Dict[str, Any]]:
+        """Get portfolio VaR records"""
+        filters = {'account_id': account_id}
+        if calculation_date:
+            filters['calculation_date'] = calculation_date
+        
+        where_clause, params = self.build_where_clause(filters)
+        
+        if start_date:
+            where_clause += f" AND calculation_date >= ${len(params) + 1}"
+            params.append(start_date)
+        
+        if end_date:
+            where_clause += f" AND calculation_date <= ${len(params) + 1}"
+            params.append(end_date)
+        
+        query = f"""
+            SELECT * FROM risk_metrics.portfolio_var
+            WHERE {where_clause}
+            ORDER BY calculation_date DESC, confidence_level
+        """
+        
+        rows = await self.fetch_all(query, *params)
+        decimal_fields = [
+            'confidence_level', 'var_amount', 'expected_shortfall', 
+            'portfolio_value', 'var_percentage'
+        ]
+        return [self.convert_decimal_fields(row, decimal_fields) for row in rows]
