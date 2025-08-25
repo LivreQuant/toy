@@ -1,37 +1,38 @@
-# main.py
+# source/main.py
 import asyncio
 import logging
 from datetime import datetime
 import uvicorn
-from database import DatabaseManager
-from kubernetes_manager import KubernetesManager
-from scheduler import Scheduler
+from core.orchestrator import TradingOrchestrator
 from api import create_app
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
 
 async def main():
-    """Main entry point"""
-    logger.info("Starting Exchange Orchestrator Service")
+    """Enhanced main entry point for Trading Orchestrator"""
+    logger.info("🚀 Starting Enhanced Trading Orchestrator Service")
     
-    # Initialize components
-    db_manager = DatabaseManager()
-    k8s_manager = KubernetesManager()
-    scheduler = Scheduler(db_manager, k8s_manager)
+    # Initialize the main orchestrator
+    orchestrator = TradingOrchestrator()
     
-    # Initialize database
-    await db_manager.init()
+    # Initialize all components
+    await orchestrator.initialize()
     
-    # Create FastAPI app with components
-    app = create_app(db_manager, k8s_manager, scheduler)
+    # Create FastAPI app with orchestrator
+    app = create_app(orchestrator)
     
-    # Start scheduler in background
-    asyncio.create_task(scheduler.run())
+    # Start orchestrator background tasks
+    asyncio.create_task(orchestrator.run())
     
     # Start web server
     config = uvicorn.Config(app=app, host="0.0.0.0", port=8080, log_level="info")
     server = uvicorn.Server(config)
+    
+    logger.info("🌐 Starting web server on port 8080")
     await server.serve()
 
 if __name__ == "__main__":
