@@ -1,4 +1,4 @@
--- db/schemas/risk/risk_model.sql
+-- db/schemas/core/risk_model.sql
 -- Risk model tables for factor analysis
 
 -- Risk factors (style, macro, industry)
@@ -74,6 +74,49 @@ CREATE TABLE IF NOT EXISTS risk_model.factor_statistics (
     CONSTRAINT uk_factor_statistics UNIQUE(factor_date, factor_name)
 );
 
+-- Portfolio VaR table
+CREATE TABLE IF NOT EXISTS risk_metrics.portfolio_var (
+    var_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    account_id VARCHAR(50) NOT NULL,
+    calculation_date DATE NOT NULL,
+    confidence_level DECIMAL(5,3) NOT NULL,
+    holding_period INTEGER NOT NULL,
+    var_amount DECIMAL(20,2) NOT NULL,
+    expected_shortfall DECIMAL(20,2),
+    portfolio_value DECIMAL(20,2) NOT NULL,
+    var_percentage DECIMAL(8,4) NOT NULL,
+    method VARCHAR(50) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(account_id, calculation_date, confidence_level, holding_period, method)
+);
+
+-- Stress test results
+CREATE TABLE IF NOT EXISTS risk_metrics.stress_tests (
+    stress_test_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    account_id VARCHAR(50) NOT NULL,
+    test_date DATE NOT NULL,
+    scenario_name VARCHAR(100) NOT NULL,
+    scenario_type VARCHAR(50) NOT NULL,
+    stress_pnl DECIMAL(20,2) NOT NULL,
+    stress_return_pct DECIMAL(8,4) NOT NULL,
+    portfolio_value DECIMAL(20,2) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Risk exposures
+CREATE TABLE IF NOT EXISTS risk_metrics.risk_exposures (
+    exposure_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    account_id VARCHAR(50) NOT NULL,
+    calculation_date DATE NOT NULL,
+    exposure_type VARCHAR(50) NOT NULL,
+    exposure_name VARCHAR(100) NOT NULL,
+    exposure_value DECIMAL(20,2) NOT NULL,
+    exposure_percentage DECIMAL(8,4) NOT NULL,
+    limit_value DECIMAL(20,2),
+    limit_utilization_pct DECIMAL(8,4),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- Specific risk (idiosyncratic risk)
 CREATE TABLE IF NOT EXISTS risk_model.specific_risk (
     risk_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -96,3 +139,6 @@ COMMENT ON TABLE risk_model.factor_loadings IS 'Regression loadings from factor 
 COMMENT ON TABLE risk_model.factor_covariance IS 'Factor covariance and correlation matrix';
 COMMENT ON TABLE risk_model.factor_statistics IS 'Statistical properties of risk factors';
 COMMENT ON TABLE risk_model.specific_risk IS 'Idiosyncratic risk not explained by factors';
+COMMENT ON TABLE risk_metrics.portfolio_var IS 'Portfolio Value at Risk calculations';
+COMMENT ON TABLE risk_metrics.stress_tests IS 'Stress test scenario results';
+COMMENT ON TABLE risk_metrics.risk_exposures IS 'Portfolio risk exposures and limits';
