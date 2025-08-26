@@ -1,16 +1,11 @@
-# db/database.py (Add new managers)
-from .managers.universe_manager import UniverseManager
-from .managers.corporate_actions_manager import CorporateActionsManager
-from .managers.reconciliation_manager import ReconciliationManager
-from .managers.reporting_manager import ReportingManager
-from .managers.archival_manager import ArchivalManager
-from .managers.workflow_manager import WorkflowManager
+# db/database.py (Add state manager import and initialization)
+from .managers.state_manager import StateManager
 
 class DatabaseManager:
     def __init__(self):
         self.pool: Optional[asyncpg.Pool] = None
         
-        # Initialize all managers
+        # Initialize all managers including state manager
         self.positions: Optional[PositionManager] = None
         self.trades: Optional[TradeManager] = None
         self.pnl: Optional[PnLManager] = None
@@ -22,6 +17,7 @@ class DatabaseManager:
         self.reporting: Optional[ReportingManager] = None
         self.archival: Optional[ArchivalManager] = None
         self.workflows: Optional[WorkflowManager] = None
+        self.state: Optional[StateManager] = None  # Add state manager
     
     async def _initialize_managers(self):
         """Initialize all data managers"""
@@ -38,6 +34,7 @@ class DatabaseManager:
         self.reporting = ReportingManager(self)
         self.archival = ArchivalManager(self)
         self.workflows = WorkflowManager(self)
+        self.state = StateManager(self)  # Add state manager
         
         logger.info("✅ All data managers initialized")
     
@@ -56,7 +53,8 @@ class DatabaseManager:
             ("Reconciliation", self.reconciliation),
             ("Reporting", self.reporting),
             ("Archival", self.archival),
-            ("Workflows", self.workflows)
+            ("Workflows", self.workflows),
+            ("State Management", self.state)  # Add state manager
         ]
         
         for name, manager in managers_to_init:

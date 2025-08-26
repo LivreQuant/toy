@@ -17,7 +17,7 @@ class SODCoordinator:
     
     def __init__(self, orchestrator):
         self.orchestrator = orchestrator
-        self.workflow_engine = WorkflowEngine()
+        self.workflow_engine = WorkflowEngine(orchestrator.db_manager)
         
         # SOD components
         self.universe_builder = UniverseBuilder(orchestrator.db_manager)
@@ -49,51 +49,124 @@ class SODCoordinator:
         start_time = datetime.utcnow()
         
         try:
+            # Log operation start
+            await self.orchestrator.state_manager.save_operation_log(
+                "SOD", "STARTED", start_time
+            )
+            
             # Create context with orchestrator reference
             context = {
                 "orchestrator": self.orchestrator,
                 "sod_coordinator": self,
                 "execution_date": datetime.utcnow().date(),
-                "start_time": start_time
+                "start_time": start_time,
+                "workflow_type": "SOD"
             }
             
             # Execute workflow
             result = await self.workflow_engine.execute_workflow("sod_main", context)
+            end_time = datetime.utcnow()
             
-            # Save SOD completion state
+            # Handle workflow completion
             if result.success:
+                # Save SOD completion state
                 await self.orchestrator.state_manager.save_sod_completion(
-                    datetime.utcnow(),
-                    {"execution_time": result.execution_time, "task_results": result.task_results}
+                    end_time,
+                    {
+                        "execution_time": result.execution_time, 
+                        "task_results": result.task_results,
+                        "workflow_execution_id": result.workflow_execution_id
+                    }
                 )
                 
-                # Log operation
+                # Log successful operation
                 await self.orchestrator.state_manager.save_operation_log(
-                    "SOD", "SUCCESS", start_time, datetime.utcnow(),
-                    {"tasks_completed": result.completed_tasks}
+                    "SOD", "SUCCESS", start_time, end_time,
+                    {
+                        "tasks_completed": result.completed_tasks,
+                        "execution_time": result.execution_time,
+                        "workflow_execution_id": result.workflow_execution_id
+                    }
                 )
+                
+                logger.info(f"✅ SOD workflow completed successfully in {result.execution_time:.2f}s")
             else:
                 # Log failure
                 await self.orchestrator.state_manager.save_operation_log(
-                    "SOD", "FAILED", start_time, datetime.utcnow(),
-                    {"error": result.error, "failed_tasks": result.failed_tasks}
+                    "SOD", "FAILED", start_time, end_time,
+                    {
+                        "error": result.error, 
+                        "failed_tasks": result.failed_tasks,
+                        "completed_tasks": result.completed_tasks,
+                        "workflow_execution_id": result.workflow_execution_id
+                    }
                 )
+                
+                # Create system alert for SOD failure
+                if hasattr(self.orchestrator.db_manager, 'state'):
+                    await self.orchestrator.db_manager.state.create_system_alert(
+                        alert_type="SOD_FAILURE",
+                        severity="CRITICAL",
+                        title="SOD Workflow Failed",
+                        message=f"SOD workflow failed with error: {result.error}",
+                        alert_data={
+                            "workflow_execution_id": result.workflow_execution_id,
+                            "failed_tasks": result.failed_tasks,
+                            "execution_time": result.execution_time
+                        }
+                    )
+                
+                logger.error(f"❌ SOD workflow failed: {result.error}")
             
             return result
             
         except Exception as e:
+            end_time = datetime.utcnow()
             logger.error(f"❌ SOD workflow execution failed: {e}", exc_info=True)
             
-            # Log failure
+            # Log error
             await self.orchestrator.state_manager.save_operation_log(
-                "SOD", "ERROR", start_time, datetime.utcnow(),
+                "SOD", "ERROR", start_time, end_time,
                 {"error": str(e)}
+            )
+            
+            # Save error state
+            await self.orchestrator.state_manager.save_error_state(
+                f"SOD workflow execution failed: {str(e)}"
             )
             
             return WorkflowResult(
                 success=False,
-                execution_time=(datetime.utcnow() - start_time).total_seconds(),
+                execution_time=(end_time - start_time).total_seconds(),
                 completed_tasks=0,
                 failed_tasks=1,
                 error=str(e)
             )
+    
+    async def get_sod_status(self) -> Dict[str, Any]:
+        """Get current SOD status"""
+        if hasattr(self.orchestrator.db_manager, 'workflows'):
+            recent_executions = await self.orchestrator.db_manager.workflows.get_workflow_executions(
+                workflow_name="sod_main",
+                limit=1
+            )
+            
+            if recent_executions:
+                latest = recent_executions[0]
+                return {
+                    "last_execution": {
+                        "execution_id": latest["execution_id"],
+                        "status": latest["workflow_status"],
+                        "started_at": latest["started_at"],
+                        "completed_at": latest["completed_at"],
+                        "execution_time": latest.get("execution_time"),
+                        "completed_tasks": latest["completed_tasks"],
+                        "failed_tasks": latest["failed_tasks"]
+                    },
+                    "workflow_status": self.workflow_engine.get_workflow_status("sod_main")
+                }
+        
+        return {
+            "last_execution": None,
+            "workflow_status": self.workflow_engine.get_workflow_status("sod_main")
+        }

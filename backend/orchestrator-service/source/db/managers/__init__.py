@@ -11,6 +11,7 @@ from .reconciliation_manager import ReconciliationManager
 from .reporting_manager import ReportingManager
 from .archival_manager import ArchivalManager
 from .workflow_manager import WorkflowManager
+from .state_manager import StateManager  # Add state manager
 
 __all__ = [
     'BaseManager',
@@ -24,5 +25,6 @@ __all__ = [
     'ReconciliationManager', 
     'ReportingManager',
     'ArchivalManager',
-    'WorkflowManager'
+    'WorkflowManager',
+    'StateManager'  # Add state manager
 ]

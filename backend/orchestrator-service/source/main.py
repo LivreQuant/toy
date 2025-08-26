@@ -3,8 +3,9 @@ import asyncio
 import logging
 from datetime import datetime
 import uvicorn
-from core.orchestrator import TradingOrchestrator
-from api import create_app
+
+from source.api import create_app
+from source.core.orchestrator import TradingOrchestrator
 
 logging.basicConfig(
     level=logging.INFO,

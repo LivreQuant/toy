@@ -603,7 +603,7 @@ class RiskCalculator:
                    VALUES ($1, $2, $3, $4, $5)
                """, values)
    
-   async def get_asset_risk_profile(self, symbol: str, factor_date: date) -> Dict[str, Any]:
+    async def get_asset_risk_profile(self, symbol: str, factor_date: date) -> Dict[str, Any]:
        """Get complete risk profile for an asset"""
        async with self.db_manager.pool.acquire() as conn:
            # Get factor exposures
