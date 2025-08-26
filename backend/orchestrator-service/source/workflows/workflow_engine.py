@@ -32,8 +32,7 @@ class WorkflowTask:
     timeout_seconds: int = 300
     retry_count: int = 3
     retry_delay: int = 30
-    required: bool = True
-    skip: bool = False  # NEW: Skip flag for debugging
+    skip_flag: bool = False
     status: TaskStatus = TaskStatus.PENDING
     result: Any = None
     error: str = None
@@ -246,9 +245,8 @@ class WorkflowEngine:
                             logger.error(f"❌ Task '{task.id}' failed with exception: {result}")
                             
                             # Stop execution if critical task fails
-                            if task.required:
-                                logger.error(f"💥 Critical task '{task.id}' failed, stopping workflow")
-                                break
+                            logger.error(f"💥 Critical task '{task.id}' failed, stopping workflow")
+                            break
                         else:
                             task.status = TaskStatus.COMPLETED
                             task.result = result
@@ -261,7 +259,7 @@ class WorkflowEngine:
             
             # Determine success - skipped tasks don't count as failures
             success = (failed_tasks == 0 or 
-                      all(not task.required for task in tasks if task.status == TaskStatus.FAILED))
+                      all(False for task in tasks if task.status == TaskStatus.FAILED))
             
             # Update workflow execution record
             if workflow_execution_id and self.db_manager:

@@ -6,128 +6,146 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
-def create_sod_workflow(debug_mode: bool = False) -> List[WorkflowTask]:
-    """Create Start of Day workflow definition with optional debug skipping"""
+def create_sod_workflow() -> List[WorkflowTask]:
+    """Create Start of Day workflow definition"""
     
     return [
         # Phase 1: System Initialization and Validation
         WorkflowTask(
+            # TODO: DOES WHAT?
             id="system_health_check",
             name="System Health Check",
             function=system_health_check_task,
             dependencies=[],
             priority=TaskPriority.CRITICAL,
             timeout_seconds=120,
-            skip=debug_mode  # Example: Skip in debug mode
+            skip_flag=False
         ),
         
         WorkflowTask(
+            # CHECK DATABASES
             id="database_validation",
             name="Database Validation", 
             function=database_validation_task,
             dependencies=["system_health_check"],
             priority=TaskPriority.CRITICAL,
-            timeout_seconds=180
-            # Note: Not skipped even in debug mode as it's critical
+            timeout_seconds=180,
+            skip_flag=False
+        ),
+        
+        WorkflowTask( 
+            # NOTE: VALIDATE UNIVERSE, CORPORATE ACTIONS, RISK MODEL, ETC. 
+            # NOTE: WHEN WE MOVE THOSE OUT OF KUBERNETES
+            id="validate_raw_data",
+            name="Validate Raw Data",
+            function=validate_raw_data_task,
+            dependencies=["database_validation"],
+            priority=TaskPriority.HIGH,
+            timeout_seconds=300,
+            skip_flag=True
         ),
         
         # Phase 2: Reference Data Updates
+        """
         WorkflowTask(
+            # NOTE: MOVE EXTERNAL!
+            id="update_universe",
+            name="Update Trading Universe",
+            function=update_universe_task,
+            dependencies=["validate_raw_data"],
+            priority=TaskPriority.HIGH,
+            timeout_seconds=600,
+            skip_flag=False
+        ),
+        """
+
+        WorkflowTask( 
+            # TODO: DELETE, HANDLED BY UNIVERSE
             id="update_security_master",
             name="Update Security Master",
             function=update_security_master_task,
-            dependencies=["database_validation"],
+            dependencies=["validate_raw_data"],
             priority=TaskPriority.HIGH,
-            timeout_seconds=600
+            timeout_seconds=600,
+            skip_flag=True
         ),
-        
+
+        """
         WorkflowTask(
-            id="validate_market_data",
-            name="Validate Market Data",
-            function=validate_market_data_task,
-            dependencies=["database_validation"],
-            priority=TaskPriority.HIGH,
-            timeout_seconds=300
-        ),
-        
-        WorkflowTask(
+            # TODO: DELETE, JUST RUN OVER EVERY WEEKDAY
             id="update_holiday_calendar",
             name="Update Holiday Calendar",
             function=update_holiday_calendar_task,
-            dependencies=["database_validation"],
+            dependencies=["validate_raw_data"],
             priority=TaskPriority.MEDIUM,
             timeout_seconds=120,
-            required=False,  # Non-critical task
-            skip=False  # Example: Explicitly don't skip this task
+            skip_flag=True
         ),
+        """
         
         # Phase 3: Corporate Actions Processing
         WorkflowTask(
+            # NOTE: MOVE EXTERNAL!
             id="process_corporate_actions",
             name="Process Corporate Actions",
             function=process_corporate_actions_task,
             dependencies=["update_security_master"],
             priority=TaskPriority.HIGH,
-            timeout_seconds=900
+            timeout_seconds=900,
+            skip_flag=True
         ),
         
         # Phase 4: Position Management
         WorkflowTask(
+            # NOTE: THIS IS IMPORTANT
             id="reconcile_positions",
             name="Reconcile Positions",
             function=reconcile_positions_task,
             dependencies=["process_corporate_actions"],
             priority=TaskPriority.CRITICAL,
-            timeout_seconds=1200
-        ),
-        
-        WorkflowTask(
-            id="update_universe",
-            name="Update Trading Universe",
-            function=update_universe_task,
-            dependencies=["reconcile_positions", "validate_market_data"],
-            priority=TaskPriority.HIGH,
-            timeout_seconds=600
+            timeout_seconds=1200,
+            skip_flag=False
         ),
         
         # Phase 5: Risk Model Updates
         WorkflowTask(
+            # NOTE: MOVE EXTERNAL!
             id="update_risk_model",
             name="Update Risk Model",
             function=update_risk_model_task,
-            dependencies=["update_universe"],
+            dependencies=["update_security_master"],
             priority=TaskPriority.HIGH,
             timeout_seconds=1800,
-            skip=debug_mode  # Example: Skip expensive operation in debug mode
+            skip_flag=False
         ),
-        
+
         # Phase 6: System Readiness
         WorkflowTask(
+            # NOTE: VALIDATE PORTFOLIOS
             id="validate_system_readiness",
             name="Validate System Readiness",
             function=validate_system_readiness_task,
             dependencies=["update_risk_model"],
             priority=TaskPriority.CRITICAL,
-            timeout_seconds=300
+            timeout_seconds=300,
+            skip_flag=False
         )
     ]
-
-def create_debug_sod_workflow() -> List[WorkflowTask]:
-    """Create a debug version of SOD workflow with many tasks skipped"""
-    return create_sod_workflow(debug_mode=True)
 
 # =============================================================================
 # TASK IMPLEMENTATIONS (Enhanced with skip-aware logging)
 # =============================================================================
 
+# Phase 1: System Initialization and Validation
+
 async def system_health_check_task(context: Dict[str, Any]) -> Dict[str, Any]:
     """Perform comprehensive system health check"""
     logger.info("🔍 Performing system health check")
     
-    # Check if we're in debug mode for different behavior
-    debug_mode = context.get("debug_mode", False)
-    if debug_mode:
-        logger.info("🚧 Running in debug mode - simplified health check")
+    # Check if we're in skip for different behavior
+    skip_flag = context.get("skip_flag", False)
+    if skip_flag:
+        logger.info("🚧 Skipping - health check")
     
     orchestrator = context.get("orchestrator")
     start_time = datetime.utcnow()
@@ -138,7 +156,7 @@ async def system_health_check_task(context: Dict[str, Any]) -> Dict[str, Any]:
             "kubernetes_connectivity": False,
             "system_resources": {},
             "alerts": [],
-            "debug_mode": debug_mode
+            "skip_flag": skip_flag
         }
         
         # Check database connectivity
@@ -150,18 +168,18 @@ async def system_health_check_task(context: Dict[str, Any]) -> Dict[str, Any]:
             except Exception as e:
                 health_results["alerts"].append(f"Database connectivity issue: {e}")
         
-        # Check Kubernetes connectivity (skip in debug mode if configured)
-        if orchestrator and orchestrator.k8s_manager and not debug_mode:
+        # Check Kubernetes connectivity (skip if configured)
+        if orchestrator and orchestrator.k8s_manager and not skip_flag:
             try:
                 # Test k8s connectivity
                 await orchestrator.k8s_manager.check_cluster_health()
                 health_results["kubernetes_connectivity"] = True
             except Exception as e:
                 health_results["alerts"].append(f"Kubernetes connectivity issue: {e}")
-        elif debug_mode:
-            # In debug mode, assume k8s is healthy
+        elif skip_flag:
+            # In skip mode, assume k8s is healthy
             health_results["kubernetes_connectivity"] = True
-            logger.info("🚧 Debug mode: Skipping actual k8s health check")
+            logger.info("🚧 Skip: Skipping actual k8s health check")
         
         # Save health check metrics
         if orchestrator and hasattr(orchestrator.db_manager, 'state'):
@@ -169,7 +187,7 @@ async def system_health_check_task(context: Dict[str, Any]) -> Dict[str, Any]:
                 "health_check_duration",
                 (datetime.utcnow() - start_time).total_seconds(),
                 "seconds",
-                {"check_type": "sod_health_check", "debug_mode": debug_mode}
+                {"check_type": "sod_health_check"}
             )
         
         # Determine overall health
@@ -186,7 +204,6 @@ async def system_health_check_task(context: Dict[str, Any]) -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"❌ System health check failed: {e}")
         raise
-
 
 async def database_validation_task(context: Dict[str, Any]) -> Dict[str, Any]:
     """Validate database integrity and connections"""
@@ -222,6 +239,54 @@ async def database_validation_task(context: Dict[str, Any]) -> Dict[str, Any]:
         logger.error(f"❌ Database validation failed: {e}")
         raise
 
+async def validate_raw_data_task(context: Dict[str, Any]) -> Dict[str, Any]:
+    """Validate raw data feeds"""
+    logger.info("📈 Validating raw data")
+    
+    # Validate external based data was generated and stored correctly
+
+    # universe master symbology
+    # corporate actions (public investor relations data only)
+    # event calendars (earnings, aid, public investor relations data only)
+    # fundamentals (market cap, shares out, sec public data only)
+
+    try:
+        validation_result = {
+            "feeds_validated": 0,
+            "feeds_failed": 0,
+            "data_quality_score": 100.0
+        }
+        
+        logger.info("✅ Data raw validation completed")
+        return validation_result
+        
+    except Exception as e:
+        logger.error(f"❌ Data raw validation failed: {e}")
+        raise
+
+# Phase 2: Reference Data Updates
+
+"""
+async def update_universe_task(context: Dict[str, Any]) -> Dict[str, Any]:
+    """Update trading universe"""
+    logger.info("🌌 Updating trading universe")
+    
+    sod_coordinator = context.get("sod_coordinator")
+    
+    try:
+        if sod_coordinator and sod_coordinator.universe_builder:
+            result = await sod_coordinator.universe_builder.build_universe()
+            logger.info("✅ Trading universe updated")
+            return result
+        else:
+            logger.warning("⚠️ Universe builder not available")
+            return {"status": "skipped", "reason": "component_unavailable"}
+            
+    except Exception as e:
+        logger.error(f"❌ Trading universe update failed: {e}")
+        raise
+"""
+
 async def update_security_master_task(context: Dict[str, Any]) -> Dict[str, Any]:
     """Update security master data"""
     logger.info("📋 Updating security master data")
@@ -241,25 +306,7 @@ async def update_security_master_task(context: Dict[str, Any]) -> Dict[str, Any]
         logger.error(f"❌ Security master update failed: {e}")
         raise
 
-async def validate_market_data_task(context: Dict[str, Any]) -> Dict[str, Any]:
-    """Validate market data feeds"""
-    logger.info("📈 Validating market data")
-    
-    # Implementation would validate market data connectivity and quality
-    try:
-        validation_result = {
-            "feeds_validated": 0,
-            "feeds_failed": 0,
-            "data_quality_score": 100.0
-        }
-        
-        logger.info("✅ Market data validation completed")
-        return validation_result
-        
-    except Exception as e:
-        logger.error(f"❌ Market data validation failed: {e}")
-        raise
-
+"""
 async def update_holiday_calendar_task(context: Dict[str, Any]) -> Dict[str, Any]:
     """Update trading holiday calendar"""
     logger.info("📅 Updating holiday calendar")
@@ -277,6 +324,9 @@ async def update_holiday_calendar_task(context: Dict[str, Any]) -> Dict[str, Any
     except Exception as e:
         logger.error(f"❌ Holiday calendar update failed: {e}")
         raise
+"""
+
+# Phase 3: Corporate Actions Processing
 
 async def process_corporate_actions_task(context: Dict[str, Any]) -> Dict[str, Any]:
     """Process pending corporate actions"""
@@ -297,6 +347,8 @@ async def process_corporate_actions_task(context: Dict[str, Any]) -> Dict[str, A
         logger.error(f"❌ Corporate actions processing failed: {e}")
         raise
 
+# Phase 4: Position Management
+
 async def reconcile_positions_task(context: Dict[str, Any]) -> Dict[str, Any]:
     """Reconcile position data"""
     logger.info("⚖️ Reconciling positions")
@@ -316,24 +368,7 @@ async def reconcile_positions_task(context: Dict[str, Any]) -> Dict[str, Any]:
         logger.error(f"❌ Position reconciliation failed: {e}")
         raise
 
-async def update_universe_task(context: Dict[str, Any]) -> Dict[str, Any]:
-    """Update trading universe"""
-    logger.info("🌌 Updating trading universe")
-    
-    sod_coordinator = context.get("sod_coordinator")
-    
-    try:
-        if sod_coordinator and sod_coordinator.universe_builder:
-            result = await sod_coordinator.universe_builder.build_universe()
-            logger.info("✅ Trading universe updated")
-            return result
-        else:
-            logger.warning("⚠️ Universe builder not available")
-            return {"status": "skipped", "reason": "component_unavailable"}
-            
-    except Exception as e:
-        logger.error(f"❌ Trading universe update failed: {e}")
-        raise
+# Phase 5: Risk Model Updates
 
 async def update_risk_model_task(context: Dict[str, Any]) -> Dict[str, Any]:
     """Update risk model calculations"""
@@ -353,6 +388,8 @@ async def update_risk_model_task(context: Dict[str, Any]) -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"❌ Risk model update failed: {e}")
         raise
+
+# Phase 6: System Readiness
 
 async def validate_system_readiness_task(context: Dict[str, Any]) -> Dict[str, Any]:
     """Validate system is ready for trading"""

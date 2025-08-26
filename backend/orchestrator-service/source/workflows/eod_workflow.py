@@ -11,6 +11,7 @@ def create_eod_workflow() -> List[WorkflowTask]:
     
     return [
         # Phase 1: Trading Halt and Data Collection
+        """
         WorkflowTask(
             id="halt_trading_activities",
             name="Halt Trading Activities",
@@ -19,14 +20,16 @@ def create_eod_workflow() -> List[WorkflowTask]:
             priority=TaskPriority.CRITICAL,
             timeout_seconds=300
         ),
+        """
         
         WorkflowTask(
             id="collect_eod_market_data",
             name="Collect EOD Market Data",
             function=collect_eod_market_data_task,
-            dependencies=["halt_trading_activities"],
+            dependencies=[""],
             priority=TaskPriority.CRITICAL,
-            timeout_seconds=600
+            timeout_seconds=600,
+            skip_flag=False
         ),
         
         # Phase 2: Trade Settlement
@@ -36,7 +39,8 @@ def create_eod_workflow() -> List[WorkflowTask]:
             function=match_trades_task,
             dependencies=["halt_trading_activities"],
             priority=TaskPriority.CRITICAL,
-            timeout_seconds=900
+            timeout_seconds=900,
+            skip_flag=False
         ),
         
         WorkflowTask(
@@ -45,7 +49,8 @@ def create_eod_workflow() -> List[WorkflowTask]:
             function=calculate_settlement_amounts_task,
             dependencies=["match_trades"],
             priority=TaskPriority.HIGH,
-            timeout_seconds=600
+            timeout_seconds=600,
+            skip_flag=False
         ),
         
         WorkflowTask(
@@ -54,7 +59,8 @@ def create_eod_workflow() -> List[WorkflowTask]:
             function=process_trade_settlements_task,
             dependencies=["calculate_settlement_amounts"],
             priority=TaskPriority.HIGH,
-            timeout_seconds=1200
+            timeout_seconds=1200,
+            skip_flag=False
         ),
         
         # Phase 3: Position Marking and Valuation
@@ -64,7 +70,8 @@ def create_eod_workflow() -> List[WorkflowTask]:
             function=mark_positions_to_market_task,
             dependencies=["collect_eod_market_data", "process_trade_settlements"],
             priority=TaskPriority.CRITICAL,
-            timeout_seconds=900
+            timeout_seconds=900,
+            skip_flag=False
         ),
         
         # Phase 4: P&L Calculation
@@ -74,7 +81,8 @@ def create_eod_workflow() -> List[WorkflowTask]:
             function=calculate_realized_pnl_task,
             dependencies=["process_trade_settlements"],
             priority=TaskPriority.HIGH,
-            timeout_seconds=600
+            timeout_seconds=600,
+            skip_flag=False
         ),
         
         WorkflowTask(
@@ -83,7 +91,8 @@ def create_eod_workflow() -> List[WorkflowTask]:
             function=calculate_unrealized_pnl_task,
             dependencies=["mark_positions_to_market"],
             priority=TaskPriority.HIGH,
-            timeout_seconds=600
+            timeout_seconds=600,
+            skip_flag=False
         ),
         
         WorkflowTask(
@@ -92,7 +101,8 @@ def create_eod_workflow() -> List[WorkflowTask]:
             function=perform_pnl_attribution_task,
             dependencies=["calculate_realized_pnl", "calculate_unrealized_pnl"],
             priority=TaskPriority.HIGH,
-            timeout_seconds=900
+            timeout_seconds=900,
+            skip_flag=False
         ),
         
         # Phase 5: Risk Metrics and Reporting
@@ -102,7 +112,8 @@ def create_eod_workflow() -> List[WorkflowTask]:
             function=calculate_portfolio_var_task,
             dependencies=["mark_positions_to_market"],
             priority=TaskPriority.HIGH,
-            timeout_seconds=1200
+            timeout_seconds=1200,
+            skip_flag=False
         ),
         
         WorkflowTask(
@@ -111,7 +122,8 @@ def create_eod_workflow() -> List[WorkflowTask]:
             function=generate_risk_metrics_task,
             dependencies=["calculate_portfolio_var", "perform_pnl_attribution"],
             priority=TaskPriority.HIGH,
-            timeout_seconds=600
+            timeout_seconds=600,
+            skip_flag=False
         ),
         
         WorkflowTask(
@@ -120,7 +132,8 @@ def create_eod_workflow() -> List[WorkflowTask]:
             function=generate_exposure_reports_task,
             dependencies=["mark_positions_to_market"],
             priority=TaskPriority.HIGH,
-            timeout_seconds=600
+            timeout_seconds=600,
+            skip_flag=False
         ),
         
         # Phase 6: Regulatory Reporting
@@ -130,7 +143,8 @@ def create_eod_workflow() -> List[WorkflowTask]:
             function=generate_regulatory_reports_task,
             dependencies=["perform_pnl_attribution", "calculate_portfolio_var"],
             priority=TaskPriority.HIGH,
-            timeout_seconds=1800
+            timeout_seconds=1800,
+            skip_flag=False
         ),
         
         WorkflowTask(
@@ -139,7 +153,8 @@ def create_eod_workflow() -> List[WorkflowTask]:
             function=submit_regulatory_filings_task,
             dependencies=["generate_regulatory_reports"],
             priority=TaskPriority.HIGH,
-            timeout_seconds=600
+            timeout_seconds=600,
+            skip_flag=False
         ),
         
         # Phase 7: Data Archival and Backup
@@ -149,7 +164,8 @@ def create_eod_workflow() -> List[WorkflowTask]:
             function=archive_daily_data_task,
             dependencies=["perform_pnl_attribution", "generate_exposure_reports"],
             priority=TaskPriority.MEDIUM,
-            timeout_seconds=1800
+            timeout_seconds=1800,
+            skip_flag=False
         ),
         
         WorkflowTask(
@@ -158,7 +174,8 @@ def create_eod_workflow() -> List[WorkflowTask]:
             function=backup_system_state_task,
             dependencies=["archive_daily_data"],
             priority=TaskPriority.MEDIUM,
-            timeout_seconds=900
+            timeout_seconds=900,
+            skip_flag=False
         ),
         
         # Phase 8: Final Reports and Notifications
@@ -172,7 +189,8 @@ def create_eod_workflow() -> List[WorkflowTask]:
                 "generate_exposure_reports"
             ],
             priority=TaskPriority.MEDIUM,
-            timeout_seconds=300
+            timeout_seconds=300,
+            skip_flag=False
         ),
         
         WorkflowTask(
@@ -181,7 +199,8 @@ def create_eod_workflow() -> List[WorkflowTask]:
             function=send_eod_notifications_task,
             dependencies=["generate_eod_summary"],
             priority=TaskPriority.MEDIUM,
-            timeout_seconds=180
+            timeout_seconds=180,
+            skip_flag=False
         ),
         
         # Phase 9: System Cleanup and Preparation
@@ -191,7 +210,8 @@ def create_eod_workflow() -> List[WorkflowTask]:
             function=cleanup_temporary_data_task,
             dependencies=["backup_system_state"],
             priority=TaskPriority.LOW,
-            timeout_seconds=600
+            timeout_seconds=600,
+            skip_flag=False
         ),
         
         WorkflowTask(
@@ -200,7 +220,8 @@ def create_eod_workflow() -> List[WorkflowTask]:
             function=prepare_next_day_task,
             dependencies=["cleanup_temporary_data"],
             priority=TaskPriority.MEDIUM,
-            timeout_seconds=300
+            timeout_seconds=300,
+            skip_flag=False
         )
     ]
 
@@ -208,6 +229,7 @@ def create_eod_workflow() -> List[WorkflowTask]:
 # TASK IMPLEMENTATIONS
 # =============================================================================
 
+"""
 async def halt_trading_activities_task(context: Dict[str, Any]) -> Dict[str, Any]:
     """Halt all trading activities and prepare for EOD processing"""
     logger.info("🛑 Halting trading activities")
@@ -248,6 +270,7 @@ async def halt_trading_activities_task(context: Dict[str, Any]) -> Dict[str, Any
     except Exception as e:
         logger.error(f"❌ Failed to halt trading activities: {e}")
         raise
+"""
 
 async def collect_eod_market_data_task(context: Dict[str, Any]) -> Dict[str, Any]:
     """Collect end-of-day market data for all securities"""
