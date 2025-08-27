@@ -62,11 +62,11 @@ def create_sod_workflow() -> List[WorkflowTask]:
             skip_flag=True
         ),
         
-        # Phase 4: Position Management (Create SOD portfolios)
+        # Phase 4: Portfolio Management (Create SOD portfolios)
         WorkflowTask(
-            id="reconcile_positions",
-            name="Reconcile Positions",
-            function=reconcile_positions_task,
+            id="reconcile_portfolios",
+            name="Reconcile Portfolios",
+            function=reconcile_portfolios_task,
             dependencies=["process_corporate_actions"],
             priority=TaskPriority.CRITICAL,
             timeout_seconds=1200,
@@ -260,25 +260,25 @@ async def process_corporate_actions_task(context: Dict[str, Any]) -> Dict[str, A
         logger.error(f"❌ Corporate actions processing failed: {e}")
         raise
 
-# Phase 4: Position Management
+# Phase 4: Portfolio Management
 
-async def reconcile_positions_task(context: Dict[str, Any]) -> Dict[str, Any]:
-    """Reconcile position data"""
-    logger.info("⚖️ Reconciling positions")
+async def reconcile_portfolio_task(context: Dict[str, Any]) -> Dict[str, Any]:
+    """Reconcile portfolio data"""
+    logger.info("⚖️ Reconciling portfolios")
     
     sod_coordinator = context.get("sod_coordinator")
     
     try:
-        if sod_coordinator and sod_coordinator.position_reconciler:
-            result = await sod_coordinator.position_reconciler.reconcile_positions()
-            logger.info("✅ Position reconciliation completed")
+        if sod_coordinator and sod_coordinator.portfolio_reconciler:
+            result = await sod_coordinator.portfolio_reconciler.reconcile_portfolios()
+            logger.info("✅ Portfolio reconciliation completed")
             return result
         else:
-            logger.warning("⚠️ Position reconciler not available")
+            logger.warning("⚠️ Portfolio reconciler not available")
             return {"status": "skipped", "reason": "component_unavailable"}
             
     except Exception as e:
-        logger.error(f"❌ Position reconciliation failed: {e}")
+        logger.error(f"❌ Portfolio reconciliation failed: {e}")
         raise
 
 # Phase 6: System Readiness
@@ -293,9 +293,7 @@ async def validate_system_readiness_task(context: Dict[str, Any]) -> Dict[str, A
         readiness_checks = {
             "database_ready": True,
             "universe_ready": True,
-            "risk_model_ready": True,
-            "positions_reconciled": True,
-            "market_data_ready": True,
+            "portfolios_reconciled": True,
             "overall_ready": True
         }
         

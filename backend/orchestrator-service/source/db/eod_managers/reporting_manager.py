@@ -6,44 +6,6 @@ from .base_manager import BaseManager
 class ReportingManager(BaseManager):
     """Manages reporting database operations"""
     
-    async def initialize_tables(self):
-        """Create reporting tables"""
-        await self.create_schema_if_not_exists('reporting')
-        
-        # Report catalog
-        await self.execute("""
-            CREATE TABLE IF NOT EXISTS reporting.report_catalog (
-                report_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                report_name VARCHAR(200) NOT NULL,
-                report_type VARCHAR(100) NOT NULL,
-                account_id VARCHAR(50),
-                report_date DATE NOT NULL,
-                file_path VARCHAR(500),
-                file_size_bytes BIGINT,
-                status VARCHAR(20) DEFAULT 'PENDING',
-                created_by VARCHAR(100),
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-                completed_at TIMESTAMP WITH TIME ZONE
-            )
-        """)
-        
-        # Report schedules
-        await self.execute("""
-            CREATE TABLE IF NOT EXISTS reporting.report_schedules (
-                schedule_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                schedule_name VARCHAR(200) NOT NULL,
-                report_type VARCHAR(100) NOT NULL,
-                schedule_frequency VARCHAR(50) NOT NULL,
-                schedule_time TIME NOT NULL,
-                recipients TEXT[],
-                parameters JSONB,
-                is_active BOOLEAN DEFAULT TRUE,
-                last_run TIMESTAMP WITH TIME ZONE,
-                next_run TIMESTAMP WITH TIME ZONE,
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-            )
-        """)
-    
     async def create_report_record(self, report_name: str, report_type: str,
                                  account_id: str = None, report_date: date = None,
                                  **kwargs) -> str:
