@@ -1,8 +1,10 @@
 # db/managers/position_manager.py
-from typing import Dict, List, Any, Optional
-from datetime import date, datetime
+from typing import Dict, List, Any
+from datetime import date
 from decimal import Decimal
-from .base_manager import BaseManager
+
+from source.db.base_managers.base_manager import BaseManager
+
 
 class PositionManager(BaseManager):
     """Manages all position-related database operations"""

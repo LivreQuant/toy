@@ -2,13 +2,14 @@
 import logging
 from datetime import datetime
 from typing import Dict, Any, List
-from workflows.workflow_engine import WorkflowEngine, WorkflowResult
-from workflows.sod_workflow import create_sod_workflow, create_debug_sod_workflow, create_minimal_sod_workflow
 
-from sod.universe.universe_builder import UniverseBuilder
-from sod.corporate_actions.ca_processor import CorporateActionsProcessor
-from sod.reference_data.security_master import SecurityMasterManager
-from sod.reconciliation.portfolio_reconciler import PortfolioReconciler
+from source.workflows.workflow_engine import WorkflowEngine, WorkflowResult
+from source.workflows.sod_workflow import create_sod_workflow
+
+from source.sod.reference_data.universe_builder import UniverseBuilder
+from source.sod.corporate_actions.ca_processor import CorporateActionsProcessor
+from source.sod.reference_data.security_master import SecurityMasterManager
+from source.sod.reconciliation.portfolios_reconciler import PortfoliosReconciler
 
 logger = logging.getLogger(__name__)
 
@@ -21,10 +22,9 @@ class SODCoordinator:
         
         # SOD components
         self.universe_builder = UniverseBuilder(orchestrator.db_manager)
-        self.risk_calculator = RiskCalculator(orchestrator.db_manager)
         self.ca_processor = CorporateActionsProcessor(orchestrator.db_manager)
         self.security_master = SecurityMasterManager(orchestrator.db_manager)
-        self.position_reconciler = PositionReconciler(orchestrator.db_manager)
+        self.position_reconciler = PortfolioReconciler(orchestrator.db_manager)
         
         # Debug and skip configuration
         self.debug_mode = False
@@ -46,17 +46,9 @@ class SODCoordinator:
     async def _register_workflow_variants(self):
         """Register different SOD workflow variants"""
         # Standard production workflow
-        standard_tasks = create_sod_workflow(debug_mode=False)
+        standard_tasks = create_sod_workflow()
         self.workflow_engine.register_workflow("sod_standard", standard_tasks)
-        
-        # Debug workflow with many tasks skipped
-        debug_tasks = create_debug_sod_workflow()
-        self.workflow_engine.register_workflow("sod_debug", debug_tasks)
-        
-        # Minimal workflow for quick testing
-        minimal_tasks = create_minimal_sod_workflow()
-        self.workflow_engine.register_workflow("sod_minimal", minimal_tasks)
-        
+
         # Register the main workflow (defaults to standard)
         self.workflow_engine.register_workflow("sod_main", standard_tasks)
         

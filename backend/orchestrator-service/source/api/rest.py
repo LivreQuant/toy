@@ -2,20 +2,20 @@
 import logging
 from datetime import datetime
 from fastapi import FastAPI, HTTPException
-from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
 
+
 def create_app(db_manager, k8s_manager, scheduler) -> FastAPI:
     """Create FastAPI application with all routes"""
-    
+
     app = FastAPI(title="Exchange Orchestrator", version="1.0.0")
-    
+
     @app.get("/health")
     async def health_check():
         """Health check endpoint"""
         return {"status": "healthy", "timestamp": datetime.utcnow()}
-    
+
     @app.get("/ready")
     async def ready_check():
         """Readiness check endpoint for Kubernetes"""
@@ -23,25 +23,25 @@ def create_app(db_manager, k8s_manager, scheduler) -> FastAPI:
             # Check if database is accessible
             if db_manager.pool is None:
                 raise HTTPException(status_code=503, detail="Database not initialized")
-            
+
             # Try a simple database query
             exchanges = await db_manager.get_active_exchanges()
             return {
-                "status": "ready", 
+                "status": "ready",
                 "timestamp": datetime.utcnow(),
                 "exchanges_count": len(exchanges)
             }
         except Exception as e:
             logger.error(f"Readiness check failed: {e}")
             raise HTTPException(status_code=503, detail=f"Service not ready: {str(e)}")
-    
+
     @app.get("/status")
     async def get_status():
         """Get overall system status"""
         try:
             exchanges = await db_manager.get_active_exchanges()
             running = k8s_manager.get_running_exchanges()
-            
+
             return {
                 "total_exchanges": len(exchanges),
                 "running_exchanges": len(running),
@@ -58,14 +58,14 @@ def create_app(db_manager, k8s_manager, scheduler) -> FastAPI:
             }
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
-    
+
     @app.get("/exchanges")
     async def list_exchanges():
         """List all exchanges with their status"""
         try:
             exchanges = await db_manager.get_active_exchanges()
             running = k8s_manager.get_running_exchanges()
-            
+
             result = []
             for exchange in exchanges:
                 result.append({
@@ -83,12 +83,12 @@ def create_app(db_manager, k8s_manager, scheduler) -> FastAPI:
                     "is_running": exchange['exch_id'] in running,
                     "should_be_running": scheduler.should_exchange_be_running(exchange)
                 })
-            
+
             return {"exchanges": result}
-            
+
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
-    
+
     @app.post("/exchanges/{exch_id}/start")
     async def start_exchange(exch_id: str):
         """Manually start an exchange"""
@@ -96,20 +96,20 @@ def create_app(db_manager, k8s_manager, scheduler) -> FastAPI:
             exchange = await db_manager.get_exchange_by_id(exch_id)
             if not exchange:
                 raise HTTPException(status_code=404, detail="Exchange not found")
-            
+
             await k8s_manager.start_exchange(exchange)
-            
+
             return {
                 "message": f"Started exchange {exchange['exchange_name']}",
                 "exch_id": exch_id
             }
-            
+
         except HTTPException:
             raise
         except Exception as e:
             logger.error(f"Failed to start exchange {exch_id}: {e}")
             raise HTTPException(status_code=500, detail=str(e))
-    
+
     @app.post("/exchanges/{exch_id}/stop")
     async def stop_exchange(exch_id: str):
         """Manually stop an exchange"""
@@ -117,20 +117,20 @@ def create_app(db_manager, k8s_manager, scheduler) -> FastAPI:
             exchange = await db_manager.get_exchange_by_id(exch_id)
             if not exchange:
                 raise HTTPException(status_code=404, detail="Exchange not found")
-            
+
             await k8s_manager.stop_exchange(exchange)
-            
+
             return {
                 "message": f"Stopped exchange {exchange['exchange_name']}",
                 "exch_id": exch_id
             }
-            
+
         except HTTPException:
             raise
         except Exception as e:
             logger.error(f"Failed to stop exchange {exch_id}: {e}")
             raise HTTPException(status_code=500, detail=str(e))
-    
+
     @app.get("/exchanges/{exch_id}")
     async def get_exchange_info(exch_id: str):
         """Get detailed info about specific exchange"""
@@ -138,10 +138,10 @@ def create_app(db_manager, k8s_manager, scheduler) -> FastAPI:
             exchange = await db_manager.get_exchange_by_id(exch_id)
             if not exchange:
                 raise HTTPException(status_code=404, detail="Exchange not found")
-            
+
             is_running = exchange['exch_id'] in k8s_manager.get_running_exchanges()
             should_be_running = scheduler.should_exchange_be_running(exchange)
-            
+
             return {
                 "exch_id": exchange['exch_id'],
                 "exchange_id": exchange['exchange_id'],
@@ -158,10 +158,10 @@ def create_app(db_manager, k8s_manager, scheduler) -> FastAPI:
                 },
                 "exchanges_list": exchange.get('exchanges', [])
             }
-            
+
         except HTTPException:
             raise
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
-    
+
     return app

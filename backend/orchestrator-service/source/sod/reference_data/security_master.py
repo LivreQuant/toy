@@ -1,9 +1,7 @@
 # source/sod/reference_data/security_master.py
 import logging
-from typing import Dict, List, Any, Optional, Set
-from datetime import date, datetime
-import asyncio
-from decimal import Decimal
+from typing import Dict, List, Any
+from datetime import date
 
 logger = logging.getLogger(__name__)
 
@@ -315,238 +313,236 @@ class SecurityMasterManager:
                     'count': missing_cusips['count'],
                     'severity': 'MEDIUM'
                 })
-            
-            # Continuing reference_data/security_master.py
 
-           # Check 2: Invalid prices
-           invalid_prices = await conn.fetchrow("""
-               SELECT COUNT(*) as count FROM reference_data.securities
-               WHERE (last_price IS NULL OR last_price <= 0) AND is_active = TRUE
-           """)
-           if invalid_prices['count'] > 0:
-               quality_issues.append({
-                   'issue_type': 'invalid_price',
-                   'count': invalid_prices['count'],
-                   'severity': 'HIGH'
-               })
-           
-           # Check 3: Missing sectors
-           missing_sectors = await conn.fetchrow("""
-               SELECT COUNT(*) as count FROM reference_data.securities
-               WHERE sector IS NULL AND is_active = TRUE
-           """)
-           if missing_sectors['count'] > 0:
-               quality_issues.append({
-                   'issue_type': 'missing_sector',
-                   'count': missing_sectors['count'],
-                   'severity': 'LOW'
-               })
-           
-           # Check 4: Duplicate symbols (same exchange)
-           duplicate_symbols = await conn.fetch("""
-               SELECT symbol, exchange, COUNT(*) as count
-               FROM reference_data.securities
-               WHERE is_active = TRUE
-               GROUP BY symbol, exchange
-               HAVING COUNT(*) > 1
-           """)
-           if duplicate_symbols:
-               quality_issues.append({
-                   'issue_type': 'duplicate_symbols',
-                   'count': len(duplicate_symbols),
-                   'severity': 'HIGH',
-                   'details': [dict(row) for row in duplicate_symbols]
-               })
-           
-           # Check 5: Stale prices (older than 5 days)
-           from datetime import timedelta
-           stale_cutoff = check_date - timedelta(days=5)
-           stale_prices = await conn.fetchrow("""
-               SELECT COUNT(*) as count FROM reference_data.securities
-               WHERE (price_date IS NULL OR price_date < $1) AND is_active = TRUE
-           """, stale_cutoff)
-           if stale_prices['count'] > 0:
-               quality_issues.append({
-                   'issue_type': 'stale_prices',
-                   'count': stale_prices['count'],
-                   'severity': 'MEDIUM'
-               })
-           
-           # Calculate overall quality score
-           total_securities = await conn.fetchrow("""
-               SELECT COUNT(*) as count FROM reference_data.securities WHERE is_active = TRUE
-           """)
-           
-           total_issues = sum(issue['count'] for issue in quality_issues)
-           quality_score = max(0, (1 - total_issues / max(total_securities['count'], 1)) * 100)
-           
-           # Log quality results
-           await conn.execute("""
-               INSERT INTO reference_data.data_quality_log
-               (check_date, check_type, total_records, passed_records, failed_records, quality_score, issues)
-               VALUES ($1, $2, $3, $4, $5, $6, $7)
-           """, 
-           check_date, 'SECURITY_MASTER_CHECK',
-           total_securities['count'],
-           total_securities['count'] - total_issues,
-           total_issues,
-           quality_score,
-           quality_issues
-           )
-           
-           logger.info(f"📊 Data quality score: {quality_score:.2f}% ({total_issues} issues found)")
-           
-           return {
-               'quality_score': quality_score,
-               'total_issues': total_issues,
-               'quality_issues': quality_issues
-           }
-   
-   async def _update_derived_fields(self, update_date: date):
-       """Update calculated/derived fields"""
-       logger.info("🔄 Updating derived fields")
-       
-       async with self.db_manager.pool.acquire() as conn:
-           # Update market cap based on price and shares outstanding
-           await conn.execute("""
-               UPDATE reference_data.securities
-               SET market_cap = CASE 
-                   WHEN last_price > 0 AND shares_outstanding > 0 
-                   THEN last_price * shares_outstanding
-                   ELSE market_cap
-               END
-               WHERE is_active = TRUE
-           """)
-           
-           # Calculate average volume over different periods (if we had historical data)
-           # This is simplified - in practice you'd calculate from actual trade data
-           await conn.execute("""
-               UPDATE reference_data.securities
-               SET avg_volume_30d = CASE 
-                   WHEN avg_volume_30d IS NULL OR avg_volume_30d = 0
-                   THEN GREATEST(100000, market_cap / 100000)  -- Rough estimate
-                   ELSE avg_volume_30d
-               END
-               WHERE is_active = TRUE
-           """)
-   
-   async def get_security_by_symbol(self, symbol: str, exchange: str = None) -> Dict[str, Any]:
-       """Get security information by symbol"""
-       async with self.db_manager.pool.acquire() as conn:
-           if exchange:
-               result = await conn.fetchrow("""
-                   SELECT * FROM reference_data.securities
-                   WHERE symbol = $1 AND exchange = $2 AND is_active = TRUE
-               """, symbol, exchange)
-           else:
-               result = await conn.fetchrow("""
-                   SELECT * FROM reference_data.securities
-                   WHERE symbol = $1 AND is_active = TRUE
-                   ORDER BY market_cap DESC NULLS LAST
-                   LIMIT 1
-               """, symbol)
-           
-           return dict(result) if result else None
-   
-   async def get_securities_by_sector(self, sector: str, limit: int = None) -> List[Dict[str, Any]]:
-       """Get securities by sector"""
-       async with self.db_manager.pool.acquire() as conn:
-           query = """
-               SELECT * FROM reference_data.securities
-               WHERE sector = $1 AND is_active = TRUE
-               ORDER BY market_cap DESC NULLS LAST
-           """
-           
-           if limit:
-               query += f" LIMIT {limit}"
-           
-           rows = await conn.fetch(query, sector)
-           return [dict(row) for row in rows]
-   
-   async def get_market_statistics(self) -> Dict[str, Any]:
-       """Get market-wide statistics"""
-       async with self.db_manager.pool.acquire() as conn:
-           # Overall statistics
-           overall_stats = await conn.fetchrow("""
-               SELECT 
-                   COUNT(*) as total_securities,
-                   COUNT(CASE WHEN is_active THEN 1 END) as active_securities,
-                   SUM(CASE WHEN is_active THEN market_cap ELSE 0 END) as total_market_cap,
-                   AVG(CASE WHEN is_active AND last_price > 0 THEN last_price END) as avg_price,
-                   SUM(CASE WHEN is_active THEN avg_volume_30d ELSE 0 END) as total_volume
-               FROM reference_data.securities
-           """)
-           
-           # By sector breakdown
-           sector_stats = await conn.fetch("""
-               SELECT 
-                   sector,
-                   COUNT(*) as count,
-                   SUM(market_cap) as sector_market_cap,
-                   AVG(last_price) as avg_price
-               FROM reference_data.securities
-               WHERE is_active = TRUE AND sector IS NOT NULL
-               GROUP BY sector
-               ORDER BY sector_market_cap DESC NULLS LAST
-           """)
-           
-           # By exchange breakdown
-           exchange_stats = await conn.fetch("""
-               SELECT 
-                   exchange,
-                   COUNT(*) as count,
-                   SUM(market_cap) as exchange_market_cap
-               FROM reference_data.securities
-               WHERE is_active = TRUE
-               GROUP BY exchange
-               ORDER BY exchange_market_cap DESC NULLS LAST
-           """)
-           
-           return {
-               'overall': dict(overall_stats),
-               'by_sector': [dict(row) for row in sector_stats],
-               'by_exchange': [dict(row) for row in exchange_stats]
-           }
-   
-   async def validate_security_identifiers(self, identifiers: List[str], 
-                                         identifier_type: str = 'symbol') -> Dict[str, Any]:
-       """Validate a list of security identifiers"""
-       valid_identifiers = []
-       invalid_identifiers = []
-       
-       async with self.db_manager.pool.acquire() as conn:
-           for identifier in identifiers:
-               if identifier_type == 'symbol':
+               # Check 2: Invalid prices
+               invalid_prices = await conn.fetchrow("""
+                   SELECT COUNT(*) as count FROM reference_data.securities
+                   WHERE (last_price IS NULL OR last_price <= 0) AND is_active = TRUE
+               """)
+               if invalid_prices['count'] > 0:
+                   quality_issues.append({
+                       'issue_type': 'invalid_price',
+                       'count': invalid_prices['count'],
+                       'severity': 'HIGH'
+                   })
+
+               # Check 3: Missing sectors
+               missing_sectors = await conn.fetchrow("""
+                   SELECT COUNT(*) as count FROM reference_data.securities
+                   WHERE sector IS NULL AND is_active = TRUE
+               """)
+               if missing_sectors['count'] > 0:
+                   quality_issues.append({
+                       'issue_type': 'missing_sector',
+                       'count': missing_sectors['count'],
+                       'severity': 'LOW'
+                   })
+
+               # Check 4: Duplicate symbols (same exchange)
+               duplicate_symbols = await conn.fetch("""
+                   SELECT symbol, exchange, COUNT(*) as count
+                   FROM reference_data.securities
+                   WHERE is_active = TRUE
+                   GROUP BY symbol, exchange
+                   HAVING COUNT(*) > 1
+               """)
+               if duplicate_symbols:
+                   quality_issues.append({
+                       'issue_type': 'duplicate_symbols',
+                       'count': len(duplicate_symbols),
+                       'severity': 'HIGH',
+                       'details': [dict(row) for row in duplicate_symbols]
+                   })
+
+               # Check 5: Stale prices (older than 5 days)
+               from datetime import timedelta
+               stale_cutoff = check_date - timedelta(days=5)
+               stale_prices = await conn.fetchrow("""
+                   SELECT COUNT(*) as count FROM reference_data.securities
+                   WHERE (price_date IS NULL OR price_date < $1) AND is_active = TRUE
+               """, stale_cutoff)
+               if stale_prices['count'] > 0:
+                   quality_issues.append({
+                       'issue_type': 'stale_prices',
+                       'count': stale_prices['count'],
+                       'severity': 'MEDIUM'
+                   })
+
+               # Calculate overall quality score
+               total_securities = await conn.fetchrow("""
+                   SELECT COUNT(*) as count FROM reference_data.securities WHERE is_active = TRUE
+               """)
+
+               total_issues = sum(issue['count'] for issue in quality_issues)
+               quality_score = max(0, (1 - total_issues / max(total_securities['count'], 1)) * 100)
+
+               # Log quality results
+               await conn.execute("""
+                   INSERT INTO reference_data.data_quality_log
+                   (check_date, check_type, total_records, passed_records, failed_records, quality_score, issues)
+                   VALUES ($1, $2, $3, $4, $5, $6, $7)
+               """,
+               check_date, 'SECURITY_MASTER_CHECK',
+               total_securities['count'],
+               total_securities['count'] - total_issues,
+               total_issues,
+               quality_score,
+               quality_issues
+               )
+
+               logger.info(f"📊 Data quality score: {quality_score:.2f}% ({total_issues} issues found)")
+
+               return {
+                   'quality_score': quality_score,
+                   'total_issues': total_issues,
+                   'quality_issues': quality_issues
+               }
+
+       async def _update_derived_fields(self, update_date: date):
+           """Update calculated/derived fields"""
+           logger.info("🔄 Updating derived fields")
+
+           async with self.db_manager.pool.acquire() as conn:
+               # Update market cap based on price and shares outstanding
+               await conn.execute("""
+                   UPDATE reference_data.securities
+                   SET market_cap = CASE 
+                       WHEN last_price > 0 AND shares_outstanding > 0 
+                       THEN last_price * shares_outstanding
+                       ELSE market_cap
+                   END
+                   WHERE is_active = TRUE
+               """)
+
+               # Calculate average volume over different periods (if we had historical data)
+               # This is simplified - in practice you'd calculate from actual trade data
+               await conn.execute("""
+                   UPDATE reference_data.securities
+                   SET avg_volume_30d = CASE 
+                       WHEN avg_volume_30d IS NULL OR avg_volume_30d = 0
+                       THEN GREATEST(100000, market_cap / 100000)  -- Rough estimate
+                       ELSE avg_volume_30d
+                   END
+                   WHERE is_active = TRUE
+               """)
+
+       async def get_security_by_symbol(self, symbol: str, exchange: str = None) -> Dict[str, Any]:
+           """Get security information by symbol"""
+           async with self.db_manager.pool.acquire() as conn:
+               if exchange:
                    result = await conn.fetchrow("""
-                       SELECT symbol FROM reference_data.securities
+                       SELECT * FROM reference_data.securities
+                       WHERE symbol = $1 AND exchange = $2 AND is_active = TRUE
+                   """, symbol, exchange)
+               else:
+                   result = await conn.fetchrow("""
+                       SELECT * FROM reference_data.securities
                        WHERE symbol = $1 AND is_active = TRUE
+                       ORDER BY market_cap DESC NULLS LAST
                        LIMIT 1
-                   """, identifier)
-               elif identifier_type == 'cusip':
-                   result = await conn.fetchrow("""
-                       SELECT symbol FROM reference_data.securities
-                       WHERE cusip = $1 AND is_active = TRUE
-                       LIMIT 1
-                   """, identifier)
-               elif identifier_type == 'isin':
-                   result = await conn.fetchrow("""
-                       SELECT symbol FROM reference_data.securities
-                       WHERE isin = $1 AND is_active = TRUE
-                       LIMIT 1
-                   """, identifier)
-               else:
-                   result = None
-               
-               if result:
-                   valid_identifiers.append(identifier)
-               else:
-                   invalid_identifiers.append(identifier)
-       
-       return {
-           'total_checked': len(identifiers),
-           'valid_count': len(valid_identifiers),
-           'invalid_count': len(invalid_identifiers),
-           'valid_identifiers': valid_identifiers,
-           'invalid_identifiers': invalid_identifiers,
-           'validation_rate': len(valid_identifiers) / len(identifiers) * 100 if identifiers else 0
-       }
+                   """, symbol)
+
+               return dict(result) if result else None
+
+       async def get_securities_by_sector(self, sector: str, limit: int = None) -> List[Dict[str, Any]]:
+           """Get securities by sector"""
+           async with self.db_manager.pool.acquire() as conn:
+               query = """
+                   SELECT * FROM reference_data.securities
+                   WHERE sector = $1 AND is_active = TRUE
+                   ORDER BY market_cap DESC NULLS LAST
+               """
+
+               if limit:
+                   query += f" LIMIT {limit}"
+
+               rows = await conn.fetch(query, sector)
+               return [dict(row) for row in rows]
+
+       async def get_market_statistics(self) -> Dict[str, Any]:
+           """Get market-wide statistics"""
+           async with self.db_manager.pool.acquire() as conn:
+               # Overall statistics
+               overall_stats = await conn.fetchrow("""
+                   SELECT 
+                       COUNT(*) as total_securities,
+                       COUNT(CASE WHEN is_active THEN 1 END) as active_securities,
+                       SUM(CASE WHEN is_active THEN market_cap ELSE 0 END) as total_market_cap,
+                       AVG(CASE WHEN is_active AND last_price > 0 THEN last_price END) as avg_price,
+                       SUM(CASE WHEN is_active THEN avg_volume_30d ELSE 0 END) as total_volume
+                   FROM reference_data.securities
+               """)
+
+               # By sector breakdown
+               sector_stats = await conn.fetch("""
+                   SELECT 
+                       sector,
+                       COUNT(*) as count,
+                       SUM(market_cap) as sector_market_cap,
+                       AVG(last_price) as avg_price
+                   FROM reference_data.securities
+                   WHERE is_active = TRUE AND sector IS NOT NULL
+                   GROUP BY sector
+                   ORDER BY sector_market_cap DESC NULLS LAST
+               """)
+
+               # By exchange breakdown
+               exchange_stats = await conn.fetch("""
+                   SELECT 
+                       exchange,
+                       COUNT(*) as count,
+                       SUM(market_cap) as exchange_market_cap
+                   FROM reference_data.securities
+                   WHERE is_active = TRUE
+                   GROUP BY exchange
+                   ORDER BY exchange_market_cap DESC NULLS LAST
+               """)
+
+               return {
+                   'overall': dict(overall_stats),
+                   'by_sector': [dict(row) for row in sector_stats],
+                   'by_exchange': [dict(row) for row in exchange_stats]
+               }
+
+       async def validate_security_identifiers(self, identifiers: List[str],
+                                             identifier_type: str = 'symbol') -> Dict[str, Any]:
+           """Validate a list of security identifiers"""
+           valid_identifiers = []
+           invalid_identifiers = []
+
+           async with self.db_manager.pool.acquire() as conn:
+               for identifier in identifiers:
+                   if identifier_type == 'symbol':
+                       result = await conn.fetchrow("""
+                           SELECT symbol FROM reference_data.securities
+                           WHERE symbol = $1 AND is_active = TRUE
+                           LIMIT 1
+                       """, identifier)
+                   elif identifier_type == 'cusip':
+                       result = await conn.fetchrow("""
+                           SELECT symbol FROM reference_data.securities
+                           WHERE cusip = $1 AND is_active = TRUE
+                           LIMIT 1
+                       """, identifier)
+                   elif identifier_type == 'isin':
+                       result = await conn.fetchrow("""
+                           SELECT symbol FROM reference_data.securities
+                           WHERE isin = $1 AND is_active = TRUE
+                           LIMIT 1
+                       """, identifier)
+                   else:
+                       result = None
+
+                   if result:
+                       valid_identifiers.append(identifier)
+                   else:
+                       invalid_identifiers.append(identifier)
+
+           return {
+               'total_checked': len(identifiers),
+               'valid_count': len(valid_identifiers),
+               'invalid_count': len(invalid_identifiers),
+               'valid_identifiers': valid_identifiers,
+               'invalid_identifiers': invalid_identifiers,
+               'validation_rate': len(valid_identifiers) / len(identifiers) * 100 if identifiers else 0
+           }

@@ -1,9 +1,9 @@
 # db/managers/universe_manager.py
 from typing import Dict, List, Any, Optional
-from datetime import date, datetime
-from decimal import Decimal
+from datetime import date
 import json
-from .base_manager import BaseManager
+from source.db.base_managers.base_manager import BaseManager
+
 
 class UniverseManager(BaseManager):
     """Database manager for trading universe operations"""

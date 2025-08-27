@@ -1,5 +1,6 @@
 # db/database.py (Add state manager import and initialization)
-from .managers.state_manager import StateManager
+from typing import Optional
+from source.db.base_managers.state_manager import StateManager
 
 class DatabaseManager:
     def __init__(self):
