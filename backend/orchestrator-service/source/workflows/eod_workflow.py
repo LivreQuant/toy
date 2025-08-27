@@ -7,14 +7,10 @@ from datetime import datetime
 logger = logging.getLogger(__name__)
 
 
-# EOD DAILY REPORT
-# ?? EOD CORPORATE ACTIONS (MIGHT OCCUR MID-DAY LIKE M&A)
-
 def create_eod_workflow() -> List[WorkflowTask]:
     """Create End of Day workflow definition"""
 
     return [
-
         WorkflowTask(
             id="generate_eod_summary_task",
             name="Prepare EOD Summary report",
@@ -22,7 +18,7 @@ def create_eod_workflow() -> List[WorkflowTask]:
             dependencies=[],
             priority=TaskPriority.MEDIUM,
             timeout_seconds=300,
-            skip_flag=False
+            skip_flag=True
         )
     ]
 
@@ -36,37 +32,16 @@ async def generate_eod_summary_task(context: Dict[str, Any]) -> Dict[str, Any]:
     logger.info("📋 Generating EOD summary")
 
     eod_coordinator = context.get("eod_coordinator")
-    orchestrator = context.get("orchestrator")
 
     try:
-        summary_data = {
-            "execution_date": context.get("execution_date").isoformat() if context.get("execution_date") else None,
-            "summary_timestamp": datetime.utcnow().isoformat(),
-            "workflow_performance": {},
-            "system_health": {}
-        }
-
-        # Get workflow execution summary
-        if orchestrator and hasattr(orchestrator.db_manager, 'workflows'):
-            recent_executions = await orchestrator.db_manager.workflows.get_workflow_executions(
-                workflow_name="eod_main",
-                limit=1
-            )
-            if recent_executions:
-                summary_data["workflow_performance"] = recent_executions[0]
-
-        # Get system health summary
-        if orchestrator and hasattr(orchestrator.db_manager, 'state'):
-            health_summary = await orchestrator.db_manager.state.get_system_health_summary()
-            summary_data["system_health"] = health_summary
-
-        # Generate summary report
         if eod_coordinator and eod_coordinator.report_generator:
-            summary_report = await eod_coordinator.report_generator.generate_eod_summary(summary_data)
-            summary_data.update(summary_report)
-
-        logger.info("✅ EOD summary generated")
-        return summary_data
+            # Just pass the whole fucking context and let report_generator handle it
+            summary_report = await eod_coordinator.report_generator.generate_eod_summary(context)
+            logger.info("✅ EOD summary generated")
+            return summary_report
+        else:
+            logger.warning("⚠️ Report generator not available")
+            return {"status": "skipped", "reason": "component_unavailable"}
 
     except Exception as e:
         logger.error(f"❌ EOD summary generation failed: {e}")

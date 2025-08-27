@@ -1,64 +1,71 @@
-# db/database.py (Add state manager import and initialization)
+# source/db/database.py
+import asyncpg
+import logging
 from typing import Optional
+
+from source.config import get_config
+from source.db.base_managers.workflow_manager import WorkflowManager
 from source.db.base_managers.state_manager import StateManager
 
+logger = logging.getLogger(__name__)
+
+
 class DatabaseManager:
+    """Simple database manager - just core functionality"""
+    
     def __init__(self):
+        self.config = get_config()
         self.pool: Optional[asyncpg.Pool] = None
         
-        # Initialize all managers including state manager
+        # Only the essential managers
         self.workflows: Optional[WorkflowManager] = None
-        self.state: Optional[StateManager] = None 
+        self.state: Optional[StateManager] = None
 
-        self.reporting: Optional[ReportingManager] = None
+    async def init(self):
+        """Initialize database connection and managers"""
+        logger.info("🔧 Initializing database manager...")
+        
+        # Create connection pool
+        await self._create_connection_pool()
+        
+        # Initialize managers
+        await self._initialize_managers()
+        
+        logger.info("✅ Database manager initialized")
 
-        self.positions: Optional[PositionManager] = None
-        self.reference_data: Optional[ReferenceDataManager] = None
-        self.universe: Optional[UniverseManager] = None
-        self.corporate_actions: Optional[CorporateActionsManager] = None
-        self.reconciliation: Optional[ReconciliationManager] = None
-    
+    async def _create_connection_pool(self):
+        """Create database connection pool"""
+        logger.info(f"🔗 Connecting to database: {self.config.DATABASE_HOST}:{self.config.DATABASE_PORT}/{self.config.DATABASE_NAME}")
+        
+        self.pool = await asyncpg.create_pool(
+            self.config.database_url,
+            min_size=self.config.DATABASE_MIN_CONNECTIONS,
+            max_size=self.config.DATABASE_MAX_CONNECTIONS,
+            command_timeout=30
+        )
+        logger.info("🔗 Database connection pool created")
+
     async def _initialize_managers(self):
-        """Initialize all data managers"""
-        logger.info("📋 Initializing data managers...")
+        """Initialize only the essential managers"""
+        logger.info("📋 Initializing essential data managers...")
         
         self.workflows = WorkflowManager(self)
         self.state = StateManager(self)
-
-        self.reporting = ReportingManager(self)
-
-        self.positions = PositionManager(self)
-        self.reference_data = ReferenceDataManager(self)
-        self.universe = UniverseManager(self)
-        self.corporate_actions = CorporateActionsManager(self)
-        self.reconciliation = ReconciliationManager(self)
         
-        logger.info("✅ All data managers initialized")
-    
-    async def _initialize_tables(self):
-        """Initialize all database tables"""
-        logger.info("🏗️ Creating database tables...")
-        
-        managers_to_init = [
-            ("Workflows", self.workflows),
-            ("State Management", self.state),
+        logger.info("✅ Essential data managers initialized")
 
-            ("Reporting", self.reporting),
+    async def close(self):
+        """Close database connections"""
+        if self.pool:
+            await self.pool.close()
+            logger.info("🔌 Database connections closed")
 
-            ("Positions", self.positions),
-            ("Reference Data", self.reference_data),
-            ("Universe", self.universe),
-            ("Corporate Actions", self.corporate_actions),
-            ("Reconciliation", self.reconciliation),
-        ]
-        
-        for name, manager in managers_to_init:
-            try:
-                logger.info(f"🔨 Initializing {name} tables...")
-                await manager.initialize_tables()
-                logger.info(f"✅ {name} tables created")
-            except Exception as e:
-                logger.error(f"❌ Failed to initialize {name} tables: {e}")
-                raise
-        
-        logger.info("🎉 All database tables created successfully")
+    async def health_check(self) -> bool:
+        """Simple health check"""
+        try:
+            async with self.pool.acquire() as conn:
+                result = await conn.fetchval("SELECT 1")
+                return result == 1
+        except Exception as e:
+            logger.error(f"❌ Database health check failed: {e}")
+            return False

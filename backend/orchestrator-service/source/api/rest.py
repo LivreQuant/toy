@@ -6,10 +6,15 @@ from fastapi import FastAPI, HTTPException
 logger = logging.getLogger(__name__)
 
 
-def create_app(db_manager, k8s_manager, scheduler) -> FastAPI:
+def create_app(orchestrator) -> FastAPI:
     """Create FastAPI application with all routes"""
 
     app = FastAPI(title="Exchange Orchestrator", version="1.0.0")
+
+    # Get components from orchestrator
+    db_manager = orchestrator.db_manager
+    k8s_manager = orchestrator.k8s_manager
+    scheduler = orchestrator.scheduler
 
     @app.get("/health")
     async def health_check():

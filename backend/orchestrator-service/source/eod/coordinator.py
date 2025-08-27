@@ -78,19 +78,6 @@ class EODCoordinator:
                     }
                 )
 
-                # Create recovery checkpoint for EOD completion
-                if hasattr(self.orchestrator.db_manager, 'state'):
-                    await self.orchestrator.db_manager.state.create_recovery_checkpoint(
-                        checkpoint_name=f"eod_complete_{datetime.utcnow().date()}",
-                        checkpoint_type="EOD_COMPLETE",
-                        checkpoint_data={
-                            "completion_time": end_time.isoformat(),
-                            "workflow_execution_id": result.workflow_execution_id,
-                            "tasks_completed": result.completed_tasks,
-                            "execution_time": result.execution_time
-                        }
-                    )
-
                 logger.info(f"✅ EOD workflow completed successfully in {result.execution_time:.2f}s")
             else:
                 # Log failure
@@ -104,20 +91,6 @@ class EODCoordinator:
                     }
                 )
 
-                # Create system alert for EOD failure
-                if hasattr(self.orchestrator.db_manager, 'state'):
-                    await self.orchestrator.db_manager.state.create_system_alert(
-                        alert_type="EOD_FAILURE",
-                        severity="CRITICAL",
-                        title="EOD Workflow Failed",
-                        message=f"EOD workflow failed with error: {result.error}",
-                        alert_data={
-                            "workflow_execution_id": result.workflow_execution_id,
-                            "failed_tasks": result.failed_tasks,
-                            "execution_time": result.execution_time
-                        }
-                    )
-
                 logger.error(f"❌ EOD workflow failed: {result.error}")
 
             return result
@@ -130,11 +103,6 @@ class EODCoordinator:
             await self.orchestrator.state_manager.save_operation_log(
                 "EOD", "ERROR", start_time, end_time,
                 {"error": str(e)}
-            )
-
-            # Save error state
-            await self.orchestrator.state_manager.save_error_state(
-                f"EOD workflow execution failed: {str(e)}"
             )
 
             return WorkflowResult(
