@@ -111,8 +111,3 @@ class PortfoliosReconciler:
                     'source_system': 'CUSTODIAN'
                 })
         
-        # Add some positions that only exist in external system (rare)
-        unique_accounts = list(set(pos['account_id'] for pos in primary_positions))
-        for _ in range(random.randint(0, 3)):  # 0-3 external-only positions
-            if unique_accounts:
-                external_positions.append({
