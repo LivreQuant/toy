@@ -12,7 +12,6 @@ def create_sod_workflow() -> List[WorkflowTask]:
     return [
         # Phase 1: System Initialization and Validation
         WorkflowTask(
-            # TODO: DOES WHAT?
             id="system_health_check",
             name="System Health Check",
             function=system_health_check_task,
@@ -23,7 +22,6 @@ def create_sod_workflow() -> List[WorkflowTask]:
         ),
         
         WorkflowTask(
-            # CHECK DATABASES
             id="database_validation",
             name="Database Validation", 
             function=database_validation_task,
@@ -34,8 +32,6 @@ def create_sod_workflow() -> List[WorkflowTask]:
         ),
         
         WorkflowTask( 
-            # NOTE: VALIDATE UNIVERSE, CORPORATE ACTIONS, RISK MODEL, ETC. 
-            # NOTE: WHEN WE MOVE THOSE OUT OF KUBERNETES
             id="validate_raw_data",
             name="Validate Raw Data",
             function=validate_raw_data_task,
@@ -45,22 +41,7 @@ def create_sod_workflow() -> List[WorkflowTask]:
             skip_flag=True
         ),
         
-        # Phase 2: Reference Data Updates
-        """
         WorkflowTask(
-            # NOTE: MOVE EXTERNAL!
-            id="update_universe",
-            name="Update Trading Universe",
-            function=update_universe_task,
-            dependencies=["validate_raw_data"],
-            priority=TaskPriority.HIGH,
-            timeout_seconds=600,
-            skip_flag=False
-        ),
-        """
-
-        WorkflowTask( 
-            # TODO: DELETE, HANDLED BY UNIVERSE
             id="update_security_master",
             name="Update Security Master",
             function=update_security_master_task,
@@ -69,23 +50,9 @@ def create_sod_workflow() -> List[WorkflowTask]:
             timeout_seconds=600,
             skip_flag=True
         ),
-
-        """
-        WorkflowTask(
-            # TODO: DELETE, JUST RUN OVER EVERY WEEKDAY
-            id="update_holiday_calendar",
-            name="Update Holiday Calendar",
-            function=update_holiday_calendar_task,
-            dependencies=["validate_raw_data"],
-            priority=TaskPriority.MEDIUM,
-            timeout_seconds=120,
-            skip_flag=True
-        ),
-        """
         
-        # Phase 3: Corporate Actions Processing
+        # Phase 3: Corporate Actions Processing (Based closed portfolios)
         WorkflowTask(
-            # NOTE: MOVE EXTERNAL!
             id="process_corporate_actions",
             name="Process Corporate Actions",
             function=process_corporate_actions_task,
@@ -95,9 +62,8 @@ def create_sod_workflow() -> List[WorkflowTask]:
             skip_flag=True
         ),
         
-        # Phase 4: Position Management
+        # Phase 4: Position Management (Create SOD portfolios)
         WorkflowTask(
-            # NOTE: THIS IS IMPORTANT
             id="reconcile_positions",
             name="Reconcile Positions",
             function=reconcile_positions_task,
@@ -107,18 +73,6 @@ def create_sod_workflow() -> List[WorkflowTask]:
             skip_flag=False
         ),
         
-        # Phase 5: Risk Model Updates
-        WorkflowTask(
-            # NOTE: MOVE EXTERNAL!
-            id="update_risk_model",
-            name="Update Risk Model",
-            function=update_risk_model_task,
-            dependencies=["update_security_master"],
-            priority=TaskPriority.HIGH,
-            timeout_seconds=1800,
-            skip_flag=False
-        ),
-
         # Phase 6: System Readiness
         WorkflowTask(
             # NOTE: VALIDATE PORTFOLIOS
@@ -266,27 +220,6 @@ async def validate_raw_data_task(context: Dict[str, Any]) -> Dict[str, Any]:
 
 # Phase 2: Reference Data Updates
 
-"""
-async def update_universe_task(context: Dict[str, Any]) -> Dict[str, Any]:
-    """Update trading universe"""
-    logger.info("🌌 Updating trading universe")
-    
-    sod_coordinator = context.get("sod_coordinator")
-    
-    try:
-        if sod_coordinator and sod_coordinator.universe_builder:
-            result = await sod_coordinator.universe_builder.build_universe()
-            logger.info("✅ Trading universe updated")
-            return result
-        else:
-            logger.warning("⚠️ Universe builder not available")
-            return {"status": "skipped", "reason": "component_unavailable"}
-            
-    except Exception as e:
-        logger.error(f"❌ Trading universe update failed: {e}")
-        raise
-"""
-
 async def update_security_master_task(context: Dict[str, Any]) -> Dict[str, Any]:
     """Update security master data"""
     logger.info("📋 Updating security master data")
@@ -305,26 +238,6 @@ async def update_security_master_task(context: Dict[str, Any]) -> Dict[str, Any]
     except Exception as e:
         logger.error(f"❌ Security master update failed: {e}")
         raise
-
-"""
-async def update_holiday_calendar_task(context: Dict[str, Any]) -> Dict[str, Any]:
-    """Update trading holiday calendar"""
-    logger.info("📅 Updating holiday calendar")
-    
-    try:
-        # Implementation would update holiday calendar
-        update_result = {
-            "holidays_updated": 0,
-            "calendar_current": True
-        }
-        
-        logger.info("✅ Holiday calendar updated")
-        return update_result
-        
-    except Exception as e:
-        logger.error(f"❌ Holiday calendar update failed: {e}")
-        raise
-"""
 
 # Phase 3: Corporate Actions Processing
 
@@ -366,27 +279,6 @@ async def reconcile_positions_task(context: Dict[str, Any]) -> Dict[str, Any]:
             
     except Exception as e:
         logger.error(f"❌ Position reconciliation failed: {e}")
-        raise
-
-# Phase 5: Risk Model Updates
-
-async def update_risk_model_task(context: Dict[str, Any]) -> Dict[str, Any]:
-    """Update risk model calculations"""
-    logger.info("⚠️ Updating risk model")
-    
-    sod_coordinator = context.get("sod_coordinator")
-    
-    try:
-        if sod_coordinator and sod_coordinator.risk_calculator:
-            result = await sod_coordinator.risk_calculator.update_risk_model()
-            logger.info("✅ Risk model updated")
-            return result
-        else:
-            logger.warning("⚠️ Risk calculator not available")
-            return {"status": "skipped", "reason": "component_unavailable"}
-            
-    except Exception as e:
-        logger.error(f"❌ Risk model update failed: {e}")
         raise
 
 # Phase 6: System Readiness

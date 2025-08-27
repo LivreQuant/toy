@@ -34,6 +34,10 @@ data:
     -- =====================================================================================
     CREATE TABLE IF NOT EXISTS exch_us_equity.risk_factor_data (
         date DATE NOT NULL,
+        model VARCHAR(20) NOT NULL,
+        factor1 VARCHAR(20) NOT NULL,
+        factor2 VARCHAR(20) NOT NULL,
+        factor3 VARCHAR(20) NOT NULL,
         symbol VARCHAR(20) NOT NULL,
         type VARCHAR(100),
         name VARCHAR(100),
@@ -41,8 +45,8 @@ data:
     );
 
     CREATE INDEX idx_risk_factor_data_date ON exch_us_equity.risk_factor_data(date);
-    CREATE INDEX idx_risk_factor_data_symbol ON exch_us_equity.risk_factor_data(symbol);
-    CREATE UNIQUE INDEX idx_risk_factor_data_unique ON exch_us_equity.risk_factor_data(date, symbol, type, name);
+    CREATE INDEX idx_risk_factor_data_model_symbol ON exch_us_equity.risk_factor_data(model, symbol);
+    CREATE UNIQUE INDEX idx_risk_factor_data_unique ON exch_us_equity.risk_factor_data(date, model, symbol, type, name);
 
     -- =====================================================================================
     -- RISK DATA TABLE (SYMBOL LEVEL)
