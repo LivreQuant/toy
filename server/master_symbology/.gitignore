@@ -32,3 +32,6 @@ yarn-error.log*
 
 # raw data
 example/*
+
+# enviornment variables
+source/.env
