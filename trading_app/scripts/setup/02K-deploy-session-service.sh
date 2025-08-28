@@ -42,9 +42,6 @@ else
     echo "Using existing session-service image"
 fi
 
-# Apply RBAC resources first
-kubectl apply -f "$K8S_DIR/deployments/session-service-rbac.yaml"
-
 # Apply the service
 kubectl apply -f "$K8S_DIR/deployments/session-service.yaml"
 

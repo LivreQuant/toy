@@ -1,8 +1,9 @@
-
 # db/risk_manager.py
 from db.base_manager import BaseManager
 import logging
 import pandas as pd
+import pyodbc
+from config import config
 
 class RiskManager(BaseManager):
     """
@@ -13,7 +14,7 @@ class RiskManager(BaseManager):
         Initializes the risk manager.
         """
         super().__init__()
-        self.table = 'exch_us_equity.risk_factor_data'
+        self.table = config.db.table
         
     def load(self, data):
         """

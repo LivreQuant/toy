@@ -1,7 +1,7 @@
-
 # db/base_manager.py
 import pyodbc
 import logging
+from config import config
 
 class BaseManager:
     """
@@ -10,17 +10,16 @@ class BaseManager:
     """
     def __init__(self):
         """
-        Initializes the base database manager with connection details.
-        NOTE: Update these details with your specific SQL Server credentials.
+        Initializes the base database manager with connection details from config.
         """
-        self.driver = '{ODBC Driver 17 for SQL Server}'
-        self.server = 'your_server_name'
-        self.database = 'your_database_name'
-        self.username = 'your_username'
-        self.password = 'your_password'
+        self.driver = config.db.driver
+        self.server = config.db.server
+        self.database = config.db.database
+        self.username = config.db.username
+        self.password = config.db.password
         
     def _get_connection_string(self):
         """
-        Constructs the connection string.
+        Constructs the connection string using config.
         """
-        return f'DRIVER={self.driver};SERVER={self.server};DATABASE={self.database};UID={self.username};PWD={self.password}'
+        return config.db.connection_string
