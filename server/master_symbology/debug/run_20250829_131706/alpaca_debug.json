@@ -1,0 +1,48 @@
+{
+  "shape": [
+    10004,
+    12
+  ],
+  "memory_usage": "3808870",
+  "missing_required_columns": [],
+  "null_counts": {
+    "al_symbol": 1,
+    "exchange": 0,
+    "al_name": 397,
+    "al_status": 0,
+    "al_tradable": 0,
+    "al_marginable": 0,
+    "al_maintenance_margin_requirement": 0,
+    "al_margin_requirement_long": 0,
+    "al_margin_requirement_short": 0,
+    "al_shortable": 0,
+    "al_easy_to_borrow": 0,
+    "standardized_symbol": 1
+  },
+  "duplicate_symbols": "291",
+  "empty_symbols": "15",
+  "exchange_distribution": {
+    "XNAS": 6274,
+    "XNYS": 3730
+  },
+  "symbol_stats": {
+    "unique_count": 9695,
+    "avg_length": 3.962511246626012,
+    "min_length": 0,
+    "max_length": 13,
+    "contains_numbers": "0",
+    "single_letter": "63"
+  },
+  "sample_unusual_symbols": [
+    "COFPRH",
+    "PRIFPRC",
+    "BSBRWI",
+    "TWOPRE",
+    "ABRPRB",
+    "PSAPRC",
+    "SREPRA",
+    "BANCPRE",
+    "COFPRG",
+    "SREPRB"
+  ]
+}

@@ -1,0 +1,41 @@
+{
+  "shape": [
+    8592,
+    5
+  ],
+  "memory_usage": "2914739",
+  "missing_required_columns": [],
+  "null_counts": {
+    "av_symbol": 1,
+    "exchange": 0,
+    "av_name": 39,
+    "av_status": 0,
+    "standardized_symbol": 1
+  },
+  "duplicate_symbols": "5",
+  "empty_symbols": "1",
+  "exchange_distribution": {
+    "XNAS": 5449,
+    "XNYS": 3143
+  },
+  "symbol_stats": {
+    "unique_count": 8583,
+    "avg_length": 3.888953556047026,
+    "min_length": 1,
+    "max_length": 6,
+    "contains_numbers": "0",
+    "single_letter": "20"
+  },
+  "sample_unusual_symbols": [
+    "AACTWS",
+    "ACHRWS",
+    "ALLGWS",
+    "ALTGPA",
+    "ALURWS",
+    "AMBPWS",
+    "AMPXWS",
+    "APGBWS",
+    "ARGOPA",
+    "ATCOPD"
+  ]
+}

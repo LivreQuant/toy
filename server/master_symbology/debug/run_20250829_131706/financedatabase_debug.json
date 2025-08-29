@@ -1,0 +1,56 @@
+{
+  "shape": [
+    9746,
+    20
+  ],
+  "memory_usage": "18754093",
+  "missing_required_columns": [],
+  "null_counts": {
+    "fd_symbol": 1,
+    "exchange": 0,
+    "fd_name": 55,
+    "fd_description": 771,
+    "fd_currency": 100,
+    "fd_sector": 405,
+    "fd_industry_group": 407,
+    "fd_industry": 1063,
+    "fd_country": 201,
+    "fd_state": 4072,
+    "fd_city": 3267,
+    "fd_zipcode": 3356,
+    "fd_homepage_url": 3808,
+    "fd_scalemarketcap": 228,
+    "fd_isin": 7532,
+    "fd_cusip": 8248,
+    "fd_figi": 8027,
+    "fd_composite_figi": 8028,
+    "fd_share_class_figi": 8028,
+    "standardized_symbol": 1
+  },
+  "duplicate_symbols": "1",
+  "empty_symbols": "1",
+  "exchange_distribution": {
+    "XNAS": 6131,
+    "XNYS": 3615
+  },
+  "symbol_stats": {
+    "unique_count": 9743,
+    "avg_length": 4.039507439712673,
+    "min_length": 1,
+    "max_length": 7,
+    "contains_numbers": "0",
+    "single_letter": "21"
+  },
+  "sample_unusual_symbols": [
+    "AAICPB",
+    "AAICPC",
+    "AAQCUN",
+    "ACICUN",
+    "ACICWT",
+    "ACIIUN",
+    "ACIIWT",
+    "ACNDUN",
+    "ACNDWT",
+    "ADEXUN"
+  ]
+}

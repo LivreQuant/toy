@@ -1,0 +1,56 @@
+{
+  "shape": [
+    7286,
+    20
+  ],
+  "memory_usage": "12265937",
+  "missing_required_columns": [],
+  "null_counts": {
+    "pl_symbol": 0,
+    "exchange": 0,
+    "pl_type": 0,
+    "pl_name": 0,
+    "pl_locale": 0,
+    "pl_status": 0,
+    "pl_currency": 0,
+    "pl_composite_figi": 1587,
+    "pl_share_class_figi": 1820,
+    "pl_share_class_shares_outstanding": 651,
+    "pl_cik": 376,
+    "pl_sic_code": 2331,
+    "pl_sic_description": 2350,
+    "pl_location": 2260,
+    "pl_market_capital_2": 2026,
+    "pl_description": 1166,
+    "pl_homepage_url": 1337,
+    "pl_branding": 1928,
+    "pl_weighted_shares_outstanding": 2013,
+    "standardized_symbol": 0
+  },
+  "duplicate_symbols": "1",
+  "empty_symbols": "0",
+  "exchange_distribution": {
+    "XNAS": 4903,
+    "XNYS": 2383
+  },
+  "symbol_stats": {
+    "unique_count": 7285,
+    "avg_length": 3.849574526489157,
+    "min_length": 1,
+    "max_length": 6,
+    "contains_numbers": "0",
+    "single_letter": "20"
+  },
+  "sample_unusual_symbols": [
+    "CMREPD",
+    "PRIFPK",
+    "BANCPF",
+    "SPNTPB",
+    "IONQWS",
+    "PERFWS",
+    "DBRGPI",
+    "SCHWPD",
+    "RBOTWS",
+    "BKKTWS"
+  ]
+}

@@ -1,0 +1,102 @@
+Master Symbology Debug Report - 2025-08-29 13:17:18
+================================================================================
+
+PROVIDER DATA SUMMARY:
+----------------------------------------
+NASDAQ:
+  - Records: 5,049
+  - Duplicates: 0
+  - Empty symbols: 1
+  - Exchanges: ['XNAS']
+
+NYSE:
+  - Records: 2,900
+  - Duplicates: 1
+  - Empty symbols: 0
+  - Exchanges: ['XNYS']
+
+FMP:
+  - Records: 9,795
+  - Duplicates: 3
+  - Empty symbols: 0
+  - Exchanges: ['XNAS', 'XNYS']
+
+INTRINIO:
+  - Records: 7,637
+  - Duplicates: 2
+  - Empty symbols: 0
+  - Exchanges: ['XNAS', 'XNYS']
+
+POLY:
+  - Records: 7,286
+  - Duplicates: 1
+  - Empty symbols: 0
+  - Exchanges: ['XNAS', 'XNYS']
+
+ALPHAVANTAGE:
+  - Records: 8,592
+  - Duplicates: 5
+  - Empty symbols: 1
+  - Exchanges: ['XNAS', 'XNYS']
+
+EODHD:
+  - Records: 8,598
+  - Duplicates: 314
+  - Empty symbols: 1
+  - Exchanges: ['XNAS', 'XNYS']
+
+ALPACA:
+  - Records: 10,004
+  - Duplicates: 291
+  - Empty symbols: 15
+  - Exchanges: ['XNAS', 'XNYS']
+
+SHARADAR:
+  - Records: 5,928
+  - Duplicates: 1
+  - Empty symbols: 1
+  - Exchanges: ['XNAS', 'XNYS']
+
+FD:
+  - Records: 9,746
+  - Duplicates: 1
+  - Empty symbols: 1
+  - Exchanges: ['XNAS', 'XNYS']
+
+CROSS-PROVIDER ANALYSIS:
+----------------------------------------
+T1: 0 unique symbols
+T2: 5 unique symbols
+T3: 2152 unique symbols
+T4: 10 unique symbols
+T5: 222 unique symbols
+T6: 0 unique symbols
+T7: 5 unique symbols
+T8: 5308 unique symbols
+T9: 273 unique symbols
+T10: 1538 unique symbols
+
+MERGE RESULTS:
+----------------------------------------
+Final dataset: 8,595 records
+Excluded records: 12,020
+Confidence distribution:
+  - Score 1.0: 5 records
+  - Score 2.0: 17 records
+  - Score 3.0: 28 records
+  - Score 4.0: 150 records
+  - Score 5.0: 184 records
+  - Score 6.0: 1,080 records
+  - Score 7.0: 1,632 records
+  - Score 8.0: 3,607 records
+  - Score 9.0: 1,892 records
+
+DAILY CHANGES:
+----------------------------------------
+No previous data for comparison
+
+DATA QUALITY ALERTS:
+----------------------------------------
+✅ No critical data quality issues detected
+
+Debug files saved to: /home/samaral/projects/toy/20250325/server/master_symbology/debug/run_20250829_131706

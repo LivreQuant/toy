@@ -1,0 +1,44 @@
+{
+  "shape": [
+    9795,
+    8
+  ],
+  "memory_usage": "3996319",
+  "missing_required_columns": [],
+  "null_counts": {
+    "fp_symbol": 0,
+    "exchange": 0,
+    "fp_type": 0,
+    "fp_name": 0,
+    "fp_market_capital_1": 3,
+    "fp_earnings_announcement": 5620,
+    "fp_shares_outstanding": 152,
+    "standardized_symbol": 0
+  },
+  "duplicate_symbols": "3",
+  "empty_symbols": "0",
+  "exchange_distribution": {
+    "XNAS": 5325,
+    "XNYS": 4470
+  },
+  "symbol_stats": {
+    "unique_count": 9792,
+    "avg_length": 4.355181214905564,
+    "min_length": 1,
+    "max_length": 7,
+    "contains_numbers": "0",
+    "single_letter": "23"
+  },
+  "sample_unusual_symbols": [
+    "FEMACX",
+    "QCEQPX",
+    "QCGRIX",
+    "QREARX",
+    "WFPMDX",
+    "WLCVFX",
+    "WTIXMX",
+    "ZVAMIX",
+    "AACTUN",
+    "AAICPB"
+  ]
+}

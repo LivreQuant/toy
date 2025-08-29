@@ -1,0 +1,41 @@
+{
+  "shape": [
+    2900,
+    6
+  ],
+  "memory_usage": "1070519",
+  "missing_required_columns": [],
+  "null_counts": {
+    "ny_symbol": 0,
+    "exchange": 0,
+    "ny_status": 0,
+    "ny_short_sale_restricted": 0,
+    "ny_halt_reason": 0,
+    "standardized_symbol": 0
+  },
+  "duplicate_symbols": "1",
+  "empty_symbols": "0",
+  "exchange_distribution": {
+    "XNYS": 2900
+  },
+  "symbol_stats": {
+    "unique_count": 2899,
+    "avg_length": 3.532758620689655,
+    "min_length": 1,
+    "max_length": 6,
+    "contains_numbers": "0",
+    "single_letter": "19"
+  },
+  "sample_unusual_symbols": [
+    "AACTWS",
+    "ACHRWS",
+    "ALTGPA",
+    "ALURWS",
+    "AMBPWS",
+    "AMPXWS",
+    "ARESPB",
+    "ARGOPA",
+    "ATCOPH",
+    "BANCPF"
+  ]
+}

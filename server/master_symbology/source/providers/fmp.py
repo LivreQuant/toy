@@ -15,7 +15,9 @@ from source.providers.utils import standardize
 """
 
 OLD_COLUMNS = ['symbol', 'exchange_y', 'type', 'name_x',
-               'marketCap', 'earningsAnnouncement', 'sharesOutstanding']
+               'marketCap',
+               'earningsAnnouncement', 'sharesOutstanding']
+
 NEW_COLUMNS = ['fp_symbol', 'exchange', 'fp_type', 'fp_name',
                'fp_market_capital_1',
                'fp_earnings_announcement', 'fp_shares_outstanding']

@@ -1,0 +1,21 @@
+al_symbol,exchange,al_name,al_status,al_tradable,al_marginable,al_maintenance_margin_requirement,al_margin_requirement_long,al_margin_requirement_short,al_shortable,al_easy_to_borrow,standardized_symbol
+COF.PRH,XNYS,"Capital One Financial Corporation Depositary Shares, Each Representing 1/40th Interest in a Share of",inactive,False,False,100,100,100,False,False,COFPRH
+VERT.U,XNYS,"Vertiv Holdings Co Units, each consisting of one share of Class A common stock and one-third of one",inactive,False,False,100,100,100,False,False,VERTU
+PRIF.PRC,XNYS,"Priority Income Fund, Inc. 6.625% Series C Term Preferred Stock due 2024, par value $0.01 per share",inactive,False,False,100,100,100,False,False,PRIFPRC
+IIAC.U,XNYS,"Investindustrial Acquisition Corp. Units, each consisting of one Class A ordinary share and one-thir",inactive,False,False,100,100,100,False,False,IIACU
+SMTA,XNYS,Spirit MTA REIT Common Shares of Beneficial Interest,inactive,False,False,100,100,100,False,False,SMTA
+PCPL.U,XNYS,"CC Neuberger Principal Holdings I Units, each consisting of one Class A ordinary share and one-third",inactive,False,False,100,100,100,False,False,PCPLU
+453NSP056,XNAS,Incyte Pharmaceuticals tender contra (underlying INCY; expiration 06/10/24),inactive,False,False,100,100,100,False,False,NSP
+CSRA.U,XNYS,"CSR Acquisition Corp Units, each consisting of one Class A ordinary share and one-third of one redee",inactive,False,False,100,100,100,False,False,CSRAU
+IID,XNYS,VOYA INTERNATIONAL HIGH DIVIDEND EQUITY INCOME FUND,inactive,False,False,100,100,100,False,False,IID
+MACQU,XNAS,MCAP Acquisition Corporation Unit,inactive,False,False,100,100,100,False,False,MACQU
+KCAC.U,XNYS,"Kensington Capital Acquisition Corp. IV Units, each consisting of one Class A Ordinary Share, one Cl",inactive,False,False,100,100,100,False,False,KCACU
+IBKCP,XNAS,IBERIABANK Corporation Depositary Shares Representing Series B Fixed to Floating,inactive,False,False,100,100,100,False,False,IBKCP
+RC.PRD,XNYS,Ready Capital Corporation 7.625% Series D Cumulative Redeemable Preferred Stock,inactive,False,False,100,100,100,False,False,RCPRD
+MSF,XNYS,,inactive,False,False,100,100,100,False,False,MSF
+BSBR.WI,XNYS,Banco Santander (Brasil) S.A. American Depositary Shares (each representing one unit),inactive,False,False,100,100,100,False,False,BSBRWI
+OMP,XNAS,Oasis Midstream Partners LP Common Units Representing Limited Partner Interests,inactive,False,False,100,100,100,False,False,OMP
+TWO.PRE,XNYS,Two Harbors Investment Corp. 7.50% Series E Cumulative Redeemable Preferred Stock,inactive,False,False,100,100,100,False,False,TWOPRE
+292STK019,XNAS,"Enfusion, Inc. Contra (underlying symbol ENFN; Expiration 04/16/25; DTC CA ID 149060864)",inactive,False,False,100,100,100,False,False,STK
+NYMTP,XNAS,"New York Mortgage Trust, Inc. 7.75% Series B Cumulative Redeemable Preferred Stock",inactive,False,False,100,100,100,False,False,NYMTP
+ABR.PRB,XNYS,"Arbor Realty Trust, Inc. 7.75% Series B Preferred",inactive,False,False,100,100,100,False,False,ABRPRB

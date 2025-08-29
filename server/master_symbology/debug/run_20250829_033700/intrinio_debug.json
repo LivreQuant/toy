@@ -1,0 +1,47 @@
+{
+  "shape": [
+    7637,
+    11
+  ],
+  "memory_usage": "4962065",
+  "missing_required_columns": [],
+  "null_counts": {
+    "it_symbol": 0,
+    "exchange": 0,
+    "it_type": 0,
+    "it_name": 0,
+    "it_currency": 0,
+    "it_composite_symbol": 0,
+    "it_figi": 12,
+    "it_composite_figi": 510,
+    "it_share_class_figi": 1737,
+    "it_primary_listing": 0,
+    "standardized_symbol": 0
+  },
+  "duplicate_symbols": "2",
+  "empty_symbols": "0",
+  "exchange_distribution": {
+    "XNAS": 4930,
+    "XNYS": 2707
+  },
+  "symbol_stats": {
+    "unique_count": 7635,
+    "avg_length": 3.8025402645017676,
+    "min_length": 1,
+    "max_length": 7,
+    "contains_numbers": "0",
+    "single_letter": "20"
+  },
+  "sample_unusual_symbols": [
+    "CMREPB",
+    "CMREPC",
+    "MITTPA",
+    "MITTPB",
+    "CMREPD",
+    "DLNGPA",
+    "SCHWPD",
+    "CUBIPF",
+    "GLOPPA",
+    "CODIPA"
+  ]
+}

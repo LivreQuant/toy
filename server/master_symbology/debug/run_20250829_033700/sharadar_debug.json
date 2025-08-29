@@ -1,0 +1,55 @@
+{
+  "shape": [
+    5928,
+    19
+  ],
+  "memory_usage": "7070199",
+  "missing_required_columns": [],
+  "null_counts": {
+    "sh_symbol": 1,
+    "exchange": 0,
+    "sh_type": 0,
+    "sh_name": 0,
+    "sh_currency": 0,
+    "sh_location": 18,
+    "sh_cusips": 54,
+    "sh_sic_code": 8,
+    "sh_sic_sector": 8,
+    "sh_sic_industry": 8,
+    "sh_fama_sector": 5928,
+    "sh_fama_industry": 54,
+    "sh_sector": 2,
+    "sh_industry": 2,
+    "sh_scalemarketcap": 814,
+    "sh_scalerevenue": 1126,
+    "sh_cik": 9,
+    "sh_homepage_url": 773,
+    "standardized_symbol": 1
+  },
+  "duplicate_symbols": "1",
+  "empty_symbols": "1",
+  "exchange_distribution": {
+    "XNAS": 3666,
+    "XNYS": 2262
+  },
+  "symbol_stats": {
+    "unique_count": 5925,
+    "avg_length": 3.7911253585287668,
+    "min_length": 1,
+    "max_length": 6,
+    "contains_numbers": "0",
+    "single_letter": "20"
+  },
+  "sample_unusual_symbols": [
+    "AACTWS",
+    "ACHRWS",
+    "ALTGPA",
+    "ALURWS",
+    "ARESPB",
+    "ARGOPA",
+    "ATCOPH",
+    "BANCPF",
+    "BBAIWS",
+    "BFLYWS"
+  ]
+}

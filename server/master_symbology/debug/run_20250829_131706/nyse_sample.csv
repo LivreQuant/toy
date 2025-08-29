@@ -1,0 +1,21 @@
+ny_symbol,exchange,ny_status,ny_short_sale_restricted,ny_halt_reason,standardized_symbol
+AACT,XNYS,Normal, , ,AACT
+AACT.U,XNYS,Normal, , ,AACTU
+AACT.WS,XNYS,Normal, , ,AACTWS
+AAMI,XNYS,Normal, , ,AAMI
+AAM,XNYS,Normal, , ,AAM
+AAM.U,XNYS,Normal, , ,AAMU
+AAM.WS,XNYS,Normal,E, ,AAMWS
+AA,XNYS,Normal, , ,AA
+AAP,XNYS,Normal, , ,AAP
+AAT,XNYS,Normal, , ,AAT
+AAUC,XNYS,Normal, , ,AAUC
+ABBV,XNYS,Normal, , ,ABBV
+ABCB,XNYS,Normal, , ,ABCB
+ABEV,XNYS,Normal, , ,ABEV
+ABG,XNYS,Normal, , ,ABG
+ABM,XNYS,Normal, , ,ABM
+AB,XNYS,Normal, , ,AB
+ABR,XNYS,Normal, , ,ABR
+ABRpD,XNYS,Normal, , ,ABRPD
+ABRpE,XNYS,Normal, , ,ABRPE

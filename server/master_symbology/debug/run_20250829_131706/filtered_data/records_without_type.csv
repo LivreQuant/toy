@@ -1,0 +1,32 @@
+exchange|confidence_score|al_symbol|av_symbol|ed_symbol|fd_symbol|fp_symbol|it_symbol|pl_symbol|sh_symbol|shares_outstanding|margin_requirement_short|status|cusip|sic_description|fama_industry|sector|earnings_announcement|fama_sector|industry|share_class_figi|sic_industry|symbol|figi|sic_code|composite_figi|composite_symbol|maintenance_margin_requirement|homepage_url|halt_reason|marginable|city|lot|branding|margin_requirement_long|scalemarketcap|sic_sector|cik|share_class_shares_outstanding|state|isin|locale|shortable|country|zipcode|weighted_shares_outstanding|cusips|location|industry_group|primary_listing|scalerevenue|tradable|short_sale_restricted|currency|easy_to_borrow|description|type|name|market_capital|null_count
+XNAS|3.0|KOYNU|KOYNU||||||||30.0|Normal||||||||||KOYNU|||||30.0|||True||100.0||30.0||||||||False|||||||||True|||False|||CSLM Digital Asset Acquisition Corp III - Units||44
+XNAS|3.0|ETHMU|ETHMU||||||||30.0|Normal||||||||||ETHMU|||||30.0|||True||100.0||30.0||||||||False|||||||||True|||False|||Dynamix Corporation - Unit||44
+XNYS|3.0|PAII.U|PAII-U||||||||30.0|Normal||||||||||PAII.U|||||30.0|||True||||30.0||||||||False|||||||||True|||False|||Pyrophyte Acquisition Corp II Units each consisting of one Class A ordinary share and onehalf of one redeemable warrant||45
+XNYS|3.0|COPL.U|COPL-U||||||||30.0|Normal||||||||||COPL.U|||||30.0|||True||||30.0||||||||False|||||||||True|||False|||Copley Acquisition Corp - Units (1 Ord Cls A & 1/2 War)||45
+XNYS|3.0|SOUL.U|SOUL-U||||||||30.0|Normal||||||||||SOUL.U|||||30.0|||True||||30.0||||||||False|||||||||True|||False|||Soulpower Acquisition Corp - Units (1 Ord Cls A & 1/2 War)||45
+XNYS|3.0|HYAC.U|HYAC-U||||||||30.0|Normal||||||||||HYAC.U|||||30.0|||True||||30.0||||||||False|||||||||True|||False|||Haymaker Acquisition Corp 4 - Units (1 Ord Class A & 1/2 War)||45
+XNAS|2.0|MULT|||||||||30.0|Normal||||||||||MULT|||||30.0|||True||100.0||30.0||||||||False|||||||||True|||False|||Franklin Multisector Income ETF||45
+XNYS|3.0|EQV.U|EQV-U||||||||30.0|Normal||||||||||EQV.U|||||30.0|||True||||30.0||||||||False|||||||||True|||False|||EQV Ventures Acquisition Corp - Units (1 Ord Cls A & 1/3Warr)||45
+XNYS|3.0|SBXD.U|SBXD-U||||||||30.0|Normal||||||||||SBXD.U|||||30.0|||True||||30.0||||||||False|||||||||True|||False|||SilverBox Corp IV Units each consisting of one Class A ordinary share and onethird of one redeemable warrant||45
+XNYS|3.0|RAC.U|RAC-U||||||||30.0|Normal||||||||||RAC.U|||||30.0|||True||||30.0||||||||False|||||||||True|||False|||Rithm Acquisition Corp Units each consists of one Class A Ordinary Share and onethird of one redeemable Warrant||45
+XNAS|2.0|THH|||||||||30.0|Normal||||||||||THH|||||30.0|||True||100.0||30.0||||||||False|||||||||True|||False|||TryHard Holdings Limited - Ordinary Shares||45
+XNYS|3.0|AAM.U|AAM-U||||||||30.0|Normal||||||||||AAM.U|||||30.0|||True||||30.0||||||||False|||||||||True|||False|||AA Mission Acquisition Corp - Units (1 Ord Share Class A & 1/2 War)||45
+XNAS|2.0|ELOG|||||||||30.0|Normal||||||||||ELOG|||||30.0|||True||100.0||30.0||||||||False|||||||||True|||False|||Eastern International Ltd. - Ordinary Shares||45
+XNAS|2.0|NEWTP|||||||||30.0|Normal||||||||||NEWTP|||||30.0|||True||100.0||30.0||||||||True|||||||||True|||True|||NewtekOne, Inc. - Depositary Shares, Each Representing a 1/40th Interest in a Share of 8.500% Fixed Rate Reset Non-Cumulative Perpetual Preferred Stock, Series B||45
+XNYS|3.0|JENA.U|JENA-U||||||||30.0|Normal||||||||||JENA.U|||||30.0|||True||||30.0||||||||False|||||||||True|||False|||Jena Acquisition Corporation II Units each consisting of one Class A ordinary share and one right||45
+XNYS|3.0||NTEST-O||NTEST-O|||||||Normal||||||||||NTEST.O|||||||||||||||||||||||||||||||USD||||||52
+XNYS|2.0||NTEST-G|||||||||Normal||||||||||NTEST.G|||||||M||||||||||||||||||||||||||||||53
+XNYS|3.0||NTEST-Y||NTEST-Y|||||||Normal||||||||||NTEST.Y|||||||||||||||||||||||||||||||||||||53
+XNYS|2.0||NTEST-M|||||||||Normal||||||||||NTEST.M|||||||||||||||||||||||||||||||||||||54
+XNYS|2.0||NTEST-N|||||||||Normal||||||||||NTEST.N|||||||||||||||||||||||||||||||||||||54
+XNYS|2.0||NTEST-Z|||||||||Normal||||||||||NTEST.Z|||||||||||||||||||||||||||||||||||||54
+XNYS|2.0||NTEST-L|||||||||Normal||||||||||NTEST.L|||||||||||||||||||||||||||||||||||||54
+XNYS|2.0||NTEST-J|||||||||Normal||||||||||NTEST.J|||||||||||||||||||||||||||||||||||||54
+XNYS|2.0||NTEST-K|||||||||Normal||||||||||NTEST.K|||||||||||||||||||||||||||||||||||||54
+XNYS|2.0||NTEST-P|||||||||Normal||||||||||NTEST.P|||||||||||||||||||||||||||||||||||||54
+XNYS|2.0||NTEST-Q|||||||||Normal||||||||||NTEST.Q|||||||||||||||||||||||||||||||||||||54
+XNYS|1.0|||||||||||Normal||||||||||PCGpX|||||||||||||||||||||||||||||||||||||55
+XNYS|1.0|||||||||||Normal||||||||||CBOpA|||||||||||||||||||||||||||||||||||||55
+XNYS|1.0|||||||||||Normal||||||||||FOURpA|||||||||||||||||||||||||||||||||||||55
+XNYS|1.0|||||||||||Normal||||||||||CTEST.A|||||||||||||||||||||||||||||||||||||55
+XNYS|1.0|||||||||||Normal||||||||||KKRpD|||||||||||||||||||||||||||||||||||||55
