@@ -1,0 +1,19 @@
+{
+    "corporate_actions": {
+        "cash_dividends": [
+            {
+                "cusip": "97717Y378",
+                "ex_date": "2025-08-26",
+                "foreign": false,
+                "id": "adf88da0-ce62-4a60-b4f1-50c8f0d073b9",
+                "payable_date": "2025-08-28",
+                "process_date": "2025-08-28",
+                "rate": 0.055,
+                "record_date": "2025-08-26",
+                "special": false,
+                "symbol": "WTMY"
+            }
+        ]
+    },
+    "next_page_token": null
+}

@@ -1,0 +1,19 @@
+{
+    "corporate_actions": {
+        "cash_dividends": [
+            {
+                "cusip": "92864M822",
+                "ex_date": "2025-08-27",
+                "foreign": false,
+                "id": "c7ff42d0-96c6-4062-ba43-ff0ff5ac821c",
+                "payable_date": "2025-08-28",
+                "process_date": "2025-08-28",
+                "rate": 0.027,
+                "record_date": "2025-08-27",
+                "special": false,
+                "symbol": "SOLZ"
+            }
+        ]
+    },
+    "next_page_token": null
+}

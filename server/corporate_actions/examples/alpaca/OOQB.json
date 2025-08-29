@@ -1,0 +1,19 @@
+{
+    "corporate_actions": {
+        "cash_dividends": [
+            {
+                "cusip": "92864M848",
+                "ex_date": "2025-08-27",
+                "foreign": false,
+                "id": "063603c5-b7af-4fe6-bfbe-4029a11913f4",
+                "payable_date": "2025-08-28",
+                "process_date": "2025-08-28",
+                "rate": 0.0249,
+                "record_date": "2025-08-27",
+                "special": false,
+                "symbol": "OOQB"
+            }
+        ]
+    },
+    "next_page_token": null
+}

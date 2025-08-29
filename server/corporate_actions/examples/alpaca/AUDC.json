@@ -1,0 +1,19 @@
+{
+    "corporate_actions": {
+        "cash_dividends": [
+            {
+                "cusip": "M15342104",
+                "ex_date": "2025-08-14",
+                "foreign": true,
+                "id": "f8a96e6c-6f6c-449f-934b-41acbebb6416",
+                "payable_date": "2025-08-28",
+                "process_date": "2025-08-28",
+                "rate": 0.2,
+                "record_date": "2025-08-14",
+                "special": false,
+                "symbol": "AUDC"
+            }
+        ]
+    },
+    "next_page_token": null
+}

@@ -93,9 +93,6 @@ def load_alpaca_data():
 
         df = df.loc[df['exchange'].isin(['XNYS', 'XNAS'])]
 
-        # Name
-        df['al_name'] = df['al_name'].str.uppercase()
-
         return df
 
     except requests.exceptions.RequestException as e:

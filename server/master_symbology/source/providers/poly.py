@@ -11,6 +11,7 @@ OLD_COLUMNS = ['ticker', 'primary_exchange', 'type', 'name',
                #'ticker_root',
                'share_class_shares_outstanding',
                'cik', 'sic_code', 'sic_description',
+               'address',
                #'ticker_suffix',
                'market_cap', 'description', 'homepage_url', 'branding', 'weighted_shares_outstanding']
 
@@ -21,6 +22,7 @@ NEW_COLUMNS = ['pl_symbol', 'exchange', 'pl_type', 'pl_name',
                #'pl_symbol_root',
                'pl_share_class_shares_outstanding',
                'pl_cik', 'pl_sic_code', 'pl_sic_description',
+               'pl_location',
                #'pl_symbol_suffix',
                'pl_market_capital_2', 'pl_description', 'pl_homepage_url', 'pl_branding', 'pl_weighted_shares_outstanding']
 

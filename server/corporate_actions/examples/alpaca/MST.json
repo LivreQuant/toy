@@ -1,0 +1,19 @@
+{
+    "corporate_actions": {
+        "cash_dividends": [
+            {
+                "cusip": "88636R255",
+                "ex_date": "2025-08-27",
+                "foreign": false,
+                "id": "76853572-f4e7-4b64-af94-2493780e52bc",
+                "payable_date": "2025-08-28",
+                "process_date": "2025-08-28",
+                "rate": 0.1849,
+                "record_date": "2025-08-27",
+                "special": false,
+                "symbol": "MST"
+            }
+        ]
+    },
+    "next_page_token": null
+}

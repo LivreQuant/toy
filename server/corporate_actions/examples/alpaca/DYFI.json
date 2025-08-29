@@ -1,0 +1,19 @@
+{
+    "corporate_actions": {
+        "cash_dividends": [
+            {
+                "cusip": "26923N660",
+                "ex_date": "2025-08-27",
+                "foreign": false,
+                "id": "d46a80b3-e313-4ad3-9946-1c694c5bb232",
+                "payable_date": "2025-08-28",
+                "process_date": "2025-08-28",
+                "rate": 0.071556,
+                "record_date": "2025-08-27",
+                "special": false,
+                "symbol": "DYFI"
+            }
+        ]
+    },
+    "next_page_token": null
+}

@@ -1,0 +1,19 @@
+{
+    "corporate_actions": {
+        "cash_dividends": [
+            {
+                "cusip": "26923N538",
+                "ex_date": "2025-08-27",
+                "foreign": false,
+                "id": "eb4eb921-c6ed-4b53-9758-c890471a7a93",
+                "payable_date": "2025-08-28",
+                "process_date": "2025-08-28",
+                "rate": 1.23076,
+                "record_date": "2025-08-27",
+                "special": false,
+                "symbol": "AIPI"
+            }
+        ]
+    },
+    "next_page_token": null
+}

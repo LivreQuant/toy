@@ -1,0 +1,19 @@
+{
+    "corporate_actions": {
+        "cash_dividends": [
+            {
+                "cusip": "Y1968P121",
+                "ex_date": "2025-08-19",
+                "foreign": true,
+                "id": "23e17938-bc36-4b21-a985-6d9b5178aef3",
+                "payable_date": "2025-08-28",
+                "process_date": "2025-08-28",
+                "rate": 0.85,
+                "record_date": "2025-08-19",
+                "special": false,
+                "symbol": "DAC"
+            }
+        ]
+    },
+    "next_page_token": null
+}

@@ -10,6 +10,7 @@ from source.providers.nyse import load_nyse_data
 from source.providers.alphavantage import load_alphavantage_data
 from source.providers.eodhd import load_eodhd_data
 from source.providers.alpaca import load_alpaca_data
+from source.providers.sharadar import load_sharadar_data
 
 from source.providers.utils import merge_and_prioritize, average_or_keep
 
@@ -53,18 +54,23 @@ print("\nLoading Alpaca data...")
 alpaca_df = load_alpaca_data()
 print(f"Loaded Alpaca data with shape: {alpaca_df.shape}")
 
+print("\nLoading Sharadar data...")
+sharadar_df = load_sharadar_data()
+print(f"Loaded Sharadar data with shape: {sharadar_df.shape}")
+
 dataframes = {
     't1': nasdaq_df,
     't2': nyse_df,
     't3': intrinio_df,
     't4': eodhd_df,
     't5': poly_df,
-    't6': fmp_df,
-    't7': av_df,
-    't8': alpaca_df,
+    't6': sharadar_df,
+    't7': fmp_df,
+    't8': av_df,
+    't9': alpaca_df,
 }
 
-priorities = ['t1', 't2', 't3', 't4', 't5', 't6', 't7', 't8']
+priorities = ['t1', 't2', 't3', 't4', 't5', 't6', 't7', 't8', 't9']
 
 df, variables = merge_and_prioritize(dataframes, priorities,
                                      required_tables=['t1', 't2'],
@@ -98,14 +104,23 @@ df_in_ = df_in_.replace(np.nan, None)
 df_in_['null_count'] = df_in_.isnull().sum(axis=1)
 df_in_ = df_in_.sort_values(by='null_count', ascending=True)
 df_in_ = df_in_.drop_duplicates(subset=['symbol', 'exchange'], keep='first')
-df_in_['price_symbol'] = df_in_['al_symbol']
 
-variables_orders = ['symbol', 'price_symbol', 'composite_symbol', 'exchange', 'status', 'type', 'currency',
+variables_orders = ['symbol',
+
+                    # MAP TO CA, FUND, EVENTS
+                    'al_symbol', 'av_symbol', 'ed_symbol', 'fp_symbol', 'it_symbol', 'pl_symbol', 'sh_symbol',
+
+                    'composite_symbol', 'exchange', 'status', 'type', 'currency',
+
+                    'location',
                     'name', 'primary_listing', 'country', 'description', 'lot',
-                    'cik', 'isin', 'figi', 'composite_figi', 'share_class_figi',
-                    'market_capital',
+                    'cik', 'cusips', 'isin', 'figi', 'composite_figi', 'share_class_figi',
+
+
+                    'market_capital', 'scalemarketcap', 'scalerevenue',
                     'shares_outstanding', 'share_class_shares_outstanding', 'weighted_shares_outstanding',
-                    'sic_code', 'sic_description',
+                    'sic_code', 'sic_description', 'sic_sector', 'sic_industry',
+                    'fama_sector', 'fama_industry', 'sector', 'industry',
 
                     'earnings_announcement',
                     'easy_to_borrow', 'halt_reason', 'shortable', 'marginable', 'tradable',
@@ -113,12 +128,15 @@ variables_orders = ['symbol', 'price_symbol', 'composite_symbol', 'exchange', 's
                     'margin_requirement_short',  'margin_requirement_long', 'maintenance_margin_requirement',
                     'homepage_url', 'branding']
 
+set(df_in_.columns) - set(variables_orders)
+
 df_in_ = df_in_[variables_orders]
 
+df_in_no_type = df_in_.loc[df_in_['type'].isnull()]
 df_in_ = df_in_.loc[~df_in_['type'].isnull()]
 
-df_in_price = df_in_.loc[~df_in_['price_symbol'].isnull()]
-df_in_no_price = df_in_.loc[df_in_['price_symbol'].isnull()]
+df_in_price = df_in_.loc[~df_in_['al_symbol'].isnull()]
+df_in_no_price = df_in_.loc[df_in_['al_symbol'].isnull()]
 
 data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "data"))
 os.makedirs(data_dir, exist_ok=True)

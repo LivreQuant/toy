@@ -1,0 +1,19 @@
+{
+    "corporate_actions": {
+        "cash_dividends": [
+            {
+                "cusip": "92864M780",
+                "ex_date": "2025-08-27",
+                "foreign": false,
+                "id": "435b0ce1-0739-4dc7-9174-c7ecaffbf321",
+                "payable_date": "2025-08-28",
+                "process_date": "2025-08-28",
+                "rate": 0.0328,
+                "record_date": "2025-08-27",
+                "special": false,
+                "symbol": "XRPI"
+            }
+        ]
+    },
+    "next_page_token": null
+}

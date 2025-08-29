@@ -1,0 +1,31 @@
+{
+    "corporate_actions": {
+        "cash_dividends": [
+            {
+                "cusip": "74933W254",
+                "ex_date": "2025-08-27",
+                "foreign": false,
+                "id": "1734e089-096f-4d9b-9a05-07a94cf2c7f8",
+                "payable_date": "2025-08-28",
+                "process_date": "2025-08-28",
+                "rate": 0.06,
+                "record_date": "2025-08-27",
+                "special": false,
+                "symbol": "USDX"
+            },
+            {
+                "cusip": "74933W254",
+                "ex_date": "2025-08-27",
+                "foreign": false,
+                "id": "6bcbd7a6-ef5d-4b61-a209-452de447150d",
+                "payable_date": "2025-08-28",
+                "process_date": "2025-08-28",
+                "rate": 0.04,
+                "record_date": "2025-08-27",
+                "special": false,
+                "symbol": "USDX"
+            }
+        ]
+    },
+    "next_page_token": null
+}

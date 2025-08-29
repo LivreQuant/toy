@@ -1,0 +1,468 @@
+{
+    "results": [
+        {
+            "execution_date": "2025-10-28",
+            "id": "Ee4f7af4e6f22f3c220137f6ccbb4da17e3aad5ab1091a5969d63bae382fb1b58",
+            "split_from": 1,
+            "split_to": 1.1,
+            "ticker": "GREH"
+        },
+        {
+            "execution_date": "2025-10-17",
+            "id": "E53f2437e0c04c4cee1c3168ecc0ea3f2adc6c87566dcd84e26ad3fbe82b9d87b",
+            "split_from": 2.6547,
+            "split_to": 1,
+            "ticker": "QUACX"
+        },
+        {
+            "execution_date": "2025-10-17",
+            "id": "Ecfc824688e3635fd90096005d9549f673bf48c67caf0cd73b72b5108ce2fa9e5",
+            "split_from": 3.2707,
+            "split_to": 1,
+            "ticker": "CHCCX"
+        },
+        {
+            "execution_date": "2025-10-17",
+            "id": "E2ae8cfa1e89c136b4944eb8be7794fda5872e9ac84f68d8054d9e0d1de562104",
+            "split_from": 1.2908,
+            "split_to": 1,
+            "ticker": "AWPCX"
+        },
+        {
+            "execution_date": "2025-10-17",
+            "id": "E2a2c1bba06f613c325906a4205930cdd3ae612913d8bf4a20887a26406d8173b",
+            "split_from": 1.5463,
+            "split_to": 1,
+            "ticker": "ATECX"
+        },
+        {
+            "execution_date": "2025-10-17",
+            "id": "E019647ac6fb2295181b3475bc0c0621ada08a63235faf95413e21d0e7d6d3ca0",
+            "split_from": 1.8598,
+            "split_to": 1,
+            "ticker": "APGCX"
+        },
+        {
+            "execution_date": "2025-10-17",
+            "id": "E1c7060b28993f079b52d15e561394f971e005f3156455b973e60622be45236b6",
+            "split_from": 12.9131,
+            "split_to": 1,
+            "ticker": "AGRCX"
+        },
+        {
+            "execution_date": "2025-10-17",
+            "id": "E6f48ec1ecbb1bca1083f21c0cecc2d5d25e4fcf78b72c40a0797816c750265d9",
+            "split_from": 1.6213,
+            "split_to": 1,
+            "ticker": "ADGCX"
+        },
+        {
+            "execution_date": "2025-10-17",
+            "id": "Eeedaf048f93e8bf7351dfa0bce282fb6a3520be3c53110443c622bf9d377e61d",
+            "split_from": 1.307,
+            "split_to": 1,
+            "ticker": "ABCSX"
+        },
+        {
+            "execution_date": "2025-10-13",
+            "id": "E60880ec0d39c2c338cdf9ba69b4a94694564d6054da9fda4d7251813819a0ae5",
+            "split_from": 1,
+            "split_to": 1.012,
+            "ticker": "NRMGX"
+        },
+        {
+            "execution_date": "2025-10-13",
+            "id": "E57e5f0a6795c7227ad85933dc79c6e52ef90b252248d2872a5cecabc33063dc1",
+            "split_from": 1,
+            "split_to": 0.9777,
+            "ticker": "NMGRX"
+        },
+        {
+            "execution_date": "2025-10-13",
+            "id": "E8ced686945b6c6c7541e4efeb3db801afa89730ea2901eadf6255cf86690eae2",
+            "split_from": 1,
+            "split_to": 0.9551,
+            "ticker": "NMGCX"
+        },
+        {
+            "execution_date": "2025-10-13",
+            "id": "E8f4e174a71602114591c04d1f9e7962a5da2571f967fcc57e038998e4088a692",
+            "split_from": 1,
+            "split_to": 0.9899,
+            "ticker": "NMGAX"
+        },
+        {
+            "execution_date": "2025-10-13",
+            "id": "Ea9b6440ab632f092a8f0838d91a83f70990fc817a1671eba3d0dcf237e0df530",
+            "split_from": 1,
+            "split_to": 1.0048,
+            "ticker": "NGRDX"
+        },
+        {
+            "execution_date": "2025-10-13",
+            "id": "E7fc776ef2ed64517a4f92094c5a1740821bc1d6b9b5795870e6be394286dd57b",
+            "split_from": 1,
+            "split_to": 0.9682,
+            "ticker": "NGDRX"
+        },
+        {
+            "execution_date": "2025-10-13",
+            "id": "Edf2073d339c80f4b192130a61354221471f3dc0848c2010928add1508e1ba5a2",
+            "split_from": 1,
+            "split_to": 1.0037,
+            "ticker": "NGDLX"
+        },
+        {
+            "execution_date": "2025-10-13",
+            "id": "E0cf2844df51c80cfcf35b68ccd754c24f15370a10198bae195af6c370fddca7a",
+            "split_from": 1,
+            "split_to": 0.9301,
+            "ticker": "NGDCX"
+        },
+        {
+            "execution_date": "2025-10-13",
+            "id": "E3661fc401fdf3f115f2ec92a2e1c781e9a7232bb138170c2fb67f2662da946a0",
+            "split_from": 1,
+            "split_to": 0.9888,
+            "ticker": "NGDAX"
+        },
+        {
+            "execution_date": "2025-10-13",
+            "id": "E9aa32d74e037fd0b51554db340dcbdf20b4eb418ec5a0a7395e0cd3f103b19a2",
+            "split_from": 1,
+            "split_to": 1.0045,
+            "ticker": "NFALX"
+        },
+        {
+            "execution_date": "2025-10-13",
+            "id": "E556f1c50c776256987410ac7dfccba1dd28e31487e6720b630a68001bbf72382",
+            "split_from": 1,
+            "split_to": 0.9374,
+            "ticker": "NFACX"
+        },
+        {
+            "execution_date": "2025-10-13",
+            "id": "Ea2d963ff6043d6945b1edde34ad7b70914bf8218cc000e05f446f835eeebb897",
+            "split_from": 1,
+            "split_to": 0.991,
+            "ticker": "NFAAX"
+        },
+        {
+            "execution_date": "2025-10-13",
+            "id": "E7a910c891140c063a5130e089aa6243421ef040aac8b5fab2ee5ecfab754cc43",
+            "split_from": 1,
+            "split_to": 0.9951,
+            "ticker": "NBMTX"
+        },
+        {
+            "execution_date": "2025-10-13",
+            "id": "Ef29a3396006d70d6ce318aafca627df22d4dee2138ecb95525b817a2eb7a9b7f",
+            "split_from": 1,
+            "split_to": 1.0073,
+            "ticker": "NBMLX"
+        },
+        {
+            "execution_date": "2025-10-13",
+            "id": "Ee8b20e3332d78796cc4649ec191c3cb34f678641cb80b61f6198ebbf2aaf270e",
+            "split_from": 1,
+            "split_to": 0.9834,
+            "ticker": "NBMBX"
+        },
+        {
+            "execution_date": "2025-10-13",
+            "id": "Ead051c1f9fee0993e5cd039bafc744781796a23a1589a71f1200b1e55299acf4",
+            "split_from": 1,
+            "split_to": 0.9657,
+            "ticker": "NBGUX"
+        },
+        {
+            "execution_date": "2025-10-13",
+            "id": "E47ee7ac0369a7cf590a0cf6e6f195a09543cf22282a7a1053acc788fc564e735",
+            "split_from": 1,
+            "split_to": 0.9914,
+            "ticker": "NBGTX"
+        },
+        {
+            "execution_date": "2025-10-13",
+            "id": "E150e2e8653a888a1f2e15d89c6fd633e41861dd9def7977c2182ea143c4956d3",
+            "split_from": 1,
+            "split_to": 0.9927,
+            "ticker": "NBFCX"
+        },
+        {
+            "execution_date": "2025-10-13",
+            "id": "E716f0c8fbd3f94de7dae672d7753f14ff86eefd4f434ef5fd26370585be75ee7",
+            "split_from": 1,
+            "split_to": 0.9845,
+            "ticker": "NBFAX"
+        },
+        {
+            "execution_date": "2025-10-10",
+            "id": "E97b4ea860dbb1be99c4da365744ac638405c7c3e6cc6f89b49e51956e791ac41",
+            "split_from": 2,
+            "split_to": 3,
+            "ticker": "BNT"
+        },
+        {
+            "execution_date": "2025-10-10",
+            "id": "Ea19f6ac9b7290c456ef24e191cc1205a45edfc84a41e54f9ec5936a658242240",
+            "split_from": 2,
+            "split_to": 3,
+            "ticker": "BN"
+        },
+        {
+            "execution_date": "2025-10-06",
+            "id": "Ed0a13b054203dd6aa12a6b289501c274e93e11f5f28a6fd74273540a04176a60",
+            "split_from": 1,
+            "split_to": 2,
+            "ticker": "ADKT"
+        },
+        {
+            "execution_date": "2025-10-03",
+            "id": "E9a66628596d5960a800b2f7c5892120b793758cb6d284fa1dc30989b33834457",
+            "split_from": 4,
+            "split_to": 1,
+            "ticker": "SAGCX"
+        },
+        {
+            "execution_date": "2025-09-30",
+            "id": "E0568bdf559e176301997f24ef309efc025cbfbf101fe00f74d35e38aaf7190a9",
+            "split_from": 6,
+            "split_to": 7,
+            "ticker": "EEPCF"
+        },
+        {
+            "execution_date": "2025-09-29",
+            "id": "E507818f87bbffe6bd1bd6db45f35bb80e9389f69aac377387ee4c105b395cb27",
+            "split_from": 1,
+            "split_to": 4,
+            "ticker": "UACJF"
+        },
+        {
+            "execution_date": "2025-09-29",
+            "id": "E6b20ce39b23c1824acee750718dd9376ce56c6af9494481c771454b9d25d478c",
+            "split_from": 1,
+            "split_to": 7,
+            "ticker": "IHICF"
+        },
+        {
+            "execution_date": "2025-09-26",
+            "id": "E49be0bc42d33cd25395ddfe3159df06e6ee0f1c94394e7ad422f52130b1616e4",
+            "split_from": 3,
+            "split_to": 1,
+            "ticker": "WSTCX"
+        },
+        {
+            "execution_date": "2025-09-26",
+            "id": "E3aa3c5d5c8003ba363a55dd0244ee8bbc3161c7568540f0ba220fa22b486e8a0",
+            "split_from": 3,
+            "split_to": 1,
+            "ticker": "WRGCX"
+        },
+        {
+            "execution_date": "2025-09-23",
+            "id": "E82896957c6562a92330cf6ac4f29cced2804194c2f45894fcd0b029457eba2fd",
+            "split_from": 1,
+            "split_to": 4,
+            "ticker": "NRIM"
+        },
+        {
+            "execution_date": "2025-09-22",
+            "id": "E52da35ee1bf3712760a58a9850d34efb1672b41bbfcfc9eff172b44891f4959e",
+            "split_from": 5,
+            "split_to": 1,
+            "ticker": "GMRE"
+        },
+        {
+            "execution_date": "2025-09-09",
+            "id": "Ec7169545ec25830ff92db23d5ecbf5507132461fc6ac0c8d8681d3079c8c13da",
+            "split_from": 1,
+            "split_to": 8,
+            "ticker": "DGNX"
+        },
+        {
+            "execution_date": "2025-09-08",
+            "id": "Ecd029c45d0c354f474d3a478688d12146451293ca7bb8c851fe19db05daaa195",
+            "split_from": 1,
+            "split_to": 2,
+            "ticker": "HDB"
+        },
+        {
+            "execution_date": "2025-09-08",
+            "id": "Ee4eeb16690cf93a9714366fd51b63b411328d60a7710fd5beb4e6785aab011a4",
+            "split_from": 1,
+            "split_to": 3,
+            "ticker": "AONNY"
+        },
+        {
+            "execution_date": "2025-09-05",
+            "id": "Ebbd93d4a122b576c2fd2e298d56fa90cfa5644e7c75c8a22ab230d0efac5c57a",
+            "split_from": 1,
+            "split_to": 1.1918,
+            "ticker": "METCB"
+        },
+        {
+            "execution_date": "2025-09-05",
+            "id": "Ef4d54faa1d239447f6d923fcedd4622db87804425a169f99b8a0b84bd75a2036",
+            "split_from": 10,
+            "split_to": 1,
+            "ticker": "CNF"
+        },
+        {
+            "execution_date": "2025-09-05",
+            "id": "E3ae9b266a76bfcbc6b52e2a91fc8459376af0080f5a2bb17581f9a429016b564",
+            "split_from": 8,
+            "split_to": 1,
+            "ticker": "BNDD"
+        },
+        {
+            "execution_date": "2025-09-03",
+            "id": "Eed0ad204bea7abb2b046a15ac433925a65df5572bcd31b67643d1cc701e0e9c9",
+            "split_from": 1,
+            "split_to": 4,
+            "ticker": "YAGZZ"
+        },
+        {
+            "execution_date": "2025-09-03",
+            "id": "E654137f4a22d15d8fe3059f2269f3ad4c7b4d78c73c01380a63d9e3f327d0afd",
+            "split_from": 1,
+            "split_to": 4,
+            "ticker": "RYKKY"
+        },
+        {
+            "execution_date": "2025-09-02",
+            "id": "E5dcc3ec60034b778edba4ce2619503135f2e9e4e99b1399638728f16fd97d56b",
+            "split_from": 250,
+            "split_to": 1,
+            "ticker": "WLGS"
+        },
+        {
+            "execution_date": "2025-09-02",
+            "id": "E5d29d1e371f14d19d19c137f8565c1894dfa2650d43a1a96b24aa48a1fb8bb03",
+            "split_from": 3,
+            "split_to": 1,
+            "ticker": "RNRG"
+        },
+        {
+            "execution_date": "2025-09-02",
+            "id": "E4e695c8b3506ccacd651ab89422673880b445324faf85903ef50bc0a5aa66c95",
+            "split_from": 12,
+            "split_to": 1,
+            "ticker": "NOTE"
+        },
+        {
+            "execution_date": "2025-09-02",
+            "id": "Ef9a627a8064ea1bd67a0aab30971d3ad71997bec3361aa9816d30a2d92b23e85",
+            "split_from": 10,
+            "split_to": 1,
+            "ticker": "LCID"
+        },
+        {
+            "execution_date": "2025-09-02",
+            "id": "Ed4f4960fcbe8ab0209327e65c659a5a47d33de8592387db42368f2dd1d888e07",
+            "split_from": 3,
+            "split_to": 1,
+            "ticker": "KROP"
+        },
+        {
+            "execution_date": "2025-09-02",
+            "id": "E7605572c874144d365106d10a9a7a7f485dc9536eae9bb5dce654179ba164a51",
+            "split_from": 3,
+            "split_to": 1,
+            "ticker": "HEAL"
+        },
+        {
+            "execution_date": "2025-09-02",
+            "id": "Ea1e30255b259e90eed83ed10a72e059a2813267dde810e7b643467f91400d7b2",
+            "split_from": 4,
+            "split_to": 1,
+            "ticker": "GNOM"
+        },
+        {
+            "execution_date": "2025-09-02",
+            "id": "E39c3b7ecec9b9355338975bca33c28a0c80e3aa4f0fe72f932db821a6cb538a9",
+            "split_from": 5,
+            "split_to": 1,
+            "ticker": "CTEC"
+        },
+        {
+            "execution_date": "2025-08-29",
+            "id": "E46851b010145ea14710453d0775aba09ab028dc22e461c89dc1b4a447fd1ba43",
+            "split_from": 20,
+            "split_to": 1,
+            "ticker": "TC"
+        },
+        {
+            "execution_date": "2025-08-29",
+            "id": "E3b5f0f20be9eec08d5e0fda99840966a85d4fe92bd50edb481a12397b807ccdf",
+            "split_from": 10,
+            "split_to": 1,
+            "ticker": "EAF"
+        },
+        {
+            "execution_date": "2025-08-28",
+            "id": "Eb3b9acb722826f87204c61520a6121b972a80c6edf93ba3d300a71efceaa937b",
+            "split_from": 1,
+            "split_to": 5,
+            "ticker": "TSUSF"
+        },
+        {
+            "execution_date": "2025-08-28",
+            "id": "Ea621e3c78afd037f1d4f02b95c817c0b6209ec0c38e5051246765e2a4e0fe036",
+            "split_from": 1,
+            "split_to": 3,
+            "ticker": "SIARF"
+        },
+        {
+            "execution_date": "2025-08-28",
+            "id": "Eebb8ee4c260cb299cd88691d071ee3617c99c5bc12744a623acdeeaaf0f31566",
+            "split_from": 1,
+            "split_to": 2,
+            "ticker": "RYKKF"
+        },
+        {
+            "execution_date": "2025-08-28",
+            "id": "E0d7f81da076b6125e817e9a493395da6d9a5572b3f9f35e5326548b1b528f446",
+            "split_from": 1,
+            "split_to": 2,
+            "ticker": "ORXJF"
+        },
+        {
+            "execution_date": "2025-08-28",
+            "id": "E61baee8ded6094ee3ce452207101efbdaa41e7757463d56371fceb0eebc47874",
+            "split_from": 6,
+            "split_to": 1,
+            "ticker": "GEVI"
+        },
+        {
+            "execution_date": "2025-08-28",
+            "id": "E1ed74e52cf117cb33cf85a256a495a0dbfc94e4c7275c742214f5ac04d5f5b58",
+            "split_from": 15,
+            "split_to": 1,
+            "ticker": "GDHG"
+        },
+        {
+            "execution_date": "2025-08-28",
+            "id": "E69bef04433fd495141f23e71497aca5cb061c3377b86fb75930adfa764671693",
+            "split_from": 20,
+            "split_to": 1,
+            "ticker": "DRIO"
+        },
+        {
+            "execution_date": "2025-08-28",
+            "id": "Ed33f76ff8bcaa8a800d150d83e87a8a6ff06b92ed88493d4fe070af8440835a3",
+            "split_from": 1,
+            "split_to": 2,
+            "ticker": "DAWUF"
+        },
+        {
+            "execution_date": "2025-08-28",
+            "id": "E7fced9c94601c58cf91e21ea42d2ee482dafcecee9f3b555bdd7bb3d9140ba4e",
+            "split_from": 1,
+            "split_to": 3,
+            "ticker": "AONNF"
+        }
+    ],
+    "status": "OK",
+    "request_id": "b8b1de8c5826137d6d99e1fea1d2f2b7"
+}

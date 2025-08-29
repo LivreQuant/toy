@@ -1,0 +1,19 @@
+{
+    "corporate_actions": {
+        "cash_dividends": [
+            {
+                "cusip": "97717X784",
+                "ex_date": "2025-08-26",
+                "foreign": false,
+                "id": "384e0c04-a3fa-4ab5-bcb6-663692e7043c",
+                "payable_date": "2025-08-28",
+                "process_date": "2025-08-28",
+                "rate": 0.305,
+                "record_date": "2025-08-26",
+                "special": false,
+                "symbol": "EMCB"
+            }
+        ]
+    },
+    "next_page_token": null
+}

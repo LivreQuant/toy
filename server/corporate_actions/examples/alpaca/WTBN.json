@@ -1,0 +1,19 @@
+{
+    "corporate_actions": {
+        "cash_dividends": [
+            {
+                "cusip": "97717Y451",
+                "ex_date": "2025-08-26",
+                "foreign": false,
+                "id": "9dbfe9d5-05a7-4f63-b930-f940193f1a87",
+                "payable_date": "2025-08-28",
+                "process_date": "2025-08-28",
+                "rate": 0.08,
+                "record_date": "2025-08-26",
+                "special": false,
+                "symbol": "WTBN"
+            }
+        ]
+    },
+    "next_page_token": null
+}

@@ -119,9 +119,10 @@ def merge_and_prioritize(dataframes, priorities, required_tables, merge_keys=['i
         't3': 'it',
         't4': 'ed',
         't5': 'pl',
-        't6': 'fp',
-        't7': 'av',
-        't8': 'al'
+        't6': 'sh',
+        't7': 'fp',
+        't8': 'av',
+        't9': 'al',
     }
 
     # Create the priority map for consolidation

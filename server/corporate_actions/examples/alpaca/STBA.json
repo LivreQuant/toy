@@ -1,0 +1,19 @@
+{
+    "corporate_actions": {
+        "cash_dividends": [
+            {
+                "cusip": "783859101",
+                "ex_date": "2025-08-14",
+                "foreign": false,
+                "id": "03c7ad3c-1a7d-4da8-9ebe-e1292b54a8f7",
+                "payable_date": "2025-08-28",
+                "process_date": "2025-08-28",
+                "rate": 0.34,
+                "record_date": "2025-08-14",
+                "special": false,
+                "symbol": "STBA"
+            }
+        ]
+    },
+    "next_page_token": null
+}

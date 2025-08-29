@@ -1,0 +1,5022 @@
+[
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.015,
+        "symbol": "0635.HK",
+        "dividend": 0.015,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-19",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 62,
+        "symbol": "9974.T",
+        "dividend": 62,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.12,
+        "symbol": "ZPH.TO",
+        "dividend": 0.12,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-03",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 8,
+        "symbol": "MANYAVAR.NS",
+        "dividend": 8,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-10-04",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.2,
+        "symbol": "ZPAY.TO",
+        "dividend": 0.2,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-03",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.15,
+        "symbol": "BCH-R.BK",
+        "dividend": 0.15,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-12",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 3555,
+        "symbol": "3462.T",
+        "dividend": 3555,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 19,
+        "symbol": "2669.T",
+        "dividend": 19,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-10-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 1.5,
+        "symbol": "AAATECH.NS",
+        "dividend": 1.5,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-10-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 16.5,
+        "symbol": "2186.T",
+        "dividend": 16.5,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.4,
+        "symbol": "OSP.BK",
+        "dividend": 0.4,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-12",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.09,
+        "symbol": "ZRE.TO",
+        "dividend": 0.09,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-03",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 1,
+        "symbol": "2901.T",
+        "dividend": 1,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 20,
+        "symbol": "5018.T",
+        "dividend": 20,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 1500,
+        "symbol": "097950.KS",
+        "dividend": 1500,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-09-30",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.105,
+        "symbol": "TUHY.TO",
+        "dividend": 0.105,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-05",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 20,
+        "symbol": "8267.T",
+        "dividend": 20,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-10-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.2,
+        "symbol": "BRRGIF.BK",
+        "dividend": 0.2,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-15",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.056,
+        "symbol": "ZHY.TO",
+        "dividend": 0.056,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-03",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 4100,
+        "symbol": "8968.T",
+        "dividend": 4100,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 1.5,
+        "symbol": "ABIRAFN.BO",
+        "dividend": 1.5,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-04",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 1,
+        "symbol": "ASTERDM.BO",
+        "dividend": 1,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-10-04",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 78,
+        "symbol": "161510.KS",
+        "dividend": 78,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-02",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 8060,
+        "symbol": "3290.T",
+        "dividend": 8060,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 3.01334,
+        "symbol": "5267.TWO",
+        "dividend": 3.01334,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-26",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.13303,
+        "symbol": "ASF.NZ",
+        "dividend": 0.13303,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-19",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 1,
+        "symbol": "DIAMINESQ.BO",
+        "dividend": 1,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-10-04",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 6500,
+        "symbol": "8984.T",
+        "dividend": 6500,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 7.29006,
+        "symbol": "2439.TW",
+        "dividend": 7.29006,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-09-26",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 1,
+        "symbol": "3706.TW",
+        "dividend": 1,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-24",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 27,
+        "symbol": "3086.T",
+        "dividend": 27,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 11.2,
+        "symbol": "OSB.L",
+        "dividend": 11.2,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-19",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.055,
+        "symbol": "CCL.AX",
+        "dividend": 0.055,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-25",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.091,
+        "symbol": "TGED.TO",
+        "dividend": 0.091,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-05",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 5.36,
+        "symbol": "PAGE.L",
+        "dividend": 5.36,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-10-10",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 20,
+        "symbol": "9842.T",
+        "dividend": 20,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-10-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.17912,
+        "symbol": "QQCI.TO",
+        "dividend": 0.17912,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-08",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 75,
+        "symbol": "200130.KS",
+        "dividend": 75,
+        "recordDate": null,
+        "paymentDate": null,
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.4,
+        "symbol": "XYL",
+        "dividend": 0.4,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-25",
+        "declarationDate": "2025-08-14"
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.11,
+        "symbol": "ZUP.TO",
+        "dividend": 0.11,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-03",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.4,
+        "symbol": "EXPE",
+        "dividend": 0.4,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-18",
+        "declarationDate": "2025-08-07"
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.11098,
+        "symbol": "TSRYY",
+        "dividend": 0.11098,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-10-14",
+        "declarationDate": "2025-08-13"
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 1367.00592,
+        "symbol": "DLEKG.TA",
+        "dividend": 1367.00592,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-10",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 65,
+        "symbol": "PGHH.NS",
+        "dividend": 65,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-25",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.01,
+        "symbol": "0396.HK",
+        "dividend": 0.01,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-09",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 8,
+        "symbol": "1712.T",
+        "dividend": 8,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-10-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.125,
+        "symbol": "ZPW.TO",
+        "dividend": 0.125,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-03",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.112,
+        "symbol": "ZST.TO",
+        "dividend": 0.112,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-03",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 34,
+        "symbol": "2742.T",
+        "dividend": 34,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.0695553,
+        "symbol": "PESAF",
+        "dividend": 0.0701,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-08",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 7,
+        "symbol": "7928.T",
+        "dividend": 7,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-12-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.1,
+        "symbol": "SJWD.BK",
+        "dividend": 0.1,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-12",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.097595,
+        "symbol": "BNDSY",
+        "dividend": 0.097595,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-15",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.012,
+        "symbol": "0012.KL",
+        "dividend": 0.012,
+        "recordDate": null,
+        "paymentDate": null,
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.4897,
+        "symbol": "TTLPF.BK",
+        "dividend": 0.4897,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-15",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 1,
+        "symbol": "6108.TW",
+        "dividend": 1,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-19",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.35,
+        "symbol": "4169.TWO",
+        "dividend": 0.35,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-09-26",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 5.5,
+        "symbol": "5534.TW",
+        "dividend": 5.5,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-30",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.0275,
+        "symbol": "JAM.L",
+        "dividend": 0.0275,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-10-06",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.044,
+        "symbol": "ZMU.TO",
+        "dividend": 0.044,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-03",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 11,
+        "symbol": "3693.TWO",
+        "dividend": 11,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-19",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 10,
+        "symbol": "9946.T",
+        "dividend": 10,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 11.8,
+        "symbol": "STB.L",
+        "dividend": 11.8,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-25",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.05,
+        "symbol": "SIRI.BK",
+        "dividend": 0.05,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-11",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.12,
+        "symbol": "HUMAN.BK",
+        "dividend": 0.12,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-12",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.99877,
+        "symbol": "3167.TW",
+        "dividend": 0.99877,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-18",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.068,
+        "symbol": "002181.SZ",
+        "dividend": 0.068,
+        "recordDate": "2025-08-27",
+        "paymentDate": "2025-08-28",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 1.7,
+        "symbol": "DOCS.L",
+        "dividend": 1.7,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-10-08",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.447,
+        "symbol": "LFGY",
+        "dividend": 0.447,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-08-29",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.5665,
+        "symbol": "0K80.L",
+        "dividend": 0.5665,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-15",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 4,
+        "symbol": "6261.TWO",
+        "dividend": 4,
+        "recordDate": "2025-08-30",
+        "paymentDate": "2025-09-26",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 19,
+        "symbol": "3093.T",
+        "dividend": 19,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.045,
+        "symbol": "ZSU.TO",
+        "dividend": 0.045,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-03",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.15,
+        "symbol": "3086.TWO",
+        "dividend": 0.15,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-10-03",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 10,
+        "symbol": "1418.T",
+        "dividend": 10,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.07,
+        "symbol": "ZWU.TO",
+        "dividend": 0.07,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-03",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.04,
+        "symbol": "ZAG.TO",
+        "dividend": 0.04,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-03",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 2500,
+        "symbol": "005389.KS",
+        "dividend": 2500,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-09-30",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.8,
+        "symbol": "5013.TWO",
+        "dividend": 0.8,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-25",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 12.88661,
+        "symbol": "INRM.TA",
+        "dividend": 12.88661,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-10",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 10,
+        "symbol": "7351.T",
+        "dividend": 10,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.15,
+        "symbol": "BCH.BK",
+        "dividend": 0.15,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-12",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.04682,
+        "symbol": "PFL.TO",
+        "dividend": 0.04682,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-08",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 13.5,
+        "symbol": "9993.T",
+        "dividend": 13.5,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.34,
+        "symbol": "CATY",
+        "dividend": 0.34,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-08",
+        "declarationDate": "2025-08-15"
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.03,
+        "symbol": "ZFS.TO",
+        "dividend": 0.03,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-03",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.043,
+        "symbol": "TPRF.TO",
+        "dividend": 0.043,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-05",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.115,
+        "symbol": "ZMMK.TO",
+        "dividend": 0.115,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-03",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 1,
+        "symbol": "ASTERDM.NS",
+        "dividend": 1,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-10-04",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.0065541,
+        "symbol": "AGG.NZ",
+        "dividend": 0.0065541,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-19",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 30,
+        "symbol": "3543.T",
+        "dividend": 30,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.30514,
+        "symbol": "DELTF",
+        "dividend": 0.30514,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-09",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 2234,
+        "symbol": "3226.T",
+        "dividend": 2234,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.06,
+        "symbol": "TUSB.TO",
+        "dividend": 0.06,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-05",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 13.1,
+        "symbol": "AV.L",
+        "dividend": 13.1,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-10-16",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 1.3,
+        "symbol": "1308.HK",
+        "dividend": 1.3,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-16",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.02045,
+        "symbol": "CESTY",
+        "dividend": 0.02045,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-24",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.00995712,
+        "symbol": "PEFDF",
+        "dividend": 0.01,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-12",
+        "declarationDate": "2025-08-12"
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.037757,
+        "symbol": "INDOY",
+        "dividend": 0.037757,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-26",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.36,
+        "symbol": "TOA.BK",
+        "dividend": 0.36,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-12",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 40,
+        "symbol": "2449.T",
+        "dividend": 40,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-12-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 16.57544,
+        "symbol": "2383.TW",
+        "dividend": 16.57544,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-26",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.08,
+        "symbol": "ZDH.TO",
+        "dividend": 0.08,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-03",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.07,
+        "symbol": "ZFH.TO",
+        "dividend": 0.07,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-03",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.13,
+        "symbol": "ZWA.TO",
+        "dividend": 0.13,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-03",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.12,
+        "symbol": "ZWE.TO",
+        "dividend": 0.12,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-03",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 20,
+        "symbol": "8167.T",
+        "dividend": 20,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.13,
+        "symbol": "ZWH.TO",
+        "dividend": 0.13,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-03",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.003552,
+        "symbol": "MDIYF",
+        "dividend": 0.003552,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-08",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.015,
+        "symbol": "5296.KL",
+        "dividend": 0.015,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-08",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.4,
+        "symbol": "0M29.L",
+        "dividend": 0.4,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-25",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 3,
+        "symbol": "2441.TW",
+        "dividend": 3,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-24",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 30,
+        "symbol": "6183.T",
+        "dividend": 30,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 41.5,
+        "symbol": "8008.T",
+        "dividend": 41.5,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.5675,
+        "symbol": "NTES",
+        "dividend": 0.5675,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-11",
+        "declarationDate": "2025-08-14"
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.09,
+        "symbol": "DUI.AX",
+        "dividend": 0.09,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-19",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 1,
+        "symbol": "5464.TWO",
+        "dividend": 1,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-26",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.055,
+        "symbol": "ZCM.TO",
+        "dividend": 0.055,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-03",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.19,
+        "symbol": "KCAR.BK",
+        "dividend": 0.19,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-11",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 75,
+        "symbol": "200130.KQ",
+        "dividend": 75,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-10-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.5,
+        "symbol": "NSL.BK",
+        "dividend": 0.5,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-12",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 3.5,
+        "symbol": "JYOTHYLAB.NS",
+        "dividend": 3.5,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-10-11",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 5,
+        "symbol": "3607.T",
+        "dividend": 5,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 1.09646,
+        "symbol": "4968.TW",
+        "dividend": 1.09646,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-26",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 30,
+        "symbol": "9414.T",
+        "dividend": 30,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 15,
+        "symbol": "7608.T",
+        "dividend": 15,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 240,
+        "symbol": "9983.T",
+        "dividend": 240,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 35,
+        "symbol": "2670.T",
+        "dividend": 35,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 21.47943,
+        "symbol": "DEC.L",
+        "dividend": 21.47943,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-30",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 61.40571,
+        "symbol": "ONE.TA",
+        "dividend": 61.40571,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-10",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.03,
+        "symbol": "ZFL.TO",
+        "dividend": 0.03,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-03",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 1.49198,
+        "symbol": "2751.TWO",
+        "dividend": 1.49198,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-30",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 48,
+        "symbol": "CRDA.L",
+        "dividend": 48,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-10-07",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.33,
+        "symbol": "CKN.L",
+        "dividend": 0.33,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-12",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.11384,
+        "symbol": "NETTF",
+        "dividend": 0.114,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-08",
+        "declarationDate": "2025-08-14"
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 19,
+        "symbol": "3546.T",
+        "dividend": 19,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.00905732,
+        "symbol": "LKFLF",
+        "dividend": 0.0701,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-10",
+        "declarationDate": "2025-06-27"
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 14,
+        "symbol": "3198.T",
+        "dividend": 14,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 5.5,
+        "symbol": "79GL.L",
+        "dividend": 5.5,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-10-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 4.2,
+        "symbol": "GPPL.NS",
+        "dividend": 4.2,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-10-04",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 18,
+        "symbol": "3141.T",
+        "dividend": 18,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 20,
+        "symbol": "5578.T",
+        "dividend": 20,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.60044,
+        "symbol": "RHIM.VI",
+        "dividend": 0.60044,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-25",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 13,
+        "symbol": "7805.T",
+        "dividend": 13,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 2500,
+        "symbol": "005387.KS",
+        "dividend": 2500,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-09-30",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 1.5,
+        "symbol": "CURY.L",
+        "dividend": 1.5,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-26",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 5.5,
+        "symbol": "2300.T",
+        "dividend": 5.5,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 47,
+        "symbol": "2379.T",
+        "dividend": 47,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 1.8,
+        "symbol": "2062.TW",
+        "dividend": 1.8,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-26",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 55,
+        "symbol": "6814.T",
+        "dividend": 55,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 7.5,
+        "symbol": "2882.T",
+        "dividend": 7.5,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 3,
+        "symbol": "6897.T",
+        "dividend": 3,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 17.6,
+        "symbol": "ZIG.L",
+        "dividend": 17.6,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-30",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 3.5,
+        "symbol": "NTBR.L",
+        "dividend": 3.5,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-24",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 52,
+        "symbol": "2292.T",
+        "dividend": 52,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-10-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.01167617,
+        "symbol": "SHTRF",
+        "dividend": 0.0116,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-09",
+        "declarationDate": "2025-08-11"
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 36,
+        "symbol": "9793.T",
+        "dividend": 36,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-10-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.00770121,
+        "symbol": "BOTRF",
+        "dividend": 0.0077,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-12",
+        "declarationDate": "2025-08-12"
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 23,
+        "symbol": "3050.T",
+        "dividend": 23,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.72,
+        "symbol": "0JSY.L",
+        "dividend": 0.72,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-11",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 27,
+        "symbol": "8185.T",
+        "dividend": 27,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 14,
+        "symbol": "6224.T",
+        "dividend": 14,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 30,
+        "symbol": "7581.T",
+        "dividend": 30,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-12-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 3,
+        "symbol": "8410.TWO",
+        "dividend": 3,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-26",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.0616,
+        "symbol": "TTRAF",
+        "dividend": 0.0616,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-25",
+        "declarationDate": "2025-08-14"
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 1.04118,
+        "symbol": "9946.TW",
+        "dividend": 1.04118,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-17",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 5,
+        "symbol": "2607.TW",
+        "dividend": 5,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-17",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.005,
+        "symbol": "0238.KL",
+        "dividend": 0.005,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-26",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 4.5,
+        "symbol": "3387.T",
+        "dividend": 4.5,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.1,
+        "symbol": "ZWC.TO",
+        "dividend": 0.1,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-03",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.09,
+        "symbol": "ZHP.TO",
+        "dividend": 0.09,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-03",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 7,
+        "symbol": "9846.T",
+        "dividend": 7,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 7.1,
+        "symbol": "AUTO.L",
+        "dividend": 7.1,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-26",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.14864,
+        "symbol": "EQLI.TO",
+        "dividend": 0.14864,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-08",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 3.44288,
+        "symbol": "FSRCY",
+        "dividend": 3.44288,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-25",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 3.70947,
+        "symbol": "GLEN.L",
+        "dividend": 3.70947,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-19",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 10,
+        "symbol": "3168.T",
+        "dividend": 10,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 55,
+        "symbol": "7818.T",
+        "dividend": 55,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 11,
+        "symbol": "6668.T",
+        "dividend": 11,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.65,
+        "symbol": "OLVAS.HE",
+        "dividend": 0.65,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-05",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 10,
+        "symbol": "8127.T",
+        "dividend": 10,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 12,
+        "symbol": "4439.T",
+        "dividend": 12,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 23,
+        "symbol": "7730.T",
+        "dividend": 23,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 7,
+        "symbol": "9418.T",
+        "dividend": 7,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-12-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 10,
+        "symbol": "9270.T",
+        "dividend": 10,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 70,
+        "symbol": "9264.T",
+        "dividend": 70,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-12-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 32,
+        "symbol": "6289.T",
+        "dividend": 32,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 12.5,
+        "symbol": "6159.T",
+        "dividend": 12.5,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 56,
+        "symbol": "7607.T",
+        "dividend": 56,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 44,
+        "symbol": "3046.T",
+        "dividend": 44,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-12-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.5,
+        "symbol": "7352.T",
+        "dividend": 0.5,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-12-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.2,
+        "symbol": "4342.SR",
+        "dividend": 0.2,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-09-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.105,
+        "symbol": "ZWP.TO",
+        "dividend": 0.105,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-03",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.015,
+        "symbol": "1001.HK",
+        "dividend": 0.015,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-12",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.09,
+        "symbol": "ZJK.TO",
+        "dividend": 0.09,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-03",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 13,
+        "symbol": "8233.T",
+        "dividend": 13,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 139.53219,
+        "symbol": "NAWI.TA",
+        "dividend": 139.53219,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-04",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 102.70048,
+        "symbol": "DELG.TA",
+        "dividend": 102.70048,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-09",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 15,
+        "symbol": "7649.T",
+        "dividend": 15,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.11,
+        "symbol": "BAFS.BK",
+        "dividend": 0.11,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-11",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.31,
+        "symbol": "RBA",
+        "dividend": 0.31,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-18",
+        "declarationDate": "2025-08-05"
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.037,
+        "symbol": "ZPL.TO",
+        "dividend": 0.037,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-03",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 4.2,
+        "symbol": "GPPL.BO",
+        "dividend": 4.2,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-10-04",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.061,
+        "symbol": "ZIC.TO",
+        "dividend": 0.061,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-03",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.0189711,
+        "symbol": "GBF.NZ",
+        "dividend": 0.0189711,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-19",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.34353,
+        "symbol": "XY6.DE",
+        "dividend": 0.34353,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-25",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.09,
+        "symbol": "SKR.BK",
+        "dividend": 0.09,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-11",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.43,
+        "symbol": "RUS.TO",
+        "dividend": 0.43,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-15",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.085,
+        "symbol": "ZWQT.TO",
+        "dividend": 0.085,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-03",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.0167,
+        "symbol": "KKC.AX",
+        "dividend": 0.0167,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-24",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 3.8,
+        "symbol": "IPF.L",
+        "dividend": 3.8,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-26",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.1167,
+        "symbol": "HTRB",
+        "dividend": 0.1167,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-02",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.171,
+        "symbol": "KHYB",
+        "dividend": 0.171,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-08-29",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.09,
+        "symbol": "PFLD",
+        "dividend": 0.09,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-02",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 7,
+        "symbol": "7544.T",
+        "dividend": 7,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.1,
+        "symbol": "NETL",
+        "dividend": 0.1,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-08-29",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.282,
+        "symbol": "FSYD",
+        "dividend": 0.282,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-02",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 4.06698,
+        "symbol": "DLKGF",
+        "dividend": 4.06698,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-10",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.1,
+        "symbol": "TBNK.TO",
+        "dividend": 0.1,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-05",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 1500,
+        "symbol": "097955.KS",
+        "dividend": 1500,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-09-30",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 40.41656,
+        "symbol": "DIPL.TA",
+        "dividend": 40.41656,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-07",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.07,
+        "symbol": "CCET.BK",
+        "dividend": 0.07,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-12",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 45,
+        "symbol": "9381.T",
+        "dividend": 45,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-10-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 38.05,
+        "symbol": "369A.T",
+        "dividend": 38.05,
+        "recordDate": null,
+        "paymentDate": null,
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.06,
+        "symbol": "TQCD.TO",
+        "dividend": 0.06,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-05",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 10,
+        "symbol": "6255.T",
+        "dividend": 10,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-12-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.0066104,
+        "symbol": "PCI.AX",
+        "dividend": 0.0066104,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-08",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 3583,
+        "symbol": "3281.T",
+        "dividend": 3583,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.38119,
+        "symbol": "ATMP",
+        "dividend": 0.38119,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-08",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.1,
+        "symbol": "ORIRAIL.BO",
+        "dividend": 0.1,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-10-04",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.11878,
+        "symbol": "VNT.NZ",
+        "dividend": 0.11878,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-10-08",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.00148805,
+        "symbol": "CDGXF",
+        "dividend": 0.0015,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-11",
+        "declarationDate": "2025-06-25"
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.01,
+        "symbol": "0831.HK",
+        "dividend": 0.01,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-11",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.02352941,
+        "symbol": "HGH.NZ",
+        "dividend": 0.02352941,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-12",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 5,
+        "symbol": "5287.TWO",
+        "dividend": 5,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-24",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 55,
+        "symbol": "GAW.L",
+        "dividend": 55,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-10-03",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.0949,
+        "symbol": "ULTY",
+        "dividend": 0.0949,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-08-29",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.1372,
+        "symbol": "YMAX",
+        "dividend": 0.1372,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-08-29",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 406.13928,
+        "symbol": "IDIN.TA",
+        "dividend": 406.13928,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-07",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 830,
+        "symbol": "017670.KS",
+        "dividend": 830,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-09-17",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 2.5,
+        "symbol": "QTX.L",
+        "dividend": 2.5,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-30",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 22.41,
+        "symbol": "7599.T",
+        "dividend": 22.41,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.064372,
+        "symbol": "9105.TW",
+        "dividend": 0.064372,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-12",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.0082,
+        "symbol": "HSW.IR",
+        "dividend": 0.0082,
+        "recordDate": null,
+        "paymentDate": null,
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 7.4,
+        "symbol": "SVS.L",
+        "dividend": 7.4,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-29",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.063,
+        "symbol": "TGRE.TO",
+        "dividend": 0.063,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-05",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 13,
+        "symbol": "2687.T",
+        "dividend": 13,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 5,
+        "symbol": "8200.T",
+        "dividend": 5,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.51876,
+        "symbol": "RHIM.L",
+        "dividend": 0.51876,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-25",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 3.01304,
+        "symbol": "2718.TWO",
+        "dividend": 3.01304,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-17",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.07,
+        "symbol": "ZDV.TO",
+        "dividend": 0.07,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-03",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.11201,
+        "symbol": "QYLP.L",
+        "dividend": 0.11201,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-05",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 12,
+        "symbol": "9252.T",
+        "dividend": 12,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.12965,
+        "symbol": "QYLD.MI",
+        "dividend": 0.12965,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-05",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 34,
+        "symbol": "6506.T",
+        "dividend": 34,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.4,
+        "symbol": "0R1T.L",
+        "dividend": 0.4,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-18",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.045,
+        "symbol": "TCSB.TO",
+        "dividend": 0.045,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-05",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 6,
+        "symbol": "8237.T",
+        "dividend": 6,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 5.7,
+        "symbol": "AEI.L",
+        "dividend": 5.7,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-26",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 4.2,
+        "symbol": "GEN.L",
+        "dividend": 4.2,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-10-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 100,
+        "symbol": "007280.KS",
+        "dividend": 100,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-15",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.0033,
+        "symbol": "MZH.SI",
+        "dividend": 0.0033,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-05",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 30,
+        "symbol": "3440.T",
+        "dividend": 30,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-12-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.06,
+        "symbol": "0321.HK",
+        "dividend": 0.06,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-10-09",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 19,
+        "symbol": "9560.T",
+        "dividend": 19,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 27,
+        "symbol": "3087.T",
+        "dividend": 27,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 25,
+        "symbol": "3045.T",
+        "dividend": 25,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.071552,
+        "symbol": "LLESY",
+        "dividend": 0.071552,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-29",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 20,
+        "symbol": "9982.T",
+        "dividend": 20,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 12.25,
+        "symbol": "RIII.L",
+        "dividend": 12.25,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-26",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.1071,
+        "symbol": "VNT.AX",
+        "dividend": 0.1071,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-10-08",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.068,
+        "symbol": "TUEX.TO",
+        "dividend": 0.068,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-05",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 50,
+        "symbol": "6532.T",
+        "dividend": 50,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-12-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.05,
+        "symbol": "ZPR.TO",
+        "dividend": 0.05,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-03",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.28789,
+        "symbol": "GUDDY",
+        "dividend": 0.28789,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-10-01",
+        "declarationDate": "2025-08-13"
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.04797,
+        "symbol": "PSB.TO",
+        "dividend": 0.04797,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-08",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.195,
+        "symbol": "IPH.AX",
+        "dividend": 0.195,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-23",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.10465,
+        "symbol": "TLV.TO",
+        "dividend": 0.10465,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-08",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 10,
+        "symbol": "2354.T",
+        "dividend": 10,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.05,
+        "symbol": "ZRR.TO",
+        "dividend": 0.05,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-03",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.013,
+        "symbol": "GCI.AX",
+        "dividend": 0.013,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-08",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.1309,
+        "symbol": "TSRYF",
+        "dividend": 0.1309,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-10-02",
+        "declarationDate": "2025-08-13"
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 133.5,
+        "symbol": "3391.T",
+        "dividend": 133.5,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.2,
+        "symbol": "1324.TW",
+        "dividend": 0.2,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-24",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 10,
+        "symbol": "2999.T",
+        "dividend": 10,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 1.5,
+        "symbol": "1603.TW",
+        "dividend": 1.5,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-09-22",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.224,
+        "symbol": "KBSPIF.BK",
+        "dividend": 0.224,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-15",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.2,
+        "symbol": "AUI.AX",
+        "dividend": 0.2,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-19",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 1.5,
+        "symbol": "AAATECH.BO",
+        "dividend": 1.5,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-10-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.1,
+        "symbol": "AS.BK",
+        "dividend": 0.1,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-12",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.01,
+        "symbol": "5286.KL",
+        "dividend": 0.01,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-17",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.0126563,
+        "symbol": "NGB.NZ",
+        "dividend": 0.0126563,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-19",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 3160,
+        "symbol": "3488.T",
+        "dividend": 3160,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 34,
+        "symbol": "7811.T",
+        "dividend": 34,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 2764,
+        "symbol": "3481.T",
+        "dividend": 2764,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.70898,
+        "symbol": "HSW.L",
+        "dividend": 0.70898,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-19",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.14,
+        "symbol": "LALIN.BK",
+        "dividend": 0.14,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-12",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.045,
+        "symbol": "ZEF.TO",
+        "dividend": 0.045,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-03",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.05729,
+        "symbol": "PLV.TO",
+        "dividend": 0.05729,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-08",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 42.5,
+        "symbol": "9602.T",
+        "dividend": 42.5,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 12.5,
+        "symbol": "GCT.TA",
+        "dividend": 12.5,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-08",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 11.92532,
+        "symbol": "RATI.TA",
+        "dividend": 11.92532,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-15",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.03718875,
+        "symbol": "GZTGF",
+        "dividend": 0.03718875,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-08",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 65,
+        "symbol": "7516.T",
+        "dividend": 65,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 1.7,
+        "symbol": "2930.T",
+        "dividend": 1.7,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.1592,
+        "symbol": "0151.HK",
+        "dividend": 0.1592,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-18",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 10,
+        "symbol": "9861.T",
+        "dividend": 10,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 1.7825,
+        "symbol": "HYMLF",
+        "dividend": 1.7825,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-09-30",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 65,
+        "symbol": "1407.T",
+        "dividend": 65,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 1.45,
+        "symbol": "SRP.L",
+        "dividend": 1.45,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-10-03",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 2,
+        "symbol": "PMGR.L",
+        "dividend": 2,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-30",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 2,
+        "symbol": "3063.T",
+        "dividend": 2,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-10-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 250,
+        "symbol": "026960.KS",
+        "dividend": 250,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-09-19",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 1766,
+        "symbol": "8961.T",
+        "dividend": 1766,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 69,
+        "symbol": "8011.T",
+        "dividend": 69,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 22,
+        "symbol": "ARBB.L",
+        "dividend": 22,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-26",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 2770,
+        "symbol": "8953.T",
+        "dividend": 2770,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.05,
+        "symbol": "SBLK",
+        "dividend": 0.05,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-10",
+        "declarationDate": "2025-08-06"
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 3.2,
+        "symbol": "ADDT-B.ST",
+        "dividend": 3.2,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-03",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 8,
+        "symbol": "7630.T",
+        "dividend": 8,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 9,
+        "symbol": "8098.TWO",
+        "dividend": 9,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-30",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.12,
+        "symbol": "4001.SR",
+        "dividend": 0.12,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-09-17",
+        "declarationDate": "2025-08-06"
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 7,
+        "symbol": "2736.T",
+        "dividend": 7,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-12-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 13,
+        "symbol": "4668.T",
+        "dividend": 13,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 14,
+        "symbol": "3280.T",
+        "dividend": 14,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.015558,
+        "symbol": "GIGNF",
+        "dividend": 0.0156,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-17",
+        "declarationDate": "2025-08-07"
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 3.62701,
+        "symbol": "6637.TWO",
+        "dividend": 3.62701,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-26",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.2,
+        "symbol": "MITSU.BO",
+        "dividend": 0.2,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-10-04",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 45,
+        "symbol": "2685.T",
+        "dividend": 45,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-10-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.015,
+        "symbol": "7233.KL",
+        "dividend": 0.015,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-19",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 8,
+        "symbol": "3222.T",
+        "dividend": 8,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-10-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 4.0305,
+        "symbol": "NTEA.L",
+        "dividend": 4.0305,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-30",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 14,
+        "symbol": "6543.T",
+        "dividend": 14,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.112,
+        "symbol": "ALLY.BK",
+        "dividend": 0.112,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-26",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 40,
+        "symbol": "1434.T",
+        "dividend": 40,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 4000,
+        "symbol": "3295.T",
+        "dividend": 4000,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.06,
+        "symbol": "BPT.AX",
+        "dividend": 0.06,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-30",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 6,
+        "symbol": "4745.T",
+        "dividend": 6,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 9.37724,
+        "symbol": "5289.TWO",
+        "dividend": 9.37724,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-10-03",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 32.5,
+        "symbol": "8194.T",
+        "dividend": 32.5,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 60,
+        "symbol": "3353.T",
+        "dividend": 60,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.011,
+        "symbol": "5789.KL",
+        "dividend": 0.011,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-25",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 22,
+        "symbol": "3048.T",
+        "dividend": 22,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 19,
+        "symbol": "4433.T",
+        "dividend": 19,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-12-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.85,
+        "symbol": "4113.TWO",
+        "dividend": 0.85,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-09-26",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.00079999998,
+        "symbol": "8149.HK",
+        "dividend": 0.00079999998,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-25",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 90,
+        "symbol": "3560.T",
+        "dividend": 90,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 1,
+        "symbol": "6582.TW",
+        "dividend": 1,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-18",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.02042218,
+        "symbol": "WWNTF",
+        "dividend": 0.0204,
+        "recordDate": "2025-08-30",
+        "paymentDate": "2025-09-18",
+        "declarationDate": "2025-06-24"
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.17655,
+        "symbol": "AIVAF",
+        "dividend": 0.17655,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-10-16",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.055,
+        "symbol": "TQGD.TO",
+        "dividend": 0.055,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-05",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.5,
+        "symbol": "2539.TW",
+        "dividend": 0.5,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-10-02",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.4,
+        "symbol": "4735.TWO",
+        "dividend": 0.4,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-17",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 37,
+        "symbol": "9948.T",
+        "dividend": 37,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.105,
+        "symbol": "ZWS.TO",
+        "dividend": 0.105,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-03",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 14,
+        "symbol": "8016.T",
+        "dividend": 14,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 30,
+        "symbol": "9740.T",
+        "dividend": 30,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 60,
+        "symbol": "7447.T",
+        "dividend": 60,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.1,
+        "symbol": "JUBILE.BK",
+        "dividend": 0.1,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-12",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 18,
+        "symbol": "2927.T",
+        "dividend": 18,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 8,
+        "symbol": "9979.T",
+        "dividend": 8,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 19,
+        "symbol": "8904.T",
+        "dividend": 19,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 20,
+        "symbol": "7513.T",
+        "dividend": 20,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 65,
+        "symbol": "1997.T",
+        "dividend": 65,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 240,
+        "symbol": "3498.T",
+        "dividend": 240,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-12-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 9,
+        "symbol": "7085.T",
+        "dividend": 9,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 25,
+        "symbol": "7065.T",
+        "dividend": 25,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.25,
+        "symbol": "1928.HK",
+        "dividend": 0.25,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-12",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.96446,
+        "symbol": "CAPD.L",
+        "dividend": 0.96446,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-10-06",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.07,
+        "symbol": "ZMI.TO",
+        "dividend": 0.07,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-03",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.06,
+        "symbol": "ZMBS.TO",
+        "dividend": 0.06,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-03",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.015,
+        "symbol": "EVO.AX",
+        "dividend": 0.015,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-19",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.145,
+        "symbol": "ZWK.TO",
+        "dividend": 0.145,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-03",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.06,
+        "symbol": "VG1.AX",
+        "dividend": 0.06,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-26",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.2028,
+        "symbol": "EGATIF.BK",
+        "dividend": 0.2028,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-15",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.06,
+        "symbol": "TCF.AX",
+        "dividend": 0.06,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-05",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.08,
+        "symbol": "ZDI.TO",
+        "dividend": 0.08,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-03",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 500,
+        "symbol": "DANE.TA",
+        "dividend": 500,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-17",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.15,
+        "symbol": "LFG.AX",
+        "dividend": 0.15,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-15",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.03559,
+        "symbol": "RTEXF",
+        "dividend": 0.03559,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-15",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.72797,
+        "symbol": "GIGNY",
+        "dividend": 0.72797,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-10-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.07,
+        "symbol": "ZUT.TO",
+        "dividend": 0.07,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-03",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 15,
+        "symbol": "8278.T",
+        "dividend": 15,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-10-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 8.5,
+        "symbol": "2698.T",
+        "dividend": 8.5,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 5.75,
+        "symbol": "JGGI.L",
+        "dividend": 5.75,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-10-07",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 3.98014,
+        "symbol": "SHAN.TA",
+        "dividend": 3.98014,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-10-05",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.175,
+        "symbol": "ZWG.TO",
+        "dividend": 0.175,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-03",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.4085,
+        "symbol": "2658.KL",
+        "dividend": 0.4085,
+        "recordDate": null,
+        "paymentDate": null,
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.05536377,
+        "symbol": "LTRCF",
+        "dividend": 0.0555,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-25",
+        "declarationDate": "2025-07-21"
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 2700,
+        "symbol": "3492.T",
+        "dividend": 2700,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.2,
+        "symbol": "OLN",
+        "dividend": 0.2,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-12",
+        "declarationDate": "2025-08-12"
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 65,
+        "symbol": "PGHH.BO",
+        "dividend": 65,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-25",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.05875,
+        "symbol": "DBI.AX",
+        "dividend": 0.05875,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-16",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.28937,
+        "symbol": "TLGPY",
+        "dividend": 0.28937,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-10-02",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.05,
+        "symbol": "SNP.BK",
+        "dividend": 0.05,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-12",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.018002,
+        "symbol": "HGH.AX",
+        "dividend": 0.018002,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-12",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.02,
+        "symbol": "PSH-R.BK",
+        "dividend": 0.02,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-12",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.055,
+        "symbol": "0046.HK",
+        "dividend": 0.055,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-16",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 3.05,
+        "symbol": "LMP.L",
+        "dividend": 3.05,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-10-08",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.01,
+        "symbol": "0869.HK",
+        "dividend": 0.01,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-19",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.09,
+        "symbol": "PROSPECT.BK",
+        "dividend": 0.09,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-12",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 22,
+        "symbol": "7611.T",
+        "dividend": 22,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 15,
+        "symbol": "4440.T",
+        "dividend": 15,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-12-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.06796,
+        "symbol": "ICAE.TO",
+        "dividend": 0.06796,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-08",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.33,
+        "symbol": "XO.BK",
+        "dividend": 0.33,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-12",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 26,
+        "symbol": "156A.T",
+        "dividend": 26,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.0495387,
+        "symbol": "NZC.NZ",
+        "dividend": 0.0495387,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-19",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.009796,
+        "symbol": "NZB.NZ",
+        "dividend": 0.009796,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-19",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.81397,
+        "symbol": "WDS.AX",
+        "dividend": 0.81397,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-24",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.12989,
+        "symbol": "PDC.TO",
+        "dividend": 0.12989,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-08",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 3.8,
+        "symbol": "6227.TWO",
+        "dividend": 3.8,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-09-19",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.31055,
+        "symbol": "RUSMF",
+        "dividend": 0.31055,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-15",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.4,
+        "symbol": "OSP-R.BK",
+        "dividend": 0.4,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-12",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 1.38,
+        "symbol": "REA.AX",
+        "dividend": 1.38,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-12",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 4.6,
+        "symbol": "1513.TW",
+        "dividend": 4.6,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-09-24",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.03,
+        "symbol": "ZPS.TO",
+        "dividend": 0.03,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-03",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.67,
+        "symbol": "4183.TWO",
+        "dividend": 0.67,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-09-26",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 3.3,
+        "symbol": "3025.TW",
+        "dividend": 3.3,
+        "recordDate": "2025-08-30",
+        "paymentDate": "2025-09-26",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.11,
+        "symbol": "ZWB.TO",
+        "dividend": 0.11,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-03",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 1,
+        "symbol": "SPECIALITY.BO",
+        "dividend": 1,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-10-04",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.15096,
+        "symbol": "QYLD.L",
+        "dividend": 0.15096,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-05",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.02,
+        "symbol": "BOL.AX",
+        "dividend": 0.02,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-30",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.035,
+        "symbol": "ZMP.TO",
+        "dividend": 0.035,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-03",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 25,
+        "symbol": "8570.T",
+        "dividend": 25,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 7.08,
+        "symbol": "ALW.L",
+        "dividend": 7.08,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-30",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.045,
+        "symbol": "ZCS.TO",
+        "dividend": 0.045,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-03",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.705,
+        "symbol": "0N08.L",
+        "dividend": 0.705,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-08",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.035,
+        "symbol": "IGN.AX",
+        "dividend": 0.035,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-12",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 2500,
+        "symbol": "005380.KS",
+        "dividend": 2500,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-09-30",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.02,
+        "symbol": "PSH.BK",
+        "dividend": 0.02,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-12",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 15,
+        "symbol": "7427.T",
+        "dividend": 15,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 2.2,
+        "symbol": "BSIF.L",
+        "dividend": 2.2,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-19",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.4889,
+        "symbol": "AMJB",
+        "dividend": 0.4889,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-08",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.375,
+        "symbol": "DNO.OL",
+        "dividend": 0.375,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-08",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 2,
+        "symbol": "9238.T",
+        "dividend": 2,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-12",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.064998,
+        "symbol": "BMQWF",
+        "dividend": 0.064998,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-03",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 65,
+        "symbol": "7219.T",
+        "dividend": 65,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-12-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.04,
+        "symbol": "TDB.TO",
+        "dividend": 0.04,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-05",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.045,
+        "symbol": "ZUD.TO",
+        "dividend": 0.045,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-03",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.06,
+        "symbol": "ZLC.TO",
+        "dividend": 0.06,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-03",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.5,
+        "symbol": "NSL-R.BK",
+        "dividend": 0.5,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-12",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.176,
+        "symbol": "002852.SZ",
+        "dividend": 0.176,
+        "recordDate": "2025-08-27",
+        "paymentDate": "2025-08-28",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.05,
+        "symbol": "NVGS",
+        "dividend": 0.05,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-17",
+        "declarationDate": "2025-08-12"
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.705,
+        "symbol": "PEN.OL",
+        "dividend": 0.705,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-08",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.058939,
+        "symbol": "HYSNY",
+        "dividend": 0.058939,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-19",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 40,
+        "symbol": "5271.T",
+        "dividend": 40,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 4540,
+        "symbol": "8954.T",
+        "dividend": 4540,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.18,
+        "symbol": "FBP",
+        "dividend": 0.18,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-12",
+        "declarationDate": "2025-07-21"
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 30,
+        "symbol": "7373.T",
+        "dividend": 30,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-12-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 32.2,
+        "symbol": "2059.TW",
+        "dividend": 32.2,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-30",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.0005278,
+        "symbol": "2PR4.SG",
+        "dividend": 0.0005278,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-12",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.55,
+        "symbol": "603236.SS",
+        "dividend": 0.55,
+        "recordDate": "2025-08-27",
+        "paymentDate": "2025-08-28",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.03,
+        "symbol": "ZFM.TO",
+        "dividend": 0.03,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-03",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 6,
+        "symbol": "MAGNAELQ.BO",
+        "dividend": 6,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-10-04",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.03,
+        "symbol": "ZDB.TO",
+        "dividend": 0.03,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-03",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.09,
+        "symbol": "TGFI.TO",
+        "dividend": 0.09,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-05",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.42924,
+        "symbol": "RBA.TO",
+        "dividend": 0.42924,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-18",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 207.99999,
+        "symbol": "YHNF.TA",
+        "dividend": 207.99999,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-09",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.1128,
+        "symbol": "TFFIF.BK",
+        "dividend": 0.1128,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-15",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 18,
+        "symbol": "3562.T",
+        "dividend": 18,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 12,
+        "symbol": "7357.T",
+        "dividend": 12,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.72,
+        "symbol": "LH",
+        "dividend": 0.72,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-11",
+        "declarationDate": "2025-07-10"
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 45,
+        "symbol": "2918.T",
+        "dividend": 45,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.5665,
+        "symbol": "NEE",
+        "dividend": 0.5665,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-15",
+        "declarationDate": "2025-07-24"
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 14.7505,
+        "symbol": "7699.T",
+        "dividend": 14.7505,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-10-17",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 35,
+        "symbol": "8931.T",
+        "dividend": 35,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 1,
+        "symbol": "SPECIALITY.NS",
+        "dividend": 1,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-10-04",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 8,
+        "symbol": "MANYAVAR.BO",
+        "dividend": 8,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-10-04",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 9.8,
+        "symbol": "PAY.L",
+        "dividend": 9.8,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-26",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 55,
+        "symbol": "5982.T",
+        "dividend": 55,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.02,
+        "symbol": "QLT.L",
+        "dividend": 0.02,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-22",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 375,
+        "symbol": "000660.KS",
+        "dividend": 375,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-09-30",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 2.7,
+        "symbol": "1240.TWO",
+        "dividend": 2.7,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-19",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 2500,
+        "symbol": "005385.KS",
+        "dividend": 2500,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-09-30",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 20.5,
+        "symbol": "HSL.L",
+        "dividend": 20.5,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-10-13",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 15,
+        "symbol": "7847.T",
+        "dividend": 15,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.0814901,
+        "symbol": "BNDSF",
+        "dividend": 0.0725,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-08-29",
+        "declarationDate": "2025-02-07"
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 60,
+        "symbol": "4530.T",
+        "dividend": 60,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 20,
+        "symbol": "2653.T",
+        "dividend": 20,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-10-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 45,
+        "symbol": "8273.T",
+        "dividend": 45,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 3829,
+        "symbol": "3466.T",
+        "dividend": 3829,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 13,
+        "symbol": "2935.T",
+        "dividend": 13,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 52,
+        "symbol": "4432.T",
+        "dividend": 52,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 3.5,
+        "symbol": "JYOTHYLAB.BO",
+        "dividend": 3.5,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-10-11",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 49,
+        "symbol": "3612.T",
+        "dividend": 49,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 25,
+        "symbol": "3382.T",
+        "dividend": 25,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.145,
+        "symbol": "ZEB.TO",
+        "dividend": 0.145,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-03",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.07,
+        "symbol": "ZDY.TO",
+        "dividend": 0.07,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-03",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.9,
+        "symbol": "2468.TW",
+        "dividend": 0.9,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-25",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.3094,
+        "symbol": "AMUB",
+        "dividend": 0.3094,
+        "recordDate": "2025-08-28",
+        "paymentDate": "2025-09-08",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 25,
+        "symbol": "6264.T",
+        "dividend": 25,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 20,
+        "symbol": "3991.T",
+        "dividend": 20,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.2,
+        "symbol": "TURSG.IS",
+        "dividend": 0.2,
+        "recordDate": "2025-08-29",
+        "paymentDate": "2025-09-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 2,
+        "symbol": "3536.T",
+        "dividend": 2,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 12.5,
+        "symbol": "4728.T",
+        "dividend": 12.5,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-12-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 22,
+        "symbol": "7453.T",
+        "dividend": 22,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 13,
+        "symbol": "7514.T",
+        "dividend": 13,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 7.5,
+        "symbol": "2735.T",
+        "dividend": 7.5,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 12,
+        "symbol": "2157.T",
+        "dividend": 12,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-12-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 60,
+        "symbol": "4760.T",
+        "dividend": 60,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 13.2,
+        "symbol": "6199.T",
+        "dividend": 13.2,
+        "recordDate": "2025-08-31",
+        "paymentDate": "2025-11-01",
+        "declarationDate": null
+    },
+    {
+        "date": "2025-08-28",
+        "label": "August 28, 25",
+        "adjDividend": 0.5,
+        "symbol": "5202.TWO",
+        "dividend": 0.5,
+        "recordDate": "2025-08-30",
+        "paymentDate": "2025-09-26",
+        "declarationDate": null
+    }
+]

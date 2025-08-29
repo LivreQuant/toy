@@ -1,0 +1,19 @@
+{
+    "corporate_actions": {
+        "cash_dividends": [
+            {
+                "cusip": "97717Y410",
+                "ex_date": "2025-08-26",
+                "foreign": false,
+                "id": "95417d9b-6f7b-4e41-aedf-92d3a2d48ee3",
+                "payable_date": "2025-08-28",
+                "process_date": "2025-08-28",
+                "rate": 0.165,
+                "record_date": "2025-08-26",
+                "special": false,
+                "symbol": "USIN"
+            }
+        ]
+    },
+    "next_page_token": null
+}
