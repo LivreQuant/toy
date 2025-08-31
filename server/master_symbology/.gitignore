@@ -31,8 +31,12 @@ yarn-debug.log*
 yarn-error.log*
 
 # raw data
+example/
+data/
+debug/
 example/*
 data/*
+debug/*
 
 # enviornment variables
 source/.env

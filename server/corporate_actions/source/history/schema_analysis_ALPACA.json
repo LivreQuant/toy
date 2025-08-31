@@ -1,0 +1,1521 @@
+{
+  "cash_dividends": {
+    "cusip": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 5563,
+      "total_unique_values": 2802,
+      "enumeration_complete": false,
+      "sample_values": [
+        "38747R439",
+        "38747R421",
+        "38747R637",
+        "871332102",
+        "N30577105"
+      ]
+    },
+    "due_bill_off_date": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 15,
+      "total_unique_values": 15,
+      "enumeration_complete": false,
+      "sample_values": [
+        "2024-09-24",
+        "2025-09-02",
+        "2025-02-19",
+        "2024-08-12",
+        "2024-08-29"
+      ]
+    },
+    "due_bill_on_date": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 13,
+      "total_unique_values": 13,
+      "enumeration_complete": false,
+      "sample_values": [
+        "2024-08-26",
+        "2025-02-10",
+        "2024-05-09",
+        "2025-02-03",
+        "2025-06-26"
+      ]
+    },
+    "ex_date": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 12928,
+      "total_unique_values": 300,
+      "enumeration_complete": false,
+      "sample_values": [
+        "2025-07-15",
+        "2025-07-07",
+        "2025-07-02",
+        "2024-08-21",
+        "2024-08-26"
+      ]
+    },
+    "foreign": {
+      "type": "bool",
+      "required": true,
+      "null_count": 0,
+      "total_count": 12928,
+      "total_unique_values": 2,
+      "all_possible_values": [
+        false,
+        true
+      ],
+      "enumeration_complete": true
+    },
+    "id": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 6274,
+      "total_unique_values": 6274,
+      "enumeration_complete": false,
+      "sample_values": [
+        "e02df9ff-03d8-4b25-9059-dbc1f020c4dc",
+        "6a82d234-f3b4-4ba8-ba72-c4752ed31b74",
+        "aef0368e-f1b7-47af-a134-6f8620ab2efa",
+        "321b25d8-d71d-46b9-9929-c40d18d42ae6",
+        "321fcd19-1c46-4153-ab25-b13b1dd0c48c"
+      ]
+    },
+    "payable_date": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 12928,
+      "total_unique_values": 272,
+      "enumeration_complete": false,
+      "sample_values": [
+        "2025-01-07",
+        "2025-05-26",
+        "2024-12-04",
+        "2025-05-27",
+        "2025-01-22"
+      ]
+    },
+    "process_date": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 12928,
+      "total_unique_values": 256,
+      "enumeration_complete": false,
+      "sample_values": [
+        "2025-01-07",
+        "2024-12-04",
+        "2025-05-27",
+        "2025-01-22",
+        "2024-09-05"
+      ]
+    },
+    "rate": {
+      "type": "mixed",
+      "required": true,
+      "null_count": 0,
+      "total_count": 12928,
+      "total_unique_values": 5007,
+      "enumeration_complete": false,
+      "sample_values": [
+        "3",
+        "0.18521",
+        "0.3",
+        "0.39",
+        "0.25479"
+      ]
+    },
+    "record_date": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 12928,
+      "total_unique_values": 338,
+      "enumeration_complete": false,
+      "sample_values": [
+        "2025-07-15",
+        "2025-07-07",
+        "2025-07-02",
+        "2024-08-21",
+        "2024-08-26"
+      ]
+    },
+    "special": {
+      "type": "bool",
+      "required": true,
+      "null_count": 0,
+      "total_count": 12928,
+      "total_unique_values": 2,
+      "all_possible_values": [
+        false,
+        true
+      ],
+      "enumeration_complete": true
+    },
+    "symbol": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 12928,
+      "total_unique_values": 3129,
+      "enumeration_complete": false,
+      "sample_values": [
+        "TQQY",
+        "TSYY",
+        "BKE",
+        "BRSL",
+        "XBTY"
+      ]
+    }
+  },
+  "forward_splits": {
+    "cusip": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 12,
+      "total_unique_values": 12,
+      "enumeration_complete": false,
+      "sample_values": [
+        "45841N107",
+        "98740Y302",
+        "47100L301",
+        "00187Y100",
+        "38747R710"
+      ]
+    },
+    "due_bill_redemption_date": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 32,
+      "total_unique_values": 31,
+      "enumeration_complete": false,
+      "sample_values": [
+        "2024-12-13",
+        "2025-01-02",
+        "2025-01-07",
+        "2025-05-27",
+        "2024-09-30"
+      ]
+    },
+    "ex_date": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 40,
+      "total_unique_values": 38,
+      "enumeration_complete": false,
+      "sample_values": [
+        "2024-12-13",
+        "2024-10-01",
+        "2025-01-07",
+        "2025-01-02",
+        "2024-12-04"
+      ]
+    },
+    "id": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 14,
+      "total_unique_values": 13,
+      "enumeration_complete": false,
+      "sample_values": [
+        "df841000-da50-4feb-89da-20e495a46c4b",
+        "18890d35-4ce4-4ad1-8321-133a961739ae",
+        "1eb859fe-f102-4959-90ef-3773d6955672",
+        "5e3e42c3-3614-4eb7-a677-a7a716f0c4df",
+        "bf05f637-8adf-462f-bc1e-b1bffbcdb973"
+      ]
+    },
+    "new_rate": {
+      "type": "mixed",
+      "required": true,
+      "null_count": 0,
+      "total_count": 40,
+      "total_unique_values": 12,
+      "enumeration_complete": false,
+      "sample_values": [
+        "2",
+        "10",
+        "4",
+        "1195",
+        "2.5"
+      ]
+    },
+    "old_rate": {
+      "type": "int",
+      "required": true,
+      "null_count": 0,
+      "total_count": 40,
+      "total_unique_values": 5,
+      "all_possible_values": [
+        1,
+        2,
+        4,
+        5,
+        1000
+      ],
+      "enumeration_complete": true
+    },
+    "payable_date": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 36,
+      "total_unique_values": 35,
+      "enumeration_complete": false,
+      "sample_values": [
+        "2024-12-04",
+        "2024-12-17",
+        "2024-10-08",
+        "2025-06-30",
+        "2025-07-30"
+      ]
+    },
+    "process_date": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 40,
+      "total_unique_values": 39,
+      "enumeration_complete": false,
+      "sample_values": [
+        "2024-12-13",
+        "2024-10-01",
+        "2025-01-07",
+        "2025-01-02",
+        "2024-12-04"
+      ]
+    },
+    "record_date": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 36,
+      "total_unique_values": 32,
+      "enumeration_complete": false,
+      "sample_values": [
+        "2025-01-02",
+        "2025-06-16",
+        "2024-12-20",
+        "2024-12-04",
+        "2024-09-25"
+      ]
+    },
+    "symbol": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 40,
+      "total_unique_values": 39,
+      "enumeration_complete": false,
+      "sample_values": [
+        "COKE",
+        "CVLG",
+        "YOSH",
+        "SMCI",
+        "TCBP"
+      ]
+    }
+  },
+  "name_changes": {
+    "id": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 164,
+      "total_unique_values": 164,
+      "enumeration_complete": false,
+      "sample_values": [
+        "fa6e369a-4cd6-4d0c-879f-d621bf0bf84e",
+        "a252c716-8b99-4279-9195-c2724e94769a",
+        "7ae874e1-8a8c-4d90-a92a-919d2a77ee3c",
+        "b9e1d62e-18e8-41a4-a82e-6d885e363049",
+        "bfd38d6e-fde6-4bc2-aa2b-e95ee6b9a154"
+      ]
+    },
+    "new_cusip": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 142,
+      "total_unique_values": 138,
+      "enumeration_complete": false,
+      "sample_values": [
+        "Q9379E105",
+        "G0135E126",
+        "690370101",
+        "497498105",
+        "47100L301"
+      ]
+    },
+    "new_symbol": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 306,
+      "total_unique_values": 300,
+      "enumeration_complete": false,
+      "sample_values": [
+        "TBHC",
+        "TBCH",
+        "SORA",
+        "SVUHF",
+        "SVUWF"
+      ]
+    },
+    "old_cusip": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 142,
+      "total_unique_values": 137,
+      "enumeration_complete": false,
+      "sample_values": [
+        "Q9379E105",
+        "G0135E126",
+        "690370101",
+        "497498105",
+        "47100L301"
+      ]
+    },
+    "old_symbol": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 306,
+      "total_unique_values": 302,
+      "enumeration_complete": false,
+      "sample_values": [
+        "NKLA",
+        "HEAR",
+        "VSTE",
+        "RGF",
+        "TOPW"
+      ]
+    },
+    "process_date": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 306,
+      "total_unique_values": 160,
+      "enumeration_complete": false,
+      "sample_values": [
+        "2025-01-07",
+        "2024-08-13",
+        "2025-05-27",
+        "2024-12-03",
+        "2025-01-22"
+      ]
+    }
+  },
+  "reverse_splits": {
+    "ex_date": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 469,
+      "total_unique_values": 194,
+      "enumeration_complete": false,
+      "sample_values": [
+        "2024-08-13",
+        "2024-12-04",
+        "2025-05-27",
+        "2025-06-24",
+        "2024-08-22"
+      ]
+    },
+    "id": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 237,
+      "total_unique_values": 236,
+      "enumeration_complete": false,
+      "sample_values": [
+        "e7c36c0f-3f13-4e51-b1d1-caa23442f112",
+        "2a2082f0-17ea-4b0d-992b-7a7a2bf3ca6b",
+        "ee104b8b-d3b5-4ada-adc1-40887b63d2bb",
+        "fafa691b-24a4-460c-9498-de05a0c24879",
+        "341a257f-f555-4286-82ae-634d4a6fac45"
+      ]
+    },
+    "new_cusip": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 216,
+      "total_unique_values": 215,
+      "enumeration_complete": false,
+      "sample_values": [
+        "G1281K130",
+        "G9687V204",
+        "03835L504",
+        "817225303",
+        "963025812"
+      ]
+    },
+    "new_rate": {
+      "type": "int",
+      "required": true,
+      "null_count": 0,
+      "total_count": 469,
+      "total_unique_values": 1,
+      "all_possible_values": [
+        1
+      ],
+      "enumeration_complete": true
+    },
+    "old_cusip": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 216,
+      "total_unique_values": 215,
+      "enumeration_complete": false,
+      "sample_values": [
+        "G1281K122",
+        "744413105",
+        "G9687V105",
+        "M79549107",
+        "282644301"
+      ]
+    },
+    "old_rate": {
+      "type": "mixed",
+      "required": true,
+      "null_count": 0,
+      "total_count": 469,
+      "total_unique_values": 63,
+      "enumeration_complete": false,
+      "sample_values": [
+        "10",
+        "4",
+        "20",
+        "25",
+        "15"
+      ]
+    },
+    "payable_date": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 465,
+      "total_unique_values": 194,
+      "enumeration_complete": false,
+      "sample_values": [
+        "2024-08-13",
+        "2024-12-04",
+        "2025-05-27",
+        "2025-06-24",
+        "2024-08-22"
+      ]
+    },
+    "process_date": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 469,
+      "total_unique_values": 194,
+      "enumeration_complete": false,
+      "sample_values": [
+        "2024-08-13",
+        "2024-12-04",
+        "2025-05-27",
+        "2025-06-24",
+        "2024-08-22"
+      ]
+    },
+    "record_date": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 465,
+      "total_unique_values": 194,
+      "enumeration_complete": false,
+      "sample_values": [
+        "2024-08-13",
+        "2024-12-04",
+        "2025-05-27",
+        "2025-06-24",
+        "2024-08-22"
+      ]
+    },
+    "symbol": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 469,
+      "total_unique_values": 399,
+      "enumeration_complete": false,
+      "sample_values": [
+        "JXG",
+        "SLXN",
+        "BIRD",
+        "DPRO",
+        "HPH"
+      ]
+    }
+  },
+  "rights_distributions": {
+    "ex_date": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 1,
+      "total_unique_values": 1,
+      "all_possible_values": [
+        "2024-09-20"
+      ],
+      "enumeration_complete": true
+    },
+    "expiration_date": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 1,
+      "total_unique_values": 1,
+      "all_possible_values": [
+        "2024-10-10"
+      ],
+      "enumeration_complete": true
+    },
+    "new_symbol": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 1,
+      "total_unique_values": 1,
+      "all_possible_values": [
+        "SEG.RTWI"
+      ],
+      "enumeration_complete": true
+    },
+    "payable_date": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 1,
+      "total_unique_values": 1,
+      "all_possible_values": [
+        "2024-09-23"
+      ],
+      "enumeration_complete": true
+    },
+    "process_date": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 1,
+      "total_unique_values": 1,
+      "all_possible_values": [
+        "2024-09-23"
+      ],
+      "enumeration_complete": true
+    },
+    "rate": {
+      "type": "int",
+      "required": true,
+      "null_count": 0,
+      "total_count": 1,
+      "total_unique_values": 1,
+      "all_possible_values": [
+        1
+      ],
+      "enumeration_complete": true
+    },
+    "record_date": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 1,
+      "total_unique_values": 1,
+      "all_possible_values": [
+        "2024-09-20"
+      ],
+      "enumeration_complete": true
+    },
+    "source_symbol": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 1,
+      "total_unique_values": 1,
+      "all_possible_values": [
+        "SEG"
+      ],
+      "enumeration_complete": true
+    }
+  },
+  "spin_offs": {
+    "due_bill_redemption_date": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 8,
+      "total_unique_values": 6,
+      "all_possible_values": [
+        "2024-11-05",
+        "2024-11-13",
+        "2025-03-03",
+        "2025-03-18",
+        "2025-05-07",
+        "2025-06-30"
+      ],
+      "enumeration_complete": true
+    },
+    "ex_date": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 27,
+      "total_unique_values": 17,
+      "enumeration_complete": false,
+      "sample_values": [
+        "2024-10-02",
+        "2025-02-28",
+        "2025-07-25",
+        "2024-11-05",
+        "2025-07-24"
+      ]
+    },
+    "id": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 15,
+      "total_unique_values": 14,
+      "enumeration_complete": false,
+      "sample_values": [
+        "264dbd7e-124c-4d51-873a-20e3c1c0d68a",
+        "1ee2986f-0aba-4be4-a3ce-cacbd4b3c706",
+        "4dbc5131-25cb-4b49-9ed3-b0e6b57cf35d",
+        "c01c7369-91ac-4bc4-90e1-2fc1f1cc529e",
+        "2287e5c9-526f-4724-886b-df5919c337db"
+      ]
+    },
+    "new_cusip": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 11,
+      "total_unique_values": 10,
+      "all_possible_values": [
+        "185CNT011",
+        "293594131",
+        "451CVR039",
+        "67092M406",
+        "750940108",
+        "75134P501",
+        "Y1250N107",
+        "Y2001C101",
+        "Y234DY109",
+        "Y73118104"
+      ],
+      "enumeration_complete": true
+    },
+    "new_rate": {
+      "type": "mixed",
+      "required": true,
+      "null_count": 0,
+      "total_count": 27,
+      "total_unique_values": 19,
+      "enumeration_complete": false,
+      "sample_values": [
+        "2",
+        "0.2763",
+        "0.142857143",
+        "1",
+        "0.25"
+      ]
+    },
+    "new_symbol": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 27,
+      "total_unique_values": 21,
+      "enumeration_complete": false,
+      "sample_values": [
+        "185CNT011",
+        "029CNT029",
+        "SOBO",
+        "MAGN",
+        "GLT"
+      ]
+    },
+    "payable_date": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 17,
+      "total_unique_values": 14,
+      "enumeration_complete": false,
+      "sample_values": [
+        "2025-03-14",
+        "2025-08-01",
+        "2025-07-21",
+        "2025-07-25",
+        "2024-11-12"
+      ]
+    },
+    "process_date": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 27,
+      "total_unique_values": 18,
+      "enumeration_complete": false,
+      "sample_values": [
+        "2025-03-14",
+        "2024-10-02",
+        "2025-07-25",
+        "2024-11-05",
+        "2025-05-07"
+      ]
+    },
+    "record_date": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 17,
+      "total_unique_values": 13,
+      "enumeration_complete": false,
+      "sample_values": [
+        "2025-07-11",
+        "2025-06-16",
+        "2025-07-25",
+        "2024-11-05",
+        "2025-07-24"
+      ]
+    },
+    "source_cusip": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 11,
+      "total_unique_values": 10,
+      "all_possible_values": [
+        "18506U203",
+        "293594107",
+        "34959J108",
+        "45175G108",
+        "67092M208",
+        "75134P600",
+        "Y1771G102",
+        "Y23592135",
+        "Y8897Y230",
+        "Y8900D108"
+      ],
+      "enumeration_complete": true
+    },
+    "source_rate": {
+      "type": "int",
+      "required": true,
+      "null_count": 0,
+      "total_count": 27,
+      "total_unique_values": 1,
+      "all_possible_values": [
+        1
+      ],
+      "enumeration_complete": true
+    },
+    "source_symbol": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 27,
+      "total_unique_values": 21,
+      "enumeration_complete": false,
+      "sample_values": [
+        "AREC",
+        "FAT",
+        "IKNA",
+        "METC",
+        "CLRO"
+      ]
+    }
+  },
+  "stock_and_cash_mergers": {
+    "acquiree_cusip": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 24,
+      "total_unique_values": 18,
+      "enumeration_complete": false,
+      "sample_values": [
+        "05478C105",
+        "69913P105",
+        "931427108",
+        "28623U101",
+        "00974H104"
+      ]
+    },
+    "acquiree_rate": {
+      "type": "int",
+      "required": true,
+      "null_count": 0,
+      "total_count": 34,
+      "total_unique_values": 2,
+      "all_possible_values": [
+        1,
+        36
+      ],
+      "enumeration_complete": true
+    },
+    "acquiree_symbol": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 34,
+      "total_unique_values": 24,
+      "enumeration_complete": false,
+      "sample_values": [
+        "ML",
+        "FNA",
+        "IGMS",
+        "AZEK",
+        "EBTC"
+      ]
+    },
+    "acquirer_cusip": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 24,
+      "total_unique_values": 18,
+      "enumeration_complete": false,
+      "sample_values": [
+        "G4253H101",
+        "74766Q101",
+        "42704L104",
+        "668771116",
+        "449CVR018"
+      ]
+    },
+    "acquirer_rate": {
+      "type": "mixed",
+      "required": true,
+      "null_count": 0,
+      "total_count": 34,
+      "total_unique_values": 9,
+      "all_possible_values": [
+        0.1287,
+        0.1461,
+        0.2316,
+        0.3399,
+        0.6,
+        1,
+        1.034,
+        1.1523,
+        35
+      ],
+      "enumeration_complete": true
+    },
+    "acquirer_symbol": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 34,
+      "total_unique_values": 24,
+      "enumeration_complete": false,
+      "sample_values": [
+        "JHX",
+        "449CVR018",
+        "286CVR022",
+        "931CVR013",
+        "INDB"
+      ]
+    },
+    "cash_rate": {
+      "type": "mixed",
+      "required": true,
+      "null_count": 0,
+      "total_count": 34,
+      "total_unique_values": 24,
+      "enumeration_complete": false,
+      "sample_values": [
+        "2",
+        "0.36",
+        "1.247",
+        "82",
+        "78.75"
+      ]
+    },
+    "effective_date": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 34,
+      "total_unique_values": 24,
+      "enumeration_complete": false,
+      "sample_values": [
+        "2024-12-13",
+        "2025-06-04",
+        "2025-07-02",
+        "2025-04-21",
+        "2025-07-01"
+      ]
+    },
+    "id": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 26,
+      "total_unique_values": 19,
+      "enumeration_complete": false,
+      "sample_values": [
+        "135887d7-456b-41f2-b5f6-746406b10e1c",
+        "7273519c-623b-4b03-a8f8-6a59d66cf5da",
+        "44600c99-1d2f-44fb-a122-6d7efb00246a",
+        "24810276-f6e8-4da6-b5d5-b806b57284db",
+        "8063e90f-abe1-4472-99c0-0d2593ea8f71"
+      ]
+    },
+    "payable_date": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 34,
+      "total_unique_values": 24,
+      "enumeration_complete": false,
+      "sample_values": [
+        "2024-12-13",
+        "2025-06-04",
+        "2025-07-02",
+        "2025-04-21",
+        "2025-07-01"
+      ]
+    },
+    "process_date": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 34,
+      "total_unique_values": 24,
+      "enumeration_complete": false,
+      "sample_values": [
+        "2024-12-13",
+        "2025-06-04",
+        "2025-07-02",
+        "2025-04-21",
+        "2025-07-01"
+      ]
+    }
+  },
+  "stock_dividends": {
+    "cusip": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 5,
+      "total_unique_values": 4,
+      "all_possible_values": [
+        "15117N701",
+        "174615104",
+        "465562106",
+        "814785309"
+      ],
+      "enumeration_complete": true
+    },
+    "ex_date": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 10,
+      "total_unique_values": 9,
+      "all_possible_values": [
+        "2024-09-25",
+        "2024-11-29",
+        "2024-12-02",
+        "2024-12-03",
+        "2025-03-05",
+        "2025-03-19",
+        "2025-06-13",
+        "2025-07-11",
+        "2025-08-07"
+      ],
+      "enumeration_complete": true
+    },
+    "id": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 6,
+      "total_unique_values": 5,
+      "all_possible_values": [
+        "1a8b62ce-b292-487f-9e42-af88d001ebe4",
+        "76b8b0c8-1d07-4adf-92f1-07b734c0e2b8",
+        "7dcfe0d9-60c5-4d4f-b621-21e12ec78439",
+        "9311ab01-e84e-4470-809b-da8a85ae9b1d",
+        "ce5a775f-b77d-432a-9ec8-8b3af5fea62e"
+      ],
+      "enumeration_complete": true
+    },
+    "payable_date": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 10,
+      "total_unique_values": 9,
+      "all_possible_values": [
+        "2024-10-08",
+        "2024-12-09",
+        "2024-12-16",
+        "2024-12-18",
+        "2025-03-27",
+        "2025-04-04",
+        "2025-06-27",
+        "2025-07-18",
+        "2025-08-21"
+      ],
+      "enumeration_complete": true
+    },
+    "process_date": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 10,
+      "total_unique_values": 10,
+      "all_possible_values": [
+        "2024-09-25",
+        "2024-11-29",
+        "2024-12-02",
+        "2024-12-03",
+        "2025-03-05",
+        "2025-03-19",
+        "2025-06-13",
+        "2025-07-11",
+        "2025-07-18",
+        "2025-08-07"
+      ],
+      "enumeration_complete": true
+    },
+    "rate": {
+      "type": "float",
+      "required": true,
+      "null_count": 0,
+      "total_count": 10,
+      "total_unique_values": 7,
+      "all_possible_values": [
+        1.01,
+        1.02015,
+        1.03,
+        1.03601,
+        1.05,
+        1.1,
+        1.15
+      ],
+      "enumeration_complete": true
+    },
+    "record_date": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 10,
+      "total_unique_values": 9,
+      "all_possible_values": [
+        "2024-09-25",
+        "2024-11-29",
+        "2024-12-02",
+        "2024-12-03",
+        "2025-03-05",
+        "2025-03-19",
+        "2025-06-13",
+        "2025-07-11",
+        "2025-08-07"
+      ],
+      "enumeration_complete": true
+    },
+    "symbol": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 10,
+      "total_unique_values": 9,
+      "all_possible_values": [
+        "CBSH",
+        "CMCT",
+        "CZFS",
+        "IMNN",
+        "IRS",
+        "ITUB",
+        "LARK",
+        "SNFCA",
+        "TR"
+      ],
+      "enumeration_complete": true
+    }
+  },
+  "stock_mergers": {
+    "acquiree_cusip": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 41,
+      "total_unique_values": 27,
+      "enumeration_complete": false,
+      "sample_values": [
+        "29667D104",
+        "708430103",
+        "75737F108",
+        "825698103",
+        "G5212E105"
+      ]
+    },
+    "acquiree_rate": {
+      "type": "mixed",
+      "required": true,
+      "null_count": 0,
+      "total_count": 89,
+      "total_unique_values": 2,
+      "all_possible_values": [
+        0.1,
+        1
+      ],
+      "enumeration_complete": true
+    },
+    "acquiree_symbol": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 89,
+      "total_unique_values": 58,
+      "enumeration_complete": false,
+      "sample_values": [
+        "PWOD",
+        "ESSA",
+        "MRO",
+        "BUJA",
+        "JVSA"
+      ]
+    },
+    "acquirer_cusip": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 41,
+      "total_unique_values": 26,
+      "enumeration_complete": false,
+      "sample_values": [
+        "667340103",
+        "30257X104",
+        "59540G107",
+        "77311W101",
+        "G1311F119"
+      ]
+    },
+    "acquirer_rate": {
+      "type": "mixed",
+      "required": true,
+      "null_count": 0,
+      "total_count": 89,
+      "total_unique_values": 46,
+      "enumeration_complete": false,
+      "sample_values": [
+        "0.426",
+        "0.255",
+        "1.04016643",
+        "7.25",
+        "0.7926"
+      ]
+    },
+    "acquirer_symbol": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 89,
+      "total_unique_values": 52,
+      "enumeration_complete": false,
+      "sample_values": [
+        "NWBI",
+        "HBNB",
+        "CCNE",
+        "AEBI",
+        "RKT"
+      ]
+    },
+    "effective_date": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 89,
+      "total_unique_values": 42,
+      "enumeration_complete": false,
+      "sample_values": [
+        "2025-04-30",
+        "2025-07-02",
+        "2025-07-25",
+        "2025-05-09",
+        "2025-07-01"
+      ]
+    },
+    "id": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 50,
+      "total_unique_values": 34,
+      "enumeration_complete": false,
+      "sample_values": [
+        "d911d117-527d-4391-a1d1-3251ee078756",
+        "df29b3c6-a0d6-48fd-9d94-9d45306ff3ce",
+        "ef66e130-3d39-4c83-825f-5d6323f2a455",
+        "d89912f9-8c73-44d2-abef-93cfebbca28f",
+        "d9c48519-d951-4e3b-bd45-11139cac6696"
+      ]
+    },
+    "payable_date": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 89,
+      "total_unique_values": 42,
+      "enumeration_complete": false,
+      "sample_values": [
+        "2025-04-30",
+        "2025-07-02",
+        "2025-07-25",
+        "2025-05-09",
+        "2025-07-01"
+      ]
+    },
+    "process_date": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 89,
+      "total_unique_values": 42,
+      "enumeration_complete": false,
+      "sample_values": [
+        "2025-04-30",
+        "2025-07-02",
+        "2025-07-25",
+        "2025-05-09",
+        "2025-07-01"
+      ]
+    }
+  },
+  "unit_splits": {
+    "alternate_cusip": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 6,
+      "total_unique_values": 4,
+      "all_possible_values": [
+        "56608R116",
+        "G1676M113",
+        "G2254C113",
+        "G4790U110"
+      ],
+      "enumeration_complete": true
+    },
+    "alternate_rate": {
+      "type": "mixed",
+      "required": true,
+      "null_count": 0,
+      "total_count": 26,
+      "total_unique_values": 4,
+      "all_possible_values": [
+        0.2,
+        0.25,
+        0.5,
+        1
+      ],
+      "enumeration_complete": true
+    },
+    "alternate_symbol": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 26,
+      "total_unique_values": 16,
+      "enumeration_complete": false,
+      "sample_values": [
+        "BUJAW",
+        "PTWOW",
+        "MACAW",
+        "MARXR",
+        "CCIIW"
+      ]
+    },
+    "effective_date": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 26,
+      "total_unique_values": 14,
+      "enumeration_complete": false,
+      "sample_values": [
+        "2025-03-14",
+        "2024-09-18",
+        "2024-08-16",
+        "2025-05-09",
+        "2024-11-13"
+      ]
+    },
+    "id": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 9,
+      "total_unique_values": 6,
+      "all_possible_values": [
+        "0585d64e-9d1f-467d-9e9a-fb80b53c9bbd",
+        "21d187e1-5d00-4f4a-954f-b1669d15edef",
+        "2b12b6ac-6a77-47fa-8631-0239bb37859a",
+        "4fc6d2a2-c8f9-49f6-8cf6-de532e391642",
+        "521338ab-a269-4dcc-94ca-c59c9396cca4",
+        "a6fa8cbb-4ead-4064-8c71-335fffe9de78"
+      ],
+      "enumeration_complete": true
+    },
+    "new_cusip": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 6,
+      "total_unique_values": 4,
+      "all_possible_values": [
+        "56608R108",
+        "G1676M105",
+        "G2254C121",
+        "G4790U102"
+      ],
+      "enumeration_complete": true
+    },
+    "new_rate": {
+      "type": "int",
+      "required": true,
+      "null_count": 0,
+      "total_count": 26,
+      "total_unique_values": 1,
+      "all_possible_values": [
+        1
+      ],
+      "enumeration_complete": true
+    },
+    "new_symbol": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 26,
+      "total_unique_values": 16,
+      "enumeration_complete": false,
+      "sample_values": [
+        "IPXX",
+        "ACAB",
+        "MACA",
+        "MARX",
+        "PTWO"
+      ]
+    },
+    "old_cusip": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 6,
+      "total_unique_values": 4,
+      "all_possible_values": [
+        "56608A204",
+        "G1676M139",
+        "G2254C105",
+        "G4790U128"
+      ],
+      "enumeration_complete": true
+    },
+    "old_rate": {
+      "type": "int",
+      "required": true,
+      "null_count": 0,
+      "total_count": 26,
+      "total_unique_values": 1,
+      "all_possible_values": [
+        1
+      ],
+      "enumeration_complete": true
+    },
+    "old_symbol": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 26,
+      "total_unique_values": 16,
+      "enumeration_complete": false,
+      "sample_values": [
+        "GODNU",
+        "PTWOU",
+        "BUJAU",
+        "IPXXU",
+        "MARXU"
+      ]
+    },
+    "payable_date": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 2,
+      "total_unique_values": 2,
+      "all_possible_values": [
+        "2025-02-20",
+        "2025-04-08"
+      ],
+      "enumeration_complete": true
+    },
+    "process_date": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 26,
+      "total_unique_values": 14,
+      "enumeration_complete": false,
+      "sample_values": [
+        "2025-03-14",
+        "2024-09-18",
+        "2024-08-16",
+        "2025-05-09",
+        "2024-11-13"
+      ]
+    }
+  },
+  "worthless_removals": {
+    "process_date": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 3,
+      "total_unique_values": 3,
+      "all_possible_values": [
+        "2024-08-21",
+        "2024-11-13",
+        "2024-12-06"
+      ],
+      "enumeration_complete": true
+    },
+    "symbol": {
+      "type": "str",
+      "required": true,
+      "null_count": 0,
+      "total_count": 3,
+      "total_unique_values": 3,
+      "all_possible_values": [
+        "BCSAW",
+        "CVIIW",
+        "GHIXW"
+      ],
+      "enumeration_complete": true
+    }
+  }
+}

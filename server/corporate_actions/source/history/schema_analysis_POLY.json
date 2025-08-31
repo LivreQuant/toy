@@ -1,0 +1,344 @@
+{
+  "dividends": {
+    "total_files_processed": 13,
+    "total_files_skipped": 0,
+    "total_records": 39,
+    "fields": {
+      "cash_amount": {
+        "type": "float",
+        "required": true,
+        "nullable": false,
+        "occurrences": 39,
+        "null_count": 0,
+        "null_percentage": 0.0,
+        "unique_values_sampled": 37,
+        "total_unique_values": 37,
+        "sample_values": [
+          0.13472222,
+          0.01711765,
+          0.27777778,
+          0.03529412,
+          0.00189907
+        ],
+        "enumeration_complete": false
+      },
+      "currency": {
+        "type": "str",
+        "required": true,
+        "nullable": false,
+        "occurrences": 39,
+        "null_count": 0,
+        "null_percentage": 0.0,
+        "unique_values_sampled": 2,
+        "total_unique_values": 2,
+        "sample_values": [
+          "NZD",
+          "NZD",
+          "NZD",
+          "NZD",
+          "NZD"
+        ],
+        "string_length": {
+          "min": 3,
+          "max": 3
+        },
+        "all_possible_values": [
+          "NZD",
+          "USD"
+        ],
+        "enumeration_complete": true
+      },
+      "declaration_date": {
+        "type": "str",
+        "required": true,
+        "nullable": false,
+        "occurrences": 39,
+        "null_count": 0,
+        "null_percentage": 0.0,
+        "unique_values_sampled": 13,
+        "total_unique_values": 13,
+        "sample_values": [
+          "2025-08-29",
+          "2025-08-29",
+          "2025-08-29",
+          "2025-08-29",
+          "2025-05-09"
+        ],
+        "string_length": {
+          "min": 10,
+          "max": 10
+        },
+        "enumeration_complete": false
+      },
+      "dividend_type": {
+        "type": "str",
+        "required": true,
+        "nullable": false,
+        "occurrences": 39,
+        "null_count": 0,
+        "null_percentage": 0.0,
+        "unique_values_sampled": 1,
+        "total_unique_values": 1,
+        "sample_values": [
+          "CD",
+          "CD",
+          "CD",
+          "CD",
+          "CD"
+        ],
+        "string_length": {
+          "min": 2,
+          "max": 2
+        },
+        "all_possible_values": [
+          "CD"
+        ],
+        "enumeration_complete": true
+      },
+      "ex_dividend_date": {
+        "type": "str",
+        "required": true,
+        "nullable": false,
+        "occurrences": 39,
+        "null_count": 0,
+        "null_percentage": 0.0,
+        "unique_values_sampled": 20,
+        "total_unique_values": 20,
+        "sample_values": [
+          "2025-09-19",
+          "2025-09-19",
+          "2025-09-26",
+          "2025-09-26",
+          "2025-05-16"
+        ],
+        "string_length": {
+          "min": 10,
+          "max": 10
+        },
+        "enumeration_complete": false
+      },
+      "frequency": {
+        "type": "int",
+        "required": true,
+        "nullable": false,
+        "occurrences": 39,
+        "null_count": 0,
+        "null_percentage": 0.0,
+        "unique_values_sampled": 5,
+        "total_unique_values": 5,
+        "sample_values": [
+          2,
+          2,
+          1,
+          1,
+          4
+        ],
+        "all_possible_values": [
+          0,
+          1,
+          2,
+          4,
+          12
+        ],
+        "enumeration_complete": true
+      },
+      "id": {
+        "type": "str",
+        "required": true,
+        "nullable": false,
+        "occurrences": 39,
+        "null_count": 0,
+        "null_percentage": 0.0,
+        "unique_values_sampled": 39,
+        "total_unique_values": 39,
+        "sample_values": [
+          "E77d82409af2019046c8c0b5815b3accfa9e63bae5ab1a956771cf20da6882c0b",
+          "E0074ff0339de3bde0fb7505873318db7e11c32e08a2a0442db0d61828e2018e0",
+          "E846093ba0593e3e79c2687fdafb598bfa9aa0df1718c95d47d8b7552179b4202",
+          "Ebdcefa06d10566598cb603598c52991861254da055ae63a11c338967aea20082",
+          "Ef263046ddad72d1ed09a71b899e0e4ecc2d2cb69af64670ba6f30ae7595a5b5b"
+        ],
+        "string_length": {
+          "min": 65,
+          "max": 65
+        },
+        "enumeration_complete": false
+      },
+      "pay_date": {
+        "type": "str",
+        "required": true,
+        "nullable": false,
+        "occurrences": 39,
+        "null_count": 0,
+        "null_percentage": 0.0,
+        "unique_values_sampled": 18,
+        "total_unique_values": 18,
+        "sample_values": [
+          "2025-10-03",
+          "2025-10-03",
+          "2025-10-10",
+          "2025-10-10",
+          "2025-05-27"
+        ],
+        "string_length": {
+          "min": 10,
+          "max": 10
+        },
+        "enumeration_complete": false
+      },
+      "record_date": {
+        "type": "str",
+        "required": true,
+        "nullable": false,
+        "occurrences": 39,
+        "null_count": 0,
+        "null_percentage": 0.0,
+        "unique_values_sampled": 19,
+        "total_unique_values": 19,
+        "sample_values": [
+          "2025-09-19",
+          "2025-09-19",
+          "2025-09-26",
+          "2025-09-26",
+          "2025-05-16"
+        ],
+        "string_length": {
+          "min": 10,
+          "max": 10
+        },
+        "enumeration_complete": false
+      },
+      "ticker": {
+        "type": "str",
+        "required": true,
+        "nullable": false,
+        "occurrences": 39,
+        "null_count": 0,
+        "null_percentage": 0.0,
+        "unique_values_sampled": 23,
+        "total_unique_values": 23,
+        "sample_values": [
+          "PTAUF",
+          "PTAUF",
+          "DGLLF",
+          "DGLLF",
+          "PYIYF"
+        ],
+        "string_length": {
+          "min": 4,
+          "max": 6
+        },
+        "enumeration_complete": false
+      }
+    }
+  },
+  "splits": {
+    "total_files_processed": 261,
+    "total_files_skipped": 0,
+    "total_records": 11046,
+    "fields": {
+      "execution_date": {
+        "type": "str",
+        "required": true,
+        "nullable": false,
+        "occurrences": 11046,
+        "null_count": 0,
+        "null_percentage": 0.0,
+        "unique_values_sampled": 100,
+        "total_unique_values": 276,
+        "sample_values": [
+          "2025-09-30",
+          "2025-08-22",
+          "2025-08-21",
+          "2025-08-19",
+          "2025-08-15"
+        ],
+        "string_length": {
+          "min": 10,
+          "max": 10
+        },
+        "enumeration_complete": false
+      },
+      "id": {
+        "type": "str",
+        "required": true,
+        "nullable": false,
+        "occurrences": 11046,
+        "null_count": 0,
+        "null_percentage": 0.0,
+        "unique_values_sampled": 100,
+        "total_unique_values": 1372,
+        "sample_values": [
+          "E0568bdf559e176301997f24ef309efc025cbfbf101fe00f74d35e38aaf7190a9",
+          "E4ad1123913c829d3a5113f2f6a0d9e1c23c2019ecf25a04de5c6a9821c512234",
+          "E269349fd47dad308f3ae6f16e08676450e4e11ac8a386e80f730561b87bf312b",
+          "E183312c028111cb7f098720cf22c7914027cd354cd8c6dda25b81f21e4d1cfcc",
+          "Ed585ddcbe540870224ebe7cc6c1baedf748efeaac6a77569b50da8cb7a01ab74"
+        ],
+        "string_length": {
+          "min": 65,
+          "max": 65
+        },
+        "enumeration_complete": false
+      },
+      "split_from": {
+        "type": "mixed(float,int)",
+        "required": true,
+        "nullable": false,
+        "occurrences": 11046,
+        "null_count": 0,
+        "null_percentage": 0.0,
+        "unique_values_sampled": 100,
+        "total_unique_values": 110,
+        "sample_values": [
+          6,
+          100,
+          1,
+          1,
+          1
+        ],
+        "enumeration_complete": false
+      },
+      "split_to": {
+        "type": "mixed(float,int)",
+        "required": true,
+        "nullable": false,
+        "occurrences": 11046,
+        "null_count": 0,
+        "null_percentage": 0.0,
+        "unique_values_sampled": 100,
+        "total_unique_values": 119,
+        "sample_values": [
+          7,
+          139,
+          2,
+          4,
+          7
+        ],
+        "enumeration_complete": false
+      },
+      "ticker": {
+        "type": "str",
+        "required": true,
+        "nullable": false,
+        "occurrences": 11046,
+        "null_count": 0,
+        "null_percentage": 0.0,
+        "unique_values_sampled": 100,
+        "total_unique_values": 1257,
+        "sample_values": [
+          "EEPCF",
+          "EXMRF",
+          "ARGHF",
+          "LBLCF",
+          "SWTSX"
+        ],
+        "string_length": {
+          "min": 2,
+          "max": 5
+        },
+        "enumeration_complete": false
+      }
+    }
+  }
+}

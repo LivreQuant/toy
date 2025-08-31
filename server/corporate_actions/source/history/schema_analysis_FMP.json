@@ -1,0 +1,412 @@
+{
+  "dividends": {
+    "total_records": 792,
+    "fields": {
+      "date": {
+        "type": "str",
+        "required": true,
+        "nullable": false,
+        "null_count": 0,
+        "total_count": 792,
+        "null_percentage": 0.0,
+        "total_unique_values": 1,
+        "sample_values": [
+          "2025-08-29",
+          "2025-08-29",
+          "2025-08-29"
+        ],
+        "enumeration_complete": true
+      },
+      "label": {
+        "type": "str",
+        "required": true,
+        "nullable": false,
+        "null_count": 0,
+        "total_count": 792,
+        "null_percentage": 0.0,
+        "total_unique_values": 1,
+        "sample_values": [
+          "August 29, 25",
+          "August 29, 25",
+          "August 29, 25"
+        ],
+        "enumeration_complete": true
+      },
+      "adjDividend": {
+        "type": "mixed(float,int)",
+        "required": true,
+        "nullable": false,
+        "null_count": 0,
+        "total_count": 792,
+        "null_percentage": 0.0,
+        "total_unique_values": 468,
+        "sample_values": [
+          0.165,
+          0.00237756,
+          0.61
+        ],
+        "enumeration_complete": false
+      },
+      "symbol": {
+        "type": "str",
+        "required": true,
+        "nullable": false,
+        "null_count": 0,
+        "total_count": 792,
+        "null_percentage": 0.0,
+        "total_unique_values": 792,
+        "sample_values": [
+          "HMAX.TO",
+          "MITNF",
+          "0AH3.L"
+        ],
+        "enumeration_complete": false
+      },
+      "dividend": {
+        "type": "mixed(float,int)",
+        "required": true,
+        "nullable": false,
+        "null_count": 0,
+        "total_count": 792,
+        "null_percentage": 0.0,
+        "total_unique_values": 462,
+        "sample_values": [
+          0.165,
+          0.0024,
+          0.61
+        ],
+        "enumeration_complete": false
+      },
+      "recordDate": {
+        "type": "str",
+        "required": true,
+        "nullable": false,
+        "null_count": 0,
+        "total_count": 792,
+        "null_percentage": 0.0,
+        "total_unique_values": 6,
+        "sample_values": [
+          "2025-08-29",
+          "2025-08-29",
+          "2025-08-29"
+        ],
+        "enumeration_complete": true
+      },
+      "paymentDate": {
+        "type": "str",
+        "required": false,
+        "nullable": true,
+        "null_count": 3,
+        "total_count": 792,
+        "null_percentage": 0.4,
+        "total_unique_values": 45,
+        "sample_values": [
+          "2025-09-08",
+          "2025-09-17",
+          "2025-09-29"
+        ],
+        "enumeration_complete": false
+      },
+      "declarationDate": {
+        "type": "str",
+        "required": false,
+        "nullable": true,
+        "null_count": 309,
+        "total_count": 792,
+        "null_percentage": 39.0,
+        "total_unique_values": 62,
+        "sample_values": [
+          "2025-08-22",
+          "2025-08-15",
+          "2025-08-25"
+        ],
+        "enumeration_complete": false
+      }
+    }
+  },
+  "splits": {
+    "total_records": 10,
+    "fields": {
+      "date": {
+        "type": "str",
+        "required": true,
+        "nullable": false,
+        "null_count": 0,
+        "total_count": 10,
+        "null_percentage": 0.0,
+        "total_unique_values": 1,
+        "sample_values": [
+          "2025-08-29",
+          "2025-08-29",
+          "2025-08-29"
+        ],
+        "enumeration_complete": true
+      },
+      "label": {
+        "type": "str",
+        "required": true,
+        "nullable": false,
+        "null_count": 0,
+        "total_count": 10,
+        "null_percentage": 0.0,
+        "total_unique_values": 1,
+        "sample_values": [
+          "August 29, 25",
+          "August 29, 25",
+          "August 29, 25"
+        ],
+        "enumeration_complete": true
+      },
+      "symbol": {
+        "type": "str",
+        "required": true,
+        "nullable": false,
+        "null_count": 0,
+        "total_count": 10,
+        "null_percentage": 0.0,
+        "total_unique_values": 10,
+        "sample_values": [
+          "TITANIN.BO",
+          "EAF",
+          "5392.TWO"
+        ],
+        "enumeration_complete": true
+      },
+      "numerator": {
+        "type": "int",
+        "required": true,
+        "nullable": false,
+        "null_count": 0,
+        "total_count": 10,
+        "null_percentage": 0.0,
+        "total_unique_values": 5,
+        "sample_values": [
+          10,
+          1,
+          209
+        ],
+        "enumeration_complete": true
+      },
+      "denominator": {
+        "type": "int",
+        "required": true,
+        "nullable": false,
+        "null_count": 0,
+        "total_count": 10,
+        "null_percentage": 0.0,
+        "total_unique_values": 5,
+        "sample_values": [
+          1,
+          10,
+          200
+        ],
+        "enumeration_complete": true
+      }
+    }
+  },
+  "mergers": {
+    "total_records": 100,
+    "fields": {
+      "symbol": {
+        "type": "str",
+        "required": true,
+        "nullable": false,
+        "null_count": 0,
+        "total_count": 100,
+        "null_percentage": 0.0,
+        "total_unique_values": 95,
+        "sample_values": [
+          "WES",
+          "CBSH",
+          "SVIIR"
+        ],
+        "enumeration_complete": false
+      },
+      "companyName": {
+        "type": "str",
+        "required": true,
+        "nullable": false,
+        "null_count": 0,
+        "total_count": 100,
+        "null_percentage": 0.0,
+        "total_unique_values": 62,
+        "sample_values": [
+          "Western Midstream Partners, LP",
+          "COMMERCE BANCSHARES INC /MO/",
+          "Spring Valley Acquisition Corp. II"
+        ],
+        "enumeration_complete": false
+      },
+      "cik": {
+        "type": "str",
+        "required": true,
+        "nullable": false,
+        "null_count": 0,
+        "total_count": 100,
+        "null_percentage": 0.0,
+        "total_unique_values": 59,
+        "sample_values": [
+          "0001423902",
+          "0000022356",
+          "0001843477"
+        ],
+        "enumeration_complete": false
+      },
+      "targetedCompanyName": {
+        "type": "str",
+        "required": true,
+        "nullable": false,
+        "null_count": 0,
+        "total_count": 100,
+        "null_percentage": 0.0,
+        "total_unique_values": 61,
+        "sample_values": [
+          "Aris Water Solutions, Inc.",
+          "FineMark Holdings, Inc.",
+          "VanEck Uranium and Nuclear Tech UCITS ETF USD A"
+        ],
+        "enumeration_complete": false
+      },
+      "targetedCik": {
+        "type": "str",
+        "required": false,
+        "nullable": true,
+        "null_count": 24,
+        "total_count": 100,
+        "null_percentage": 24.0,
+        "total_unique_values": 45,
+        "sample_values": [
+          "0001865187",
+          "0000000000",
+          "0001100663"
+        ],
+        "enumeration_complete": false
+      },
+      "targetedSymbol": {
+        "type": "str",
+        "required": false,
+        "nullable": true,
+        "null_count": 2,
+        "total_count": 100,
+        "null_percentage": 2.0,
+        "total_unique_values": 60,
+        "sample_values": [
+          "ARIS",
+          "FNBT",
+          "NUCL"
+        ],
+        "enumeration_complete": false
+      },
+      "transactionDate": {
+        "type": "str",
+        "required": true,
+        "nullable": false,
+        "null_count": 0,
+        "total_count": 100,
+        "null_percentage": 0.0,
+        "total_unique_values": 49,
+        "sample_values": [
+          "2025-08-28",
+          "2025-08-26",
+          "2025-08-22"
+        ],
+        "enumeration_complete": false
+      },
+      "acceptedDate": {
+        "type": "str",
+        "required": true,
+        "nullable": false,
+        "null_count": 0,
+        "total_count": 100,
+        "null_percentage": 0.0,
+        "total_unique_values": 61,
+        "sample_values": [
+          "2025-08-28 17:31:14",
+          "2025-08-26 21:14:10",
+          "2025-08-22 16:16:56"
+        ],
+        "enumeration_complete": false
+      },
+      "link": {
+        "type": "str",
+        "required": true,
+        "nullable": false,
+        "null_count": 0,
+        "total_count": 100,
+        "null_percentage": 0.0,
+        "total_unique_values": 60,
+        "sample_values": [
+          "https://www.sec.gov/Archives/edgar/data/1423902/000119312525191381/d79146ds4.htm",
+          "https://www.sec.gov/Archives/edgar/data/22356/000110465925083205/tm2523649-1_s4.htm",
+          "https://www.sec.gov/Archives/edgar/data/1843477/000110465925081893/svii-20250821xs4.htm"
+        ],
+        "enumeration_complete": false
+      }
+    }
+  },
+  "symbol_changes": {
+    "total_records": 4946,
+    "fields": {
+      "date": {
+        "type": "str",
+        "required": true,
+        "nullable": false,
+        "null_count": 0,
+        "total_count": 4946,
+        "null_percentage": 0.0,
+        "total_unique_values": 2890,
+        "sample_values": [
+          "2025-08-28",
+          "2025-08-27",
+          "2025-08-27"
+        ],
+        "enumeration_complete": false
+      },
+      "name": {
+        "type": "str",
+        "required": true,
+        "nullable": false,
+        "null_count": 0,
+        "total_count": 4946,
+        "null_percentage": 0.0,
+        "total_unique_values": 4039,
+        "sample_values": [
+          "21Shares Core Ethereum ETF",
+          "Dynamix Corporation Class A Ordinary Shares",
+          "Dynamix Corporation Unit"
+        ],
+        "enumeration_complete": false
+      },
+      "oldSymbol": {
+        "type": "str",
+        "required": true,
+        "nullable": false,
+        "null_count": 0,
+        "total_count": 4946,
+        "null_percentage": 0.0,
+        "total_unique_values": 4777,
+        "sample_values": [
+          "CETH",
+          "DYNX",
+          "DYNXU"
+        ],
+        "enumeration_complete": false
+      },
+      "newSymbol": {
+        "type": "str",
+        "required": true,
+        "nullable": false,
+        "null_count": 0,
+        "total_count": 4946,
+        "null_percentage": 0.0,
+        "total_unique_values": 3986,
+        "sample_values": [
+          "TETH",
+          "ETHM",
+          "ETHMU"
+        ],
+        "enumeration_complete": false
+      }
+    }
+  }
+}

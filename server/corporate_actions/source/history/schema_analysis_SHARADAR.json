@@ -1,0 +1,2830 @@
+{
+  "metadata": {
+    "total_records": 36069,
+    "total_action_types": 18,
+    "analysis_summary": {
+      "dividend": 26581,
+      "relation": 4038,
+      "tickerchangeto": 549,
+      "tickerchangefrom": 549,
+      "split": 700,
+      "listed": 1717,
+      "delisted": 1095,
+      "bankruptcyliquidation": 115,
+      "regulatorydelisting": 144,
+      "adrratiosplit": 25,
+      "acquisitionof": 196,
+      "acquisitionby": 196,
+      "voluntarydelisting": 11,
+      "spinoffdividend": 17,
+      "spinoff": 18,
+      "spunofffrom": 18,
+      "mergerto": 5,
+      "mergerfrom": 5
+    }
+  },
+  "schemas_by_action": {
+    "acquisitionby": {
+      "total_records": 196,
+      "percentage_of_total": 0.54,
+      "fields": {
+        "action": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 1,
+          "sample_values": [
+            "acquisitionby",
+            "acquisitionby",
+            "acquisitionby",
+            "acquisitionby",
+            "acquisitionby"
+          ],
+          "string_length": {
+            "min": 13,
+            "max": 13
+          },
+          "all_possible_values": [
+            "acquisitionby"
+          ],
+          "enumeration_complete": true
+        },
+        "contraname": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 185,
+          "sample_values": [
+            "ROCHE HOLDING LTD",
+            "APERAM",
+            "Madeleine Charging BV",
+            "INTERNATIONAL BUSINESS MACHINES CORP",
+            "NOVARTIS AG"
+          ],
+          "string_length": {
+            "min": 6,
+            "max": 46
+          },
+          "enumeration_complete": false
+        },
+        "contraticker": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 106,
+          "sample_values": [
+            "RHHBY",
+            "APEMY",
+            "N/A",
+            "IBM",
+            "NVS"
+          ],
+          "string_length": {
+            "min": 1,
+            "max": 5
+          },
+          "enumeration_complete": false
+        },
+        "date": {
+          "type": "date",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 126,
+          "sample_values": [
+            "2025-01-07",
+            "2025-01-22",
+            "2024-08-22",
+            "2025-02-26",
+            "2025-06-24"
+          ],
+          "string_length": {
+            "min": 10,
+            "max": 10
+          },
+          "enumeration_complete": false
+        },
+        "name": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 181,
+          "sample_values": [
+            "POSEIDA THERAPEUTICS INC",
+            "UNIVERSAL STAINLESS & ALLOY PRODUCTS INC",
+            "ALLEGO NV",
+            "HASHICORP INC",
+            "REGULUS THERAPEUTICS INC"
+          ],
+          "string_length": {
+            "min": 7,
+            "max": 40
+          },
+          "enumeration_complete": false
+        },
+        "ticker": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 181,
+          "sample_values": [
+            "PSTX",
+            "USAP",
+            "ALLGF",
+            "HCP",
+            "RGLS"
+          ],
+          "string_length": {
+            "min": 1,
+            "max": 5
+          },
+          "enumeration_complete": false
+        },
+        "value": {
+          "type": "float",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 180,
+          "sample_values": [
+            "925.9",
+            "418.9",
+            "493.2",
+            "7110.7",
+            "565.0"
+          ],
+          "string_length": {
+            "min": 3,
+            "max": 7
+          },
+          "enumeration_complete": false
+        }
+      }
+    },
+    "acquisitionof": {
+      "total_records": 196,
+      "percentage_of_total": 0.54,
+      "fields": {
+        "action": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 1,
+          "sample_values": [
+            "acquisitionof",
+            "acquisitionof",
+            "acquisitionof",
+            "acquisitionof",
+            "acquisitionof"
+          ],
+          "string_length": {
+            "min": 13,
+            "max": 13
+          },
+          "all_possible_values": [
+            "acquisitionof"
+          ],
+          "enumeration_complete": true
+        },
+        "contraname": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 181,
+          "sample_values": [
+            "POSEIDA THERAPEUTICS INC",
+            "UNIVERSAL STAINLESS & ALLOY PRODUCTS INC",
+            "ALLEGO NV",
+            "HASHICORP INC",
+            "REGULUS THERAPEUTICS INC"
+          ],
+          "string_length": {
+            "min": 7,
+            "max": 40
+          },
+          "enumeration_complete": false
+        },
+        "contraticker": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 181,
+          "sample_values": [
+            "PSTX",
+            "USAP",
+            "ALLGF",
+            "HCP",
+            "RGLS"
+          ],
+          "string_length": {
+            "min": 1,
+            "max": 5
+          },
+          "enumeration_complete": false
+        },
+        "date": {
+          "type": "date",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 126,
+          "sample_values": [
+            "2025-01-07",
+            "2025-01-22",
+            "2024-08-22",
+            "2025-02-26",
+            "2025-06-24"
+          ],
+          "string_length": {
+            "min": 10,
+            "max": 10
+          },
+          "enumeration_complete": false
+        },
+        "name": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 185,
+          "sample_values": [
+            "ROCHE HOLDING LTD",
+            "APERAM",
+            "Madeleine Charging BV",
+            "INTERNATIONAL BUSINESS MACHINES CORP",
+            "NOVARTIS AG"
+          ],
+          "string_length": {
+            "min": 6,
+            "max": 46
+          },
+          "enumeration_complete": false
+        },
+        "ticker": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 106,
+          "sample_values": [
+            "RHHBY",
+            "APEMY",
+            "N/A",
+            "IBM",
+            "NVS"
+          ],
+          "string_length": {
+            "min": 1,
+            "max": 5
+          },
+          "enumeration_complete": false
+        },
+        "value": {
+          "type": "float",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 180,
+          "sample_values": [
+            "925.9",
+            "418.9",
+            "493.2",
+            "7110.7",
+            "565.0"
+          ],
+          "string_length": {
+            "min": 3,
+            "max": 7
+          },
+          "enumeration_complete": false
+        }
+      }
+    },
+    "adrratiosplit": {
+      "total_records": 25,
+      "percentage_of_total": 0.07,
+      "fields": {
+        "action": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 1,
+          "sample_values": [
+            "adrratiosplit",
+            "adrratiosplit",
+            "adrratiosplit",
+            "adrratiosplit",
+            "adrratiosplit"
+          ],
+          "string_length": {
+            "min": 13,
+            "max": 13
+          },
+          "all_possible_values": [
+            "adrratiosplit"
+          ],
+          "enumeration_complete": true
+        },
+        "contraname": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 1,
+          "sample_values": [
+            "N/A",
+            "N/A",
+            "N/A",
+            "N/A",
+            "N/A"
+          ],
+          "string_length": {
+            "min": 3,
+            "max": 3
+          },
+          "all_possible_values": [
+            "N/A"
+          ],
+          "enumeration_complete": true
+        },
+        "contraticker": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 1,
+          "sample_values": [
+            "N/A",
+            "N/A",
+            "N/A",
+            "N/A",
+            "N/A"
+          ],
+          "string_length": {
+            "min": 3,
+            "max": 3
+          },
+          "all_possible_values": [
+            "N/A"
+          ],
+          "enumeration_complete": true
+        },
+        "date": {
+          "type": "date",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 24,
+          "sample_values": [
+            "2025-04-14",
+            "2025-04-03",
+            "2025-05-09",
+            "2025-08-11",
+            "2025-02-21"
+          ],
+          "string_length": {
+            "min": 10,
+            "max": 10
+          },
+          "enumeration_complete": false
+        },
+        "name": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 22,
+          "sample_values": [
+            "MAASE INC",
+            "WIMI HOLOGRAM CLOUD INC",
+            "XCHANGE TECINC",
+            "NUCANA PLC",
+            "SAVERONE 2014 LTD"
+          ],
+          "string_length": {
+            "min": 6,
+            "max": 41
+          },
+          "enumeration_complete": false
+        },
+        "ticker": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 22,
+          "sample_values": [
+            "MAAS",
+            "WIMI",
+            "XHG",
+            "NCNA",
+            "SVRE"
+          ],
+          "string_length": {
+            "min": 2,
+            "max": 4
+          },
+          "enumeration_complete": false
+        },
+        "value": {
+          "type": "float",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 14,
+          "sample_values": [
+            "59.9880023995201",
+            "0.5",
+            "20.0",
+            "200.0",
+            "13.3333333333333"
+          ],
+          "string_length": {
+            "min": 3,
+            "max": 16
+          },
+          "enumeration_complete": false
+        }
+      }
+    },
+    "bankruptcyliquidation": {
+      "total_records": 115,
+      "percentage_of_total": 0.32,
+      "fields": {
+        "action": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 1,
+          "sample_values": [
+            "bankruptcyliquidation",
+            "bankruptcyliquidation",
+            "bankruptcyliquidation",
+            "bankruptcyliquidation",
+            "bankruptcyliquidation"
+          ],
+          "string_length": {
+            "min": 21,
+            "max": 21
+          },
+          "all_possible_values": [
+            "bankruptcyliquidation"
+          ],
+          "enumeration_complete": true
+        },
+        "contraname": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 1,
+          "sample_values": [
+            "N/A",
+            "N/A",
+            "N/A",
+            "N/A",
+            "N/A"
+          ],
+          "string_length": {
+            "min": 3,
+            "max": 3
+          },
+          "all_possible_values": [
+            "N/A"
+          ],
+          "enumeration_complete": true
+        },
+        "contraticker": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 1,
+          "sample_values": [
+            "N/A",
+            "N/A",
+            "N/A",
+            "N/A",
+            "N/A"
+          ],
+          "string_length": {
+            "min": 3,
+            "max": 3
+          },
+          "all_possible_values": [
+            "N/A"
+          ],
+          "enumeration_complete": true
+        },
+        "date": {
+          "type": "date",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 86,
+          "sample_values": [
+            "2025-07-29",
+            "2025-04-14",
+            "2025-01-22",
+            "2024-12-04",
+            "2024-08-13"
+          ],
+          "string_length": {
+            "min": 10,
+            "max": 10
+          },
+          "enumeration_complete": false
+        },
+        "name": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 115,
+          "sample_values": [
+            "WAG! GROUP CO",
+            "GLOBAL BLOCKCHAIN ACQUISITION CORP",
+            "BROAD CAPITAL ACQUISITION CORP",
+            "GORES HOLDINGS IX INC",
+            "CORNER GROWTH ACQUISITION CORP 2"
+          ],
+          "string_length": {
+            "min": 7,
+            "max": 50
+          },
+          "enumeration_complete": false
+        },
+        "ticker": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 115,
+          "sample_values": [
+            "PETXQ",
+            "GBBK",
+            "BRAC",
+            "GHIX",
+            "TRON"
+          ],
+          "string_length": {
+            "min": 3,
+            "max": 5
+          },
+          "enumeration_complete": false
+        },
+        "value": {
+          "type": "float",
+          "required": false,
+          "nullable_or_empty": true,
+          "null_empty_count": 3,
+          "null_empty_percentage": 2.61,
+          "total_unique_values": 94,
+          "sample_values": [
+            "2.4",
+            "62.6",
+            "35.0",
+            "195.0",
+            "58.4"
+          ],
+          "string_length": {
+            "min": 3,
+            "max": 6
+          },
+          "enumeration_complete": false
+        }
+      }
+    },
+    "delisted": {
+      "total_records": 1095,
+      "percentage_of_total": 3.04,
+      "fields": {
+        "action": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 1,
+          "sample_values": [
+            "delisted",
+            "delisted",
+            "delisted",
+            "delisted",
+            "delisted"
+          ],
+          "string_length": {
+            "min": 8,
+            "max": 8
+          },
+          "all_possible_values": [
+            "delisted"
+          ],
+          "enumeration_complete": true
+        },
+        "contraname": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 1,
+          "sample_values": [
+            "N/A",
+            "N/A",
+            "N/A",
+            "N/A",
+            "N/A"
+          ],
+          "string_length": {
+            "min": 3,
+            "max": 3
+          },
+          "all_possible_values": [
+            "N/A"
+          ],
+          "enumeration_complete": true
+        },
+        "contraticker": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 1,
+          "sample_values": [
+            "N/A",
+            "N/A",
+            "N/A",
+            "N/A",
+            "N/A"
+          ],
+          "string_length": {
+            "min": 3,
+            "max": 3
+          },
+          "all_possible_values": [
+            "N/A"
+          ],
+          "enumeration_complete": true
+        },
+        "date": {
+          "type": "date",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 246,
+          "sample_values": [
+            "2025-07-29",
+            "2024-09-05",
+            "2024-09-05",
+            "2024-09-05",
+            "2024-09-05"
+          ],
+          "string_length": {
+            "min": 10,
+            "max": 10
+          },
+          "enumeration_complete": false
+        },
+        "name": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 824,
+          "sample_values": [
+            "WAG! GROUP CO",
+            "AMPLIFY INFLATION FIGHTER ETF",
+            "HEMPACCO CO INC",
+            "AMPLIFY TREATMENTS TESTING AND ADVANCEMENTS ETF",
+            "AMPLIFY EMERGING MARKETS FINTECH ETF"
+          ],
+          "string_length": {
+            "min": 6,
+            "max": 72
+          },
+          "enumeration_complete": false
+        },
+        "ticker": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 1095,
+          "sample_values": [
+            "PETXQ",
+            "IWIN",
+            "HPCO",
+            "GERM",
+            "EMFQ"
+          ],
+          "string_length": {
+            "min": 1,
+            "max": 8
+          },
+          "enumeration_complete": false
+        },
+        "value": {
+          "type": "float",
+          "required": false,
+          "nullable_or_empty": true,
+          "null_empty_count": 636,
+          "null_empty_percentage": 58.08,
+          "total_unique_values": 385,
+          "sample_values": [
+            "2.4",
+            "2.7",
+            "10.5",
+            "62.6",
+            "925.9"
+          ],
+          "string_length": {
+            "min": 3,
+            "max": 7
+          },
+          "enumeration_complete": false
+        }
+      }
+    },
+    "dividend": {
+      "total_records": 26581,
+      "percentage_of_total": 73.69,
+      "fields": {
+        "action": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 1,
+          "sample_values": [
+            "dividend",
+            "dividend",
+            "dividend",
+            "dividend",
+            "dividend"
+          ],
+          "string_length": {
+            "min": 8,
+            "max": 8
+          },
+          "all_possible_values": [
+            "dividend"
+          ],
+          "enumeration_complete": true
+        },
+        "contraname": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 1,
+          "sample_values": [
+            "N/A",
+            "N/A",
+            "N/A",
+            "N/A",
+            "N/A"
+          ],
+          "string_length": {
+            "min": 3,
+            "max": 3
+          },
+          "all_possible_values": [
+            "N/A"
+          ],
+          "enumeration_complete": true
+        },
+        "contraticker": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 1,
+          "sample_values": [
+            "N/A",
+            "N/A",
+            "N/A",
+            "N/A",
+            "N/A"
+          ],
+          "string_length": {
+            "min": 3,
+            "max": 3
+          },
+          "all_possible_values": [
+            "N/A"
+          ],
+          "enumeration_complete": true
+        },
+        "date": {
+          "type": "date",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 256,
+          "sample_values": [
+            "2025-07-29",
+            "2025-07-29",
+            "2025-07-29",
+            "2025-07-29",
+            "2025-07-29"
+          ],
+          "string_length": {
+            "min": 10,
+            "max": 10
+          },
+          "enumeration_complete": false
+        },
+        "name": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 5326,
+          "sample_values": [
+            "2X XRP ETF",
+            "XRP ETF",
+            "SGI ENHANCED CORE ETF",
+            "SOLANA ETF",
+            "2X SOLANA ETF"
+          ],
+          "string_length": {
+            "min": 5,
+            "max": 118
+          },
+          "enumeration_complete": false
+        },
+        "ticker": {
+          "type": "mixed(float,string)",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 5771,
+          "sample_values": [
+            "XRPT",
+            "XRPI",
+            "USDX",
+            "SOLZ",
+            "SOLT"
+          ],
+          "string_length": {
+            "min": 1,
+            "max": 7
+          },
+          "enumeration_complete": false
+        },
+        "value": {
+          "type": "float",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 5993,
+          "sample_values": [
+            "0.0014",
+            "0.0141",
+            "0.1",
+            "0.0146",
+            "0.0062"
+          ],
+          "string_length": {
+            "min": 3,
+            "max": 8
+          },
+          "enumeration_complete": false
+        }
+      }
+    },
+    "listed": {
+      "total_records": 1717,
+      "percentage_of_total": 4.76,
+      "fields": {
+        "action": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 1,
+          "sample_values": [
+            "listed",
+            "listed",
+            "listed",
+            "listed",
+            "listed"
+          ],
+          "string_length": {
+            "min": 6,
+            "max": 6
+          },
+          "all_possible_values": [
+            "listed"
+          ],
+          "enumeration_complete": true
+        },
+        "contraname": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 1,
+          "sample_values": [
+            "N/A",
+            "N/A",
+            "N/A",
+            "N/A",
+            "N/A"
+          ],
+          "string_length": {
+            "min": 3,
+            "max": 3
+          },
+          "all_possible_values": [
+            "N/A"
+          ],
+          "enumeration_complete": true
+        },
+        "contraticker": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 1621,
+          "sample_values": [
+            "RBLY",
+            "COYY",
+            "XCNY",
+            "VLLU",
+            "SPIN"
+          ],
+          "string_length": {
+            "min": 2,
+            "max": 7
+          },
+          "enumeration_complete": false
+        },
+        "date": {
+          "type": "date",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 249,
+          "sample_values": [
+            "2025-07-29",
+            "2025-07-29",
+            "2024-09-05",
+            "2024-09-05",
+            "2024-09-05"
+          ],
+          "string_length": {
+            "min": 10,
+            "max": 10
+          },
+          "enumeration_complete": false
+        },
+        "name": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 1497,
+          "sample_values": [
+            "YIELDMAX(R) RBLX OPTION INCOME STRATEGY ETF",
+            "GRANITESHARES YIELDBOOST COIN ETF",
+            "SPDR S&P EMERGING MARKETS EX-CHINA ETF",
+            "HARBOR ALPHAEDGE LARGE CAP VALUE ETF",
+            "SPDR SSGA US EQUITY PREMIUM INCOME ETF"
+          ],
+          "string_length": {
+            "min": 6,
+            "max": 89
+          },
+          "enumeration_complete": false
+        },
+        "ticker": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 1701,
+          "sample_values": [
+            "RBLY",
+            "COYY",
+            "XCNY",
+            "VLLU",
+            "SPIN"
+          ],
+          "string_length": {
+            "min": 2,
+            "max": 7
+          },
+          "enumeration_complete": false
+        },
+        "value": {
+          "type": "float",
+          "required": false,
+          "nullable_or_empty": true,
+          "null_empty_count": 1323,
+          "null_empty_percentage": 77.05,
+          "total_unique_values": 380,
+          "sample_values": [
+            "54.8",
+            "59.0",
+            "229.2",
+            "256.3",
+            "36.4"
+          ],
+          "string_length": {
+            "min": 3,
+            "max": 7
+          },
+          "enumeration_complete": false
+        }
+      }
+    },
+    "mergerfrom": {
+      "total_records": 5,
+      "percentage_of_total": 0.01,
+      "fields": {
+        "action": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 1,
+          "sample_values": [
+            "mergerfrom",
+            "mergerfrom",
+            "mergerfrom",
+            "mergerfrom",
+            "mergerfrom"
+          ],
+          "string_length": {
+            "min": 10,
+            "max": 10
+          },
+          "all_possible_values": [
+            "mergerfrom"
+          ],
+          "enumeration_complete": true
+        },
+        "contraname": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 5,
+          "sample_values": [
+            "VISTA OUTDOOR INC",
+            "MGO GLOBAL INC",
+            "STARZ ENTERTAINMENT CORP",
+            "LIONSGATE STUDIOS HOLDING CORP",
+            "MAIDEN HOLDINGS LTD"
+          ],
+          "string_length": {
+            "min": 14,
+            "max": 30
+          },
+          "all_possible_values": [
+            "LIONSGATE STUDIOS HOLDING CORP",
+            "MAIDEN HOLDINGS LTD",
+            "MGO GLOBAL INC",
+            "STARZ ENTERTAINMENT CORP",
+            "VISTA OUTDOOR INC"
+          ],
+          "enumeration_complete": true
+        },
+        "contraticker": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 5,
+          "sample_values": [
+            "VSTO",
+            "MGOL",
+            "LGF.B",
+            "LION2",
+            "MHLD"
+          ],
+          "string_length": {
+            "min": 4,
+            "max": 5
+          },
+          "all_possible_values": [
+            "LGF.B",
+            "LION2",
+            "MGOL",
+            "MHLD",
+            "VSTO"
+          ],
+          "enumeration_complete": true
+        },
+        "date": {
+          "type": "date",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 4,
+          "sample_values": [
+            "2024-11-26",
+            "2025-02-19",
+            "2025-05-06",
+            "2025-05-06",
+            "2025-05-28"
+          ],
+          "string_length": {
+            "min": 10,
+            "max": 10
+          },
+          "all_possible_values": [
+            "2024-11-26",
+            "2025-02-19",
+            "2025-05-06",
+            "2025-05-28"
+          ],
+          "enumeration_complete": true
+        },
+        "name": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 4,
+          "sample_values": [
+            "REVELYST INC",
+            "HEIDMAR MARITIME HOLDINGS CORP",
+            "LIONSGATE STUDIOS CORP",
+            "LIONSGATE STUDIOS CORP",
+            "KESTREL GROUP LTD"
+          ],
+          "string_length": {
+            "min": 12,
+            "max": 30
+          },
+          "all_possible_values": [
+            "HEIDMAR MARITIME HOLDINGS CORP",
+            "KESTREL GROUP LTD",
+            "LIONSGATE STUDIOS CORP",
+            "REVELYST INC"
+          ],
+          "enumeration_complete": true
+        },
+        "ticker": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 4,
+          "sample_values": [
+            "GEAR",
+            "HMR",
+            "LION",
+            "LION",
+            "KG"
+          ],
+          "string_length": {
+            "min": 2,
+            "max": 4
+          },
+          "all_possible_values": [
+            "GEAR",
+            "HMR",
+            "KG",
+            "LION"
+          ],
+          "enumeration_complete": true
+        },
+        "value": {
+          "type": "float",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 5,
+          "sample_values": [
+            "2607.6",
+            "1.1",
+            "1849.3",
+            "1960.1",
+            "3289.5"
+          ],
+          "string_length": {
+            "min": 3,
+            "max": 6
+          },
+          "all_possible_values": [
+            "1.1",
+            "1849.3",
+            "1960.1",
+            "2607.6",
+            "3289.5"
+          ],
+          "enumeration_complete": true
+        }
+      }
+    },
+    "mergerto": {
+      "total_records": 5,
+      "percentage_of_total": 0.01,
+      "fields": {
+        "action": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 1,
+          "sample_values": [
+            "mergerto",
+            "mergerto",
+            "mergerto",
+            "mergerto",
+            "mergerto"
+          ],
+          "string_length": {
+            "min": 8,
+            "max": 8
+          },
+          "all_possible_values": [
+            "mergerto"
+          ],
+          "enumeration_complete": true
+        },
+        "contraname": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 4,
+          "sample_values": [
+            "REVELYST INC",
+            "HEIDMAR MARITIME HOLDINGS CORP",
+            "LIONSGATE STUDIOS CORP",
+            "LIONSGATE STUDIOS CORP",
+            "KESTREL GROUP LTD"
+          ],
+          "string_length": {
+            "min": 12,
+            "max": 30
+          },
+          "all_possible_values": [
+            "HEIDMAR MARITIME HOLDINGS CORP",
+            "KESTREL GROUP LTD",
+            "LIONSGATE STUDIOS CORP",
+            "REVELYST INC"
+          ],
+          "enumeration_complete": true
+        },
+        "contraticker": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 4,
+          "sample_values": [
+            "GEAR",
+            "HMR",
+            "LION",
+            "LION",
+            "KG"
+          ],
+          "string_length": {
+            "min": 2,
+            "max": 4
+          },
+          "all_possible_values": [
+            "GEAR",
+            "HMR",
+            "KG",
+            "LION"
+          ],
+          "enumeration_complete": true
+        },
+        "date": {
+          "type": "date",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 4,
+          "sample_values": [
+            "2024-11-26",
+            "2025-02-19",
+            "2025-05-06",
+            "2025-05-06",
+            "2025-05-28"
+          ],
+          "string_length": {
+            "min": 10,
+            "max": 10
+          },
+          "all_possible_values": [
+            "2024-11-26",
+            "2025-02-19",
+            "2025-05-06",
+            "2025-05-28"
+          ],
+          "enumeration_complete": true
+        },
+        "name": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 5,
+          "sample_values": [
+            "VISTA OUTDOOR INC",
+            "MGO GLOBAL INC",
+            "LIONSGATE STUDIOS HOLDING CORP",
+            "STARZ ENTERTAINMENT CORP",
+            "MAIDEN HOLDINGS LTD"
+          ],
+          "string_length": {
+            "min": 14,
+            "max": 30
+          },
+          "all_possible_values": [
+            "LIONSGATE STUDIOS HOLDING CORP",
+            "MAIDEN HOLDINGS LTD",
+            "MGO GLOBAL INC",
+            "STARZ ENTERTAINMENT CORP",
+            "VISTA OUTDOOR INC"
+          ],
+          "enumeration_complete": true
+        },
+        "ticker": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 5,
+          "sample_values": [
+            "VSTO",
+            "MGOL",
+            "LION2",
+            "LGF.B",
+            "MHLD"
+          ],
+          "string_length": {
+            "min": 4,
+            "max": 5
+          },
+          "all_possible_values": [
+            "LGF.B",
+            "LION2",
+            "MGOL",
+            "MHLD",
+            "VSTO"
+          ],
+          "enumeration_complete": true
+        },
+        "value": {
+          "type": "float",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 5,
+          "sample_values": [
+            "2607.6",
+            "1.1",
+            "1960.1",
+            "1849.3",
+            "3289.5"
+          ],
+          "string_length": {
+            "min": 3,
+            "max": 6
+          },
+          "all_possible_values": [
+            "1.1",
+            "1849.3",
+            "1960.1",
+            "2607.6",
+            "3289.5"
+          ],
+          "enumeration_complete": true
+        }
+      }
+    },
+    "regulatorydelisting": {
+      "total_records": 144,
+      "percentage_of_total": 0.4,
+      "fields": {
+        "action": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 1,
+          "sample_values": [
+            "regulatorydelisting",
+            "regulatorydelisting",
+            "regulatorydelisting",
+            "regulatorydelisting",
+            "regulatorydelisting"
+          ],
+          "string_length": {
+            "min": 19,
+            "max": 19
+          },
+          "all_possible_values": [
+            "regulatorydelisting"
+          ],
+          "enumeration_complete": true
+        },
+        "contraname": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 1,
+          "sample_values": [
+            "N/A",
+            "N/A",
+            "N/A",
+            "N/A",
+            "N/A"
+          ],
+          "string_length": {
+            "min": 3,
+            "max": 3
+          },
+          "all_possible_values": [
+            "N/A"
+          ],
+          "enumeration_complete": true
+        },
+        "contraticker": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 1,
+          "sample_values": [
+            "N/A",
+            "N/A",
+            "N/A",
+            "N/A",
+            "N/A"
+          ],
+          "string_length": {
+            "min": 3,
+            "max": 3
+          },
+          "all_possible_values": [
+            "N/A"
+          ],
+          "enumeration_complete": true
+        },
+        "date": {
+          "type": "date",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 101,
+          "sample_values": [
+            "2024-09-05",
+            "2025-04-14",
+            "2025-01-08",
+            "2025-01-22",
+            "2025-01-22"
+          ],
+          "string_length": {
+            "min": 10,
+            "max": 10
+          },
+          "enumeration_complete": false
+        },
+        "name": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 144,
+          "sample_values": [
+            "HEMPACCO CO INC",
+            "PHOENIX MOTOR INC",
+            "MULTIMETAVERSE HOLDINGS LTD",
+            "TECHNOLOGY & TELECOMMUNICATION ACQUISITION CORP",
+            "PAPAYA GROWTH OPPORTUNITY CORP I"
+          ],
+          "string_length": {
+            "min": 7,
+            "max": 47
+          },
+          "enumeration_complete": false
+        },
+        "ticker": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 144,
+          "sample_values": [
+            "HPCO",
+            "PEVM",
+            "MMVVF",
+            "TETEF",
+            "PPYA"
+          ],
+          "string_length": {
+            "min": 3,
+            "max": 5
+          },
+          "enumeration_complete": false
+        },
+        "value": {
+          "type": "float",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 123,
+          "sample_values": [
+            "2.7",
+            "10.5",
+            "15.9",
+            "74.7",
+            "109.5"
+          ],
+          "string_length": {
+            "min": 3,
+            "max": 5
+          },
+          "enumeration_complete": false
+        }
+      }
+    },
+    "relation": {
+      "total_records": 4038,
+      "percentage_of_total": 11.2,
+      "fields": {
+        "action": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 1,
+          "sample_values": [
+            "relation",
+            "relation",
+            "relation",
+            "relation",
+            "relation"
+          ],
+          "string_length": {
+            "min": 8,
+            "max": 8
+          },
+          "all_possible_values": [
+            "relation"
+          ],
+          "enumeration_complete": true
+        },
+        "contraname": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 1063,
+          "sample_values": [
+            "TEXAS VENTURES ACQUISITION III CORP",
+            "TEXAS VENTURES ACQUISITION III CORP",
+            "PG&E CORP",
+            "PG&E CORP",
+            "PG&E CORP"
+          ],
+          "string_length": {
+            "min": 6,
+            "max": 55
+          },
+          "enumeration_complete": false
+        },
+        "contraticker": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 2811,
+          "sample_values": [
+            "TVA",
+            "TVACW",
+            "PCG",
+            "PCG",
+            "PCG-PH"
+          ],
+          "string_length": {
+            "min": 1,
+            "max": 8
+          },
+          "enumeration_complete": false
+        },
+        "date": {
+          "type": "date",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 216,
+          "sample_values": [
+            "2025-07-29",
+            "2025-07-29",
+            "2025-07-29",
+            "2025-07-29",
+            "2025-07-29"
+          ],
+          "string_length": {
+            "min": 10,
+            "max": 10
+          },
+          "enumeration_complete": false
+        },
+        "name": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 1063,
+          "sample_values": [
+            "TEXAS VENTURES ACQUISITION III CORP",
+            "TEXAS VENTURES ACQUISITION III CORP",
+            "PG&E CORP",
+            "PG&E CORP",
+            "PG&E CORP"
+          ],
+          "string_length": {
+            "min": 6,
+            "max": 55
+          },
+          "enumeration_complete": false
+        },
+        "ticker": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 2811,
+          "sample_values": [
+            "TVACW",
+            "TVA",
+            "PCG-PH",
+            "PCG-PE",
+            "PCG"
+          ],
+          "string_length": {
+            "min": 1,
+            "max": 8
+          },
+          "enumeration_complete": false
+        },
+        "value": {
+          "type": "null/empty",
+          "required": false,
+          "nullable_or_empty": true,
+          "null_empty_count": 4038,
+          "null_empty_percentage": 100.0,
+          "total_unique_values": 1,
+          "sample_values": [],
+          "all_possible_values": [
+            ""
+          ],
+          "enumeration_complete": true
+        }
+      }
+    },
+    "spinoff": {
+      "total_records": 18,
+      "percentage_of_total": 0.05,
+      "fields": {
+        "action": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 1,
+          "sample_values": [
+            "spinoff",
+            "spinoff",
+            "spinoff",
+            "spinoff",
+            "spinoff"
+          ],
+          "string_length": {
+            "min": 7,
+            "max": 7
+          },
+          "all_possible_values": [
+            "spinoff"
+          ],
+          "enumeration_complete": true
+        },
+        "contraname": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 16,
+          "sample_values": [
+            "COSTAMARE BULKERS HOLDINGS LTD",
+            "CURBLINE PROPERTIES CORP",
+            "AMENTUM HOLDINGS INC",
+            "MAGNERA CORP",
+            "ANGI INC"
+          ],
+          "string_length": {
+            "min": 8,
+            "max": 35
+          },
+          "enumeration_complete": false
+        },
+        "contraticker": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 16,
+          "sample_values": [
+            "CMDB",
+            "CURB",
+            "AMTM",
+            "MAGN",
+            "ANGI"
+          ],
+          "string_length": {
+            "min": 3,
+            "max": 4
+          },
+          "enumeration_complete": false
+        },
+        "date": {
+          "type": "date",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 16,
+          "sample_values": [
+            "2025-05-07",
+            "2024-10-01",
+            "2024-09-30",
+            "2024-11-05",
+            "2025-04-01"
+          ],
+          "string_length": {
+            "min": 10,
+            "max": 10
+          },
+          "enumeration_complete": false
+        },
+        "name": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 16,
+          "sample_values": [
+            "COSTAMARE INC",
+            "SITE CENTERS CORP",
+            "JACOBS SOLUTIONS INC",
+            "BERRY GLOBAL GROUP INC",
+            "IAC INC"
+          ],
+          "string_length": {
+            "min": 5,
+            "max": 28
+          },
+          "enumeration_complete": false
+        },
+        "ticker": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 18,
+          "sample_values": [
+            "CMRE",
+            "SITC",
+            "J",
+            "BERY",
+            "IAC"
+          ],
+          "string_length": {
+            "min": 1,
+            "max": 5
+          },
+          "enumeration_complete": false
+        },
+        "value": {
+          "type": "float",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 12,
+          "sample_values": [
+            "0.2",
+            "2.0",
+            "1.0",
+            "0.27631",
+            "0.5251"
+          ],
+          "string_length": {
+            "min": 3,
+            "max": 7
+          },
+          "enumeration_complete": false
+        }
+      }
+    },
+    "spinoffdividend": {
+      "total_records": 17,
+      "percentage_of_total": 0.05,
+      "fields": {
+        "action": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 1,
+          "sample_values": [
+            "spinoffdividend",
+            "spinoffdividend",
+            "spinoffdividend",
+            "spinoffdividend",
+            "spinoffdividend"
+          ],
+          "string_length": {
+            "min": 15,
+            "max": 15
+          },
+          "all_possible_values": [
+            "spinoffdividend"
+          ],
+          "enumeration_complete": true
+        },
+        "contraname": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 15,
+          "sample_values": [
+            "COSTAMARE BULKERS HOLDINGS LTD",
+            "CURBLINE PROPERTIES CORP",
+            "AMENTUM HOLDINGS INC",
+            "MAGNERA CORP",
+            "ANGI INC"
+          ],
+          "string_length": {
+            "min": 8,
+            "max": 35
+          },
+          "enumeration_complete": false
+        },
+        "contraticker": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 15,
+          "sample_values": [
+            "CMDB",
+            "CURB",
+            "AMTM",
+            "MAGN",
+            "ANGI"
+          ],
+          "string_length": {
+            "min": 3,
+            "max": 4
+          },
+          "enumeration_complete": false
+        },
+        "date": {
+          "type": "date",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 15,
+          "sample_values": [
+            "2025-05-07",
+            "2024-10-01",
+            "2024-09-30",
+            "2024-11-05",
+            "2025-04-01"
+          ],
+          "string_length": {
+            "min": 10,
+            "max": 10
+          },
+          "enumeration_complete": false
+        },
+        "name": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 15,
+          "sample_values": [
+            "COSTAMARE INC",
+            "SITE CENTERS CORP",
+            "JACOBS SOLUTIONS INC",
+            "BERRY GLOBAL GROUP INC",
+            "IAC INC"
+          ],
+          "string_length": {
+            "min": 7,
+            "max": 28
+          },
+          "enumeration_complete": false
+        },
+        "ticker": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 17,
+          "sample_values": [
+            "CMRE",
+            "SITC",
+            "J",
+            "BERY",
+            "IAC"
+          ],
+          "string_length": {
+            "min": 1,
+            "max": 5
+          },
+          "enumeration_complete": false
+        },
+        "value": {
+          "type": "float",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 16,
+          "sample_values": [
+            "2.38",
+            "41.46659",
+            "25.67",
+            "5.72716",
+            "8.27558"
+          ],
+          "string_length": {
+            "min": 4,
+            "max": 8
+          },
+          "enumeration_complete": false
+        }
+      }
+    },
+    "split": {
+      "total_records": 700,
+      "percentage_of_total": 1.94,
+      "fields": {
+        "action": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 1,
+          "sample_values": [
+            "split",
+            "split",
+            "split",
+            "split",
+            "split"
+          ],
+          "string_length": {
+            "min": 5,
+            "max": 5
+          },
+          "all_possible_values": [
+            "split"
+          ],
+          "enumeration_complete": true
+        },
+        "contraname": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 1,
+          "sample_values": [
+            "N/A",
+            "N/A",
+            "N/A",
+            "N/A",
+            "N/A"
+          ],
+          "string_length": {
+            "min": 3,
+            "max": 3
+          },
+          "all_possible_values": [
+            "N/A"
+          ],
+          "enumeration_complete": true
+        },
+        "contraticker": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 1,
+          "sample_values": [
+            "N/A",
+            "N/A",
+            "N/A",
+            "N/A",
+            "N/A"
+          ],
+          "string_length": {
+            "min": 3,
+            "max": 3
+          },
+          "all_possible_values": [
+            "N/A"
+          ],
+          "enumeration_complete": true
+        },
+        "date": {
+          "type": "date",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 233,
+          "sample_values": [
+            "2025-07-29",
+            "2025-07-29",
+            "2024-09-05",
+            "2024-09-05",
+            "2024-09-05"
+          ],
+          "string_length": {
+            "min": 10,
+            "max": 10
+          },
+          "enumeration_complete": false
+        },
+        "name": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 622,
+          "sample_values": [
+            "SILEXION THERAPEUTICS CORP",
+            "SENMIAO TECHNOLOGY LTD",
+            "LIGHTINTHEBOX HOLDING CO LTD",
+            "DRAGANFLY INC",
+            "ALLBIRDS INC"
+          ],
+          "string_length": {
+            "min": 7,
+            "max": 56
+          },
+          "enumeration_complete": false
+        },
+        "ticker": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 624,
+          "sample_values": [
+            "SLXN",
+            "AIHS",
+            "LITB",
+            "DPRO",
+            "BIRD"
+          ],
+          "string_length": {
+            "min": 2,
+            "max": 5
+          },
+          "enumeration_complete": false
+        },
+        "value": {
+          "type": "float",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 92,
+          "sample_values": [
+            "0.06667",
+            "0.1",
+            "0.16667",
+            "0.04",
+            "0.05"
+          ],
+          "string_length": {
+            "min": 3,
+            "max": 7
+          },
+          "enumeration_complete": false
+        }
+      }
+    },
+    "spunofffrom": {
+      "total_records": 18,
+      "percentage_of_total": 0.05,
+      "fields": {
+        "action": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 1,
+          "sample_values": [
+            "spunofffrom",
+            "spunofffrom",
+            "spunofffrom",
+            "spunofffrom",
+            "spunofffrom"
+          ],
+          "string_length": {
+            "min": 11,
+            "max": 11
+          },
+          "all_possible_values": [
+            "spunofffrom"
+          ],
+          "enumeration_complete": true
+        },
+        "contraname": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 16,
+          "sample_values": [
+            "COSTAMARE INC",
+            "SITE CENTERS CORP",
+            "JACOBS SOLUTIONS INC",
+            "BERRY GLOBAL GROUP INC",
+            "IAC INC"
+          ],
+          "string_length": {
+            "min": 5,
+            "max": 28
+          },
+          "enumeration_complete": false
+        },
+        "contraticker": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 18,
+          "sample_values": [
+            "CMRE",
+            "SITC",
+            "J",
+            "BERY",
+            "IAC"
+          ],
+          "string_length": {
+            "min": 1,
+            "max": 5
+          },
+          "enumeration_complete": false
+        },
+        "date": {
+          "type": "date",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 16,
+          "sample_values": [
+            "2025-05-07",
+            "2024-10-01",
+            "2024-09-30",
+            "2024-11-05",
+            "2025-04-01"
+          ],
+          "string_length": {
+            "min": 10,
+            "max": 10
+          },
+          "enumeration_complete": false
+        },
+        "name": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 16,
+          "sample_values": [
+            "COSTAMARE BULKERS HOLDINGS LTD",
+            "CURBLINE PROPERTIES CORP",
+            "AMENTUM HOLDINGS INC",
+            "MAGNERA CORP",
+            "ANGI INC"
+          ],
+          "string_length": {
+            "min": 8,
+            "max": 35
+          },
+          "enumeration_complete": false
+        },
+        "ticker": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 16,
+          "sample_values": [
+            "CMDB",
+            "CURB",
+            "AMTM",
+            "MAGN",
+            "ANGI"
+          ],
+          "string_length": {
+            "min": 3,
+            "max": 4
+          },
+          "enumeration_complete": false
+        },
+        "value": {
+          "type": "float",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 12,
+          "sample_values": [
+            "0.2",
+            "2.0",
+            "1.0",
+            "0.27631",
+            "0.5251"
+          ],
+          "string_length": {
+            "min": 3,
+            "max": 7
+          },
+          "enumeration_complete": false
+        }
+      }
+    },
+    "tickerchangefrom": {
+      "total_records": 549,
+      "percentage_of_total": 1.52,
+      "fields": {
+        "action": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 1,
+          "sample_values": [
+            "tickerchangefrom",
+            "tickerchangefrom",
+            "tickerchangefrom",
+            "tickerchangefrom",
+            "tickerchangefrom"
+          ],
+          "string_length": {
+            "min": 16,
+            "max": 16
+          },
+          "all_possible_values": [
+            "tickerchangefrom"
+          ],
+          "enumeration_complete": true
+        },
+        "contraname": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 1,
+          "sample_values": [
+            "N/A",
+            "N/A",
+            "N/A",
+            "N/A",
+            "N/A"
+          ],
+          "string_length": {
+            "min": 3,
+            "max": 3
+          },
+          "all_possible_values": [
+            "N/A"
+          ],
+          "enumeration_complete": true
+        },
+        "contraticker": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 545,
+          "sample_values": [
+            "KIRK",
+            "PET",
+            "PEV",
+            "HEAR",
+            "MMV"
+          ],
+          "string_length": {
+            "min": 1,
+            "max": 8
+          },
+          "enumeration_complete": false
+        },
+        "date": {
+          "type": "date",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 218,
+          "sample_values": [
+            "2025-07-29",
+            "2025-07-29",
+            "2025-04-14",
+            "2025-01-07",
+            "2025-01-08"
+          ],
+          "string_length": {
+            "min": 10,
+            "max": 10
+          },
+          "enumeration_complete": false
+        },
+        "name": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 468,
+          "sample_values": [
+            "BRAND HOUSE COLLECTIVE INC",
+            "WAG! GROUP CO",
+            "PHOENIX MOTOR INC",
+            "TURTLE BEACH CORP",
+            "MULTIMETAVERSE HOLDINGS LTD"
+          ],
+          "string_length": {
+            "min": 6,
+            "max": 60
+          },
+          "enumeration_complete": false
+        },
+        "ticker": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 535,
+          "sample_values": [
+            "TBHC",
+            "PETXQ",
+            "PEVM",
+            "TBCH",
+            "MMVVF"
+          ],
+          "string_length": {
+            "min": 1,
+            "max": 7
+          },
+          "enumeration_complete": false
+        },
+        "value": {
+          "type": "null/empty",
+          "required": false,
+          "nullable_or_empty": true,
+          "null_empty_count": 549,
+          "null_empty_percentage": 100.0,
+          "total_unique_values": 1,
+          "sample_values": [],
+          "all_possible_values": [
+            ""
+          ],
+          "enumeration_complete": true
+        }
+      }
+    },
+    "tickerchangeto": {
+      "total_records": 549,
+      "percentage_of_total": 1.52,
+      "fields": {
+        "action": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 1,
+          "sample_values": [
+            "tickerchangeto",
+            "tickerchangeto",
+            "tickerchangeto",
+            "tickerchangeto",
+            "tickerchangeto"
+          ],
+          "string_length": {
+            "min": 14,
+            "max": 14
+          },
+          "all_possible_values": [
+            "tickerchangeto"
+          ],
+          "enumeration_complete": true
+        },
+        "contraname": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 1,
+          "sample_values": [
+            "N/A",
+            "N/A",
+            "N/A",
+            "N/A",
+            "N/A"
+          ],
+          "string_length": {
+            "min": 3,
+            "max": 3
+          },
+          "all_possible_values": [
+            "N/A"
+          ],
+          "enumeration_complete": true
+        },
+        "contraticker": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 549,
+          "sample_values": [
+            "TBHC",
+            "PETXQ",
+            "PEVM",
+            "TBCH",
+            "MMVVF"
+          ],
+          "string_length": {
+            "min": 1,
+            "max": 7
+          },
+          "enumeration_complete": false
+        },
+        "date": {
+          "type": "date",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 218,
+          "sample_values": [
+            "2025-07-29",
+            "2025-07-29",
+            "2025-04-14",
+            "2025-01-07",
+            "2025-01-08"
+          ],
+          "string_length": {
+            "min": 10,
+            "max": 10
+          },
+          "enumeration_complete": false
+        },
+        "name": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 468,
+          "sample_values": [
+            "BRAND HOUSE COLLECTIVE INC",
+            "WAG! GROUP CO",
+            "PHOENIX MOTOR INC",
+            "TURTLE BEACH CORP",
+            "MULTIMETAVERSE HOLDINGS LTD"
+          ],
+          "string_length": {
+            "min": 6,
+            "max": 60
+          },
+          "enumeration_complete": false
+        },
+        "ticker": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 535,
+          "sample_values": [
+            "TBHC",
+            "PETXQ",
+            "PEVM",
+            "TBCH",
+            "MMVVF"
+          ],
+          "string_length": {
+            "min": 1,
+            "max": 7
+          },
+          "enumeration_complete": false
+        },
+        "value": {
+          "type": "null/empty",
+          "required": false,
+          "nullable_or_empty": true,
+          "null_empty_count": 549,
+          "null_empty_percentage": 100.0,
+          "total_unique_values": 1,
+          "sample_values": [],
+          "all_possible_values": [
+            ""
+          ],
+          "enumeration_complete": true
+        }
+      }
+    },
+    "voluntarydelisting": {
+      "total_records": 11,
+      "percentage_of_total": 0.03,
+      "fields": {
+        "action": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 1,
+          "sample_values": [
+            "voluntarydelisting",
+            "voluntarydelisting",
+            "voluntarydelisting",
+            "voluntarydelisting",
+            "voluntarydelisting"
+          ],
+          "string_length": {
+            "min": 18,
+            "max": 18
+          },
+          "all_possible_values": [
+            "voluntarydelisting"
+          ],
+          "enumeration_complete": true
+        },
+        "contraname": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 1,
+          "sample_values": [
+            "N/A",
+            "N/A",
+            "N/A",
+            "N/A",
+            "N/A"
+          ],
+          "string_length": {
+            "min": 3,
+            "max": 3
+          },
+          "all_possible_values": [
+            "N/A"
+          ],
+          "enumeration_complete": true
+        },
+        "contraticker": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 1,
+          "sample_values": [
+            "N/A",
+            "N/A",
+            "N/A",
+            "N/A",
+            "N/A"
+          ],
+          "string_length": {
+            "min": 3,
+            "max": 3
+          },
+          "all_possible_values": [
+            "N/A"
+          ],
+          "enumeration_complete": true
+        },
+        "date": {
+          "type": "date",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 10,
+          "sample_values": [
+            "2025-01-08",
+            "2025-01-08",
+            "2025-05-01",
+            "2024-10-04",
+            "2025-06-18"
+          ],
+          "string_length": {
+            "min": 10,
+            "max": 10
+          },
+          "all_possible_values": [
+            "2024-09-20",
+            "2024-10-04",
+            "2024-10-17",
+            "2024-12-27",
+            "2025-01-08",
+            "2025-03-07",
+            "2025-04-02",
+            "2025-05-01",
+            "2025-06-18",
+            "2025-08-15"
+          ],
+          "enumeration_complete": true
+        },
+        "name": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 11,
+          "sample_values": [
+            "ALMACENES EXITO SA",
+            "SENDAS DISTRIBUTOR SA",
+            "STEEL PARTNERS HOLDINGS LP",
+            "GENERATIONS BANCORP NY INC",
+            "BROOGE ENERGY LTD"
+          ],
+          "string_length": {
+            "min": 6,
+            "max": 29
+          },
+          "enumeration_complete": false
+        },
+        "ticker": {
+          "type": "string",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 11,
+          "sample_values": [
+            "EXTOY",
+            "ASAIY",
+            "SPLP",
+            "GBNY",
+            "BROGF"
+          ],
+          "string_length": {
+            "min": 4,
+            "max": 5
+          },
+          "enumeration_complete": false
+        },
+        "value": {
+          "type": "float",
+          "required": true,
+          "nullable_or_empty": false,
+          "null_empty_count": 0,
+          "null_empty_percentage": 0.0,
+          "total_unique_values": 11,
+          "sample_values": [
+            "585.7",
+            "1262.9",
+            "677.2",
+            "35.2",
+            "284.9"
+          ],
+          "string_length": {
+            "min": 4,
+            "max": 7
+          },
+          "enumeration_complete": false
+        }
+      }
+    }
+  }
+}
