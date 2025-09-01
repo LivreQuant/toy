@@ -561,4 +561,520 @@ def generate_debug_summary(debug_dir, provider_debugs, cross_analysis, merge_val
     # Also print to console
     print('\n'.join(summary))
 
-    return summary
+    return summaryimport re
+import pandas as pd
+import json
+import os
+from functools import reduce
+from datetime import datetime
+from pathlib import Path
+from source.config import config
+
+
+def process_location(location_data):
+    """
+    Convert location dictionary or string into a readable address format.
+
+    Args:
+        location_data: Can be dict, string, or None
+
+    Returns:
+        Formatted address string or None
+    """
+    if pd.isna(location_data) or location_data is None:
+        return None
+
+    # If it's already a string, return as-is
+    if isinstance(location_data, str):
+        # Check if it looks like a JSON string
+        if location_data.startswith('{') and location_data.endswith('}'):
+            try:
+                location_dict = json.loads(location_data.replace("'", '"'))
+                return format_address_dict(location_dict)
+            except (json.JSONDecodeError, ValueError):
+                return location_data
+        return location_data
+
+    # If it's a dictionary
+    if isinstance(location_data, dict):
+        return format_address_dict(location_data)
+
+    return str(location_data)
+
+
+def format_address_dict(addr_dict):
+    """
+    Format address dictionary into readable string.
+
+    Args:
+        addr_dict: Dictionary containing address components
+
+    Returns:
+        Formatted address string
+    """
+    parts = []
+
+    # Add address lines
+    if addr_dict.get('address1'):
+        parts.append(addr_dict['address1'])
+    if addr_dict.get('address2'):
+        parts.append(addr_dict['address2'])
+
+    # Add city, state, postal code
+    city_state_zip = []
+    if addr_dict.get('city'):
+        city_state_zip.append(addr_dict['city'])
+    if addr_dict.get('state'):
+        city_state_zip.append(addr_dict['state'])
+    if addr_dict.get('postal_code'):
+        city_state_zip.append(addr_dict['postal_code'])
+
+    if city_state_zip:
+        parts.append(', '.join(city_state_zip))
+
+    # Add country if present and not USA
+    if addr_dict.get('country') and addr_dict['country'].upper() not in ['USA', 'US', 'UNITED STATES']:
+        parts.append(addr_dict['country'])
+
+    return ', '.join(parts) if parts else None
+
+
+def clean_branding_url(branding_url):
+    """
+    Extract the path component after the base Polygon branding URL for storage efficiency.
+
+    Args:
+        branding_url: Full URL to branding asset
+
+    Returns:
+        Path component after base URL or None
+
+    Examples:
+        Input:  "https://api.polygon.io/v1/reference/company-branding/abc123/images/2025-04-04_logo.png"
+        Output: "/abc123/images/2025-04-04_logo.png"
+
+        Input:  "https://api.polygon.io/v1/reference/company-branding/enltZXdvcmtzLmNvbQ/images/2025-04-04_logo.png"
+        Output: "/enltZXdvcmtzLmNvbQ/images/2025-04-04_logo.png"
+    """
+    if pd.isna(branding_url) or not branding_url:
+        return None
+
+    if isinstance(branding_url, str):
+        base_url = "https://api.polygon.io/v1/reference/company-branding"
+
+        # Check if the URL starts with the expected base URL
+        if branding_url.startswith(base_url):
+            # Extract everything after the base URL
+            path_component = branding_url[len(base_url):]
+
+            # Only return if there's actually content after the base URL
+            if path_component and len(path_component) > 1:  # More than just "/"
+                return path_component
+
+    return None
+
+
+def standardize(symbol):
+    """Standardize symbol by removing non-alphabetic characters."""
+    if not isinstance(symbol, str):
+        return None
+    return re.sub(r'[^A-Z]', '', symbol.upper())
+
+
+def average_or_keep(row):
+    """Calculate average of two market cap values or keep the available one."""
+    val1 = row.get('market_capital_1')
+    val2 = row.get('market_capital_2')
+
+    # Check if both values are not None/NaN
+    if pd.notna(val1) and pd.notna(val2):
+        return round((val1 + val2) / 2)
+
+    # If only one is not None/NaN, return that value
+    elif pd.notna(val1):
+        return round(val1)
+
+    elif pd.notna(val2):
+        return round(val2)
+
+    # If both are None/NaN, return None
+    else:
+        return None
+
+
+def consolidate_column(df, base_variable, priority_map):
+    """
+    Consolidates a column based on a priority map.
+
+    Args:
+       df (pd.DataFrame): The merged DataFrame.
+       base_variable (str): The base name of the column to consolidate (e.g., 'name').
+       priority_map (list): A list of tuples, where each tuple is (table_indicator, col_prefix).
+       The order of the list defines the priority.
+
+    Returns:
+       pd.Series: The consolidated column.
+    """
+    for table_indicator, col_prefix in priority_map:
+        col_name = f"{col_prefix}_{base_variable}"
+        if col_name in df.columns:
+            # Use the first non-null value from the priority order
+            mask = df[col_name].notna() & (df[col_name] != '')
+            if mask.any():
+                result = df[col_name].where(mask).fillna(method='ffill')
+                return result.fillna('')
+    
+    # If no columns found, return empty series
+    return pd.Series([''] * len(df))
+
+
+def create_debug_directory():
+    """Create timestamped debug directory for this run"""
+    os.makedirs(config.debug_dir, exist_ok=True)
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    run_debug_dir = os.path.join(config.debug_dir, f"run_{timestamp}")
+    os.makedirs(run_debug_dir, exist_ok=True)
+    return run_debug_dir
+
+
+def validate_and_debug_dataframe(df, provider_name, debug_dir):
+    """Comprehensive validation and debugging for each provider's data"""
+    provider_debug = {}
+
+    # Basic stats
+    provider_debug['shape'] = df.shape
+    provider_debug['memory_usage'] = df.memory_usage(deep=True).sum()
+
+    # Check for required columns
+    required_cols = ['standardized_symbol', 'exchange']
+    missing_required = [col for col in required_cols if col not in df.columns]
+    provider_debug['missing_required_columns'] = missing_required
+
+    # Data quality checks
+    provider_debug['null_counts'] = df.isnull().sum().to_dict()
+    provider_debug['duplicate_symbols'] = df.duplicated(subset=['standardized_symbol', 'exchange']).sum()
+    provider_debug['empty_symbols'] = (df['standardized_symbol'].isnull() | (df['standardized_symbol'] == '')).sum()
+
+    # Exchange distribution
+    provider_debug['exchange_distribution'] = df['exchange'].value_counts().to_dict()
+
+    # Symbol pattern analysis
+    if 'standardized_symbol' in df.columns:
+        symbols = df['standardized_symbol'].dropna()
+        provider_debug['symbol_stats'] = {
+            'unique_count': symbols.nunique(),
+            'avg_length': symbols.str.len().mean(),
+            'min_length': symbols.str.len().min(),
+            'max_length': symbols.str.len().max(),
+            'contains_numbers': symbols.str.contains(r'\d').sum(),
+            'single_letter': symbols.str.len().eq(1).sum()
+        }
+
+        # Sample unusual symbols (very long or very short)
+        unusual_symbols = symbols[symbols.str.len() > 5].head(10).tolist()
+        provider_debug['sample_unusual_symbols'] = unusual_symbols
+
+    # Save detailed debug info
+    debug_file = os.path.join(debug_dir, f"{provider_name}_debug.json")
+    with open(debug_file, 'w') as f:
+        json.dump(provider_debug, f, indent=2, default=str)
+
+    return provider_debug
+
+
+def generate_cross_provider_analysis(dataframes, debug_dir):
+    """Generate analysis comparing symbols across providers"""
+    cross_analysis = {}
+    
+    # Collect all symbols by provider
+    provider_symbols = {}
+    for provider_key, df in dataframes.items():
+        if 'standardized_symbol' in df.columns and 'exchange' in df.columns:
+            symbols = set(df['standardized_symbol'].astype(str) + ':' + df['exchange'].astype(str))
+            provider_symbols[provider_key] = symbols
+    
+    # Find overlaps and unique symbols
+    all_symbols = set()
+    for symbols in provider_symbols.values():
+        all_symbols.update(symbols)
+    
+    cross_analysis['total_unique_symbols'] = len(all_symbols)
+    cross_analysis['provider_counts'] = {k: len(v) for k, v in provider_symbols.items()}
+    
+    # Provider overlap matrix
+    overlap_matrix = {}
+    for p1, symbols1 in provider_symbols.items():
+        overlap_matrix[p1] = {}
+        for p2, symbols2 in provider_symbols.items():
+            overlap_matrix[p1][p2] = len(symbols1 & symbols2)
+    
+    cross_analysis['overlap_matrix'] = overlap_matrix
+    
+    # Save analysis
+    cross_analysis_file = os.path.join(debug_dir, "cross_provider_analysis.json")
+    with open(cross_analysis_file, 'w') as f:
+        json.dump(cross_analysis, f, indent=2, default=str)
+    
+    return cross_analysis
+
+
+def validate_merge_results(df, debug_dir):
+    """Validate the final merged results"""
+    validation = {}
+    
+    # Basic validation
+    validation['final_shape'] = df.shape
+    validation['null_counts'] = df.isnull().sum().to_dict()
+    validation['duplicate_count'] = df.duplicated(subset=['symbol', 'exchange']).sum()
+    
+    # Column completeness
+    validation['column_completeness'] = {}
+    for col in df.columns:
+        non_null_count = df[col].notna().sum()
+        validation['column_completeness'][col] = {
+            'count': int(non_null_count),
+            'percentage': float(non_null_count / len(df) * 100)
+        }
+    
+    # Save validation
+    validation_file = os.path.join(debug_dir, "merge_validation.json")
+    with open(validation_file, 'w') as f:
+        json.dump(validation, f, indent=2, default=str)
+    
+    return validation
+
+
+def generate_comparison_with_previous(df_current, debug_dir):
+    """Compare current run with previous day's output"""
+    comparison = {}
+
+    if not os.path.exists(config.data_dir):
+        comparison['error'] = f"Data directory not found: {config.data_dir}"
+        comparison_file = os.path.join(debug_dir, "daily_comparison.json")
+        with open(comparison_file, 'w') as f:
+            json.dump(comparison, f, indent=2, default=str)
+        return comparison
+
+    try:
+        previous_files = sorted([f for f in os.listdir(config.data_dir) if f.endswith('_MASTER.csv')])
+    except Exception as e:
+        comparison['error'] = f"Could not list files in data directory: {str(e)}"
+        comparison_file = os.path.join(debug_dir, "daily_comparison.json")
+        with open(comparison_file, 'w') as f:
+            json.dump(comparison, f, indent=2, default=str)
+        return comparison
+
+    if len(previous_files) >= 2:
+        # Load previous file (second to last, since last is current)
+        previous_file = previous_files[-2]
+        previous_path = os.path.join(config.data_dir, previous_file)
+
+        try:
+            df_previous = pd.read_csv(previous_path, sep='|')
+
+            # Compare counts
+            comparison['current_count'] = len(df_current)
+            comparison['previous_count'] = len(df_previous)
+            comparison['count_change'] = len(df_current) - len(df_previous)
+            comparison['count_change_percentage'] = (comparison['count_change'] / len(df_previous) * 100) if len(
+                df_previous) > 0 else 0
+
+            # Find new and removed symbols
+            current_symbols = set(df_current['symbol'].astype(str) + ':' + df_current['exchange'].astype(str))
+            previous_symbols = set(df_previous['symbol'].astype(str) + ':' + df_previous['exchange'].astype(str))
+
+            new_symbols = current_symbols - previous_symbols
+            removed_symbols = previous_symbols - current_symbols
+
+            comparison['new_symbols'] = {
+                'count': len(new_symbols),
+                'sample': list(new_symbols)[:20]
+            }
+            
+            comparison['removed_symbols'] = {
+                'count': len(removed_symbols),
+                'sample': list(removed_symbols)[:20]
+            }
+
+            # Save detailed lists if there are significant changes
+            if new_symbols:
+                new_symbols_file = os.path.join(debug_dir, "new_symbols.txt")
+                with open(new_symbols_file, 'w') as f:
+                    f.write('\n'.join(sorted(new_symbols)))
+
+            if removed_symbols:
+                removed_symbols_file = os.path.join(debug_dir, "removed_symbols.txt")
+                with open(removed_symbols_file, 'w') as f:
+                    f.write('\n'.join(sorted(removed_symbols)))
+
+        except Exception as e:
+            comparison['error'] = f"Could not compare with previous file: {str(e)}"
+    else:
+        comparison['note'] = "No previous file found for comparison"
+
+    # Save comparison
+    comparison_file = os.path.join(debug_dir, "daily_comparison.json")
+    with open(comparison_file, 'w') as f:
+        json.dump(comparison, f, indent=2, default=str)
+
+    return comparison
+
+
+def generate_debug_summary(debug_dir, provider_debugs, cross_analysis, merge_validation, daily_comparison):
+    """Generate a human-readable summary report"""
+    summary = []
+    summary.append(f"Master Symbology Debug Report - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    summary.append("=" * 80)
+    summary.append("")
+
+    # Provider summary
+    summary.append("PROVIDER DATA SUMMARY:")
+    summary.append("-" * 40)
+    for provider, debug_info in provider_debugs.items():
+        summary.append(f"{provider.upper()}:")
+        summary.append(f"  - Records: {debug_info['shape'][0]:,}")
+        summary.append(f"  - Duplicates: {debug_info['duplicate_symbols']}")
+        summary.append(f"  - Empty symbols: {debug_info['empty_symbols']}")
+        summary.append(f"  - Exchanges: {list(debug_info['exchange_distribution'].keys())}")
+        if debug_info['missing_required_columns']:
+            summary.append(f"  - ⚠️  Missing required columns: {debug_info['missing_required_columns']}")
+        summary.append("")
+
+    # Cross-provider analysis
+    summary.append("CROSS-PROVIDER ANALYSIS:")
+    summary.append("-" * 40)
+    summary.append(f"Total unique symbols across all providers: {cross_analysis['total_unique_symbols']:,}")
+    
+    # Provider coverage
+    for provider, count in cross_analysis['provider_counts'].items():
+        coverage = (count / cross_analysis['total_unique_symbols']) * 100
+        summary.append(f"{provider}: {count:,} symbols ({coverage:.1f}% coverage)")
+    
+    summary.append("")
+
+    # Merge validation
+    summary.append("MERGE RESULTS:")
+    summary.append("-" * 40)
+    summary.append(f"Final dataset: {merge_validation['final_shape'][0]:,} records")
+    summary.append(f"Duplicate (symbol,exchange) pairs: {merge_validation['duplicate_count']}")
+    
+    # Top incomplete columns
+    incomplete_cols = [(col, info['percentage']) for col, info in merge_validation['column_completeness'].items() 
+                      if info['percentage'] < 80]
+    if incomplete_cols:
+        summary.append("\nColumns with <80% completeness:")
+        for col, pct in sorted(incomplete_cols, key=lambda x: x[1]):
+           summary.append(f"  {col}: {pct:.1f}% complete")
+   
+   summary.append("")
+
+   # Daily comparison
+   summary.append("DAILY COMPARISON:")
+   summary.append("-" * 40)
+   if 'error' in daily_comparison:
+       summary.append(f"⚠️  {daily_comparison['error']}")
+   elif 'note' in daily_comparison:
+       summary.append(f"ℹ️  {daily_comparison['note']}")
+   else:
+       summary.append(f"Previous: {daily_comparison['previous_count']:,} records")
+       summary.append(f"Current:  {daily_comparison['current_count']:,} records")
+       summary.append(f"Change:   {daily_comparison['count_change']:+,} records ({daily_comparison['count_change_percentage']:+.2f}%)")
+       
+       if daily_comparison['new_symbols']['count'] > 0:
+           summary.append(f"New symbols: {daily_comparison['new_symbols']['count']}")
+       
+       if daily_comparison['removed_symbols']['count'] > 0:
+           summary.append(f"Removed symbols: {daily_comparison['removed_symbols']['count']}")
+
+   # Save summary
+   summary_file = os.path.join(debug_dir, "debug_summary.txt")
+   with open(summary_file, 'w') as f:
+       f.write('\n'.join(summary))
+
+   return summary
+
+
+def merge_and_prioritize(dataframes, priorities, require_symbol_exchange=True):
+   """
+   Merge dataframes with prioritization and consolidation logic.
+   
+   Args:
+       dataframes: Dictionary of dataframes keyed by provider
+       priorities: List of provider keys in priority order
+       require_symbol_exchange: Whether to require symbol and exchange columns
+   
+   Returns:
+       Tuple of (merged_df, base_variables)
+   """
+   if not dataframes:
+       raise ValueError("No dataframes provided")
+   
+   # Start with the highest priority dataframe
+   first_key = priorities[0]
+   if first_key not in dataframes:
+       raise ValueError(f"Priority key {first_key} not found in dataframes")
+   
+   merged_df = dataframes[first_key].copy()
+   
+   # Add merge indicator columns
+   merge_keys = ['standardized_symbol', 'exchange'] if require_symbol_exchange else ['standardized_symbol']
+   indicator_cols = [f'{first_key}_present']
+   merged_df[f'{first_key}_present'] = True
+   
+   # Merge remaining dataframes
+   for key in priorities[1:]:
+       if key not in dataframes:
+           continue
+           
+       right_df = dataframes[key].copy()
+       right_df[f'{key}_present'] = True
+       
+       # Perform merge
+       merged_df = pd.merge(merged_df, right_df, on=merge_keys, how='outer', suffixes=('', '_right'))
+       indicator_cols.append(f'{key}_present')
+       
+       # Fill merge indicators
+       merged_df[f'{key}_present'] = merged_df[f'{key}_present'].fillna(False)
+   
+   # Fill all merge indicators
+   for col in indicator_cols:
+       merged_df[col] = merged_df[col].fillna(False)
+   
+   # Calculate confidence score based on number of sources
+   merged_df['confidence_score'] = sum(merged_df[col].astype(int) for col in indicator_cols)
+   
+   # Identify base variables for consolidation
+   base_variables = set()
+   for df in dataframes.values():
+       for col in df.columns:
+           if '_' in col and not col.startswith('standardized_'):
+               parts = col.split('_', 1)
+               if len(parts) > 1:
+                   base_variables.add(parts[1])
+   
+   # Remove common non-consolidatable columns
+   base_variables.discard('present')
+   base_variables.discard('symbol')
+   base_variables.discard('exchange')
+   
+   # Consolidate columns based on priority
+   consolidated_columns = {}
+   for base_var in base_variables:
+       priority_map = [(key, key.replace('t', '').lower()) for key in priorities]  # Convert t1->1, t2->2 etc
+       consolidated_columns[base_var] = consolidate_column(merged_df, base_var, priority_map)
+   
+   # Get all provider columns (columns that start with provider prefixes)
+   provider_columns = {}
+   for col in merged_df.columns:
+       if re.match(r'^[a-z]{2}_', col):  # This matches al_symbol, av_symbol, etc.
+           provider_columns[col] = merged_df[col]
+   
+   # Create final dataframe efficiently using pd.concat
+   final_df_parts = [
+       merged_df[merge_keys + indicator_cols + ['confidence_score']],
+       pd.DataFrame(consolidated_columns, index=merged_df.index),
+       pd.DataFrame(provider_columns, index=merged_df.index)
+   ]
+   final_df = pd.concat(final_df_parts, axis=1)
+   
+   return final_df, base_variables

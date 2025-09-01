@@ -4,18 +4,12 @@ import datetime
 import pandas as pd
 import shutil
 from source.providers.utils import standardize
+from source.config import config
 
-# https://www.ctaplan.com/publicdocs/ctaplan/CTA_Symbol_File_Specification.pdf
+OLD_COLUMNS = ['Symbol', 'PrimaryListingMarketParticipantID', 'FinancialStatusIndicator', 
+               'ShortSaleRestrictionIndicator', 'HaltReason']
 
-OLD_COLUMNS = ['Symbol', 'PrimaryListingMarketParticipantID',  # 'InstrumentType',
-               # 'IPO',
-               'FinancialStatusIndicator', 'ShortSaleRestrictionIndicator',
-               'HaltReason']
-
-NEW_COLUMNS = ['ny_symbol', 'exchange',  # 'ny_type',
-               # 'ny_ipo',
-               'ny_status', 'ny_short_sale_restricted',
-               'ny_halt_reason']
+NEW_COLUMNS = ['ny_symbol', 'exchange', 'ny_status', 'ny_short_sale_restricted', 'ny_halt_reason']
 
 
 def get_nyse_symbol_list_robust():
@@ -70,10 +64,9 @@ def load_nyse_data():
     Loads the NYSE symbol data from the downloaded file into a pandas DataFrame.
     Caches the data to a local file.
     """
-    # Define the data directory and file path
-    data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "data"))
-    os.makedirs(data_dir, exist_ok=True)
-    file_path = os.path.join(data_dir, f"{datetime.datetime.now().strftime('%Y%m%d')}_NYSE.csv")
+    # Ensure data directory exists
+    os.makedirs(config.data_dir, exist_ok=True)
+    file_path = os.path.join(config.data_dir, f"{datetime.datetime.now().strftime('%Y%m%d')}_NYSE.csv")
 
     # Check if the cached file exists
     if os.path.exists(file_path):

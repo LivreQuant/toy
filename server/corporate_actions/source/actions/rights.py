@@ -10,6 +10,7 @@ from source.actions.symbol_mapper import SymbolMapper
 import json
 import pandas as pd
 from datetime import datetime
+from source.config import config
 
 logger = logging.getLogger(__name__)
 
@@ -422,12 +423,13 @@ class EnhancedRightsOfferingProcessor:
         print(f"Debug report exported to {debug_file_path}")
         print(f"Summary CSV exported to {summary_file_path}")
 
-    def export_unified_rights_offerings(self, results: List[RightsOfferingMatchResult], data_dir: str,
-                                        filename: str = None):
-        """Export unified rights offering results to data directory."""
+    def export_unified_rights_offerings(self, results, data_dir=None, filename=None):
+        """Export unified rights offerings to CSV format"""
+        if data_dir is None:
+            data_dir = config.data_dir
+            
         if filename is None:
-            timestamp = datetime.now().strftime("%Y%m%d")
-            filename = f'unified_rights_offerings_{timestamp}.csv'
+            filename = config.get_unified_filename(config.unified_rights_file)
 
         os.makedirs(data_dir, exist_ok=True)
         csv_file_path = os.path.join(data_dir, filename)
@@ -456,7 +458,7 @@ class EnhancedRightsOfferingProcessor:
                 'mapping_confidence': rights.symbol_mapping.mapping_confidence if rights.symbol_mapping else 0.0,
                 'unmapped_sources': ', '.join(
                     rights.symbol_mapping.unmapped_sources) if rights.symbol_mapping and rights.symbol_mapping.unmapped_sources else ''
-            }
+                }
             csv_data.append(csv_row)
 
         pd.DataFrame(csv_data).to_csv(csv_file_path, index=False)
@@ -465,31 +467,29 @@ class EnhancedRightsOfferingProcessor:
 
 
 if __name__ == "__main__":
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    parent_dir = os.path.join(base_dir, '../..')
+   # Ensure directories exist
+   config.ensure_directories()
+   
+   # Use configuration paths
+   data_dir = config.data_dir
+   debug_dir = config.debug_dir
 
-    data_dir = os.path.join(parent_dir, "data")
-    debug_dir = os.path.join(parent_dir, "debug")
-    example_dir = os.path.join(parent_dir, "example")
+   # Find master files using configured path
+   master_files = glob.glob(os.path.join(config.master_files_dir, '*.csv'))
+   if not master_files:
+       raise FileNotFoundError(f"No master CSV files found in {config.master_files_dir}")
 
-    master_files = glob.glob(os.path.join(example_dir, 'master/*.csv'))
-    if not master_files:
-        raise FileNotFoundError("No master CSV files found in example/master/ directory")
+   master_file = max(master_files)
+   print(f"Using master file: {master_file}")
 
-    master_file = max(master_files)
-    print(f"Using master file: {master_file}")
+   processor = EnhancedRightsOfferingProcessor(master_file)
 
-    processor = EnhancedRightsOfferingProcessor(master_file)
+   source_data = {
+       'alpaca': [{'symbol': 'XYZ', 'ex_date': '2025-08-15', 'rights_ratio': '1:10'}]
+   }
 
-    source_data = {
-        'alpaca': [{'symbol': 'XYZ', 'new_symbol': 'XYZ.RT', 'ex_date': '2025-08-15', 'rate': '0.5', 'price': '10.00'}]
-    }
+   results = processor.process_all_sources(source_data)
+   processor.export_debug_report(debug_dir)
+   processor.export_unified_rights_offerings(results, data_dir)
 
-    results = processor.process_all_sources(source_data)
-    processor.export_debug_report(debug_dir)
-    processor.export_unified_rights_offerings(results, data_dir)
-
-    print(f"Processed {len(results)} rights offering matches")
-    for result in results:
-        print(f"{result.master_symbol}: Quality {result.match_quality:.2%}, "
-              f"Confidence {result.merged_rights.overall_confidence:.2%}")
+   print(f"Processed {len(results)} rights offering matches")

@@ -1,30 +1,22 @@
 import os
 import pandas as pd
 import requests
-from dotenv import load_dotenv
 import io
 from datetime import datetime
 from source.providers.utils import standardize
+from source.config import config
 
-OLD_COLUMNS = ['symbol', 'exchange',  # 'assetType',
-               'name',
-               # 'ipoDate', 'delistingDate',
-               'status']
-
-NEW_COLUMNS = ['av_symbol', 'exchange',  # 'av_type',
-               'av_name',
-               # 'av_ipo', 'av_delisted',
-               'av_status']
+OLD_COLUMNS = ['symbol', 'exchange', 'name', 'status']
+NEW_COLUMNS = ['av_symbol', 'exchange', 'av_name', 'av_status']
 
 
 def load_alphavantage_data():
     """
     Fetches listing status from Alpha Vantage API, caches it, and returns a DataFrame.
     """
-    # Define the data directory and file path
-    data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "data"))
-    os.makedirs(data_dir, exist_ok=True)
-    file_path = os.path.join(data_dir, f"{datetime.now().strftime('%Y%m%d')}_AV.csv")
+    # Ensure data directory exists
+    os.makedirs(config.data_dir, exist_ok=True)
+    file_path = os.path.join(config.data_dir, f"{datetime.now().strftime('%Y%m%d')}_AV.csv")
 
     # Check if the cached file exists
     if os.path.exists(file_path):
@@ -48,14 +40,12 @@ def load_alphavantage_data():
 
         return df
 
-    # Load environment variables
-    load_dotenv()
-    api_key = os.getenv("ALPHAVANTAGE_API_KEY")
-    if not api_key:
-        raise ValueError("ALPHAVANTAGE_API_KEY not found in .env file")
+    # Get API key from config
+    if not config.alphavantage_api_key:
+        raise ValueError("ALPHAVANTAGE_API_KEY not found in environment variables")
 
     # Construct the API URL
-    url = f'https://www.alphavantage.co/query?function=LISTING_STATUS&apikey={api_key}'
+    url = f'https://www.alphavantage.co/query?function=LISTING_STATUS&apikey={config.alphavantage_api_key}'
 
     try:
         response = requests.get(url)

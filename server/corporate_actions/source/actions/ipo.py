@@ -10,6 +10,7 @@ from source.actions.symbol_mapper import SymbolMapper
 import json
 import pandas as pd
 from datetime import datetime
+from source.config import config
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +29,44 @@ class UnifiedIPO:
     """Unified IPO representation with master symbol mapping."""
 
     # Core identifiers
+def export_unified_ipos(self, results, data_dir=None, filename=None):
+    """Export unified IPOs to CSV format"""
+    if data_dir is None:
+        data_dir = config.data_dir
+        
+    if filename is None:
+        filename = config.get_unified_filename(config.unified_ipos_file)
+
+    os.makedirs(data_dir, exist_ok=True)
+    csv_file_path = os.path.join(data_dir, filename)
+
+    csv_data = []
+    for result in results:
+        ipo = result.merged_ipo
+
+        csv_row = {
+            'master_symbol': ipo.master_symbol,
+            'source': ipo.source,
+            'listing_date': ipo.listing_date,
+            'ipo_symbol': ipo.ipo_symbol,
+            'company_name': ipo.company_name,
+            'listing_exchange': ipo.listing_exchange,
+            'overall_confidence': ipo.overall_confidence,
+            'source_agreement_score': ipo.source_agreement_score,
+            'data_completeness': ipo.data_completeness,
+            'match_quality': result.match_quality,
+            'source_count': len(ipo.source_list),
+            'sources': ', '.join(ipo.source_list),
+            'mapping_confidence': ipo.symbol_mapping.mapping_confidence if ipo.symbol_mapping else 0.0,
+            'unmapped_sources': ', '.join(
+                ipo.symbol_mapping.unmapped_sources) if ipo.symbol_mapping and ipo.symbol_mapping.unmapped_sources else ''
+        }
+        csv_data.append(csv_row)
+
+    pd.DataFrame(csv_data).to_csv(csv_file_path, index=False)
+    print(f"CSV summary exported to {csv_file_path}")
+    return csv_file_path
+
     master_symbol: str  # The unified master symbol (company going public)
     source: str
     symbol_mapping: Optional[SymbolMappingInfo] = None
@@ -353,49 +392,14 @@ class EnhancedIPOProcessor:
 
         return merged
 
-    def export_debug_report(self, debug_dir: str, filename: str = None):
-        """Export debug results to debug directory."""
+        
+    def export_unified_ipos(self, results, data_dir=None, filename=None):
+        """Export unified IPOs to CSV format"""
+        if data_dir is None:
+            data_dir = config.data_dir
+            
         if filename is None:
-            timestamp = datetime.now().strftime("%Y%m%d")
-            filename = f'ipos_debug_report_{timestamp}.json'
-
-        os.makedirs(debug_dir, exist_ok=True)
-
-        debug_file_path = os.path.join(debug_dir, filename)
-        with open(debug_file_path, 'w') as f:
-            json.dump(self.debug_results, f, indent=2)
-
-        summary_filename = filename.replace('.json', '_summary.csv')
-        summary_file_path = os.path.join(debug_dir, summary_filename)
-
-        summary_data = []
-        for result in self.debug_results:
-            summary_data.append({
-                'master_symbol': result['master_symbol'],
-                'match_quality': result['match_quality'],
-                'source_count': result['source_count'],
-                'overall_confidence': result['overall_confidence'],
-                'source_agreement': result['source_agreement'],
-                'date_agreement': result['field_agreements']['listing_date'],
-                'symbol_agreement': result['field_agreements']['ipo_symbol'],
-                'name_agreement': result['field_agreements']['company_name'],
-                'sources': ', '.join(result['sources']),
-                'ipo_symbol': result['ipo_symbol'],
-                'company_name': result['company_name'],
-                'listing_exchange': result['listing_exchange'],
-                'has_disagreements': len(result['disagreements']) > 0,
-                'mapping_confidence': result['symbol_mapping_info']['mapping_confidence']
-            })
-
-        pd.DataFrame(summary_data).to_csv(summary_file_path, index=False)
-        print(f"Debug report exported to {debug_file_path}")
-        print(f"Summary CSV exported to {summary_file_path}")
-
-    def export_unified_ipos(self, results: List[IPOMatchResult], data_dir: str, filename: str = None):
-        """Export unified IPO results to data directory."""
-        if filename is None:
-            timestamp = datetime.now().strftime("%Y%m%d")
-            filename = f'unified_ipos_{timestamp}.csv'
+            filename = config.get_unified_filename(config.unified_ipos_file)
 
         os.makedirs(data_dir, exist_ok=True)
         csv_file_path = os.path.join(data_dir, filename)
@@ -429,16 +433,17 @@ class EnhancedIPOProcessor:
 
 
 if __name__ == "__main__":
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    parent_dir = os.path.join(base_dir, '../..')
+    # Ensure directories exist
+    config.ensure_directories()
+    
+    # Use configuration paths
+    data_dir = config.data_dir
+    debug_dir = config.debug_dir
 
-    data_dir = os.path.join(parent_dir, "data")
-    debug_dir = os.path.join(parent_dir, "debug")
-    example_dir = os.path.join(parent_dir, "example")
-
-    master_files = glob.glob(os.path.join(example_dir, 'master/*.csv'))
+    # Find master files using configured path
+    master_files = glob.glob(os.path.join(config.master_files_dir, '*.csv'))
     if not master_files:
-        raise FileNotFoundError("No master CSV files found in example/master/ directory")
+        raise FileNotFoundError(f"No master CSV files found in {config.master_files_dir}")
 
     master_file = max(master_files)
     print(f"Using master file: {master_file}")

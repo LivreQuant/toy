@@ -1,32 +1,28 @@
 import os
 import pandas as pd
 import requests
-from dotenv import load_dotenv
 from datetime import datetime
 from source.providers.utils import standardize
+from source.config import config
 
-OLD_COLUMNS = ['symbol', 'exchange',  # 'class',
-               'name',
-               'status', 'tradable', 'marginable',
+OLD_COLUMNS = ['symbol', 'exchange', 'name', 'status', 'tradable', 'marginable',
                'maintenance_margin_requirement', 'margin_requirement_long', 'margin_requirement_short',
                'shortable', 'easy_to_borrow']
 
-NEW_COLUMNS = ['al_symbol', 'exchange',  # 'al_type',
-               'al_name',
-               'al_status',
+NEW_COLUMNS = ['al_symbol', 'exchange', 'al_name', 'al_status',
                'al_tradable', 'al_marginable',
                'al_maintenance_margin_requirement', 'al_margin_requirement_long', 'al_margin_requirement_short',
                'al_shortable', 'al_easy_to_borrow']
+
 
 
 def load_alpaca_data():
     """
     Fetches assets from Alpaca API, caches them, and returns a DataFrame.
     """
-    # Define the data directory and file path
-    data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "data"))
-    os.makedirs(data_dir, exist_ok=True)
-    file_path = os.path.join(data_dir, f"{datetime.now().strftime('%Y%m%d')}_ALPACA.csv")
+    # Ensure data directory exists
+    os.makedirs(config.data_dir, exist_ok=True)
+    file_path = os.path.join(config.data_dir, f"{datetime.now().strftime('%Y%m%d')}_ALPACA.csv")
 
     # Check if the cached file exists
     if os.path.exists(file_path):
@@ -50,20 +46,16 @@ def load_alpaca_data():
 
         return df
 
-    # Load environment variables
-    load_dotenv()
-    api_key_id = os.getenv("ALPACA_API_KEY_ID")
-    secret_key = os.getenv("ALPACA_SECRET_KEY")
-
-    if not api_key_id or not secret_key:
-        raise ValueError("ALPACA_API_KEY_ID or ALPACA_SECRET_KEY not found in .env file")
+    # Get API keys from config
+    if not config.alpaca_api_key or not config.alpaca_secret_key:
+        raise ValueError("ALPACA_API_KEY or ALPACA_SECRET_KEY not found in environment variables")
 
     # Construct the API URL and headers
     url = "https://paper-api.alpaca.markets/v2/assets?attributes="
     headers = {
         "accept": "application/json",
-        "APCA-API-KEY-ID": api_key_id,
-        "APCA-API-SECRET-KEY": secret_key
+        "APCA-API-KEY-ID": config.alpaca_api_key,
+        "APCA-API-SECRET-KEY": config.alpaca_secret_key
     }
 
     try:

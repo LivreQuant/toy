@@ -2,17 +2,7 @@ import pandas as pd
 import os
 from datetime import datetime
 from source.providers.utils import standardize
-
-"""
-(symbol,
- , 
- type,
- name_x,
- marketCap,
- earningsAnnouncement,
- sharesOutstanding,
-)
-"""
+from source.config import config
 
 OLD_COLUMNS = ['symbol', 'exchange_y', 'type', 'name_x',
                'marketCap',
@@ -27,16 +17,19 @@ def load_fmp_data():
     """
     Loads and merges FMP data from JSON files using pandas.
     """
-    # Define the data directory and file path
-    data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "data"))
-    os.makedirs(data_dir, exist_ok=True)
-    raw_file_path = os.path.join(data_dir, f"{datetime.now().strftime('%Y%m%d')}_FMP_raw.csv")
+    # Ensure data directory exists
+    os.makedirs(config.data_dir, exist_ok=True)
+    raw_file_path = os.path.join(config.data_dir, f"{datetime.now().strftime('%Y%m%d')}_FMP_raw.csv")
 
     # Construct absolute paths to the data files
-    base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "example", "fmp"))
-    nasdaq_path = os.path.join(base_path, "NASDAQ.json")
-    nyse_path = os.path.join(base_path, "NYSE.json")
-    symbol_list_path = os.path.join(base_path, "symbol_list.json")
+    nasdaq_path = os.path.join(config.fmp_data_path, config.fmp_nasdaq_file)
+    nyse_path = os.path.join(config.fmp_data_path, config.fmp_nyse_file)
+    symbol_list_path = os.path.join(config.fmp_data_path, config.fmp_symbol_list_file)
+
+    # Verify files exist
+    for path, name in [(nasdaq_path, "NASDAQ"), (nyse_path, "NYSE"), (symbol_list_path, "Symbol List")]:
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"{name} file not found: {path}")
 
     # Load the JSON data into pandas DataFrames
     nasdaq_df = pd.read_json(nasdaq_path)

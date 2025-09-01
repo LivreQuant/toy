@@ -3,6 +3,7 @@ import pandas as pd
 import os
 from datetime import datetime
 from source.providers.utils import standardize
+from source.config import config
 
 OLD_COLUMNS = ['symbol', 'market', 'name',
                'summary', 'currency',
@@ -20,23 +21,18 @@ NEW_COLUMNS = ['fd_symbol', 'exchange', 'fd_name',
 
 
 def load_fd_data():
-
-    # Define the data directory and file path
-    data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "data"))
-    os.makedirs(data_dir, exist_ok=True)
-    raw_file_path = os.path.join(data_dir, f"{datetime.now().strftime('%Y%m%d')}_FD_raw.csv")
+    # Ensure data directory exists
+    os.makedirs(config.data_dir, exist_ok=True)
+    raw_file_path = os.path.join(config.data_dir, f"{datetime.now().strftime('%Y%m%d')}_FD_raw.csv")
 
     equities = fd.Equities()
-
     equities.show_options(market=['New York Stock Exchange', 'NASDAQ Global Select'])
-
     stocks = equities.select(market=['New York Stock Exchange', 'NASDAQ Global Select'])
 
     df = pd.DataFrame(stocks).reset_index()
 
-    # Save the raw merged DataFrame
+    # Save the raw DataFrame
     df.to_csv(raw_file_path, index=False)
-
     print(f"Saved raw FD data to: {raw_file_path}")
 
     # Select and rename columns

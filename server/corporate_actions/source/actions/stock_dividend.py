@@ -10,6 +10,7 @@ from source.actions.symbol_mapper import SymbolMapper
 import json
 import pandas as pd
 from datetime import datetime
+from source.config import config
 
 logger = logging.getLogger(__name__)
 
@@ -409,12 +410,13 @@ class EnhancedStockDividendProcessor:
         print(f"Debug report exported to {debug_file_path}")
         print(f"Summary CSV exported to {summary_file_path}")
 
-    def export_unified_stock_dividends(self, results: List[StockDividendMatchResult], data_dir: str,
-                                       filename: str = None):
-        """Export unified stock dividend results to data directory."""
+    def export_unified_stock_dividends(self, results, data_dir=None, filename=None):
+        """Export unified stock dividends to CSV format"""
+        if data_dir is None:
+            data_dir = config.data_dir
+            
         if filename is None:
-            timestamp = datetime.now().strftime("%Y%m%d")
-            filename = f'unified_stock_dividends_{timestamp}.csv'
+            filename = config.get_unified_filename(config.unified_stock_dividends_file)
 
         os.makedirs(data_dir, exist_ok=True)
         csv_file_path = os.path.join(data_dir, filename)
@@ -449,16 +451,17 @@ class EnhancedStockDividendProcessor:
 
 
 if __name__ == "__main__":
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    parent_dir = os.path.join(base_dir, '../..')
+    # Ensure directories exist
+    config.ensure_directories()
+    
+    # Use configuration paths
+    data_dir = config.data_dir
+    debug_dir = config.debug_dir
 
-    data_dir = os.path.join(parent_dir, "data")
-    debug_dir = os.path.join(parent_dir, "debug")
-    example_dir = os.path.join(parent_dir, "example")
-
-    master_files = glob.glob(os.path.join(example_dir, 'master/*.csv'))
+    # Find master files using configured path
+    master_files = glob.glob(os.path.join(config.master_files_dir, '*.csv'))
     if not master_files:
-        raise FileNotFoundError("No master CSV files found in example/master/ directory")
+        raise FileNotFoundError(f"No master CSV files found in {config.master_files_dir}")
 
     master_file = max(master_files)
     print(f"Using master file: {master_file}")

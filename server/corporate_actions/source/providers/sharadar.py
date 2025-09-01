@@ -1,8 +1,8 @@
-# server/corporate_actions/source/providers/sharadar.py
-
 import pandas as pd
 import os
 from pathlib import Path
+from source.config import config
+
 
 def load_data():
     """
@@ -11,8 +11,7 @@ def load_data():
     Returns:
         A pandas DataFrame containing the Sharadar data, or empty DataFrame if error occurs.
     """
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    sharadar_path = os.path.join(base_dir, '../../examples/sharadar/20250827.csv')
+    sharadar_path = os.path.join(config.example_dir, 'sharadar', config.sharadar_default_ca_file)
 
     if not Path(sharadar_path).exists():
         print(f"Sharadar file not found: {sharadar_path}")

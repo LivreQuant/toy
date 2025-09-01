@@ -10,6 +10,7 @@ from source.actions.symbol_mapper import SymbolMapper
 import json
 import pandas as pd
 from datetime import datetime
+from source.config import config
 
 logger = logging.getLogger(__name__)
 
@@ -476,125 +477,61 @@ class EnhancedCashDividendProcessor:
         pd.DataFrame(summary_data).to_csv(summary_file_path, index=False)
         print(f"Debug report exported to {debug_file_path}")
         print(f"Summary CSV exported to {summary_file_path}")
-
-    def export_unified_dividends(self, results: List[DividendMatchResult], data_dir: str, filename: str = None):
-        """Export unified dividend results to data directory."""
+        
+    def export_unified_dividends(self, results, data_dir=None, filename=None):
+        """Export unified dividends to CSV format"""
+        if data_dir is None:
+            data_dir = config.data_dir
+        
         if filename is None:
-            timestamp = datetime.now().strftime("%Y%m%d")
-            filename = f'unified_cash_dividends_{timestamp}.json'
+            filename = config.get_unified_filename(config.unified_cash_dividends_file)
 
-        # Ensure data directory exists
         os.makedirs(data_dir, exist_ok=True)
+        csv_file_path = os.path.join(data_dir, filename)
 
-        # Convert results to serializable format
-        unified_data = []
+        csv_data = []
         for result in results:
             dividend = result.merged_dividend
 
-            # Convert Decimal fields to strings for JSON serialization
-            dividend_dict = {
+            csv_row = {
                 'master_symbol': dividend.master_symbol,
                 'source': dividend.source,
-                # 'source_id': dividend.source_id,
                 'ex_date': dividend.ex_date,
                 'record_date': dividend.record_date,
-                'payment_date': dividend.payment_date,
-                'declaration_date': dividend.declaration_date,
-                #'process_date': dividend.process_date,
-                'dividend_amount': str(dividend.dividend_amount) if dividend.dividend_amount else None,
-                'adjusted_dividend': str(dividend.adjusted_dividend) if dividend.adjusted_dividend else None,
+                'payable_date': dividend.payable_date,
+                'rate': str(dividend.rate) if dividend.rate else None,
                 'currency': dividend.currency,
-                'frequency': dividend.frequency,
-                #'dividend_type': dividend.dividend_type,
-                'is_foreign': dividend.is_foreign,
-                'is_special': dividend.is_special,
                 'overall_confidence': dividend.overall_confidence,
                 'source_agreement_score': dividend.source_agreement_score,
                 'data_completeness': dividend.data_completeness,
-                'source_list': dividend.source_list,
                 'match_quality': result.match_quality,
-                'field_confidences': {
-                    field: {
-                        'value': str(conf.value) if isinstance(conf.value, Decimal) else conf.value,
-                        'confidence_score': conf.confidence_score,
-                        'source_count': conf.source_count,
-                        'agreement_ratio': conf.agreement_ratio,
-                        'disagreement_details': conf.disagreement_details
-                    }
-                    for field, conf in dividend.field_confidences.items()
-                },
-                'symbol_mapping': {
-                    'master_symbol': dividend.symbol_mapping.master_symbol if dividend.symbol_mapping else dividend.master_symbol,
-                    'source_mappings': dividend.symbol_mapping.source_mappings if dividend.symbol_mapping else {},
-                    'unmapped_sources': dividend.symbol_mapping.unmapped_sources if dividend.symbol_mapping else [],
-                    'mapping_confidence': dividend.symbol_mapping.mapping_confidence if dividend.symbol_mapping else 0.0
-                },
-                'raw_data': dividend.raw_data
-            }
-
-            unified_data.append(dividend_dict)
-
-        # Save to JSON
-        #json_file_path = os.path.join(data_dir, filename)
-        #with open(json_file_path, 'w') as f:
-        #    json.dump(unified_data, f, indent=2)
-
-        # Also save as CSV for easier analysis
-        csv_filename = filename.replace('.json', '.csv')
-        csv_file_path = os.path.join(data_dir, csv_filename)
-
-        # Flatten for CSV export
-        csv_data = []
-        for item in unified_data:
-            csv_row = {
-                'master_symbol': item['master_symbol'],
-                'source': item['source'],
-                #'source_id': item['source_id'],
-                'ex_date': item['ex_date'],
-                'record_date': item['record_date'],
-                'payment_date': item['payment_date'],
-                'declaration_date': item['declaration_date'],
-                'dividend_amount': item['dividend_amount'],
-                'adjusted_dividend': item['adjusted_dividend'],
-                'currency': item['currency'],
-                'frequency': item['frequency'],
-                #'dividend_type': item['dividend_type'],
-                'is_foreign': item['is_foreign'],
-                'is_special': item['is_special'],
-                'overall_confidence': item['overall_confidence'],
-                'source_agreement_score': item['source_agreement_score'],
-                'data_completeness': item['data_completeness'],
-                'match_quality': item['match_quality'],
-                'source_count': len(item['source_list']),
-                'sources': ', '.join(item['source_list']),
-                'mapping_confidence': item['symbol_mapping']['mapping_confidence'],
-                'unmapped_sources': ', '.join(item['symbol_mapping']['unmapped_sources']) if item['symbol_mapping'][
-                    'unmapped_sources'] else ''
+                'source_count': len(dividend.source_list),
+                'sources': ', '.join(dividend.source_list),
+                'mapping_confidence': dividend.symbol_mapping.mapping_confidence if dividend.symbol_mapping else 0.0,
+                'unmapped_sources': ', '.join(
+                    dividend.symbol_mapping.unmapped_sources) if dividend.symbol_mapping and dividend.symbol_mapping.unmapped_sources else ''
             }
             csv_data.append(csv_row)
 
         pd.DataFrame(csv_data).to_csv(csv_file_path, index=False)
-
-        #print(f"Unified dividends exported to {json_file_path}")
         print(f"CSV summary exported to {csv_file_path}")
 
         return csv_file_path
+        
 
-
-# Usage example
 if __name__ == "__main__":
+    # Ensure directories exist
+    config.ensure_directories()
+    
+    # Use configuration paths
+    data_dir = config.data_dir
+    debug_dir = config.debug_dir
+    example_dir = config.example_dir
 
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    parent_dir = os.path.join(base_dir, '../..')
-
-    data_dir = os.path.join(parent_dir, "data")
-    debug_dir = os.path.join(parent_dir, "debug")
-    example_dir = os.path.join(parent_dir, "example")
-
-    # Fix the glob pattern - remove leading slash
-    master_files = glob.glob(os.path.join(example_dir, 'master/*.csv'))
+    # Find master files using configured path
+    master_files = glob.glob(os.path.join(config.master_files_dir, '*.csv'))
     if not master_files:
-        raise FileNotFoundError("No master CSV files found in example/master/ directory")
+        raise FileNotFoundError(f"No master CSV files found in {config.master_files_dir}")
 
     master_file = max(master_files)  # Get the most recent master file
     print(f"Using master file: {master_file}")

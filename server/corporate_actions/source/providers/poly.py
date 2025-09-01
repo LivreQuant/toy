@@ -1,8 +1,7 @@
-# server/corporate_actions/source/providers/poly.py
-
 import pandas as pd
 import os
 from pathlib import Path
+from source.config import config
 
 
 def load_data():
@@ -14,18 +13,14 @@ def load_data():
         - dividends: DataFrame with dividend information.
         - splits: DataFrame with stock split information.
     """
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-
     files_to_load = {
-        'dividends': '../../examples/poly/dividends.json',
-        'splits': '../../examples/poly/splits.json'
+        'dividends': os.path.join(config.example_dir, 'poly', 'dividends.json'),
+        'splits': os.path.join(config.example_dir, 'poly', 'splits.json')
     }
 
     results = {}
 
-    for data_type, relative_path in files_to_load.items():
-        file_path = os.path.join(base_dir, relative_path)
-
+    for data_type, file_path in files_to_load.items():
         if Path(file_path).exists():
             try:
                 results[data_type] = pd.read_json(file_path)

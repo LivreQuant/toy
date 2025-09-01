@@ -1,10 +1,9 @@
-# server/corporate_actions/source/providers/alpaca.py
-
 import pandas as pd
 import os
 import glob
 import json
 from pathlib import Path
+from source.config import config
 
 
 def load_data():
@@ -17,8 +16,7 @@ def load_data():
         A dictionary of pandas DataFrames, where each key is a corporate action
         type and the value is a DataFrame containing the data for that action.
     """
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    alpaca_dir = os.path.join(base_dir, '../../examples/alpaca')
+    alpaca_dir = os.path.join(config.example_dir, 'alpaca')
 
     # Check if the alpaca directory exists
     if not Path(alpaca_dir).exists():

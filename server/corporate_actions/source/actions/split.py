@@ -10,6 +10,7 @@ from source.actions.symbol_mapper import SymbolMapper
 import json
 import pandas as pd
 from datetime import datetime
+from source.config import config
 
 logger = logging.getLogger(__name__)
 
@@ -474,11 +475,14 @@ class EnhancedStockSplitProcessor:
         print(f"Debug report exported to {debug_file_path}")
         print(f"Summary CSV exported to {summary_file_path}")
 
-    def export_unified_splits(self, results: List[SplitMatchResult], data_dir: str, filename: str = None):
-        """Export unified split results to data directory."""
+        
+    def export_unified_stock_splits(self, results, data_dir=None, filename=None):
+        """Export unified stock splits to CSV format"""
+        if data_dir is None:
+            data_dir = config.data_dir
+            
         if filename is None:
-            timestamp = datetime.now().strftime("%Y%m%d")
-            filename = f'unified_stock_splits_{timestamp}.csv'
+            filename = config.get_unified_filename(config.unified_stock_splits_file)
 
         os.makedirs(data_dir, exist_ok=True)
         csv_file_path = os.path.join(data_dir, filename)
@@ -514,19 +518,20 @@ class EnhancedStockSplitProcessor:
         pd.DataFrame(csv_data).to_csv(csv_file_path, index=False)
         print(f"CSV summary exported to {csv_file_path}")
         return csv_file_path
-
+        
 
 if __name__ == "__main__":
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    parent_dir = os.path.join(base_dir, '../..')
+    # Ensure directories exist
+    config.ensure_directories()
+    
+    # Use configuration paths  
+    data_dir = config.data_dir
+    debug_dir = config.debug_dir
 
-    data_dir = os.path.join(parent_dir, "data")
-    debug_dir = os.path.join(parent_dir, "debug")
-    example_dir = os.path.join(parent_dir, "example")
-
-    master_files = glob.glob(os.path.join(example_dir, 'master/*.csv'))
+    # Find master files using configured path
+    master_files = glob.glob(os.path.join(config.master_files_dir, '*.csv'))
     if not master_files:
-        raise FileNotFoundError("No master CSV files found in example/master/ directory")
+        raise FileNotFoundError(f"No master CSV files found in {config.master_files_dir}")
 
     master_file = max(master_files)
     print(f"Using master file: {master_file}")
@@ -534,16 +539,11 @@ if __name__ == "__main__":
     processor = EnhancedStockSplitProcessor(master_file)
 
     source_data = {
-        'alpaca_forward': [{'symbol': 'AAPL', 'ex_date': '2025-08-15', 'old_rate': 1, 'new_rate': 2}],
-        'fmp': [{'symbol': 'AAPL', 'date': '2025-08-15', 'numerator': 2, 'denominator': 1}],
-        'poly': [{'ticker': 'AAPL', 'execution_date': '2025-08-15', 'split_from': 1, 'split_to': 2}]
+        'alpaca': [{'symbol': 'AAPL', 'ex_date': '2025-08-15', 'split_ratio': '2:1'}]
     }
 
     results = processor.process_all_sources(source_data)
     processor.export_debug_report(debug_dir)
-    processor.export_unified_splits(results, data_dir)
+    processor.export_unified_stock_splits(results, data_dir)
 
-    print(f"Processed {len(results)} split matches")
-    for result in results:
-        print(f"{result.master_symbol}: Quality {result.match_quality:.2%}, "
-              f"Confidence {result.merged_split.overall_confidence:.2%}")
+    print(f"Processed {len(results)} stock split matches")

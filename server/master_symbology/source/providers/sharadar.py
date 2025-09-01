@@ -2,42 +2,38 @@ import pandas as pd
 import os
 from datetime import datetime
 from source.providers.utils import standardize
+from source.config import config
 
-OLD_COLUMNS = ['ticker', 'exchange', 'category', 'name',
-               'currency', 'location',  # 'isdelisted',
-               'cusips',
-               'siccode', 'sicsector', 'sicindustry', 'famasector', 'famaindustry',
-               'sector', 'industry',
-               'scalemarketcap', 'scalerevenue',
-               'secfilings', 'companysite'
-               ]
+OLD_COLUMNS = ['ticker', 'exchange', 'category', 'name', 'currency', 
+               'cik', 'cusip', 'siccode', 'sicsector', 'sicindustry',
+               'famaindustry', 'sector', 'industry', 'scalemarketcap',
+               'scalerevenue', 'relatedtickers', 'location']
 
-NEW_COLUMNS = ['sh_symbol', 'exchange', 'sh_type', 'sh_name',
-               'sh_currency', 'sh_location',  # 'sh_isdelisted',
-               'sh_cusips',
-               'sh_sic_code', 'sh_sic_sector', 'sh_sic_industry', 'sh_fama_sector', 'sh_fama_industry',
-               'sh_sector', 'sh_industry',
-               'sh_scalemarketcap', 'sh_scalerevenue',
-               'sh_cik', 'sh_homepage_url']
+NEW_COLUMNS = ['sh_symbol', 'exchange', 'sh_type', 'sh_name', 'sh_currency',
+               'sh_cik', 'sh_cusip', 'sh_sic_code', 'sh_sic_sector', 'sh_sic_industry',
+               'sh_fama_industry', 'sh_sector', 'sh_industry', 'sh_scale_market_cap',
+               'sh_scale_revenue', 'sh_related_tickers', 'sh_location']
 
 
 def load_sharadar_data():
     """
-    Loads and merges Sharadar data from CSV files using pandas.
+    Loads Sharadar data from CSV file using pandas.
     """
-    # Define the data directory and file path
-    data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "data"))
-    os.makedirs(data_dir, exist_ok=True)
-    raw_file_path = os.path.join(data_dir, f"{datetime.now().strftime('%Y%m%d')}_SHARADAR_raw.csv")
+    # Ensure data directory exists
+    os.makedirs(config.data_dir, exist_ok=True)
+    raw_file_path = os.path.join(config.data_dir, f"{datetime.now().strftime('%Y%m%d')}_SHARADAR_raw.csv")
 
-    # Construct absolute paths to the data files
-    base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "example", "sharadar"))
-    sharadar_path = os.path.join(base_path, "20250826.csv")
+    # Construct absolute path to the data file
+    sharadar_path = os.path.join(config.sharadar_data_path, config.sharadar_default_file)
+    
+    # Verify file exists
+    if not os.path.exists(sharadar_path):
+        raise FileNotFoundError(f"Sharadar file not found: {sharadar_path}")
 
     # Load the CSV data into a pandas DataFrame
     sharadar_df = pd.read_csv(sharadar_path)
 
-    # Save the raw merged DataFrame
+    # Save the raw DataFrame
     sharadar_df.to_csv(raw_file_path, index=False)
     print(f"Saved raw Sharadar data to: {raw_file_path}")
 

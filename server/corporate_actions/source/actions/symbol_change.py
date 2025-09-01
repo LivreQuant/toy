@@ -10,6 +10,7 @@ from source.actions.symbol_mapper import SymbolMapper
 import json
 import pandas as pd
 from datetime import datetime
+from source.config import config
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +21,45 @@ class SymbolMappingInfo:
     master_symbol: str
     source_mappings: Dict[str, str]  # source -> original symbol
     unmapped_sources: List[str]
-    mapping_confidence: float
+    mappi
+def export_unified_symbol_changes(self, results, data_dir=None, filename=None):
+    """Export unified symbol changes to CSV format"""
+    if data_dir is None:
+        data_dir = config.data_dir
+        
+    if filename is None:
+        filename = config.get_unified_filename(config.unified_symbol_changes_file)
+
+    os.makedirs(data_dir, exist_ok=True)
+    csv_file_path = os.path.join(data_dir, filename)
+
+    csv_data = []
+    for result in results:
+        change = result.merged_change
+
+        csv_row = {
+            'master_symbol': change.master_symbol,
+            'source': change.source,
+            'process_date': change.process_date,
+            'old_symbol': change.old_symbol,
+            'new_symbol': change.new_symbol,
+            'old_cusip': change.old_cusip,
+            'new_cusip': change.new_cusip,
+            'overall_confidence': change.overall_confidence,
+            'source_agreement_score': change.source_agreement_score,
+            'data_completeness': change.data_completeness,
+            'match_quality': result.match_quality,
+            'source_count': len(change.source_list),
+            'sources': ', '.join(change.source_list),
+            'mapping_confidence': change.symbol_mapping.mapping_confidence if change.symbol_mapping else 0.0,
+            'unmapped_sources': ', '.join(
+                change.symbol_mapping.unmapped_sources) if change.symbol_mapping and change.symbol_mapping.unmapped_sources else ''
+        }
+        csv_data.append(csv_row)
+
+    pd.DataFrame(csv_data).to_csv(csv_file_path, index=False)
+    print(f"CSV summary exported to {csv_file_path}")
+    return csv_file_pathng_confidence: float
 
 
 @dataclass
@@ -415,12 +454,14 @@ class EnhancedSymbolChangeProcessor:
         print(f"Debug report exported to {debug_file_path}")
         print(f"Summary CSV exported to {summary_file_path}")
 
-    def export_unified_symbol_changes(self, results: List[SymbolChangeMatchResult], data_dir: str,
-                                      filename: str = None):
-        """Export unified symbol change results to data directory."""
+        
+    def export_unified_symbol_changes(self, results, data_dir=None, filename=None):
+        """Export unified symbol changes to CSV format"""
+        if data_dir is None:
+            data_dir = config.data_dir
+            
         if filename is None:
-            timestamp = datetime.now().strftime("%Y%m%d")
-            filename = f'unified_symbol_changes_{timestamp}.csv'
+            filename = config.get_unified_filename(config.unified_symbol_changes_file)
 
         os.makedirs(data_dir, exist_ok=True)
         csv_file_path = os.path.join(data_dir, filename)
@@ -432,11 +473,9 @@ class EnhancedSymbolChangeProcessor:
             csv_row = {
                 'master_symbol': change.master_symbol,
                 'source': change.source,
-                'change_date': change.change_date,
                 'process_date': change.process_date,
                 'old_symbol': change.old_symbol,
                 'new_symbol': change.new_symbol,
-                'company_name': change.company_name,
                 'old_cusip': change.old_cusip,
                 'new_cusip': change.new_cusip,
                 'overall_confidence': change.overall_confidence,
@@ -454,19 +493,21 @@ class EnhancedSymbolChangeProcessor:
         pd.DataFrame(csv_data).to_csv(csv_file_path, index=False)
         print(f"CSV summary exported to {csv_file_path}")
         return csv_file_path
+        
 
 
 if __name__ == "__main__":
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    parent_dir = os.path.join(base_dir, '../..')
+    # Ensure directories exist
+    config.ensure_directories()
+    
+    # Use configuration paths
+    data_dir = config.data_dir
+    debug_dir = config.debug_dir
 
-    data_dir = os.path.join(parent_dir, "data")
-    debug_dir = os.path.join(parent_dir, "debug")
-    example_dir = os.path.join(parent_dir, "example")
-
-    master_files = glob.glob(os.path.join(example_dir, 'master/*.csv'))
+    # Find master files using configured path
+    master_files = glob.glob(os.path.join(config.master_files_dir, '*.csv'))
     if not master_files:
-        raise FileNotFoundError("No master CSV files found in example/master/ directory")
+        raise FileNotFoundError(f"No master CSV files found in {config.master_files_dir}")
 
     master_file = max(master_files)
     print(f"Using master file: {master_file}")

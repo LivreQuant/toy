@@ -3,22 +3,10 @@ import requests
 import os
 from datetime import datetime
 from source.providers.utils import standardize
+from source.config import config
 
-OLD_COLUMNS = ['Symbol', 'exchange', 'Security Name',
-               #'Market Category',
-               #'Test Issue',
-               'Financial Status', 'Round Lot Size',
-               'ETF',
-               #'NextShares'
-               ]
-
-NEW_COLUMNS = ['na_symbol', 'exchange', 'na_name',
-               #'na_type',
-               #'na_test',
-               'na_status', 'na_lot',
-               'na_etf',
-               #'na_next'
-               ]
+OLD_COLUMNS = ['Symbol', 'exchange', 'Security Name', 'Financial Status', 'Round Lot Size', 'ETF']
+NEW_COLUMNS = ['na_symbol', 'exchange', 'na_name', 'na_status', 'na_lot', 'na_etf']
 
 
 def load_nasdaq_data():
@@ -26,10 +14,9 @@ def load_nasdaq_data():
     Fetches NASDAQ listed symbols and loads them into a pandas DataFrame using requests.
     Caches the data to a local file.
     """
-    # Define the data directory and file path
-    data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "data"))
-    os.makedirs(data_dir, exist_ok=True)
-    file_path = os.path.join(data_dir, f"{datetime.now().strftime('%Y%m%d')}_NASDAQ.csv")
+    # Ensure data directory exists
+    os.makedirs(config.data_dir, exist_ok=True)
+    file_path = os.path.join(config.data_dir, f"{datetime.now().strftime('%Y%m%d')}_NASDAQ.csv")
 
     # Check if the cached file exists
     if os.path.exists(file_path):

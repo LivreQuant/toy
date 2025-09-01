@@ -1,26 +1,24 @@
 import os
 import pandas as pd
 import requests
-from dotenv import load_dotenv
 from datetime import datetime
 from source.providers.utils import standardize
+from source.config import config
 
 OLD_COLUMNS = ['Code', 'Exchange', 'Type', 'Name',
                'Country', 'Currency', 'Isin']
 
 NEW_COLUMNS = ['ed_symbol', 'exchange', 'ed_type', 'ed_name',
-               'ed_country', 'ed_currency',
-               'ed_isin']
+               'ed_country', 'ed_currency', 'ed_isin']
 
 
 def load_eodhd_data():
     """
     Fetches exchange symbol list from EODHD API, caches it, and returns a DataFrame.
     """
-    # Define the data directory and file path
-    data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "data"))
-    os.makedirs(data_dir, exist_ok=True)
-    file_path = os.path.join(data_dir, f"{datetime.now().strftime('%Y%m%d')}_EODHD.csv")
+    # Ensure data directory exists
+    os.makedirs(config.data_dir, exist_ok=True)
+    file_path = os.path.join(config.data_dir, f"{datetime.now().strftime('%Y%m%d')}_EODHD.csv")
 
     # Check if the cached file exists
     if os.path.exists(file_path):
@@ -57,14 +55,12 @@ def load_eodhd_data():
 
         return df
 
-    # Load environment variables
-    load_dotenv()
-    api_key = os.getenv("EODHD_API_KEY")
-    if not api_key:
-        raise ValueError("EODHD_API_KEY not found in .env file")
+    # Get API key from config
+    if not config.eodhd_api_key:
+        raise ValueError("EODHD_API_KEY not found in environment variables")
 
     # Construct the API URL
-    url = f'https://eodhd.com/api/exchange-symbol-list/US?api_token={api_key}&fmt=json'
+    url = f'https://eodhd.com/api/exchange-symbol-list/US?api_token={config.eodhd_api_key}&fmt=json'
 
     try:
         response = requests.get(url)
@@ -110,7 +106,4 @@ def load_eodhd_data():
 
     except requests.exceptions.RequestException as e:
         print(f"Error fetching EODHD data: {e}")
-        raise ValueError("Missing EODHD Data")
-    except ValueError as e:
-        print(f"Error parsing EODHD data: {e}")
         raise ValueError("Missing EODHD Data")

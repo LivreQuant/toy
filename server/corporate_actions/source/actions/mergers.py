@@ -10,6 +10,7 @@ from source.actions.symbol_mapper import SymbolMapper
 import json
 import pandas as pd
 from datetime import datetime
+from source.config import config
 
 logger = logging.getLogger(__name__)
 
@@ -488,12 +489,14 @@ class EnhancedMergerProcessor:
         pd.DataFrame(summary_data).to_csv(summary_file_path, index=False)
         print(f"Debug report exported to {debug_file_path}")
         print(f"Summary CSV exported to {summary_file_path}")
-
-    def export_unified_mergers(self, results: List[MergerMatchResult], data_dir: str, filename: str = None):
-        """Export unified merger results to data directory."""
+        
+    def export_unified_mergers(self, results, data_dir=None, filename=None):
+        """Export unified mergers to CSV format"""
+        if data_dir is None:
+            data_dir = config.data_dir
+            
         if filename is None:
-            timestamp = datetime.now().strftime("%Y%m%d")
-            filename = f'unified_mergers_{timestamp}.csv'
+            filename = config.get_unified_filename(config.unified_mergers_file)
 
         os.makedirs(data_dir, exist_ok=True)
         csv_file_path = os.path.join(data_dir, filename)
@@ -536,16 +539,17 @@ class EnhancedMergerProcessor:
 
 
 if __name__ == "__main__":
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    parent_dir = os.path.join(base_dir, '../..')
+    # Ensure directories exist
+    config.ensure_directories()
+    
+    # Use configuration paths
+    data_dir = config.data_dir
+    debug_dir = config.debug_dir
 
-    data_dir = os.path.join(parent_dir, "data")
-    debug_dir = os.path.join(parent_dir, "debug")
-    example_dir = os.path.join(parent_dir, "example")
-
-    master_files = glob.glob(os.path.join(example_dir, 'master/*.csv'))
+    # Find master files using configured path
+    master_files = glob.glob(os.path.join(config.master_files_dir, '*.csv'))
     if not master_files:
-        raise FileNotFoundError("No master CSV files found in example/master/ directory")
+        raise FileNotFoundError(f"No master CSV files found in {config.master_files_dir}")
 
     master_file = max(master_files)
     print(f"Using master file: {master_file}")
@@ -553,10 +557,7 @@ if __name__ == "__main__":
     processor = EnhancedMergerProcessor(master_file)
 
     source_data = {
-        'alpaca_stock': [{'acquiree_symbol': 'TGTA', 'acquirer_cusip': 'AMZN123', 'effective_date': '2025-08-15',
-                          'acquirer_rate': '0.5'}],
-        'fmp': [{'targetedSymbol': 'TGTA', 'cik': 'AMZN', 'transactionDate': '2025-08-15'}],
-        'sharadar': [{'ticker': 'TGTA', 'acquirerticker': 'AMZN', 'date': '2025-08-15', 'value': '50.00'}]
+        'alpaca': [{'acquiree_symbol': 'ABC', 'acquirer_symbol': 'XYZ', 'ex_date': '2025-08-15'}]
     }
 
     results = processor.process_all_sources(source_data)
@@ -564,6 +565,3 @@ if __name__ == "__main__":
     processor.export_unified_mergers(results, data_dir)
 
     print(f"Processed {len(results)} merger matches")
-    for result in results:
-        print(f"{result.master_symbol}: Quality {result.match_quality:.2%}, "
-              f"Confidence {result.merged_merger.overall_confidence:.2%}")

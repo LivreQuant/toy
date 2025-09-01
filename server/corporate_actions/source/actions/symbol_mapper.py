@@ -1,6 +1,7 @@
 import pandas as pd
 from typing import Dict, Optional
 import logging
+from source.config import config
 
 logger = logging.getLogger(__name__)
 
@@ -8,7 +9,15 @@ logger = logging.getLogger(__name__)
 class SymbolMapper:
     """Maps symbols from different sources to master symbols."""
 
-    def __init__(self, master_csv_path: str):
+    def __init__(self, master_csv_path: str = None):
+        if master_csv_path is None:
+            # Use default master file from config
+            import glob
+            master_files = glob.glob(os.path.join(config.master_files_dir, '*.csv'))
+            if not master_files:
+                raise FileNotFoundError(f"No master CSV files found in {config.master_files_dir}")
+            master_csv_path = max(master_files)
+            
         self.master_df = pd.read_csv(master_csv_path, sep='|')
         self.source_mappings = {
             'alpaca': 'al_symbol',
