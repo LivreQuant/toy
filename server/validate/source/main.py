@@ -1,266 +1,514 @@
 #!/usr/bin/env python3
 """
-Main script for comparing master files with USE_PREV functionality
-Output will be categorized into primary/secondary diff directories
+Corporate Actions Validation Script
+
+This script validates new and missing entries from master symbology files
+against corporate actions data to identify explainable changes vs unexplained ones
+that require manual investigation.
 """
 
-import argparse
+import os
+import pandas as pd
 import logging
-import sys
-from datetime import datetime
+import json
+import glob
 from pathlib import Path
-
+from datetime import datetime
+from typing import Dict, List, Tuple, Set
+from dataclasses import dataclass
 from config import config
-from source.master.utils import get_master_file_pair, load_master_file
-from source.master.compare import MasterFileComparator
 
 
-def setup_logging(current_date: str, log_level: str = "INFO"):
-    """Setup logging configuration"""
-    # Create log file in the main diff directory
-    log_dir = config.get_output_dir(current_date)
-    log_dir.mkdir(parents=True, exist_ok=True)
-    log_file = log_dir / 'master_comparison.log'
-
-    logging.basicConfig(
-        level=getattr(logging, log_level.upper()),
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.StreamHandler(sys.stdout),
-            logging.FileHandler(log_file)
-        ]
-    )
+@dataclass
+class ValidationResult:
+    """Structure to hold validation results for entries"""
+    symbol: str
+    composite_key: str
+    change_type: str  # NEW_ENTRY or MISSING_ENTRY
+    explanation: str
+    explained: bool
+    corporate_action_type: str = None
+    corporate_action_date: str = None
+    confidence: float = 0.0
+    details: Dict = None
 
 
-def print_summary(summary: dict, output_files: dict):
-    """Print a formatted summary to console with USE_PREV information"""
-    print("\n" + "=" * 80)
-    print("MASTER FILE COMPARISON SUMMARY WITH USE_PREV FUNCTIONALITY")
-    print("=" * 80)
-    print(f"Comparison: {summary['previous_date']} -> {summary['current_date']}")
-    print(f"Main Directory: {summary['output_directory']}")
-    print(f"Primary Directory: {summary['primary_diff_directory']}")
-    print(f"Secondary Directory: {summary['secondary_diff_directory']}")
-    print(f"Comparison Time: {summary['comparison_timestamp']}")
-    print()
+class CorporateActionsValidator:
+    """Validates new/missing entries against corporate actions data"""
 
-    print("CONFIGURATION:")
-    print(f"  Ignored Columns: {len(summary['ignored_columns'])} columns")
-    print(f"  Numeric Columns: {len(summary['numeric_columns'])} columns (30.0 = 30)")
-    print(f"  USE_PREV Columns: {len(summary['use_prev_columns'])} columns")
-    print()
+    def __init__(self):
+        """Initialize the validator using config"""
+        # Setup logging
+        self.setup_logging()
 
-    print("FILE STATISTICS:")
-    print(f"  Previous File Records: {summary['previous_file_records']:,}")
-    print(f"  Current File Records: {summary['current_file_records']:,}")
-    print(f"  Net Change: {summary['net_change']:+,}")
-    print(f"  Common Records: {summary['common_records']:,}")
-    print()
+        # Load data from config
+        self.new_entries_df = self.load_csv_file(config.NEW_ENTRIES_FILE)
+        self.missing_entries_df = self.load_csv_file(config.MISSING_ENTRIES_FILE)
 
-    print("CHANGES DETECTED:")
-    print(f"  📈 New Entries: {summary['new_entries_count']:,}")
-    print(f"  📉 Missing Entries: {summary['missing_entries_count']:,}")
+        # Corporate actions unified data containers
+        self.symbol_changes_df = pd.DataFrame()
+        self.mergers_df = pd.DataFrame()
+        self.spinoffs_df = pd.DataFrame()
+        self.delistings_df = pd.DataFrame()
+        self.ipos_df = pd.DataFrame()
 
-    if summary['use_prev_backfills'] > 0:
-        print(f"  🔄 USE_PREV Backfills: {summary['use_prev_backfills']:,} field updates")
-        if summary['updated_master_file']:
-            print(f"      Updated Master Created: {Path(summary['updated_master_file']).name}")
+        # Load unified corporate actions
+        self.load_unified_corporate_actions()
 
-    if summary['data_changes_count'] > 0:
-        print(f"  📊 Data Changes: {summary['data_changes_count']:,} symbols")
-        print(f"      🚨 PRIMARY (Investigation Required): {summary['primary_changes_symbols']:,} symbols")
-        print(f"      🔄 SECONDARY (USE_PREV Related): {summary['secondary_only_changes_symbols']:,} symbols")
-        print(f"      📋 Total Columns Changed: {summary['columns_changed_count']}")
-        print(f"      📋 Primary Columns: {summary['primary_columns_changed_count']}")
-        print(f"      📋 Secondary Columns: {summary['secondary_columns_changed_count']}")
-    else:
-        print(f"  📊 Data Changes: 0")
+        # Validation results
+        self.validation_results: List[ValidationResult] = []
 
-    print(f"  📊 Total Changes: {summary['total_changes']:,}")
-    print()
+    def setup_logging(self):
+        """Setup logging configuration"""
+        log_dir = Path(config.OUTPUT_DIR)
+        log_dir.mkdir(parents=True, exist_ok=True)
 
-    if output_files:
-        print("KEY OUTPUT FILES BY CATEGORY:")
-        print("📁 MAIN DIRECTORY (Summary & Core Changes):")
-        main_files = ['summary', 'new_entries', 'missing_entries', 'data_changes_summary',
-                      'use_prev_changes', 'all_columns_summary']
-        for file_type in main_files:
-            if file_type in output_files:
-                file_name = Path(output_files[file_type]).name
-                print(f"      📄 {file_type.replace('_', ' ').title()}: {file_name}")
+        log_file = log_dir / f"validation_{datetime.now().strftime('%Y%m%d')}.log"
 
-        # Count primary and secondary files
-        primary_files = [f for f in output_files.keys() if 'primary_column_' in f]
-        secondary_files = [f for f in output_files.keys() if 'secondary_column_' in f]
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+            handlers=[
+                logging.StreamHandler(),
+                logging.FileHandler(log_file)
+            ]
+        )
+        self.logger = logging.getLogger(__name__)
 
-        if primary_files:
-            print("🚨 PRIMARY DIRECTORY (Requires Investigation):")
-            print(f"      📊 Column-specific files: {len(primary_files)} files")
-            if 'primary_columns_summary' in output_files:
-                print(f"      📄 Summary: {Path(output_files['primary_columns_summary']).name}")
+    def load_csv_file(self, file_path: str) -> pd.DataFrame:
+        """Load CSV file and return DataFrame"""
+        if not os.path.exists(file_path):
+            self.logger.warning(f"File not found: {file_path}")
+            return pd.DataFrame()
 
-        if secondary_files:
-            print("🔄 SECONDARY DIRECTORY (USE_PREV Related):")
-            print(f"      📊 Column-specific files: {len(secondary_files)} files")
-            if 'secondary_columns_summary' in output_files:
-                print(f"      📄 Summary: {Path(output_files['secondary_columns_summary']).name}")
+        try:
+            df = pd.read_csv(file_path)
+            self.logger.info(f"Loaded {len(df)} records from {file_path}")
+            return df
+        except Exception as e:
+            self.logger.error(f"Error loading {file_path}: {e}")
+            return pd.DataFrame()
 
-    print("=" * 80)
+    def load_unified_corporate_actions(self):
+        """Load unified corporate actions data"""
+        self.logger.info("Loading unified corporate actions data...")
 
-    # Provide actionable insights with USE_PREV context
-    if summary['total_changes'] == 0:
-        print("✅ No changes detected between the files.")
-    elif summary['primary_changes_symbols'] > 0:
-        print("🚨 PRIORITY: Review PRIMARY directory files - these require investigation!")
-        if summary['primary_changes_symbols'] > 100:
-            print("💡 Start with primary_columns_summary.csv for overview of critical changes")
-    elif summary['secondary_only_changes_symbols'] > 0:
-        print("ℹ️  Only SECONDARY changes detected - these are USE_PREV backfills (less critical)")
+        # Get current date directory
+        ymd = datetime.strftime(datetime.today(), "%Y%m%d")
+        ca_data_dir = os.path.join(config.CORPORATE_ACTIONS_DIR, ymd, "data")
 
-    if summary['use_prev_backfills'] > 0:
-        print(f"✅ USE_PREV processed: {summary['use_prev_backfills']} empty fields backfilled from previous day")
-        if summary['updated_master_file']:
-            print(f"📄 Updated master file created with backfilled data")
+        if not os.path.exists(ca_data_dir):
+            self.logger.error(f"Corporate actions data directory not found: {ca_data_dir}")
+            return
 
-    if summary['columns_changed_count'] > 20:
-        print("💡 Consider reviewing .env USE_PREV configuration if too many secondary changes")
+        # Load unified CSV files
+        unified_files = {
+            'symbol_changes': 'unified_symbol_changes.csv',
+            'mergers': 'unified_mergers.csv',
+            'spinoffs': 'unified_spinoffs.csv',
+            'delistings': 'unified_delisting.csv',
+            'ipos': 'unified_ipos.csv'
+        }
 
-    print()
+        for action_type, filename in unified_files.items():
+            file_path = os.path.join(ca_data_dir, filename)
+            if os.path.exists(file_path):
+                try:
+                    df = pd.read_csv(file_path)
+                    setattr(self, f"{action_type}_df", df)
+                    self.logger.info(f"Loaded {len(df)} {action_type} records from {filename}")
+                except Exception as e:
+                    self.logger.error(f"Error loading {filename}: {e}")
+            else:
+                self.logger.warning(f"Unified file not found: {file_path}")
+
+    def validate_new_entries(self) -> List[ValidationResult]:
+        """Validate new entries against corporate actions"""
+        results = []
+
+        self.logger.info(f"Validating {len(self.new_entries_df)} new entries...")
+
+        for _, row in self.new_entries_df.iterrows():
+            symbol = row.get('symbol', '')
+            composite_key = row.get('composite_key', '')
+
+            # Check for symbol changes (new symbol appearing)
+            symbol_change_explanation = self.check_for_symbol_change_new(symbol, row)
+            if symbol_change_explanation:
+                results.append(symbol_change_explanation)
+                continue
+
+            # Check for IPOs
+            ipo_explanation = self.check_for_ipo(symbol, row)
+            if ipo_explanation:
+                results.append(ipo_explanation)
+                continue
+
+            # Check for spinoffs (new symbol from spinoff)
+            spinoff_explanation = self.check_for_spinoff_new(symbol, row)
+            if spinoff_explanation:
+                results.append(spinoff_explanation)
+                continue
+
+            # If no explanation found
+            results.append(ValidationResult(
+                symbol=symbol,
+                composite_key=composite_key,
+                change_type='NEW_ENTRY',
+                explanation='No corporate action found to explain new entry',
+                explained=False,
+                confidence=0.0
+            ))
+
+        return results
+
+    def validate_missing_entries(self) -> List[ValidationResult]:
+        """Validate missing entries against corporate actions"""
+        results = []
+
+        self.logger.info(f"Validating {len(self.missing_entries_df)} missing entries...")
+
+        for _, row in self.missing_entries_df.iterrows():
+            symbol = row.get('symbol', '')
+            composite_key = row.get('composite_key', '')
+
+            # Check for symbol changes (old symbol disappearing)
+            symbol_change_explanation = self.check_for_symbol_change_missing(symbol, row)
+            if symbol_change_explanation:
+                results.append(symbol_change_explanation)
+                continue
+
+            # Check for delistings
+            delisting_explanation = self.check_for_delisting(symbol, row)
+            if delisting_explanation:
+                results.append(delisting_explanation)
+                continue
+
+            # Check for mergers (target company)
+            merger_explanation = self.check_for_merger_missing(symbol, row)
+            if merger_explanation:
+                results.append(merger_explanation)
+                continue
+
+            # If no explanation found
+            results.append(ValidationResult(
+                symbol=symbol,
+                composite_key=composite_key,
+                change_type='MISSING_ENTRY',
+                explanation='No corporate action found to explain missing entry',
+                explained=False,
+                confidence=0.0
+            ))
+
+        return results
+
+    def check_for_ipo(self, symbol: str, row: pd.Series) -> ValidationResult:
+        """Check if new entry can be explained by an IPO"""
+        if not self.ipos_df.empty:
+            ipo_matches = self.ipos_df[self.ipos_df['master_symbol'] == symbol]
+
+            if not ipo_matches.empty:
+                ipo_action = ipo_matches.iloc[0]
+                return ValidationResult(
+                    symbol=symbol,
+                    composite_key=row.get('composite_key', ''),
+                    change_type='NEW_ENTRY',
+                    explanation=f'IPO detected: {symbol} went public',
+                    explained=True,
+                    corporate_action_type='IPO',
+                    corporate_action_date=ipo_action.get('list_date', ''),
+                    confidence=ipo_action.get('overall_confidence', 0.8),
+                    details={'source': ipo_action.get('source'), 'ipo_data': ipo_action.to_dict()}
+                )
+
+        return None
+
+    def check_for_symbol_change_new(self, symbol: str, row: pd.Series) -> ValidationResult:
+        """Check if new entry can be explained by a symbol change"""
+        if not self.symbol_changes_df.empty:
+            # Look for symbol changes where this is the new symbol
+            symbol_changes = self.symbol_changes_df[self.symbol_changes_df['new_symbol'] == symbol]
+
+            if not symbol_changes.empty:
+                change_action = symbol_changes.iloc[0]
+                return ValidationResult(
+                    symbol=symbol,
+                    composite_key=row.get('composite_key', ''),
+                    change_type='NEW_ENTRY',
+                    explanation=f'Symbol change detected: {change_action.get("old_symbol", "unknown")} changed to {symbol}',
+                    explained=True,
+                    corporate_action_type='SYMBOL_CHANGE',
+                    corporate_action_date=change_action.get('change_date', ''),
+                    confidence=change_action.get('overall_confidence', 0.9),
+                    details={'source': change_action.get('source'), 'old_symbol': change_action.get('old_symbol'),
+                             'action_data': change_action.to_dict()}
+                )
+
+        return None
+
+    def check_for_spinoff_new(self, symbol: str, row: pd.Series) -> ValidationResult:
+        """Check if new entry can be explained by a spinoff"""
+        if not self.spinoffs_df.empty:
+            # Look for spinoffs where this symbol is the spun-off company
+            spinoff_matches = self.spinoffs_df[self.spinoffs_df['spinoff_symbol'] == symbol]
+
+            if not spinoff_matches.empty:
+                spinoff_action = spinoff_matches.iloc[0]
+                return ValidationResult(
+                    symbol=symbol,
+                    composite_key=row.get('composite_key', ''),
+                    change_type='NEW_ENTRY',
+                    explanation=f'Spinoff detected: {symbol} spun off from {spinoff_action.get("master_symbol", "unknown")}',
+                    explained=True,
+                    corporate_action_type='SPINOFF',
+                    corporate_action_date=spinoff_action.get('ex_date', ''),
+                    confidence=spinoff_action.get('overall_confidence', 0.85),
+                    details={'source': spinoff_action.get('source'),
+                             'parent_company': spinoff_action.get('master_symbol'),
+                             'action_data': spinoff_action.to_dict()}
+                )
+
+        return None
+
+    def check_for_delisting(self, symbol: str, row: pd.Series) -> ValidationResult:
+        """Check if missing entry can be explained by a delisting"""
+        if not self.delistings_df.empty:
+            delisting_matches = self.delistings_df[self.delistings_df['master_symbol'] == symbol]
+
+            if not delisting_matches.empty:
+                delisting_action = delisting_matches.iloc[0]
+                return ValidationResult(
+                    symbol=symbol,
+                    composite_key=row.get('composite_key', ''),
+                    change_type='MISSING_ENTRY',
+                    explanation=f'Delisting detected: {symbol} - {delisting_action.get("delisting_reason", "delisted")}',
+                    explained=True,
+                    corporate_action_type='DELISTING',
+                    corporate_action_date=delisting_action.get('delisting_date', ''),
+                    confidence=delisting_action.get('overall_confidence', 0.9),
+                    details={'source': delisting_action.get('source'),
+                             'delisting_reason': delisting_action.get('delisting_reason'),
+                             'action_data': delisting_action.to_dict()}
+                )
+
+        return None
+
+    def check_for_merger_missing(self, symbol: str, row: pd.Series) -> ValidationResult:
+        """Check if missing entry can be explained by a merger (target company)"""
+        if not self.mergers_df.empty:
+            # Look for mergers where this symbol is the target (acquiree)
+            merger_matches = self.mergers_df[self.mergers_df['acquiree_symbol'] == symbol]
+
+            if not merger_matches.empty:
+                merger_action = merger_matches.iloc[0]
+                return ValidationResult(
+                    symbol=symbol,
+                    composite_key=row.get('composite_key', ''),
+                    change_type='MISSING_ENTRY',
+                    explanation=f'Merger detected: {symbol} was acquired by {merger_action.get("acquirer_symbol", "unknown")}',
+                    explained=True,
+                    corporate_action_type='MERGER',
+                    corporate_action_date=merger_action.get('ex_date', ''),
+                    confidence=merger_action.get('overall_confidence', 0.9),
+                    details={'source': merger_action.get('source'), 'acquirer': merger_action.get('acquirer_symbol'),
+                             'action_data': merger_action.to_dict()}
+                )
+
+        return None
+
+    def check_for_symbol_change_missing(self, symbol: str, row: pd.Series) -> ValidationResult:
+        """Check if missing entry can be explained by a symbol change"""
+        if not self.symbol_changes_df.empty:
+            # Look for symbol changes where this is the old symbol
+            symbol_changes = self.symbol_changes_df[self.symbol_changes_df['old_symbol'] == symbol]
+
+            if not symbol_changes.empty:
+                change_action = symbol_changes.iloc[0]
+                return ValidationResult(
+                    symbol=symbol,
+                    composite_key=row.get('composite_key', ''),
+                    change_type='MISSING_ENTRY',
+                    explanation=f'Symbol change detected: {symbol} changed to {change_action.get("new_symbol", "unknown")}',
+                    explained=True,
+                    corporate_action_type='SYMBOL_CHANGE',
+                    corporate_action_date=change_action.get('change_date', ''),
+                    confidence=change_action.get('overall_confidence', 0.9),
+                    details={'source': change_action.get('source'), 'new_symbol': change_action.get('new_symbol'),
+                             'action_data': change_action.to_dict()}
+                )
+
+        return None
+
+    def run_validation(self) -> Tuple[List[ValidationResult], List[ValidationResult]]:
+        """Run complete validation process"""
+        self.logger.info("Starting corporate actions validation...")
+
+        # Validate new entries
+        new_results = self.validate_new_entries()
+
+        # Validate missing entries
+        missing_results = self.validate_missing_entries()
+
+        # Store results
+        self.validation_results = new_results + missing_results
+
+        return new_results, missing_results
+
+    def export_results(self):
+        """Export validation results to CSV files"""
+        output_path = Path(config.OUTPUT_DIR)
+        output_path.mkdir(parents=True, exist_ok=True)
+
+        timestamp = datetime.now().strftime('%Y%m%d')
+
+        # Split results by explained/unexplained
+        explained_results = [r for r in self.validation_results if r.explained]
+        unexplained_results = [r for r in self.validation_results if not r.explained]
+
+        # Export explained results
+        if explained_results:
+            explained_df = pd.DataFrame([
+                {
+                    'symbol': r.symbol,
+                    'composite_key': r.composite_key,
+                    'change_type': r.change_type,
+                    'explanation': r.explanation,
+                    'corporate_action_type': r.corporate_action_type,
+                    'corporate_action_date': r.corporate_action_date,
+                    'confidence': r.confidence,
+                    'details': str(r.details) if r.details else ''
+                }
+                for r in explained_results
+            ])
+
+            explained_file = output_path / f"explained_changes_{timestamp}.csv"
+            explained_df.to_csv(explained_file, index=False)
+            self.logger.info(f"Exported {len(explained_results)} explained changes to {explained_file}")
+
+        # Export unexplained results (manual review needed)
+        if unexplained_results:
+            unexplained_df = pd.DataFrame([
+                {
+                    'symbol': r.symbol,
+                    'composite_key': r.composite_key,
+                    'change_type': r.change_type,
+                    'explanation': r.explanation,
+                    'requires_manual_review': True
+                }
+                for r in unexplained_results
+            ])
+
+            unexplained_file = output_path / f"manual_review_required_{timestamp}.csv"
+            unexplained_df.to_csv(unexplained_file, index=False)
+            self.logger.info(f"Exported {len(unexplained_results)} unexplained changes to {unexplained_file}")
+
+        # Export summary
+        summary_data = {
+            'total_entries_analyzed': len(self.validation_results),
+            'explained_entries': len(explained_results),
+            'unexplained_entries': len(unexplained_results),
+            'explanation_rate': len(explained_results) / len(
+                self.validation_results) * 100 if self.validation_results else 0,
+            'new_entries_total': len([r for r in self.validation_results if r.change_type == 'NEW_ENTRY']),
+            'new_entries_explained': len([r for r in explained_results if r.change_type == 'NEW_ENTRY']),
+            'missing_entries_total': len([r for r in self.validation_results if r.change_type == 'MISSING_ENTRY']),
+            'missing_entries_explained': len([r for r in explained_results if r.change_type == 'MISSING_ENTRY']),
+            'timestamp': timestamp
+        }
+
+        summary_file = output_path / f"validation_summary_{timestamp}.json"
+        with open(summary_file, 'w') as f:
+            json.dump(summary_data, f, indent=2)
+
+        self.logger.info(f"Exported summary to {summary_file}")
+
+        return {
+            'explained_file': explained_file if explained_results else None,
+            'unexplained_file': unexplained_file if unexplained_results else None,
+            'summary_file': summary_file
+        }
+
+    def print_summary(self):
+        """Print validation summary to console"""
+        if not self.validation_results:
+            print("No validation results to summarize.")
+            return
+
+        explained = [r for r in self.validation_results if r.explained]
+        unexplained = [r for r in self.validation_results if not r.explained]
+
+        print("\n" + "=" * 80)
+        print("CORPORATE ACTIONS VALIDATION SUMMARY")
+        print("=" * 80)
+        print(f"Total entries analyzed: {len(self.validation_results)}")
+        print(
+            f"Explained by corporate actions: {len(explained)} ({len(explained) / len(self.validation_results) * 100:.1f}%)")
+        print(
+            f"Require manual review: {len(unexplained)} ({len(unexplained) / len(self.validation_results) * 100:.1f}%)")
+        print()
+
+        # Breakdown by change type
+        new_entries = [r for r in self.validation_results if r.change_type == 'NEW_ENTRY']
+        missing_entries = [r for r in self.validation_results if r.change_type == 'MISSING_ENTRY']
+
+        print("NEW ENTRIES:")
+        new_explained = [r for r in new_entries if r.explained]
+        print(f"  Total: {len(new_entries)}")
+        print(
+            f"  Explained: {len(new_explained)} ({len(new_explained) / len(new_entries) * 100 if new_entries else 0:.1f}%)")
+        print(f"  Manual review needed: {len(new_entries) - len(new_explained)}")
+
+        print("\nMISSING ENTRIES:")
+        missing_explained = [r for r in missing_entries if r.explained]
+        print(f"  Total: {len(missing_entries)}")
+        print(
+            f"  Explained: {len(missing_explained)} ({len(missing_explained) / len(missing_entries) * 100 if missing_entries else 0:.1f}%)")
+        print(f"  Manual review needed: {len(missing_entries) - len(missing_explained)}")
+
+        # Corporate action type breakdown
+        if explained:
+            print("\nCORPORATE ACTION TYPES FOUND:")
+            action_counts = {}
+            for result in explained:
+                action_type = result.corporate_action_type or 'Unknown'
+                action_counts[action_type] = action_counts.get(action_type, 0) + 1
+
+            for action_type, count in sorted(action_counts.items()):
+                print(f"  {action_type}: {count}")
+
+        if unexplained:
+            print(f"\n{len(unexplained)} entries require manual investigation")
+            print("Check the manual_review_required_*.csv file for details")
+
+        print("=" * 80 + "\n")
 
 
 def main():
-    """Main execution function with USE_PREV functionality"""
-    parser = argparse.ArgumentParser(
-        description='Compare master symbology files with USE_PREV functionality and primary/secondary categorization',
-        epilog='Configure ignore, numeric, and USE_PREV columns in .env file. '
-               'Output: diff/ (summaries), diff/primary/ (critical changes), diff/secondary/ (USE_PREV related)'
-    )
-    parser.add_argument('--date', help='Target date (YYYYMMDD). If not provided, uses today')
-    parser.add_argument('--previous-file', help='Path to previous master file (overrides auto-detection)')
-    parser.add_argument('--current-file', help='Path to current master file (overrides auto-detection)')
-    parser.add_argument('--output-prefix', help='Prefix for output files')
-    parser.add_argument('--log-level', choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'],
-                        default=config.LOG_LEVEL, help='Logging level')
-    parser.add_argument('--show-config', action='store_true',
-                        help='Show current configuration and exit')
-    parser.add_argument('--disable-use-prev', action='store_true',
-                        help='Disable USE_PREV functionality for this run')
+    """Main execution function"""
+    # Initialize validator using config
+    validator = CorporateActionsValidator()
 
-    args = parser.parse_args()
-
-    # Show configuration if requested
-    if args.show_config:
-        print("CURRENT CONFIGURATION:")
-        print("=" * 60)
-        config_info = config.print_config()
-        for key, value in config_info.items():
-            if isinstance(value, list):
-                print(f"{key}: {len(value)} items")
-                for item in value[:10]:  # Show first 10 items
-                    print(f"  - {item}")
-                if len(value) > 10:
-                    print(f"  ... and {len(value) - 10} more")
-            else:
-                print(f"{key}: {value}")
-        print("=" * 60)
-        return 0
-
-    # Temporarily disable USE_PREV if requested
-    if args.disable_use_prev:
-        original_use_prev = config.USE_PREV_COLUMNS
-        config.USE_PREV_COLUMNS = set()
-        print("⚠️  USE_PREV functionality disabled for this run")
-
-    # Determine target date early for logging setup
-    target_date = args.date or datetime.now().strftime('%Y%m%d')
-
-    # Setup logging
-    setup_logging(target_date, args.log_level)
-    logger = logging.getLogger(__name__)
-
+    # Run validation
     try:
-        # Validate configuration
-        config.validate_config()
-        logger.info("Configuration validated successfully")
-        logger.info(f"Target date: {target_date}")
-
-        # Log configuration being used
-        logger.info(f"Ignoring {len(config.IGNORE_COLUMNS)} columns: {sorted(list(config.IGNORE_COLUMNS))}")
-        logger.info(
-            f"Treating {len(config.NUMERIC_COLUMNS)} columns as numeric: {sorted(list(config.NUMERIC_COLUMNS))}")
-        logger.info(
-            f"USE_PREV enabled for {len(config.USE_PREV_COLUMNS)} columns: {sorted(list(config.USE_PREV_COLUMNS))}")
-
-        # Get master files
-        if args.previous_file and args.current_file:
-            # Manual file specification - extract dates if possible
-            from source.master.utils import get_date_from_filename
-            previous_date = get_date_from_filename(args.previous_file) or "unknown"
-            current_date = get_date_from_filename(args.current_file) or target_date
-
-            previous_file_info = (previous_date, args.previous_file)
-            current_file_info = (current_date, args.current_file)
-            original_current_filename = args.current_file
-            logger.info("Using provided file paths")
-        else:
-            logger.info("Auto-detecting master files...")
-            file_pair = get_master_file_pair(target_date)
-            previous_file_info, current_file_info = file_pair
-
-            if not previous_file_info or not current_file_info:
-                logger.error("Could not find required master files")
-                return 1
-
-            original_current_filename = current_file_info[1]
-
-        previous_date, previous_file = previous_file_info
-        current_date, current_file = current_file_info
-
-        logger.info(f"Previous file ({previous_date}): {previous_file}")
-        logger.info(f"Current file ({current_date}): {current_file}")
-
-        # Load the files
-        logger.info("Loading master files...")
-        previous_df = load_master_file(previous_file)
-        current_df = load_master_file(current_file)
-
-        if previous_df is None or current_df is None:
-            logger.error("Failed to load master files")
-            return 1
-
-        # Create comparator and run comparison with USE_PREV functionality
-        logger.info("Starting comparison with USE_PREV functionality and importance categorization...")
-        comparator = MasterFileComparator(previous_df, current_df, previous_date, current_date,
-                                          original_current_filename)
-
-        # Generate output prefix
-        output_prefix = args.output_prefix or f"comparison_{previous_date}_to_{current_date}"
-
-        # Save results
-        logger.info("Generating and saving results...")
-        output_files, summary = comparator.save_results(output_prefix)
+        new_results, missing_results = validator.run_validation()
 
         # Print summary
-        print_summary(summary, output_files)
+        validator.print_summary()
 
-        logger.info("Comparison completed successfully")
-        logger.info(f"Main output files saved to: {summary['output_directory']}")
-        logger.info(f"Primary changes saved to: {summary['primary_diff_directory']}")
-        logger.info(f"Secondary changes saved to: {summary['secondary_diff_directory']}")
+        # Export results
+        output_files = validator.export_results()
 
-        if summary['updated_master_file']:
-            logger.info(f"Updated master file created: {summary['updated_master_file']}")
+        print("OUTPUT FILES:")
+        for file_type, file_path in output_files.items():
+            if file_path:
+                print(f"  {file_type}: {file_path}")
 
         return 0
 
     except Exception as e:
-        logger.error(f"Fatal error: {e}", exc_info=True)
+        logging.error(f"Validation failed: {e}")
         return 1
 
-    finally:
-        # Restore USE_PREV configuration if it was disabled
-        if args.disable_use_prev:
-            config.USE_PREV_COLUMNS = original_use_prev
 
 if __name__ == "__main__":
     exit(main())

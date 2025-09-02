@@ -1,16 +1,16 @@
+import os
+import glob
+import pandas as pd
+import json
+from datetime import datetime
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
 from decimal import Decimal
 import logging
-import os
 from collections import defaultdict
-import glob
+from source.config import config
 from source.actions.utils import ConfidenceCalculator, FieldConfidence
 from source.actions.symbol_mapper import SymbolMapper
-import json
-import pandas as pd
-from datetime import datetime
-from source.config import config
 
 logger = logging.getLogger(__name__)
 
@@ -81,11 +81,19 @@ class EnhancedRightsOfferingProcessor:
             'rights_cusip': 'new_cusip',
             'rights_ratio': 'rate',
             'subscription_price': 'price'
+        },
+        'sharadar': {
+            'symbol': 'ticker',
+            'ex_date': 'date',
+            'issuing_symbol': 'ticker',
+            'rights_symbol': 'contraticker',
+            'rights_ratio': 'value'
         }
     }
 
     SOURCE_RELIABILITY = {
-        'alpaca': 9
+        'alpaca': 9,
+        'sharadar': 7
     }
 
     def __init__(self, master_csv_path: str):
@@ -96,9 +104,15 @@ class EnhancedRightsOfferingProcessor:
     def process_all_sources(self, source_data_dict: Dict[str, List[Dict[str, Any]]]) -> List[RightsOfferingMatchResult]:
         """Process rights offerings from all sources and match by master symbol."""
 
+        # FILTER OUT EMPTY SOURCES
+        filtered_source_data = {source: data for source, data in source_data_dict.items() if data}
+
+        if not filtered_source_data:
+            return []
+
         # Process each source separately
         processed_by_source = {}
-        for source, data in source_data_dict.items():
+        for source, data in filtered_source_data.items():
             processed_by_source[source] = self.process_source_data(source, data)
 
         # Group by master symbol (company issuing rights)
@@ -206,114 +220,119 @@ class EnhancedRightsOfferingProcessor:
     def _group_by_master_symbol(self, processed_by_source: Dict[str, List[UnifiedRightsOffering]]) -> Dict[
         str, Dict[str, List[UnifiedRightsOffering]]]:
         """Group rights offerings by master symbol (issuing company) across sources."""
-        symbol_groups = {}
+        symbol_groups = defaultdict(lambda: defaultdict(list))
 
         for source, rights_offerings in processed_by_source.items():
             for rights in rights_offerings:
-                master_symbol = rights.master_symbol
-                if master_symbol not in symbol_groups:
-                    symbol_groups[master_symbol] = {}
-                if source not in symbol_groups[master_symbol]:
-                    symbol_groups[master_symbol][source] = []
-                symbol_groups[master_symbol][source].append(rights)
+                symbol_groups[rights.master_symbol][source].append(rights)
 
-        return symbol_groups
+        return dict(symbol_groups)
 
     def _create_match_result(self, master_symbol: str,
                              rights_by_source: Dict[str, List[UnifiedRightsOffering]]) -> RightsOfferingMatchResult:
         """Create a match result for rights offerings with the same master symbol."""
 
-        representative_rights = []
-        for source, rights_offerings in rights_by_source.items():
-            if rights_offerings:
-                representative_rights.append(rights_offerings[0])
+        # Flatten rights offerings from all sources
+        all_rights = []
+        for source_rights in rights_by_source.values():
+            all_rights.extend(source_rights)
 
-        merged = self.merge_rights_with_confidence([representative_rights])
-        match_quality = self._calculate_match_quality(rights_by_source, merged)
+        if not all_rights:
+            raise ValueError(f"No rights offerings found for {master_symbol}")
+
+        # Group rights offerings that are likely the same (by ex_date and rights_symbol)
+        rights_groups = self._group_similar_rights(all_rights)
+
+        # Merge the largest group (most common rights offering)
+        largest_group = max(rights_groups, key=len) if rights_groups else []
+
+        if not largest_group:
+            raise ValueError(f"No valid rights offering groups for {master_symbol}")
+
+        merged_rights = self.merge_rights_with_confidence([largest_group])
+
+        # Calculate match quality
+        match_quality = self._calculate_match_quality(largest_group, rights_by_source)
 
         match_details = {
             'sources_matched': list(rights_by_source.keys()),
-            'total_rights': sum(len(rights_offerings) for rights_offerings in rights_by_source.values()),
-            'date_agreement': merged.field_confidences.get('ex_date',
-                                                           FieldConfidence(None, 0, 0, 0, [])).agreement_ratio,
-            'rights_symbol_agreement': merged.field_confidences.get('rights_symbol',
-                                                                    FieldConfidence(None, 0, 0, 0, [])).agreement_ratio,
-            'ratio_agreement': merged.field_confidences.get('rights_ratio',
-                                                            FieldConfidence(None, 0, 0, 0, [])).agreement_ratio,
+            'total_rights': len(all_rights),
+            'merged_rights': len(largest_group),
+            'rights_groups': len(rights_groups)
         }
 
         return RightsOfferingMatchResult(
             master_symbol=master_symbol,
-            merged_rights=merged,
+            merged_rights=merged_rights,
             match_quality=match_quality,
             match_details=match_details
         )
 
-    def _calculate_match_quality(self, rights_by_source: Dict[str, List[UnifiedRightsOffering]],
-                                 merged: UnifiedRightsOffering) -> float:
-        """Calculate overall match quality for debugging."""
-        source_count = len(rights_by_source)
-        source_score = min(1.0, source_count / 1.0)  # Only one source available
-        confidence_score = merged.overall_confidence
-        agreement_score = merged.source_agreement_score
-        mapping_score = merged.symbol_mapping.mapping_confidence if merged.symbol_mapping else 0.0
+    def _group_similar_rights(self, rights: List[UnifiedRightsOffering]) -> List[List[UnifiedRightsOffering]]:
+        """Group rights offerings that appear to be the same event."""
+        groups = []
+        remaining_rights = rights.copy()
 
-        quality = (
-                source_score * 0.2 +
-                confidence_score * 0.4 +
-                agreement_score * 0.3 +
-                mapping_score * 0.1
-        )
-        return quality
+        while remaining_rights:
+            current = remaining_rights.pop(0)
+            current_group = [current]
 
-    def _create_debug_entry(self, match_result: RightsOfferingMatchResult) -> Dict[str, Any]:
-        """Create a debug entry for a match result."""
-        merged = match_result.merged_rights
+            # Find similar rights offerings
+            to_remove = []
+            for i, rights_offering in enumerate(remaining_rights):
+                if self._are_rights_similar(current, rights_offering):
+                    current_group.append(rights_offering)
+                    to_remove.append(i)
 
-        return {
-            'master_symbol': match_result.master_symbol,
-            'match_quality': match_result.match_quality,
-            'sources': match_result.match_details['sources_matched'],
-            'source_count': len(match_result.match_details['sources_matched']),
-            'overall_confidence': merged.overall_confidence,
-            'source_agreement': merged.source_agreement_score,
-            'data_completeness': merged.data_completeness,
-            'ex_date': merged.ex_date,
-            'issuing_symbol': merged.issuing_symbol,
-            'rights_symbol': merged.rights_symbol,
-            'rights_ratio': str(merged.rights_ratio) if merged.rights_ratio else None,
-            'subscription_price': str(merged.subscription_price) if merged.subscription_price else None,
-            'field_agreements': {
-                'ex_date': merged.field_confidences.get('ex_date', FieldConfidence(None, 0, 0, 0, [])).agreement_ratio,
-                'rights_symbol': merged.field_confidences.get('rights_symbol',
-                                                              FieldConfidence(None, 0, 0, 0, [])).agreement_ratio,
-                'rights_ratio': merged.field_confidences.get('rights_ratio',
-                                                             FieldConfidence(None, 0, 0, 0, [])).agreement_ratio,
-            },
-            'disagreements': {
-                field: conf.disagreement_details
-                for field, conf in merged.field_confidences.items()
-                if conf.disagreement_details
-            },
-            'symbol_mapping_info': {
-                'mapping_confidence': merged.symbol_mapping.mapping_confidence if merged.symbol_mapping else 0,
-                'source_mappings': merged.symbol_mapping.source_mappings if merged.symbol_mapping else {},
-                'unmapped_sources': merged.symbol_mapping.unmapped_sources if merged.symbol_mapping else []
-            },
-            'raw_data_summary': {
-                source: {
-                    'symbol': data.get('symbol'),
-                    'rights_symbol': data.get('new_symbol'),
-                    'ex_date': data.get('ex_date'),
-                    'rights_ratio': data.get('rate'),
-                    'subscription_price': data.get('price')
-                }
-                for source, data in merged.raw_data.items()
-            }
-        }
+            # Remove grouped rights offerings
+            for i in reversed(to_remove):
+                remaining_rights.pop(i)
+
+            groups.append(current_group)
+
+        return groups
+
+    def _are_rights_similar(self, rights1: UnifiedRightsOffering, rights2: UnifiedRightsOffering) -> bool:
+        """Check if two rights offerings are likely the same event."""
+
+        # Same ex_date and similar rights symbols
+        if rights1.ex_date and rights2.ex_date and rights1.ex_date == rights2.ex_date:
+            # Check if rights symbols match
+            if rights1.rights_symbol and rights2.rights_symbol:
+                if rights1.rights_symbol == rights2.rights_symbol:
+                    return True
+            else:
+                # If no rights symbols, check ratios
+                if rights1.rights_ratio and rights2.rights_ratio:
+                    ratio_diff = abs(rights1.rights_ratio - rights2.rights_ratio)
+                    if ratio_diff < Decimal('0.001'):  # Allow small differences
+                        return True
+                elif rights1.rights_ratio == rights2.rights_ratio:  # Both None
+                    return True
+
+        return False
+
+    def _calculate_match_quality(self, merged_rights: List[UnifiedRightsOffering],
+                                 all_rights_by_source: Dict[str, List[UnifiedRightsOffering]]) -> float:
+        """Calculate the quality of the match."""
+
+        if not merged_rights:
+            return 0.0
+
+        # Base quality on source agreement
+        sources_in_merge = set(rights.source for rights in merged_rights)
+        total_sources = len(all_rights_by_source)
+
+        source_coverage = len(sources_in_merge) / total_sources if total_sources > 0 else 0
+
+        # Quality score based on coverage and data completeness
+        data_completeness = sum(rights.data_completeness for rights in merged_rights) / len(merged_rights)
+
+        return (source_coverage * 0.7 + data_completeness * 0.3)
 
     def merge_rights_with_confidence(self, rights_groups: List[List[UnifiedRightsOffering]]) -> UnifiedRightsOffering:
         """Merge rights offerings with confidence analysis."""
+
         if not rights_groups or not any(rights_groups):
             raise ValueError("No rights offerings to merge")
 
@@ -369,11 +388,11 @@ class EnhancedRightsOfferingProcessor:
         merged.field_confidences = field_confidences
 
         field_weights = {
-            'rights_symbol': 0.25,
+            'rights_ratio': 0.3,
             'ex_date': 0.25,
-            'rights_ratio': 0.2,
+            'rights_symbol': 0.2,
             'subscription_price': 0.15,
-            'issuing_symbol': 0.15
+            'issuing_symbol': 0.1
         }
 
         merged.overall_confidence = self.confidence_calculator.calculate_overall_confidence(
@@ -386,21 +405,64 @@ class EnhancedRightsOfferingProcessor:
 
         return merged
 
-    def export_debug_report(self, debug_dir: str, filename: str = None):
-        """Export debug results to debug directory."""
-        if filename is None:
-            timestamp = datetime.now().strftime("%Y%m%d")
-            filename = f'rights_offerings_debug_report_{timestamp}.json'
+    def _create_debug_entry(self, match_result: RightsOfferingMatchResult) -> Dict[str, Any]:
+        """Create debug entry for a match result."""
+        merged = match_result.merged_rights
+
+        return {
+            'master_symbol': match_result.master_symbol,
+            'match_quality': match_result.match_quality,
+            'sources': match_result.match_details['sources_matched'],
+            'source_count': len(match_result.match_details['sources_matched']),
+            'overall_confidence': merged.overall_confidence,
+            'source_agreement': merged.source_agreement_score,
+            'data_completeness': merged.data_completeness,
+            'ex_date': merged.ex_date,
+            'issuing_symbol': merged.issuing_symbol,
+            'rights_symbol': merged.rights_symbol,
+            'rights_ratio': str(merged.rights_ratio) if merged.rights_ratio else None,
+            'subscription_price': str(merged.subscription_price) if merged.subscription_price else None,
+            'field_agreements': {
+                'ex_date': merged.field_confidences.get('ex_date', FieldConfidence(None, 0, 0, 0, [])).agreement_ratio,
+                'rights_symbol': merged.field_confidences.get('rights_symbol',
+                                                              FieldConfidence(None, 0, 0, 0, [])).agreement_ratio,
+                'rights_ratio': merged.field_confidences.get('rights_ratio',
+                                                             FieldConfidence(None, 0, 0, 0, [])).agreement_ratio,
+            },
+            'disagreements': {
+                field: conf.disagreement_details
+                for field, conf in merged.field_confidences.items()
+                if conf.disagreement_details
+            },
+            'symbol_mapping_info': {
+                'mapping_confidence': merged.symbol_mapping.mapping_confidence if merged.symbol_mapping else 0,
+                'source_mappings': merged.symbol_mapping.source_mappings if merged.symbol_mapping else {},
+                'unmapped_sources': merged.symbol_mapping.unmapped_sources if merged.symbol_mapping else []
+            },
+            'raw_data_summary': {
+                source: {
+                    'symbol': data.get('symbol') or data.get('ticker'),
+                    'rights_symbol': data.get('new_symbol') or data.get('contraticker'),
+                    'ex_date': data.get('ex_date') or data.get('date'),
+                    'rights_ratio': data.get('rate') or data.get('value'),
+                    'subscription_price': data.get('price')
+                }
+                for source, data in merged.raw_data.items()
+            }
+        }
+
+    def export_debug_report(self, debug_dir: str):
+        """Export debug report to JSON file."""
+        debug_file_path = os.path.join(debug_dir, 'rights_offering_debug.json')
+        summary_file_path = os.path.join(debug_dir, 'rights_offering_summary.csv')
 
         os.makedirs(debug_dir, exist_ok=True)
 
-        debug_file_path = os.path.join(debug_dir, filename)
+        # Export detailed debug JSON
         with open(debug_file_path, 'w') as f:
-            json.dump(self.debug_results, f, indent=2)
+            json.dump(self.debug_results, f, indent=2, default=str)
 
-        summary_filename = filename.replace('.json', '_summary.csv')
-        summary_file_path = os.path.join(debug_dir, summary_filename)
-
+        # Export summary CSV
         summary_data = []
         for result in self.debug_results:
             summary_data.append({
@@ -408,31 +470,22 @@ class EnhancedRightsOfferingProcessor:
                 'match_quality': result['match_quality'],
                 'source_count': result['source_count'],
                 'overall_confidence': result['overall_confidence'],
-                'source_agreement': result['source_agreement'],
-                'date_agreement': result['field_agreements']['ex_date'],
-                'rights_symbol_agreement': result['field_agreements']['rights_symbol'],
-                'ratio_agreement': result['field_agreements']['rights_ratio'],
-                'sources': ', '.join(result['sources']),
-                'issuing_symbol': result['issuing_symbol'],
+                'ex_date': result['ex_date'],
                 'rights_symbol': result['rights_symbol'],
-                'has_disagreements': len(result['disagreements']) > 0,
-                'mapping_confidence': result['symbol_mapping_info']['mapping_confidence']
+                'rights_ratio': result['rights_ratio']
             })
 
         pd.DataFrame(summary_data).to_csv(summary_file_path, index=False)
+
         print(f"Debug report exported to {debug_file_path}")
         print(f"Summary CSV exported to {summary_file_path}")
 
-    def export_unified_rights_offerings(self, results, data_dir=None, filename=None):
-        """Export unified rights offerings to CSV format"""
-        if data_dir is None:
-            data_dir = config.data_dir
-            
-        if filename is None:
-            filename = config.get_unified_filename(config.unified_rights_file)
+    def export_unified_rights_offerings(self, results, filename):
+        """Export unified rights offerings to CSV file."""
 
-        os.makedirs(data_dir, exist_ok=True)
-        csv_file_path = os.path.join(data_dir, filename)
+        if not results:
+            print("No rights offering results to export.")
+            return
 
         csv_data = []
         for result in results:
@@ -458,38 +511,125 @@ class EnhancedRightsOfferingProcessor:
                 'mapping_confidence': rights.symbol_mapping.mapping_confidence if rights.symbol_mapping else 0.0,
                 'unmapped_sources': ', '.join(
                     rights.symbol_mapping.unmapped_sources) if rights.symbol_mapping and rights.symbol_mapping.unmapped_sources else ''
-                }
+            }
             csv_data.append(csv_row)
 
-        pd.DataFrame(csv_data).to_csv(csv_file_path, index=False)
-        print(f"CSV summary exported to {csv_file_path}")
-        return csv_file_path
+        pd.DataFrame(csv_data).to_csv(filename, index=False)
+        print(f"Unified rights offerings exported to {filename}")
+
+
+def extract_rights_from_sources(alpaca_data: Dict[str, pd.DataFrame],
+                                fmp_data: Dict[str, pd.DataFrame],
+                                poly_data: Dict[str, pd.DataFrame],
+                                sharadar_data: pd.DataFrame) -> Dict[str, List[Dict[str, Any]]]:
+    """Extract rights offering data from all sources."""
+    extracted_data = {}
+
+    # Extract from Alpaca - look for rights offering actions
+    alpaca_rights = []
+    for action_type, df in alpaca_data.items():
+        if 'rights' in action_type.lower():
+            if not df.empty:
+                alpaca_rights.extend(df.to_dict('records'))
+    extracted_data['alpaca'] = alpaca_rights
+
+    # Extract from FMP - no rights offering data typically
+    extracted_data['fmp'] = []
+
+    # Extract from Polygon - no rights offering data typically
+    extracted_data['poly'] = []
+
+    # Extract from Sharadar (filter for rights offering actions)
+    if not sharadar_data.empty:
+        rights_records = sharadar_data[sharadar_data['action'] == 'rights']
+        extracted_data['sharadar'] = rights_records.to_dict('records')
+    else:
+        extracted_data['sharadar'] = []
+
+    return extracted_data
+
+
+def run(alpaca_data: Dict[str, pd.DataFrame],
+        fmp_data: Dict[str, pd.DataFrame],
+        poly_data: Dict[str, pd.DataFrame],
+        sharadar_data: pd.DataFrame):
+    """Main function to process rights offerings from all sources."""
+
+    # Ensure directories exist
+    config.ensure_directories()
+
+    # Find master files using configured path
+    master_files = glob.glob(os.path.join(config.master_files_dir, '*_MASTER_UPDATED.csv'))
+    if not master_files:
+        raise FileNotFoundError(f"No master CSV files found in {config.master_files_dir}")
+
+    master_file = max(master_files)  # Get the most recent master file
+    print(f"Using master file: {master_file}")
+
+    # Extract rights offering data from all sources
+    print("Extracting rights offering data from sources...")
+    source_data = extract_rights_from_sources(alpaca_data, fmp_data, poly_data, sharadar_data)
+
+    # Print extraction summary
+    total_records = sum(len(data) for data in source_data.values())
+    for source, data in source_data.items():
+        print(f"  - {source}: {len(data)} rights offering records extracted")
+
+    if total_records == 0:
+        print("No rights offering records found in any source. Skipping rights offering processing.")
+        return
+
+    # Initialize processor
+    processor = EnhancedRightsOfferingProcessor(master_file)
+
+    # Process all sources
+    print("Processing rights offerings from all sources...")
+    results = processor.process_all_sources(source_data)
+
+    # Always export debug report (even if empty)
+    processor.export_debug_report(config.debug_dir)
+
+    # Only export CSV if we have results
+    if results:
+        # Ensure the filename is set properly
+        rights_filename = config.unified_rights_file or 'unified_rights.csv'
+        processor.export_unified_rights_offerings(results, os.path.join(config.data_dir, rights_filename))
+
+        print(f"Processed {len(results)} rights offering matches")
+        for result in results:
+            print(f"{result.master_symbol}: Quality {result.match_quality:.2%}, "
+                  f"Confidence {result.merged_rights.overall_confidence:.2%}")
+    else:
+        print("No rights offering matches found after processing.")
 
 
 if __name__ == "__main__":
-   # Ensure directories exist
-   config.ensure_directories()
-   
-   # Use configuration paths
-   data_dir = config.data_dir
-   debug_dir = config.debug_dir
+    # Test run with sample data
+    config.ensure_directories()
 
-   # Find master files using configured path
-   master_files = glob.glob(os.path.join(config.master_files_dir, '*.csv'))
-   if not master_files:
-       raise FileNotFoundError(f"No master CSV files found in {config.master_files_dir}")
+    # Find master files using configured path
+    master_files = glob.glob(os.path.join(config.master_files_dir, '*.csv'))
+    if not master_files:
+        raise FileNotFoundError(f"No master CSV files found in {config.master_files_dir}")
 
-   master_file = max(master_files)
-   print(f"Using master file: {master_file}")
+    master_file = max(master_files)
+    print(f"Using master file: {master_file}")
 
-   processor = EnhancedRightsOfferingProcessor(master_file)
+    processor = EnhancedRightsOfferingProcessor(master_file)
 
-   source_data = {
-       'alpaca': [{'symbol': 'XYZ', 'ex_date': '2025-08-15', 'rights_ratio': '1:10'}]
-   }
+    # Sample test data
+    source_data = {
+        'alpaca': [{'symbol': 'XYZ', 'ex_date': '2025-08-15', 'new_symbol': 'XYZRT', 'rate': '1:10', 'price': '5.00'}],
+        'sharadar': [{'ticker': 'XYZ', 'date': '2025-08-15', 'contraticker': 'XYZRT', 'value': '0.1'}]
+    }
 
-   results = processor.process_all_sources(source_data)
-   processor.export_debug_report(debug_dir)
-   processor.export_unified_rights_offerings(results, data_dir)
+    results = processor.process_all_sources(source_data)
+    processor.export_debug_report(config.debug_dir)
+    if results:
+        rights_filename = config.unified_rights_file or 'unified_rights.csv'
+        processor.export_unified_rights_offerings(results, os.path.join(config.data_dir, rights_filename))
 
-   print(f"Processed {len(results)} rights offering matches")
+    print(f"Processed {len(results)} rights offering matches")
+    for result in results:
+        print(f"{result.master_symbol}: Quality {result.match_quality:.2%}, "
+              f"Confidence {result.merged_rights.overall_confidence:.2%}")
