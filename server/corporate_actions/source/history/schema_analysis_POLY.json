@@ -1,343 +1,823 @@
 {
-  "dividends": {
-    "total_files_processed": 13,
-    "total_files_skipped": 0,
-    "total_records": 39,
-    "fields": {
-      "cash_amount": {
-        "type": "float",
-        "required": true,
-        "nullable": false,
-        "occurrences": 39,
-        "null_count": 0,
-        "null_percentage": 0.0,
-        "unique_values_sampled": 37,
-        "total_unique_values": 37,
-        "sample_values": [
-          0.13472222,
-          0.01711765,
-          0.27777778,
-          0.03529412,
-          0.00189907
-        ],
-        "enumeration_complete": false
+  "analysis_timestamp": "2025-09-02T17:57:36.997001",
+  "file_type_analyses": {
+    "dividends": {
+      "summary": {
+        "total_files_found": 1,
+        "processed_files": 1,
+        "skipped_files": 0,
+        "total_records": 100
       },
-      "currency": {
-        "type": "str",
-        "required": true,
-        "nullable": false,
-        "occurrences": 39,
-        "null_count": 0,
-        "null_percentage": 0.0,
-        "unique_values_sampled": 2,
-        "total_unique_values": 2,
-        "sample_values": [
-          "NZD",
-          "NZD",
-          "NZD",
-          "NZD",
-          "NZD"
-        ],
-        "string_length": {
-          "min": 3,
-          "max": 3
+      "fields": {
+        "cash_amount": {
+          "count": 100,
+          "null_count": 0,
+          "null_percentage": 0.0,
+          "data_types": [
+            "float",
+            "int"
+          ],
+          "sample_values": [
+            "14",
+            "4.25",
+            "4.75",
+            "0.2578125",
+            "0.265625",
+            "0.31875",
+            "0.35625",
+            "0.05",
+            "4100",
+            "0.73"
+          ],
+          "unique_value_count": 85,
+          "string_length": {
+            "min": 0,
+            "max": 0
+          },
+          "enumeration_complete": true
         },
-        "all_possible_values": [
-          "NZD",
-          "USD"
-        ],
-        "enumeration_complete": true
-      },
-      "declaration_date": {
-        "type": "str",
-        "required": true,
-        "nullable": false,
-        "occurrences": 39,
-        "null_count": 0,
-        "null_percentage": 0.0,
-        "unique_values_sampled": 13,
-        "total_unique_values": 13,
-        "sample_values": [
-          "2025-08-29",
-          "2025-08-29",
-          "2025-08-29",
-          "2025-08-29",
-          "2025-05-09"
-        ],
-        "string_length": {
-          "min": 10,
-          "max": 10
+        "currency": {
+          "count": 100,
+          "null_count": 0,
+          "null_percentage": 0.0,
+          "data_types": [
+            "str"
+          ],
+          "sample_values": [
+            "JPY",
+            "JPY",
+            "JPY",
+            "USD",
+            "USD",
+            "USD",
+            "USD",
+            "HKD",
+            "JPY",
+            "CHF"
+          ],
+          "unique_value_count": 8,
+          "string_length": {
+            "min": 3,
+            "max": 3
+          },
+          "enumeration_complete": true,
+          "all_possible_values": [
+            "CHF",
+            "EUR",
+            "GBP",
+            "HKD",
+            "ILS",
+            "JPY",
+            "TWD",
+            "USD"
+          ]
         },
-        "enumeration_complete": false
-      },
-      "dividend_type": {
-        "type": "str",
-        "required": true,
-        "nullable": false,
-        "occurrences": 39,
-        "null_count": 0,
-        "null_percentage": 0.0,
-        "unique_values_sampled": 1,
-        "total_unique_values": 1,
-        "sample_values": [
-          "CD",
-          "CD",
-          "CD",
-          "CD",
-          "CD"
-        ],
-        "string_length": {
-          "min": 2,
-          "max": 2
+        "dividend_type": {
+          "count": 100,
+          "null_count": 0,
+          "null_percentage": 0.0,
+          "data_types": [
+            "str"
+          ],
+          "sample_values": [
+            "CD",
+            "CD",
+            "SC",
+            "CD",
+            "CD",
+            "CD",
+            "CD",
+            "CD",
+            "CD",
+            "CD"
+          ],
+          "unique_value_count": 2,
+          "string_length": {
+            "min": 2,
+            "max": 2
+          },
+          "enumeration_complete": true,
+          "all_possible_values": [
+            "CD",
+            "SC"
+          ]
         },
-        "all_possible_values": [
-          "CD"
-        ],
-        "enumeration_complete": true
-      },
-      "ex_dividend_date": {
-        "type": "str",
-        "required": true,
-        "nullable": false,
-        "occurrences": 39,
-        "null_count": 0,
-        "null_percentage": 0.0,
-        "unique_values_sampled": 20,
-        "total_unique_values": 20,
-        "sample_values": [
-          "2025-09-19",
-          "2025-09-19",
-          "2025-09-26",
-          "2025-09-26",
-          "2025-05-16"
-        ],
-        "string_length": {
-          "min": 10,
-          "max": 10
+        "ex_dividend_date": {
+          "count": 100,
+          "null_count": 0,
+          "null_percentage": 0.0,
+          "data_types": [
+            "str"
+          ],
+          "sample_values": [
+            "2025-11-20",
+            "2025-10-31",
+            "2025-12-31",
+            "2025-09-15",
+            "2025-09-15",
+            "2025-09-15",
+            "2025-09-15",
+            "2025-10-15",
+            "2025-11-28",
+            "2025-09-05"
+          ],
+          "unique_value_count": 25,
+          "string_length": {
+            "min": 10,
+            "max": 10
+          },
+          "enumeration_complete": true
         },
-        "enumeration_complete": false
-      },
-      "frequency": {
-        "type": "int",
-        "required": true,
-        "nullable": false,
-        "occurrences": 39,
-        "null_count": 0,
-        "null_percentage": 0.0,
-        "unique_values_sampled": 5,
-        "total_unique_values": 5,
-        "sample_values": [
-          2,
-          2,
-          1,
-          1,
-          4
-        ],
-        "all_possible_values": [
-          0,
-          1,
-          2,
-          4,
-          12
-        ],
-        "enumeration_complete": true
-      },
-      "id": {
-        "type": "str",
-        "required": true,
-        "nullable": false,
-        "occurrences": 39,
-        "null_count": 0,
-        "null_percentage": 0.0,
-        "unique_values_sampled": 39,
-        "total_unique_values": 39,
-        "sample_values": [
-          "E77d82409af2019046c8c0b5815b3accfa9e63bae5ab1a956771cf20da6882c0b",
-          "E0074ff0339de3bde0fb7505873318db7e11c32e08a2a0442db0d61828e2018e0",
-          "E846093ba0593e3e79c2687fdafb598bfa9aa0df1718c95d47d8b7552179b4202",
-          "Ebdcefa06d10566598cb603598c52991861254da055ae63a11c338967aea20082",
-          "Ef263046ddad72d1ed09a71b899e0e4ecc2d2cb69af64670ba6f30ae7595a5b5b"
-        ],
-        "string_length": {
-          "min": 65,
-          "max": 65
+        "frequency": {
+          "count": 100,
+          "null_count": 0,
+          "null_percentage": 0.0,
+          "data_types": [
+            "int"
+          ],
+          "sample_values": [
+            "2",
+            "2",
+            "0",
+            "4",
+            "4",
+            "4",
+            "4",
+            "0",
+            "2",
+            "0"
+          ],
+          "unique_value_count": 5,
+          "string_length": {
+            "min": 0,
+            "max": 0
+          },
+          "enumeration_complete": true,
+          "all_possible_values": [
+            "0",
+            "1",
+            "12",
+            "2",
+            "4"
+          ]
         },
-        "enumeration_complete": false
-      },
-      "pay_date": {
-        "type": "str",
-        "required": true,
-        "nullable": false,
-        "occurrences": 39,
-        "null_count": 0,
-        "null_percentage": 0.0,
-        "unique_values_sampled": 18,
-        "total_unique_values": 18,
-        "sample_values": [
-          "2025-10-03",
-          "2025-10-03",
-          "2025-10-10",
-          "2025-10-10",
-          "2025-05-27"
-        ],
-        "string_length": {
-          "min": 10,
-          "max": 10
+        "id": {
+          "count": 100,
+          "null_count": 0,
+          "null_percentage": 0.0,
+          "data_types": [
+            "str"
+          ],
+          "sample_values": [
+            "E0802197de21a415e4377f69d2ddbe4f5ad86f3a4cdfb7b1755c548f2471055ca",
+            "E907b849ead92e72b2654a5cfde99142f9515ccde3385aa79572b95e7dc48ea02",
+            "Eb939dcdb59defa400a90f9a3a4f4a851c5afdf807861b58df3613496a2fa1af1",
+            "Ec615047d5098fadf1700b2c8b4937352b84210d96c61f636cf8a61530ba3cfeb",
+            "E750cc65e53aa917bc53429c42f9d6ab513ab48dfcea0756b3255d33ec7904730",
+            "E18a743988b8278db49edb204b2fb62aba609fbe695da4b7fbd1e25f4c8fb5463",
+            "Ef9d03bf74cbf9747dfc839fe48188919181d7243ae49a3a2d2e4a5c725cab89e",
+            "E7cffb36056252002d4d6e15e324ba0fec05e7ddf670ae71ef155e56a538efe4f",
+            "Efa20d896ec459f4108a2b615a801d1742e606563d42a6341bd5c959299869e47",
+            "Eeebeb371b821274db03341509b0ab380246c583d9ab889a215ec6b6987083ae9"
+          ],
+          "unique_value_count": 100,
+          "string_length": {
+            "min": 65,
+            "max": 65
+          },
+          "enumeration_complete": false
         },
-        "enumeration_complete": false
-      },
-      "record_date": {
-        "type": "str",
-        "required": true,
-        "nullable": false,
-        "occurrences": 39,
-        "null_count": 0,
-        "null_percentage": 0.0,
-        "unique_values_sampled": 19,
-        "total_unique_values": 19,
-        "sample_values": [
-          "2025-09-19",
-          "2025-09-19",
-          "2025-09-26",
-          "2025-09-26",
-          "2025-05-16"
-        ],
-        "string_length": {
-          "min": 10,
-          "max": 10
+        "record_date": {
+          "count": 100,
+          "null_count": 0,
+          "null_percentage": 0.0,
+          "data_types": [
+            "str"
+          ],
+          "sample_values": [
+            "2025-11-20",
+            "2025-10-31",
+            "2025-12-31",
+            "2025-09-15",
+            "2025-09-15",
+            "2025-09-15",
+            "2025-09-15",
+            "2025-10-17",
+            "2025-11-30",
+            "2025-09-08"
+          ],
+          "unique_value_count": 28,
+          "string_length": {
+            "min": 10,
+            "max": 10
+          },
+          "enumeration_complete": true
         },
-        "enumeration_complete": false
-      },
-      "ticker": {
-        "type": "str",
-        "required": true,
-        "nullable": false,
-        "occurrences": 39,
-        "null_count": 0,
-        "null_percentage": 0.0,
-        "unique_values_sampled": 23,
-        "total_unique_values": 23,
-        "sample_values": [
-          "PTAUF",
-          "PTAUF",
-          "DGLLF",
-          "DGLLF",
-          "PYIYF"
-        ],
-        "string_length": {
-          "min": 4,
-          "max": 6
+        "ticker": {
+          "count": 100,
+          "null_count": 0,
+          "null_percentage": 0.0,
+          "data_types": [
+            "str"
+          ],
+          "sample_values": [
+            "ZOJIF",
+            "YAMNF",
+            "YAMNF",
+            "WRBPRH",
+            "WRBPRG",
+            "WRBPRF",
+            "WRBPRE",
+            "VCRDF",
+            "UUICF",
+            "UBSNF"
+          ],
+          "unique_value_count": 90,
+          "string_length": {
+            "min": 3,
+            "max": 6
+          },
+          "enumeration_complete": true
         },
-        "enumeration_complete": false
+        "pay_date": {
+          "count": 83,
+          "null_count": 0,
+          "null_percentage": 0.0,
+          "data_types": [
+            "str"
+          ],
+          "sample_values": [
+            "2025-09-30",
+            "2025-09-30",
+            "2025-09-30",
+            "2025-09-30",
+            "2025-11-10",
+            "2025-09-09",
+            "2025-11-17",
+            "2025-11-03",
+            "2025-10-20",
+            "2025-10-15"
+          ],
+          "unique_value_count": 23,
+          "string_length": {
+            "min": 10,
+            "max": 10
+          },
+          "enumeration_complete": true
+        }
       }
-    }
-  },
-  "splits": {
-    "total_files_processed": 261,
-    "total_files_skipped": 0,
-    "total_records": 11046,
-    "fields": {
-      "execution_date": {
-        "type": "str",
-        "required": true,
-        "nullable": false,
-        "occurrences": 11046,
-        "null_count": 0,
-        "null_percentage": 0.0,
-        "unique_values_sampled": 100,
-        "total_unique_values": 276,
-        "sample_values": [
-          "2025-09-30",
-          "2025-08-22",
-          "2025-08-21",
-          "2025-08-19",
-          "2025-08-15"
-        ],
-        "string_length": {
-          "min": 10,
-          "max": 10
+    },
+    "splits": {
+      "summary": {
+        "total_files_found": 1,
+        "processed_files": 1,
+        "skipped_files": 0,
+        "total_records": 70
+      },
+      "fields": {
+        "execution_date": {
+          "count": 70,
+          "null_count": 0,
+          "null_percentage": 0.0,
+          "data_types": [
+            "str"
+          ],
+          "sample_values": [
+            "2025-10-28",
+            "2025-10-17",
+            "2025-10-17",
+            "2025-10-17",
+            "2025-10-17",
+            "2025-10-17",
+            "2025-10-17",
+            "2025-10-17",
+            "2025-10-17",
+            "2025-10-13"
+          ],
+          "unique_value_count": 19,
+          "string_length": {
+            "min": 10,
+            "max": 10
+          },
+          "enumeration_complete": true,
+          "all_possible_values": [
+            "2025-09-02",
+            "2025-09-03",
+            "2025-09-05",
+            "2025-09-08",
+            "2025-09-09",
+            "2025-09-10",
+            "2025-09-16",
+            "2025-09-22",
+            "2025-09-23",
+            "2025-09-26",
+            "2025-09-29",
+            "2025-09-30",
+            "2025-10-02",
+            "2025-10-03",
+            "2025-10-06",
+            "2025-10-10",
+            "2025-10-13",
+            "2025-10-17",
+            "2025-10-28"
+          ]
         },
-        "enumeration_complete": false
-      },
-      "id": {
-        "type": "str",
-        "required": true,
-        "nullable": false,
-        "occurrences": 11046,
-        "null_count": 0,
-        "null_percentage": 0.0,
-        "unique_values_sampled": 100,
-        "total_unique_values": 1372,
-        "sample_values": [
-          "E0568bdf559e176301997f24ef309efc025cbfbf101fe00f74d35e38aaf7190a9",
-          "E4ad1123913c829d3a5113f2f6a0d9e1c23c2019ecf25a04de5c6a9821c512234",
-          "E269349fd47dad308f3ae6f16e08676450e4e11ac8a386e80f730561b87bf312b",
-          "E183312c028111cb7f098720cf22c7914027cd354cd8c6dda25b81f21e4d1cfcc",
-          "Ed585ddcbe540870224ebe7cc6c1baedf748efeaac6a77569b50da8cb7a01ab74"
-        ],
-        "string_length": {
-          "min": 65,
-          "max": 65
+        "id": {
+          "count": 70,
+          "null_count": 0,
+          "null_percentage": 0.0,
+          "data_types": [
+            "str"
+          ],
+          "sample_values": [
+            "Ee4f7af4e6f22f3c220137f6ccbb4da17e3aad5ab1091a5969d63bae382fb1b58",
+            "E53f2437e0c04c4cee1c3168ecc0ea3f2adc6c87566dcd84e26ad3fbe82b9d87b",
+            "Ecfc824688e3635fd90096005d9549f673bf48c67caf0cd73b72b5108ce2fa9e5",
+            "E2ae8cfa1e89c136b4944eb8be7794fda5872e9ac84f68d8054d9e0d1de562104",
+            "E2a2c1bba06f613c325906a4205930cdd3ae612913d8bf4a20887a26406d8173b",
+            "E019647ac6fb2295181b3475bc0c0621ada08a63235faf95413e21d0e7d6d3ca0",
+            "E1c7060b28993f079b52d15e561394f971e005f3156455b973e60622be45236b6",
+            "E6f48ec1ecbb1bca1083f21c0cecc2d5d25e4fcf78b72c40a0797816c750265d9",
+            "Eeedaf048f93e8bf7351dfa0bce282fb6a3520be3c53110443c622bf9d377e61d",
+            "E60880ec0d39c2c338cdf9ba69b4a94694564d6054da9fda4d7251813819a0ae5"
+          ],
+          "unique_value_count": 70,
+          "string_length": {
+            "min": 65,
+            "max": 65
+          },
+          "enumeration_complete": true
         },
-        "enumeration_complete": false
-      },
-      "split_from": {
-        "type": "mixed(float,int)",
-        "required": true,
-        "nullable": false,
-        "occurrences": 11046,
-        "null_count": 0,
-        "null_percentage": 0.0,
-        "unique_values_sampled": 100,
-        "total_unique_values": 110,
-        "sample_values": [
-          6,
-          100,
-          1,
-          1,
-          1
-        ],
-        "enumeration_complete": false
-      },
-      "split_to": {
-        "type": "mixed(float,int)",
-        "required": true,
-        "nullable": false,
-        "occurrences": 11046,
-        "null_count": 0,
-        "null_percentage": 0.0,
-        "unique_values_sampled": 100,
-        "total_unique_values": 119,
-        "sample_values": [
-          7,
-          139,
-          2,
-          4,
-          7
-        ],
-        "enumeration_complete": false
-      },
-      "ticker": {
-        "type": "str",
-        "required": true,
-        "nullable": false,
-        "occurrences": 11046,
-        "null_count": 0,
-        "null_percentage": 0.0,
-        "unique_values_sampled": 100,
-        "total_unique_values": 1257,
-        "sample_values": [
-          "EEPCF",
-          "EXMRF",
-          "ARGHF",
-          "LBLCF",
-          "SWTSX"
-        ],
-        "string_length": {
-          "min": 2,
-          "max": 5
+        "split_from": {
+          "count": 70,
+          "null_count": 0,
+          "null_percentage": 0.0,
+          "data_types": [
+            "float",
+            "int"
+          ],
+          "sample_values": [
+            "1",
+            "2.6547",
+            "3.2707",
+            "1.2908",
+            "1.5463",
+            "1.8598",
+            "12.9131",
+            "1.6213",
+            "1.307",
+            "1"
+          ],
+          "unique_value_count": 22,
+          "string_length": {
+            "min": 0,
+            "max": 0
+          },
+          "enumeration_complete": true
         },
-        "enumeration_complete": false
+        "split_to": {
+          "count": 70,
+          "null_count": 0,
+          "null_percentage": 0.0,
+          "data_types": [
+            "float",
+            "int"
+          ],
+          "sample_values": [
+            "1.1",
+            "1",
+            "1",
+            "1",
+            "1",
+            "1",
+            "1",
+            "1",
+            "1",
+            "1.012"
+          ],
+          "unique_value_count": 29,
+          "string_length": {
+            "min": 0,
+            "max": 0
+          },
+          "enumeration_complete": true
+        },
+        "ticker": {
+          "count": 70,
+          "null_count": 0,
+          "null_percentage": 0.0,
+          "data_types": [
+            "str"
+          ],
+          "sample_values": [
+            "GREH",
+            "QUACX",
+            "CHCCX",
+            "AWPCX",
+            "ATECX",
+            "APGCX",
+            "AGRCX",
+            "ADGCX",
+            "ABCSX",
+            "NRMGX"
+          ],
+          "unique_value_count": 70,
+          "string_length": {
+            "min": 2,
+            "max": 5
+          },
+          "enumeration_complete": true
+        }
+      }
+    },
+    "ipos": {
+      "summary": {
+        "total_files_found": 1,
+        "processed_files": 1,
+        "skipped_files": 0,
+        "total_records": 1
+      },
+      "fields": {
+        "ticker": {
+          "count": 1,
+          "null_count": 0,
+          "null_percentage": 0.0,
+          "data_types": [
+            "str"
+          ],
+          "sample_values": [
+            "FGO"
+          ],
+          "unique_value_count": 1,
+          "string_length": {
+            "min": 3,
+            "max": 3
+          },
+          "enumeration_complete": true,
+          "all_possible_values": [
+            "FGO"
+          ]
+        },
+        "last_updated": {
+          "count": 1,
+          "null_count": 0,
+          "null_percentage": 0.0,
+          "data_types": [
+            "str"
+          ],
+          "sample_values": [
+            "2025-08-27"
+          ],
+          "unique_value_count": 1,
+          "string_length": {
+            "min": 10,
+            "max": 10
+          },
+          "enumeration_complete": true,
+          "all_possible_values": [
+            "2025-08-27"
+          ]
+        },
+        "announced_date": {
+          "count": 1,
+          "null_count": 0,
+          "null_percentage": 0.0,
+          "data_types": [
+            "str"
+          ],
+          "sample_values": [
+            "2024-11-18"
+          ],
+          "unique_value_count": 1,
+          "string_length": {
+            "min": 10,
+            "max": 10
+          },
+          "enumeration_complete": true,
+          "all_possible_values": [
+            "2024-11-18"
+          ]
+        },
+        "listing_date": {
+          "count": 1,
+          "null_count": 0,
+          "null_percentage": 0.0,
+          "data_types": [
+            "str"
+          ],
+          "sample_values": [
+            "2025-09-04"
+          ],
+          "unique_value_count": 1,
+          "string_length": {
+            "min": 10,
+            "max": 10
+          },
+          "enumeration_complete": true,
+          "all_possible_values": [
+            "2025-09-04"
+          ]
+        },
+        "issuer_name": {
+          "count": 1,
+          "null_count": 0,
+          "null_percentage": 0.0,
+          "data_types": [
+            "str"
+          ],
+          "sample_values": [
+            "FG Holdings Ltd."
+          ],
+          "unique_value_count": 1,
+          "string_length": {
+            "min": 16,
+            "max": 16
+          },
+          "enumeration_complete": true,
+          "all_possible_values": [
+            "FG Holdings Ltd."
+          ]
+        },
+        "currency_code": {
+          "count": 1,
+          "null_count": 0,
+          "null_percentage": 0.0,
+          "data_types": [
+            "str"
+          ],
+          "sample_values": [
+            "USD"
+          ],
+          "unique_value_count": 1,
+          "string_length": {
+            "min": 3,
+            "max": 3
+          },
+          "enumeration_complete": true,
+          "all_possible_values": [
+            "USD"
+          ]
+        },
+        "us_code": {
+          "count": 1,
+          "null_count": 0,
+          "null_percentage": 0.0,
+          "data_types": [
+            "str"
+          ],
+          "sample_values": [
+            "G33954101"
+          ],
+          "unique_value_count": 1,
+          "string_length": {
+            "min": 9,
+            "max": 9
+          },
+          "enumeration_complete": true,
+          "all_possible_values": [
+            "G33954101"
+          ]
+        },
+        "isin": {
+          "count": 1,
+          "null_count": 0,
+          "null_percentage": 0.0,
+          "data_types": [
+            "str"
+          ],
+          "sample_values": [
+            "VGG339541010"
+          ],
+          "unique_value_count": 1,
+          "string_length": {
+            "min": 12,
+            "max": 12
+          },
+          "enumeration_complete": true,
+          "all_possible_values": [
+            "VGG339541010"
+          ]
+        },
+        "final_issue_price": {
+          "count": 1,
+          "null_count": 0,
+          "null_percentage": 0.0,
+          "data_types": [
+            "float"
+          ],
+          "sample_values": [
+            "4.5"
+          ],
+          "unique_value_count": 1,
+          "string_length": {
+            "min": 0,
+            "max": 0
+          },
+          "enumeration_complete": true,
+          "all_possible_values": [
+            "4.5"
+          ]
+        },
+        "max_shares_offered": {
+          "count": 1,
+          "null_count": 0,
+          "null_percentage": 0.0,
+          "data_types": [
+            "int"
+          ],
+          "sample_values": [
+            "2000000"
+          ],
+          "unique_value_count": 1,
+          "string_length": {
+            "min": 0,
+            "max": 0
+          },
+          "enumeration_complete": true,
+          "all_possible_values": [
+            "2000000"
+          ]
+        },
+        "lowest_offer_price": {
+          "count": 1,
+          "null_count": 0,
+          "null_percentage": 0.0,
+          "data_types": [
+            "float"
+          ],
+          "sample_values": [
+            "4.0"
+          ],
+          "unique_value_count": 1,
+          "string_length": {
+            "min": 0,
+            "max": 0
+          },
+          "enumeration_complete": true,
+          "all_possible_values": [
+            "4.0"
+          ]
+        },
+        "highest_offer_price": {
+          "count": 1,
+          "null_count": 0,
+          "null_percentage": 0.0,
+          "data_types": [
+            "float"
+          ],
+          "sample_values": [
+            "5.0"
+          ],
+          "unique_value_count": 1,
+          "string_length": {
+            "min": 0,
+            "max": 0
+          },
+          "enumeration_complete": true,
+          "all_possible_values": [
+            "5.0"
+          ]
+        },
+        "total_offer_size": {
+          "count": 1,
+          "null_count": 0,
+          "null_percentage": 0.0,
+          "data_types": [
+            "float"
+          ],
+          "sample_values": [
+            "9000000.0"
+          ],
+          "unique_value_count": 1,
+          "string_length": {
+            "min": 0,
+            "max": 0
+          },
+          "enumeration_complete": true,
+          "all_possible_values": [
+            "9000000.0"
+          ]
+        },
+        "primary_exchange": {
+          "count": 1,
+          "null_count": 0,
+          "null_percentage": 0.0,
+          "data_types": [
+            "str"
+          ],
+          "sample_values": [
+            "XNAS"
+          ],
+          "unique_value_count": 1,
+          "string_length": {
+            "min": 4,
+            "max": 4
+          },
+          "enumeration_complete": true,
+          "all_possible_values": [
+            "XNAS"
+          ]
+        },
+        "shares_outstanding": {
+          "count": 1,
+          "null_count": 0,
+          "null_percentage": 0.0,
+          "data_types": [
+            "int"
+          ],
+          "sample_values": [
+            "32000000"
+          ],
+          "unique_value_count": 1,
+          "string_length": {
+            "min": 0,
+            "max": 0
+          },
+          "enumeration_complete": true,
+          "all_possible_values": [
+            "32000000"
+          ]
+        },
+        "security_type": {
+          "count": 1,
+          "null_count": 0,
+          "null_percentage": 0.0,
+          "data_types": [
+            "str"
+          ],
+          "sample_values": [
+            "CS"
+          ],
+          "unique_value_count": 1,
+          "string_length": {
+            "min": 2,
+            "max": 2
+          },
+          "enumeration_complete": true,
+          "all_possible_values": [
+            "CS"
+          ]
+        },
+        "lot_size": {
+          "count": 1,
+          "null_count": 0,
+          "null_percentage": 0.0,
+          "data_types": [
+            "int"
+          ],
+          "sample_values": [
+            "100"
+          ],
+          "unique_value_count": 1,
+          "string_length": {
+            "min": 0,
+            "max": 0
+          },
+          "enumeration_complete": true,
+          "all_possible_values": [
+            "100"
+          ]
+        },
+        "security_description": {
+          "count": 1,
+          "null_count": 0,
+          "null_percentage": 0.0,
+          "data_types": [
+            "str"
+          ],
+          "sample_values": [
+            "Ordinary Shares - Class A"
+          ],
+          "unique_value_count": 1,
+          "string_length": {
+            "min": 25,
+            "max": 25
+          },
+          "enumeration_complete": true,
+          "all_possible_values": [
+            "Ordinary Shares - Class A"
+          ]
+        },
+        "ipo_status": {
+          "count": 1,
+          "null_count": 0,
+          "null_percentage": 0.0,
+          "data_types": [
+            "str"
+          ],
+          "sample_values": [
+            "pending"
+          ],
+          "unique_value_count": 1,
+          "string_length": {
+            "min": 7,
+            "max": 7
+          },
+          "enumeration_complete": true,
+          "all_possible_values": [
+            "pending"
+          ]
+        }
       }
     }
   }

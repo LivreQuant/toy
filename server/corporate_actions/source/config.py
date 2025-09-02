@@ -21,18 +21,18 @@ class CorporateActionsConfig:
             load_dotenv(env_file_path)
 
         ymd = datetime.strftime(datetime.today(), "%Y%m%d")
-        prv_ymd = sorted(glob.glob(os.path.join(os.getenv('SOURCE_DIR'), '*')))[-2]
+        prv_ymd = sorted(glob.glob(os.path.join(os.getenv('SOURCE_CA_DIR'), '*')))[-2]
 
         self.source_symbols_dir = os.path.join(os.getenv('SOURCE_SYMBOLS_DIR'), ymd)
         self.source_ca_dir = os.path.join(os.getenv('SOURCE_CA_DIR'), ymd)
         self.source_ca_prv_dir = os.path.join(os.getenv('SOURCE_CA_DIR'), prv_ymd)
 
-        self.master_files_dir = os.getenv('MASTER_FILES_DIR')
-        self.corporate_actions_dir = os.getenv('CORPORATE_ACTIONS_DIR')
+        self.master_files_dir = os.path.join(os.getenv('MASTER_FILES_DIR'), ymd, 'data')
+        self.corporate_actions_dir = os.path.join(os.getenv('CORPORATE_ACTIONS_DIR'), ymd)
 
         # Data directories
-        self.data_dir = os.path.join(self.corporate_actions_dir, ymd, './data')
-        self.debug_dir = os.path.join(self.corporate_actions_dir, ymd, './debug')
+        self.data_dir = os.path.join(self.corporate_actions_dir, './data')
+        self.debug_dir = os.path.join(self.corporate_actions_dir, './debug')
 
         # Default file names
         self.unified_cash_dividends_file = os.getenv('UNIFIED_CASH_DIVIDENDS_FILE')

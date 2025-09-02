@@ -2,7 +2,6 @@ import json
 import os
 import glob
 from collections import defaultdict
-from typing import Dict, Any
 from source.config import config
 
 
@@ -10,10 +9,24 @@ def analyze_historical_corporate_actions():
     """
     Analyze all historical corporate action files to generate comprehensive schema.
     """
+
+    """
+    # History analysis patterns
+    ALPACA_CA_PATTERN=*/alpaca/*.json
+    FMP_DIVIDENDS_PATTERN=*/fmp/dividends.json
+    FMP_SPLITS_PATTERN=*/fmp/splits.json
+    FMP_MERGERS_PATTERN=*/fmp/mergers.json
+    POLY_DIVIDENDS_PATTERN=*/poly/dividends.json
+    POLY_SPLITS_PATTERN=*/poly/splits.json
+    POLY_IPOS_PATTERN=*/poly/ipos.json
+    SHARADAR_CA_PATTERN=*/sharadar/*.csv
+    """
+
     # Use configured file patterns
     file_patterns = {
-        'dividends': config.poly_dividends_pattern,
-        'splits': config.poly_splits_pattern
+        'dividends': os.path.join(config.source_ca_dir, 'poly/dividends.json'),
+        'splits': os.path.join(config.source_ca_dir, 'poly/splits.json'),
+        'ipos': os.path.join(config.source_ca_dir, 'poly/ipos.json')
     }
 
     schemas = {}

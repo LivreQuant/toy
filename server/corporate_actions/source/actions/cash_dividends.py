@@ -31,7 +31,6 @@ class UnifiedCashDividend:
     # Core identifiers
     master_symbol: str  # The unified master symbol
     source: str
-    #source_id: Optional[str] = None
     symbol_mapping: Optional[SymbolMappingInfo] = None
 
     # Dates
@@ -39,7 +38,6 @@ class UnifiedCashDividend:
     record_date: Optional[str] = None
     payment_date: Optional[str] = None
     declaration_date: Optional[str] = None
-    #process_date: Optional[str] = None
 
     # Amounts
     dividend_amount: Optional[Decimal] = None
@@ -48,7 +46,6 @@ class UnifiedCashDividend:
 
     # Additional metadata
     frequency: Optional[int] = None
-    #dividend_type: Optional[str] = None
     is_foreign: Optional[bool] = None
     is_special: Optional[bool] = None
 
@@ -81,9 +78,7 @@ class EnhancedCashDividendProcessor:
             'ex_date': 'ex_date',
             'record_date': 'record_date',
             'payment_date': 'payable_date',
-            #'declaration_date': 'process_date',
             'dividend_amount': 'rate',
-            #'source_id': 'id',
             'is_foreign': 'foreign',
             'is_special': 'special'
         },
@@ -94,7 +89,6 @@ class EnhancedCashDividendProcessor:
             'payment_date': 'paymentDate',
             'declaration_date': 'declarationDate',
             'dividend_amount': 'dividend'
-            #'adjusted_dividend': 'adjDividend'
         },
         'poly': {
             'symbol': 'ticker',
@@ -104,9 +98,7 @@ class EnhancedCashDividendProcessor:
             'declaration_date': 'declaration_date',
             'dividend_amount': 'cash_amount',
             'currency': 'currency',
-            'frequency': 'frequency',
-            #'dividend_type': 'dividend_type',
-            #'source_id': 'id'
+            'frequency': 'frequency'
         },
         'sharadar': {
             'symbol': 'ticker',
@@ -156,177 +148,262 @@ class EnhancedCashDividendProcessor:
 
     def process_source_data(self, source: str, data: List[Dict[str, Any]]) -> List[UnifiedCashDividend]:
         """Process dividend data from a specific source with symbol mapping."""
-        if source not in self.FIELD_MAPPINGS:
-            raise ValueError(f"Unknown source: {source}")
 
-        dividends = []
-        mapping = self.FIELD_MAPPINGS[source]
+        if not data:
+            return []
 
-        for record in data:
+        field_mapping = self.FIELD_MAPPINGS.get(source, {})
+        unified_dividends = []
+
+        for row in data:
             try:
-                # Map to unified format first
-                dividend = self._map_record_to_unified(source, record, mapping)
+                # Extract basic fields using mapping
+                unified_data = {}
+                raw_data = dict(row)  # Keep original data
 
-                # Map to master symbol
-                source_symbol = dividend.master_symbol  # This was originally 'symbol'
-                master_symbol = self.symbol_mapper.map_to_master_symbol(source, source_symbol)
+                for unified_field, source_field in field_mapping.items():
+                    if callable(source_field):
+                        unified_data[unified_field] = source_field(row)
+                    else:
+                        unified_data[unified_field] = row.get(source_field)
 
+                # Convert dividend amount to Decimal if present
+                if unified_data.get('dividend_amount') is not None:
+                    try:
+                        unified_data['dividend_amount'] = Decimal(str(unified_data['dividend_amount']))
+                    except (ValueError, TypeError):
+                        unified_data['dividend_amount'] = None
+
+                # Map symbol to master symbol
+                original_symbol = unified_data.get('symbol')
+                if not original_symbol:
+                    continue
+
+                # Use the correct method name: map_to_master_symbol
+                master_symbol = self.symbol_mapper.map_to_master_symbol(source, original_symbol)
+
+                # Create symbol mapping info
                 if master_symbol:
-                    dividend.master_symbol = master_symbol
-                    dividend.symbol_mapping = SymbolMappingInfo(
+                    symbol_mapping = SymbolMappingInfo(
                         master_symbol=master_symbol,
-                        source_mappings={source: source_symbol},
+                        source_mappings={source: original_symbol},
                         unmapped_sources=[],
                         mapping_confidence=1.0
                     )
                 else:
-                    # Keep original symbol but mark as unmapped
-                    dividend.master_symbol = source_symbol
-                    dividend.symbol_mapping = SymbolMappingInfo(
-                        master_symbol=source_symbol,
+                    # If no mapping found, use original symbol as master symbol
+                    master_symbol = original_symbol
+                    symbol_mapping = SymbolMappingInfo(
+                        master_symbol=master_symbol,
                         source_mappings={},
                         unmapped_sources=[source],
                         mapping_confidence=0.0
                     )
 
-                dividend.data_completeness = self._calculate_completeness_score(dividend)
-                dividends.append(dividend)
+                # Create unified dividend
+                dividend = UnifiedCashDividend(
+                    master_symbol=master_symbol,
+                    source=source,
+                    symbol_mapping=symbol_mapping,
+                    ex_date=unified_data.get('ex_date'),
+                    record_date=unified_data.get('record_date'),
+                    payment_date=unified_data.get('payment_date'),
+                    declaration_date=unified_data.get('declaration_date'),
+                    dividend_amount=unified_data.get('dividend_amount'),
+                    currency=unified_data.get('currency', 'USD'),
+                    frequency=unified_data.get('frequency'),
+                    is_foreign=unified_data.get('is_foreign'),
+                    is_special=unified_data.get('is_special'),
+                    raw_data={source: raw_data},
+                    source_list=[source]
+                )
+
+                unified_dividends.append(dividend)
 
             except Exception as e:
-                logger.error(f"Error processing {source} record: {e}, record: {record}")
+                logger.error(f"Error processing dividend row from {source}: {e}")
                 continue
 
-        return dividends
-
-    def _map_record_to_unified(self, source: str, record: Dict[str, Any],
-                               mapping: Dict[str, str]) -> UnifiedCashDividend:
-        """Map a single record from source format to unified format."""
-        unified_data = {
-            'master_symbol': '',  # Will be set later
-            'source': source,
-            'raw_data': record.copy()
-        }
-
-        for unified_field, source_field in mapping.items():
-            if source_field in record and record[source_field] is not None:
-                value = record[source_field]
-
-                if unified_field == 'symbol':
-                    unified_data['master_symbol'] = str(value)
-                elif unified_field in ['dividend_amount', 'adjusted_dividend']:
-                    unified_data[unified_field] = self._normalize_decimal_value(value)
-                elif unified_field == 'currency':
-                    unified_data[unified_field] = str(value).upper()
-                elif unified_field in ['is_foreign', 'is_special']:
-                    unified_data[unified_field] = bool(value)
-                elif unified_field == 'frequency':
-                    unified_data[unified_field] = int(value) if value is not None else None
-                else:
-                    unified_data[unified_field] = value
-
-        if 'currency' not in unified_data:
-            unified_data['currency'] = 'USD'
-
-        return UnifiedCashDividend(**unified_data)
-
-    def _normalize_decimal_value(self, value: Any) -> Optional[Decimal]:
-        """Normalize dividend amounts to Decimal for precision."""
-        if value is None:
-            return None
-        try:
-            return Decimal(str(value))
-        except Exception as e:
-            logger.warning(f"Could not convert value to Decimal: {value}, error: {e}")
-            return None
-
-    def _calculate_completeness_score(self, dividend: UnifiedCashDividend) -> float:
-        """Calculate data completeness score."""
-        important_fields = [
-            dividend.master_symbol, dividend.ex_date, dividend.dividend_amount,
-            dividend.record_date, dividend.payment_date, dividend.currency
-        ]
-        filled_fields = sum(1 for field in important_fields if field is not None)
-        return filled_fields / len(important_fields)
+        return unified_dividends
 
     def _group_by_master_symbol(self, processed_by_source: Dict[str, List[UnifiedCashDividend]]) -> Dict[
         str, Dict[str, List[UnifiedCashDividend]]]:
-        """Group dividends by master symbol across sources."""
-        symbol_groups = {}
+        """Group dividends by master symbol and source."""
+
+        symbol_groups = defaultdict(lambda: defaultdict(list))
 
         for source, dividends in processed_by_source.items():
             for dividend in dividends:
-                master_symbol = dividend.master_symbol
-                if master_symbol not in symbol_groups:
-                    symbol_groups[master_symbol] = {}
-                if source not in symbol_groups[master_symbol]:
-                    symbol_groups[master_symbol][source] = []
-                symbol_groups[master_symbol][source].append(dividend)
+                symbol_groups[dividend.master_symbol][source].append(dividend)
 
-        return symbol_groups
+        return dict(symbol_groups)
 
     def _create_match_result(self, master_symbol: str,
                              dividends_by_source: Dict[str, List[UnifiedCashDividend]]) -> DividendMatchResult:
-        """Create a match result for dividends with the same master symbol."""
+        """Create a match result for a master symbol."""
 
-        # For now, take the first dividend from each source
-        # In practice, you might want more sophisticated matching by dates
-        representative_dividends = []
-        for source, dividends in dividends_by_source.items():
-            if dividends:
-                representative_dividends.append(dividends[0])
+        # Flatten dividends from all sources
+        all_dividends = []
+        for source_dividends in dividends_by_source.values():
+            all_dividends.extend(source_dividends)
 
-        # Merge with confidence analysis
-        merged = self.merge_dividends_with_confidence([representative_dividends])
+        if not all_dividends:
+            raise ValueError(f"No dividends found for {master_symbol}")
+
+        # Group dividends that are likely the same (by ex_date and amount)
+        dividend_groups = self._group_similar_dividends(all_dividends)
+
+        # Merge the largest group (most common dividend)
+        largest_group = max(dividend_groups, key=len) if dividend_groups else []
+
+        if not largest_group:
+            raise ValueError(f"No valid dividend groups for {master_symbol}")
+
+        merged_dividend = self.merge_dividends_with_confidence([largest_group])
 
         # Calculate match quality
-        match_quality = self._calculate_match_quality(dividends_by_source, merged)
+        match_quality = self._calculate_match_quality(largest_group, dividends_by_source)
 
-        # Create match details
         match_details = {
             'sources_matched': list(dividends_by_source.keys()),
-            'total_dividends': sum(len(divs) for divs in dividends_by_source.values()),
-            'date_agreement': merged.field_confidences.get('ex_date',
-                                                           FieldConfidence(None, 0, 0, 0, [])).agreement_ratio,
-            'amount_agreement': merged.field_confidences.get('dividend_amount',
-                                                             FieldConfidence(None, 0, 0, 0, [])).agreement_ratio,
-            'currency_agreement': merged.field_confidences.get('currency',
-                                                               FieldConfidence(None, 0, 0, 0, [])).agreement_ratio,
+            'total_dividends': len(all_dividends),
+            'merged_dividends': len(largest_group),
+            'dividend_groups': len(dividend_groups)
         }
 
         return DividendMatchResult(
             master_symbol=master_symbol,
-            merged_dividend=merged,
+            merged_dividend=merged_dividend,
             match_quality=match_quality,
             match_details=match_details
         )
 
-    def _calculate_match_quality(self, dividends_by_source: Dict[str, List[UnifiedCashDividend]],
-                                 merged: UnifiedCashDividend) -> float:
-        """Calculate overall match quality for debugging."""
+    def _group_similar_dividends(self, dividends: List[UnifiedCashDividend]) -> List[List[UnifiedCashDividend]]:
+        """Group dividends that appear to be the same event."""
 
-        # Base quality on number of sources
-        source_count = len(dividends_by_source)
-        source_score = min(1.0, source_count / 4.0)  # Max quality with 4+ sources
+        groups = []
+        remaining_dividends = dividends.copy()
 
-        # Factor in confidence scores
-        confidence_score = merged.overall_confidence
-        agreement_score = merged.source_agreement_score
+        while remaining_dividends:
+            current = remaining_dividends.pop(0)
+            current_group = [current]
 
-        # Factor in symbol mapping success
-        mapping_score = merged.symbol_mapping.mapping_confidence if merged.symbol_mapping else 0.0
+            # Find similar dividends
+            to_remove = []
+            for i, dividend in enumerate(remaining_dividends):
+                if self._are_dividends_similar(current, dividend):
+                    current_group.append(dividend)
+                    to_remove.append(i)
 
-        # Weighted average
-        quality = (
-                source_score * 0.2 +
-                confidence_score * 0.4 +
-                agreement_score * 0.3 +
-                mapping_score * 0.1
+            # Remove grouped dividends
+            for i in reversed(to_remove):
+                remaining_dividends.pop(i)
+
+            groups.append(current_group)
+
+        return groups
+
+    def _are_dividends_similar(self, div1: UnifiedCashDividend, div2: UnifiedCashDividend) -> bool:
+        """Check if two dividends are likely the same event."""
+
+        # Same ex_date (most important)
+        if div1.ex_date and div2.ex_date and div1.ex_date == div2.ex_date:
+            # If amounts are present, they should be similar
+            if div1.dividend_amount and div2.dividend_amount:
+                amount_diff = abs(div1.dividend_amount - div2.dividend_amount)
+                if amount_diff / max(div1.dividend_amount, div2.dividend_amount) < 0.01:  # 1% tolerance
+                    return True
+            else:
+                return True  # Same date, missing amounts
+
+        return False
+
+    def _calculate_match_quality(self, merged_dividends: List[UnifiedCashDividend],
+                                 all_dividends_by_source: Dict[str, List[UnifiedCashDividend]]) -> float:
+        """Calculate the quality of the match."""
+
+        if not merged_dividends:
+            return 0.0
+
+        # Base quality on source agreement
+        sources_in_merge = set(div.source for div in merged_dividends)
+        total_sources = len(all_dividends_by_source)
+
+        source_coverage = len(sources_in_merge) / total_sources if total_sources > 0 else 0
+
+        # Quality score based on coverage and data completeness
+        data_completeness = sum(1 for div in merged_dividends if div.dividend_amount) / len(merged_dividends)
+
+        return (source_coverage * 0.7 + data_completeness * 0.3)
+
+    def merge_dividends_with_confidence(self, dividend_groups: List[List[UnifiedCashDividend]]) -> UnifiedCashDividend:
+        """Merge dividends with confidence analysis."""
+
+        if not dividend_groups or not any(dividend_groups):
+            raise ValueError("No dividends to merge")
+
+        all_dividends = [div for group in dividend_groups for div in group if div]
+
+        if not all_dividends:
+            raise ValueError("No valid dividends to merge")
+
+        # Collect values by field and source
+        field_values = defaultdict(dict)
+        source_reliabilities = {}
+
+        for dividend in all_dividends:
+            source_reliabilities[dividend.source] = self.SOURCE_RELIABILITY.get(dividend.source, 5) / 10.0
+
+            fields_to_analyze = {
+                'ex_date': dividend.ex_date,
+                'record_date': dividend.record_date,
+                'payment_date': dividend.payment_date,
+                'declaration_date': dividend.declaration_date,
+                'dividend_amount': dividend.dividend_amount,
+                'adjusted_dividend': dividend.adjusted_dividend,
+                'currency': dividend.currency,
+                'frequency': dividend.frequency
+            }
+
+            for field_name, value in fields_to_analyze.items():
+                if value is not None:
+                    field_values[field_name][dividend.source] = value
+
+        # Calculate confidence for each field
+        field_confidences = {}
+        for field_name, values_by_source in field_values.items():
+            field_confidences[field_name] = self.confidence_calculator.calculate_field_confidence(
+                field_name, values_by_source, source_reliabilities
+            )
+
+        # Build merged dividend
+        merged = UnifiedCashDividend(
+            master_symbol=all_dividends[0].master_symbol,
+            source='+'.join(sorted(set(div.source for div in all_dividends))),
+            source_list=[div.source for div in all_dividends],
+            raw_data={div.source: div.raw_data[div.source] for div in all_dividends if div.source in div.raw_data},
+            symbol_mapping=all_dividends[0].symbol_mapping
         )
 
-        return quality
+        # Set field values using confidence analysis - USE .value NOT .final_value
+        for field_name, confidence in field_confidences.items():
+            setattr(merged, field_name, confidence.value)
+
+        merged.field_confidences = field_confidences
+
+        # Calculate overall scores
+        merged.overall_confidence = sum(conf.confidence_score for conf in field_confidences.values()) / len(
+            field_confidences) if field_confidences else 0.0
+        merged.source_agreement_score = sum(conf.agreement_ratio for conf in field_confidences.values()) / len(
+            field_confidences) if field_confidences else 0.0
+        merged.data_completeness = len([conf for conf in field_confidences.values() if conf.value is not None]) / len(
+            field_confidences) if field_confidences else 0.0
+
+        return merged
 
     def _create_debug_entry(self, match_result: DividendMatchResult) -> Dict[str, Any]:
-        """Create a debug entry for a match result."""
+        """Create debug entry for a match result."""
+
         merged = match_result.merged_dividend
 
         return {
@@ -367,98 +444,19 @@ class EnhancedCashDividendProcessor:
             }
         }
 
-    def merge_dividends_with_confidence(self, dividend_groups: List[List[UnifiedCashDividend]]) -> UnifiedCashDividend:
-        """Merge dividends with confidence analysis."""
-        if not dividend_groups or not any(dividend_groups):
-            raise ValueError("No dividends to merge")
+    def export_debug_report(self, debug_dir: str):
+        """Export debug report to JSON file."""
 
-        all_dividends = [div for group in dividend_groups for div in group if div]
+        debug_file_path = os.path.join(debug_dir, 'cash_dividends_debug.json')
+        summary_file_path = os.path.join(debug_dir, 'cash_dividends_summary.csv')
 
-        if not all_dividends:
-            raise ValueError("No valid dividends to merge")
-
-        # Collect values by field and source
-        field_values = defaultdict(dict)
-        source_reliabilities = {}
-
-        for dividend in all_dividends:
-            source_reliabilities[dividend.source] = self.SOURCE_RELIABILITY.get(dividend.source, 5) / 10.0
-
-            fields_to_analyze = {
-                'ex_date': dividend.ex_date,
-                'record_date': dividend.record_date,
-                'payment_date': dividend.payment_date,
-                'declaration_date': dividend.declaration_date,
-                'dividend_amount': dividend.dividend_amount,
-                'adjusted_dividend': dividend.adjusted_dividend,
-                'currency': dividend.currency,
-                'frequency': dividend.frequency,
-                #'dividend_type': dividend.dividend_type
-            }
-
-            for field_name, value in fields_to_analyze.items():
-                if value is not None:
-                    field_values[field_name][dividend.source] = value
-
-        # Calculate confidence for each field
-        field_confidences = {}
-        for field_name, values_by_source in field_values.items():
-            field_confidences[field_name] = self.confidence_calculator.calculate_field_confidence(
-                field_name, values_by_source, source_reliabilities
-            )
-
-        # Build merged dividend
-        merged = UnifiedCashDividend(
-            master_symbol=all_dividends[0].master_symbol,
-            source='+'.join(sorted(set(div.source for div in all_dividends))),
-            source_list=[div.source for div in all_dividends],
-            raw_data={div.source: div.raw_data for div in all_dividends},
-            symbol_mapping=all_dividends[0].symbol_mapping
-        )
-
-        # Set field values from confidence analysis
-        for field_name, confidence in field_confidences.items():
-            setattr(merged, field_name, confidence.value)
-
-        merged.field_confidences = field_confidences
-
-        # Calculate overall metrics
-        field_weights = {
-            'dividend_amount': 0.4,
-            'ex_date': 0.3,
-            'currency': 0.1,
-            'record_date': 0.1,
-            'payment_date': 0.05,
-            'declaration_date': 0.05
-        }
-
-        merged.overall_confidence = self.confidence_calculator.calculate_overall_confidence(
-            field_confidences, field_weights
-        )
-        merged.source_agreement_score = self.confidence_calculator.calculate_source_agreement_score(
-            field_confidences
-        )
-        merged.data_completeness = self._calculate_completeness_score(merged)
-
-        return merged
-
-    def export_debug_report(self, debug_dir: str, filename: str = None):
-        """Export debug results to debug directory."""
-        if filename is None:
-            timestamp = datetime.now().strftime("%Y%m%d")
-            filename = f'dividend_debug_report_{timestamp}.json'
-
-        # Ensure debug directory exists
         os.makedirs(debug_dir, exist_ok=True)
 
-        debug_file_path = os.path.join(debug_dir, filename)
+        # Export detailed debug JSON
         with open(debug_file_path, 'w') as f:
-            json.dump(self.debug_results, f, indent=2)
+            json.dump(self.debug_results, f, indent=2, default=str)
 
-        # Also create a summary CSV for quick review
-        summary_filename = filename.replace('.json', '_summary.csv')
-        summary_file_path = os.path.join(debug_dir, summary_filename)
-
+        # Export summary CSV
         summary_data = []
         for result in self.debug_results:
             summary_data.append({
@@ -466,19 +464,17 @@ class EnhancedCashDividendProcessor:
                 'match_quality': result['match_quality'],
                 'source_count': result['source_count'],
                 'overall_confidence': result['overall_confidence'],
-                'source_agreement': result['source_agreement'],
-                'ex_date_agreement': result['field_agreements']['ex_date'],
-                'amount_agreement': result['field_agreements']['dividend_amount'],
-                'sources': ', '.join(result['sources']),
-                'has_disagreements': len(result['disagreements']) > 0,
-                'mapping_confidence': result['symbol_mapping_info']['mapping_confidence']
+                'ex_date': result['ex_date'],
+                'dividend_amount': result['dividend_amount']
             })
 
         pd.DataFrame(summary_data).to_csv(summary_file_path, index=False)
+
         print(f"Debug report exported to {debug_file_path}")
         print(f"Summary CSV exported to {summary_file_path}")
-        
+
     def export_unified_dividends(self, results, filename):
+        """Export unified dividends to CSV file."""
 
         os.makedirs(os.path.dirname(filename), exist_ok=True)
         csv_file_path = os.path.join(filename)
@@ -492,8 +488,8 @@ class EnhancedCashDividendProcessor:
                 'source': dividend.source,
                 'ex_date': dividend.ex_date,
                 'record_date': dividend.record_date,
-                'payable_date': dividend.payable_date,
-                'rate': str(dividend.rate) if dividend.rate else None,
+                'payable_date': dividend.payment_date,
+                'rate': str(dividend.dividend_amount) if dividend.dividend_amount else None,
                 'currency': dividend.currency,
                 'overall_confidence': dividend.overall_confidence,
                 'source_agreement_score': dividend.source_agreement_score,
@@ -511,16 +507,53 @@ class EnhancedCashDividendProcessor:
         print(f"CSV summary exported to {csv_file_path}")
 
         return csv_file_path
-        
 
-def run(alpaca_data: pd.DataFrame,
-        fmp_data: pd.DataFrame,
-        poly_data: pd.DataFrame,
+
+def extract_cash_dividends_from_sources(alpaca_data: Dict[str, pd.DataFrame],
+                                        fmp_data: Dict[str, pd.DataFrame],
+                                        poly_data: Dict[str, pd.DataFrame],
+                                        sharadar_data: pd.DataFrame) -> Dict[str, List[Dict[str, Any]]]:
+    """Extract cash dividend data from all sources and return in standardized format."""
+
+    extracted_data = {}
+
+    # Extract from Alpaca
+    if 'cash_dividends' in alpaca_data and not alpaca_data['cash_dividends'].empty:
+        extracted_data['alpaca'] = alpaca_data['cash_dividends'].to_dict('records')
+    else:
+        extracted_data['alpaca'] = []
+
+    # Extract from FMP
+    if 'dividends' in fmp_data and not fmp_data['dividends'].empty:
+        extracted_data['fmp'] = fmp_data['dividends'].to_dict('records')
+    else:
+        extracted_data['fmp'] = []
+
+    # Extract from Polygon
+    if 'dividends' in poly_data and not poly_data['dividends'].empty:
+        extracted_data['poly'] = poly_data['dividends'].to_dict('records')
+    else:
+        extracted_data['poly'] = []
+
+    # Extract from Sharadar (filter for dividend actions)
+    if not sharadar_data.empty:
+        dividend_records = sharadar_data[sharadar_data['action'] == 'dividend']
+        extracted_data['sharadar'] = dividend_records.to_dict('records')
+    else:
+        extracted_data['sharadar'] = []
+
+    return extracted_data
+
+
+def run(alpaca_data: Dict[str, pd.DataFrame],
+        fmp_data: Dict[str, pd.DataFrame],
+        poly_data: Dict[str, pd.DataFrame],
         sharadar_data: pd.DataFrame):
+    """Main function to process cash dividends from all sources."""
 
     # Ensure directories exist
     config.ensure_directories()
-    
+
     # Find master files using configured path
     master_files = glob.glob(os.path.join(config.master_files_dir, '*_MASTER_UPDATED.csv'))
     if not master_files:
@@ -529,10 +562,19 @@ def run(alpaca_data: pd.DataFrame,
     master_file = max(master_files)  # Get the most recent master file
     print(f"Using master file: {master_file}")
 
+    # Extract cash dividend data from all sources
+    print("Extracting cash dividend data from sources...")
+    source_data = extract_cash_dividends_from_sources(alpaca_data, fmp_data, poly_data, sharadar_data)
+
+    # Print extraction summary
+    for source, data in source_data.items():
+        print(f"  - {source}: {len(data)} cash dividend records extracted")
+
+    # Initialize processor
     processor = EnhancedCashDividendProcessor(master_file)
 
-    source_data = {alpaca_data, fmp_data, poly_data, sharadar_data}
-
+    # Process all sources
+    print("Processing dividends from all sources...")
     results = processor.process_all_sources(source_data)
 
     # Export to appropriate directories

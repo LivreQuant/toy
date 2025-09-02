@@ -2,6 +2,7 @@ from source.config import config
 from source.providers import fmp, poly, sharadar, alpaca
 
 from source.actions import cash_dividends
+from source.actions import delisting
 
 def main():
     """Main function to load data from all sources."""
@@ -31,7 +32,13 @@ def main():
         print(f"  - {action_type}: {len(df)} records")
 
     print("\nAnalyzing Cash Dividends...")
-    cash_dividends.run(alpaca_data, fmp_data, poly_data, sharadar_data)
+    #cash_dividends.run(alpaca_data, fmp_data, poly_data, sharadar_data)
+
+    print("\nAnalyzing Delisting...")
+    delisting.run(alpaca_data, fmp_data, poly_data, sharadar_data)
+
+    print("\nAnalyzing IPOS...")
+    ipos.run(alpaca_data, fmp_data, poly_data, sharadar_data)
 
 
 if __name__ == "__main__":

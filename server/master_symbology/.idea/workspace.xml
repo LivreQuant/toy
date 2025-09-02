@@ -5,29 +5,13 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="e9e6cd4c-684f-4e66-8307-213b18173ec7" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/source/standards/__init__.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/source/standards/types.csv" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../corporate_actions/source/actions/cash_dividends.py" beforeDir="false" afterPath="$PROJECT_DIR$/../corporate_actions/source/actions/cash_dividends.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../corporate_actions/source/actions/delisting.py" beforeDir="false" afterPath="$PROJECT_DIR$/../corporate_actions/source/actions/delisting.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../corporate_actions/source/config.py" beforeDir="false" afterPath="$PROJECT_DIR$/../corporate_actions/source/config.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../corporate_actions/source/history/poly.py" beforeDir="false" afterPath="$PROJECT_DIR$/../corporate_actions/source/history/poly.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../corporate_actions/source/history/schema_analysis_POLY.json" beforeDir="false" afterPath="$PROJECT_DIR$/../corporate_actions/source/history/schema_analysis_POLY.json" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../corporate_actions/source/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/../corporate_actions/source/main.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../corporate_actions/source/providers/alpaca.py" beforeDir="false" afterPath="$PROJECT_DIR$/../corporate_actions/source/providers/alpaca.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../corporate_actions/source/providers/fmp.py" beforeDir="false" afterPath="$PROJECT_DIR$/../corporate_actions/source/providers/fmp.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../corporate_actions/source/providers/poly.py" beforeDir="false" afterPath="$PROJECT_DIR$/../corporate_actions/source/providers/poly.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../corporate_actions/source/providers/sharadar.py" beforeDir="false" afterPath="$PROJECT_DIR$/../corporate_actions/source/providers/sharadar.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/source/providers/alpaca.py" beforeDir="false" afterPath="$PROJECT_DIR$/source/providers/alpaca.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/source/providers/alphavantage.py" beforeDir="false" afterPath="$PROJECT_DIR$/source/providers/alphavantage.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/source/providers/eodhd.py" beforeDir="false" afterPath="$PROJECT_DIR$/source/providers/eodhd.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/source/providers/finance_db.py" beforeDir="false" afterPath="$PROJECT_DIR$/source/providers/finance_db.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/source/providers/fmp.py" beforeDir="false" afterPath="$PROJECT_DIR$/source/providers/fmp.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/source/providers/nasdaq.py" beforeDir="false" afterPath="$PROJECT_DIR$/source/providers/nasdaq.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/source/providers/nyse.py" beforeDir="false" afterPath="$PROJECT_DIR$/source/providers/nyse.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/source/providers/poly.py" beforeDir="false" afterPath="$PROJECT_DIR$/source/providers/poly.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/source/providers/sharadar.py" beforeDir="false" afterPath="$PROJECT_DIR$/source/providers/sharadar.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../validate/source/config.py" beforeDir="false" afterPath="$PROJECT_DIR$/../validate/source/config.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../validate/source/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/../validate/source/main.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../validate/source/master/compare.py" beforeDir="false" afterPath="$PROJECT_DIR$/../validate/source/master/compare.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../validate/source/master/utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/../validate/source/master/utils.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

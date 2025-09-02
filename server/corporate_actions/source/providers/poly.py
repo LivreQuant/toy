@@ -15,7 +15,8 @@ def load_data():
     """
     files_to_load = {
         'dividends': os.path.join(config.source_ca_dir, 'poly', 'dividends.json'),
-        'splits': os.path.join(config.source_ca_dir, 'poly', 'splits.json')
+        'splits': os.path.join(config.source_ca_dir, 'poly', 'splits.json'),
+        'ipos': os.path.join(config.source_ca_dir, 'poly', 'ipos.json')
     }
 
     results = {}

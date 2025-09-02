@@ -74,34 +74,18 @@ class EnhancedDelistingProcessor:
             'delisted_symbol': 'symbol',
             'delisting_type': lambda x: 'worthless'
         },
-        'sharadar_delisted': {
+        'sharadar': {
             'symbol': 'ticker',
             'delisting_date': 'date',
             'delisted_symbol': 'ticker',
             'company_name': 'name',
             'delisting_type': lambda x: 'general'
-        },
-        'sharadar_regulatory': {
-            'symbol': 'ticker',
-            'delisting_date': 'date',
-            'delisted_symbol': 'ticker',
-            'company_name': 'name',
-            'delisting_type': lambda x: 'regulatory'
-        },
-        'sharadar_voluntary': {
-            'symbol': 'ticker',
-            'delisting_date': 'date',
-            'delisted_symbol': 'ticker',
-            'company_name': 'name',
-            'delisting_type': lambda x: 'voluntary'
         }
     }
 
     SOURCE_RELIABILITY = {
         'alpaca': 7,
-        'sharadar_delisted': 9,
-        'sharadar_regulatory': 9,
-        'sharadar_voluntary': 9
+        'sharadar': 9
     }
 
     def __init__(self, master_csv_path: str):
@@ -117,7 +101,7 @@ class EnhancedDelistingProcessor:
         for source, data in source_data_dict.items():
             processed_by_source[source] = self.process_source_data(source, data)
 
-        # Group by master symbol (company being delisted)
+        # Group by master symbol
         symbol_groups = self._group_by_master_symbol(processed_by_source)
 
         # Merge and analyze matches
@@ -138,115 +122,130 @@ class EnhancedDelistingProcessor:
 
     def process_source_data(self, source: str, data: List[Dict[str, Any]]) -> List[UnifiedDelisting]:
         """Process delisting data from a specific source with symbol mapping."""
-        
-        if source not in self.FIELD_MAPPINGS:
-            raise ValueError(f"Unknown source: {source}")
 
-        delistings = []
-        mapping = self.FIELD_MAPPINGS[source]
+        if not data:
+            return []
 
-        for record in data:
+        field_mapping = self.FIELD_MAPPINGS.get(source, {})
+        unified_delistings = []
+
+        for row in data:
             try:
-                # Map to unified format first
-                delisting = self._map_record_to_unified(source, record, mapping)
+                # Extract basic fields using mapping
+                unified_data = {}
+                raw_data = dict(row)  # Keep original data
 
-                # Map to master symbol (delisted company)
-                source_symbol = delisting.master_symbol
-                master_symbol = self.symbol_mapper.map_to_master_symbol(
-                    source.replace('_delisted', '').replace('_regulatory', '').replace('_voluntary', ''),
-                    source_symbol
-                )
+                for unified_field, source_field in field_mapping.items():
+                    if callable(source_field):
+                        unified_data[unified_field] = source_field(row)
+                    else:
+                        unified_data[unified_field] = row.get(source_field)
 
+                # Map symbol to master symbol
+                original_symbol = unified_data.get('symbol')
+                if not original_symbol:
+                    continue
+
+                # Use the correct method name: map_to_master_symbol
+                master_symbol = self.symbol_mapper.map_to_master_symbol(source, original_symbol)
+
+                # Create symbol mapping info
                 if master_symbol:
-                    delisting.master_symbol = master_symbol
-                    delisting.symbol_mapping = SymbolMappingInfo(
+                    symbol_mapping = SymbolMappingInfo(
                         master_symbol=master_symbol,
-                        source_mappings={source: source_symbol},
+                        source_mappings={source: original_symbol},
                         unmapped_sources=[],
                         mapping_confidence=1.0
                     )
                 else:
-                    delisting.master_symbol = source_symbol
-                    delisting.symbol_mapping = SymbolMappingInfo(
-                        master_symbol=source_symbol,
+                    # If no mapping found, use original symbol as master symbol
+                    master_symbol = original_symbol
+                    symbol_mapping = SymbolMappingInfo(
+                        master_symbol=master_symbol,
                         source_mappings={},
                         unmapped_sources=[source],
                         mapping_confidence=0.0
                     )
 
+                # Create unified delisting
+                delisting = UnifiedDelisting(
+                    master_symbol=master_symbol,
+                    source=source,
+                    symbol_mapping=symbol_mapping,
+                    delisting_date=unified_data.get('delisting_date'),
+                    delisted_symbol=unified_data.get('delisted_symbol'),
+                    company_name=unified_data.get('company_name'),
+                    delisting_type=unified_data.get('delisting_type'),
+                    delisting_reason=unified_data.get('delisting_reason'),
+                    raw_data={source: raw_data},
+                    source_list=[source]
+                )
+
+                # Calculate data completeness
                 delisting.data_completeness = self._calculate_completeness_score(delisting)
-                delistings.append(delisting)
+                unified_delistings.append(delisting)
 
             except Exception as e:
-                logger.error(f"Error processing {source} record: {e}, record: {record}")
+                logger.error(f"Error processing delisting row from {source}: {e}")
                 continue
 
-        return delistings
-
-    def _map_record_to_unified(self, source: str, record: Dict[str, Any],
-                               mapping: Dict[str, str]) -> UnifiedDelisting:
-        """Map a single record from source format to unified format."""
-        unified_data = {
-            'master_symbol': '',
-            'source': source,
-            'raw_data': record.copy()
-        }
-
-        for unified_field, source_field in mapping.items():
-            if callable(source_field):
-                unified_data[unified_field] = source_field(record)
-            elif source_field in record and record[source_field] is not None:
-                value = record[source_field]
-
-                if unified_field == 'symbol':
-                    unified_data['master_symbol'] = str(value)
-                else:
-                    unified_data[unified_field] = str(value) if value is not None else None
-
-        return UnifiedDelisting(**unified_data)
+        return unified_delistings
 
     def _calculate_completeness_score(self, delisting: UnifiedDelisting) -> float:
         """Calculate data completeness score."""
         required_fields = ['master_symbol', 'delisting_date', 'delisted_symbol']
         optional_fields = ['company_name', 'delisting_type', 'delisting_reason']
-        
+
         required_score = sum(1 for field in required_fields if getattr(delisting, field))
         optional_score = sum(1 for field in optional_fields if getattr(delisting, field))
-        
+
         return (required_score / len(required_fields)) * 0.7 + (optional_score / len(optional_fields)) * 0.3
 
-    def _group_by_master_symbol(self, processed_by_source: Dict[str, List[UnifiedDelisting]]) -> Dict[str, Dict[str, List[UnifiedDelisting]]]:
-        """Group delistings by master symbol."""
+    def _group_by_master_symbol(self, processed_by_source: Dict[str, List[UnifiedDelisting]]) -> Dict[
+        str, Dict[str, List[UnifiedDelisting]]]:
+        """Group delistings by master symbol and source."""
+
         symbol_groups = defaultdict(lambda: defaultdict(list))
-        
+
         for source, delistings in processed_by_source.items():
             for delisting in delistings:
                 symbol_groups[delisting.master_symbol][source].append(delisting)
-        
+
         return dict(symbol_groups)
 
-    def _create_match_result(self, master_symbol: str, 
-                           delistings_by_source: Dict[str, List[UnifiedDelisting]]) -> DelistingMatchResult:
-        """Create a match result by merging delistings from multiple sources."""
-        
-        # Flatten all delistings
+    def _create_match_result(self, master_symbol: str,
+                             delistings_by_source: Dict[str, List[UnifiedDelisting]]) -> DelistingMatchResult:
+        """Create a match result for a master symbol."""
+
+        # Flatten delistings from all sources
         all_delistings = []
         for source_delistings in delistings_by_source.values():
             all_delistings.extend(source_delistings)
-        
-        # Create merged delisting
-        merged_delisting = self._merge_delistings(master_symbol, all_delistings)
-        
+
+        if not all_delistings:
+            raise ValueError(f"No delistings found for {master_symbol}")
+
+        # Group delistings that are likely the same (by delisting_date)
+        delisting_groups = self._group_similar_delistings(all_delistings)
+
+        # Merge the largest group (most common delisting)
+        largest_group = max(delisting_groups, key=len) if delisting_groups else []
+
+        if not largest_group:
+            raise ValueError(f"No valid delisting groups for {master_symbol}")
+
+        merged_delisting = self.merge_delistings_with_confidence([largest_group])
+
         # Calculate match quality
-        match_quality = self._calculate_match_quality(delistings_by_source)
-        
-        # Create match details
+        match_quality = self._calculate_match_quality(largest_group, delistings_by_source)
+
         match_details = {
-            'source_count': len(delistings_by_source),
-            'total_records': len(all_delistings),
-            'sources': list(delistings_by_source.keys())
+            'sources_matched': list(delistings_by_source.keys()),
+            'total_delistings': len(all_delistings),
+            'merged_delistings': len(largest_group),
+            'delisting_groups': len(delisting_groups)
         }
-        
+
         return DelistingMatchResult(
             master_symbol=master_symbol,
             merged_delisting=merged_delisting,
@@ -254,137 +253,207 @@ class EnhancedDelistingProcessor:
             match_details=match_details
         )
 
-    def _merge_delistings(self, master_symbol: str, delistings: List[UnifiedDelisting]) -> UnifiedDelisting:
-        """Merge multiple delisting records into a single unified record."""
-        
-        if not delistings:
-            raise ValueError("Cannot merge empty delistings list")
-        
-        # Group field values by source
+    def _group_similar_delistings(self, delistings: List[UnifiedDelisting]) -> List[List[UnifiedDelisting]]:
+        """Group delistings that appear to be the same event."""
+
+        groups = []
+        remaining_delistings = delistings.copy()
+
+        while remaining_delistings:
+            current = remaining_delistings.pop(0)
+            current_group = [current]
+
+            # Find similar delistings
+            to_remove = []
+            for i, delisting in enumerate(remaining_delistings):
+                if self._are_delistings_similar(current, delisting):
+                    current_group.append(delisting)
+                    to_remove.append(i)
+
+            # Remove grouped delistings
+            for i in reversed(to_remove):
+                remaining_delistings.pop(i)
+
+            groups.append(current_group)
+
+        return groups
+
+    def _are_delistings_similar(self, del1: UnifiedDelisting, del2: UnifiedDelisting) -> bool:
+        """Check if two delistings are likely the same event."""
+
+        # Same delisting_date (most important)
+        if del1.delisting_date and del2.delisting_date and del1.delisting_date == del2.delisting_date:
+            return True
+
+        # If no dates, consider them similar if from different sources (likely same event)
+        if not del1.delisting_date and not del2.delisting_date:
+            return del1.source != del2.source
+
+        return False
+
+    def _calculate_match_quality(self, merged_delistings: List[UnifiedDelisting],
+                                 all_delistings_by_source: Dict[str, List[UnifiedDelisting]]) -> float:
+        """Calculate the quality of the match."""
+
+        if not merged_delistings:
+            return 0.0
+
+        # Base quality on source agreement
+        sources_in_merge = set(del_.source for del_ in merged_delistings)
+        total_sources = len(all_delistings_by_source)
+
+        source_coverage = len(sources_in_merge) / total_sources if total_sources > 0 else 0
+
+        # Quality score based on coverage and data completeness
+        data_completeness = sum(del_.data_completeness for del_ in merged_delistings) / len(merged_delistings)
+
+        return (source_coverage * 0.7 + data_completeness * 0.3)
+
+    def merge_delistings_with_confidence(self, delisting_groups: List[List[UnifiedDelisting]]) -> UnifiedDelisting:
+        """Merge delistings with confidence analysis."""
+
+        if not delisting_groups or not any(delisting_groups):
+            raise ValueError("No delistings to merge")
+
+        all_delistings = [del_ for group in delisting_groups for del_ in group if del_]
+
+        if not all_delistings:
+            raise ValueError("No valid delistings to merge")
+
+        # Collect values by field and source
         field_values = defaultdict(dict)
-        all_sources = []
-        
-        for delisting in delistings:
-            all_sources.append(delisting.source)
-            for field_name in ['delisting_date', 'delisted_symbol', 'company_name', 
-                              'delisting_type', 'delisting_reason']:
-                value = getattr(delisting, field_name)
+        source_reliabilities = {}
+
+        for delisting in all_delistings:
+            source_reliabilities[delisting.source] = self.SOURCE_RELIABILITY.get(delisting.source, 5) / 10.0
+
+            fields_to_analyze = {
+                'delisting_date': delisting.delisting_date,
+                'delisted_symbol': delisting.delisted_symbol,
+                'company_name': delisting.company_name,
+                'delisting_type': delisting.delisting_type,
+                'delisting_reason': delisting.delisting_reason
+            }
+
+            for field_name, value in fields_to_analyze.items():
                 if value is not None:
                     field_values[field_name][delisting.source] = value
-        
-        # Use confidence calculator to merge fields
-        merged_fields = {}
-        field_confidences = {}
-        
-        for field_name, values_by_source in field_values.items():
-            field_confidence = self.confidence_calculator.calculate_field_confidence(field_name, values_by_source)
-            merged_fields[field_name] = field_confidence.value
-            field_confidences[field_name] = field_confidence
-        
-        # Calculate overall confidence metrics
-        confidences = [fc.confidence for fc in field_confidences.values()]
-        overall_confidence = sum(confidences) / len(confidences) if confidences else 0.0
-        
-        # Calculate source agreement
-        source_agreement_scores = [fc.source_agreement for fc in field_confidences.values()]
-        source_agreement_score = sum(source_agreement_scores) / len(source_agreement_scores) if source_agreement_scores else 0.0
-        
-        # Create symbol mapping info
-        source_mappings = {}
-        unmapped_sources = []
-        
-        for delisting in delistings:
-            if delisting.symbol_mapping:
-                source_mappings.update(delisting.symbol_mapping.source_mappings)
-                unmapped_sources.extend(delisting.symbol_mapping.unmapped_sources)
-        
-        symbol_mapping = SymbolMappingInfo(
-            master_symbol=master_symbol,
-            source_mappings=source_mappings,
-            unmapped_sources=list(set(unmapped_sources)),
-            mapping_confidence=1.0 - (len(set(unmapped_sources)) / len(set(all_sources))) if all_sources else 0.0
-        )
-        
-        # Create unified delisting
-        merged_delisting = UnifiedDelisting(
-            master_symbol=master_symbol,
-            source='merged',
-            symbol_mapping=symbol_mapping,
-            delisting_date=merged_fields.get('delisting_date'),
-            delisted_symbol=merged_fields.get('delisted_symbol'),
-            company_name=merged_fields.get('company_name'),
-            delisting_type=merged_fields.get('delisting_type'),
-            delisting_reason=merged_fields.get('delisting_reason'),
-            field_confidences=field_confidences,
-            overall_confidence=overall_confidence,
-            source_agreement_score=source_agreement_score,
-            data_completeness=sum(delisting.data_completeness for delisting in delistings) / len(delistings),
-            source_list=list(set(all_sources))
-        )
-        
-        return merged_delisting
 
-    def _calculate_match_quality(self, delistings_by_source: Dict[str, List[UnifiedDelisting]]) -> float:
-        """Calculate match quality based on source agreement and data completeness."""
-        
-        if not delistings_by_source:
-            return 0.0
-        
-        # Base quality on number of sources
-        source_count = len(delistings_by_source)
-        source_quality = min(source_count / 3, 1.0)  # Optimal at 3+ sources
-        
-        # Average data completeness across all records
-        all_delistings = []
-        for source_delistings in delistings_by_source.values():
-            all_delistings.extend(source_delistings)
-        
-        if not all_delistings:
-            return 0.0
-        
-        avg_completeness = sum(d.data_completeness for d in all_delistings) / len(all_delistings)
-        
-        # Check date agreement
-        dates = set()
-        for source_delistings in delistings_by_source.values():
-            for delisting in source_delistings:
-                if delisting.delisting_date:
-                    dates.add(delisting.delisting_date)
-        
-        date_agreement = 1.0 if len(dates) <= 1 else 0.8
-        
-        return (source_quality * 0.4) + (avg_completeness * 0.4) + (date_agreement * 0.2)
+        # Calculate confidence for each field
+        field_confidences = {}
+        for field_name, values_by_source in field_values.items():
+            field_confidences[field_name] = self.confidence_calculator.calculate_field_confidence(
+                field_name, values_by_source, source_reliabilities
+            )
+
+        # Build merged delisting
+        merged = UnifiedDelisting(
+            master_symbol=all_delistings[0].master_symbol,
+            source='+'.join(sorted(set(del_.source for del_ in all_delistings))),
+            source_list=[del_.source for del_ in all_delistings],
+            raw_data={del_.source: del_.raw_data[del_.source] for del_ in all_delistings if
+                      del_.source in del_.raw_data},
+            symbol_mapping=all_delistings[0].symbol_mapping
+        )
+
+        # Set field values using confidence analysis - USE .value NOT .final_value
+        for field_name, confidence in field_confidences.items():
+            setattr(merged, field_name, confidence.value)
+
+        merged.field_confidences = field_confidences
+
+        # Calculate overall scores
+        merged.overall_confidence = sum(conf.confidence_score for conf in field_confidences.values()) / len(
+            field_confidences) if field_confidences else 0.0
+        merged.source_agreement_score = sum(conf.agreement_ratio for conf in field_confidences.values()) / len(
+            field_confidences) if field_confidences else 0.0
+        merged.data_completeness = len([conf for conf in field_confidences.values() if conf.value is not None]) / len(
+            field_confidences) if field_confidences else 0.0
+
+        return merged
 
     def _create_debug_entry(self, match_result: DelistingMatchResult) -> Dict[str, Any]:
         """Create debug entry for a match result."""
-        
-        delisting = match_result.merged_delisting
-        
+
+        merged = match_result.merged_delisting
+
         return {
             'master_symbol': match_result.master_symbol,
             'match_quality': match_result.match_quality,
-            'source_count': len(delisting.source_list),
-            'sources': delisting.source_list,
-            'overall_confidence': delisting.overall_confidence,
-            'data_completeness': delisting.data_completeness,
-            'source_agreement_score': delisting.source_agreement_score,
-            'delisting_date': delisting.delisting_date,
-            'delisting_type': delisting.delisting_type,
-            'mapping_confidence': delisting.symbol_mapping.mapping_confidence if delisting.symbol_mapping else 0.0,
-            'unmapped_sources': delisting.symbol_mapping.unmapped_sources if delisting.symbol_mapping else [],
-            'match_details': match_result.match_details
+            'sources': match_result.match_details['sources_matched'],
+            'source_count': len(match_result.match_details['sources_matched']),
+            'overall_confidence': merged.overall_confidence,
+            'source_agreement': merged.source_agreement_score,
+            'data_completeness': merged.data_completeness,
+            'delisting_date': merged.delisting_date,
+            'delisting_type': merged.delisting_type,
+            'company_name': merged.company_name,
+            'field_agreements': {
+                'delisting_date': merged.field_confidences.get('delisting_date',
+                                                               FieldConfidence(None, 0, 0, 0, [])).agreement_ratio,
+                'delisting_type': merged.field_confidences.get('delisting_type',
+                                                               FieldConfidence(None, 0, 0, 0, [])).agreement_ratio,
+                'company_name': merged.field_confidences.get('company_name',
+                                                             FieldConfidence(None, 0, 0, 0, [])).agreement_ratio,
+            },
+            'disagreements': {
+                field: conf.disagreement_details
+                for field, conf in merged.field_confidences.items()
+                if conf.disagreement_details
+            },
+            'symbol_mapping_info': {
+                'mapping_confidence': merged.symbol_mapping.mapping_confidence if merged.symbol_mapping else 0,
+                'source_mappings': merged.symbol_mapping.source_mappings if merged.symbol_mapping else {},
+                'unmapped_sources': merged.symbol_mapping.unmapped_sources if merged.symbol_mapping else []
+            },
+            'raw_data_summary': {
+                source: {
+                    'symbol': data.get('symbol') or data.get('ticker'),
+                    'date': data.get('process_date') or data.get('date'),
+                    'name': data.get('name')
+                }
+                for source, data in merged.raw_data.items()
+            }
         }
 
-    def export_unified_delistings(self, results, data_dir=None, filename=None):
-        """Export unified delistings to CSV format"""
-        if data_dir is None:
-            data_dir = config.data_dir
-            
-        if filename is None:
-            filename = config.get_unified_filename(config.unified_delistings_file)
+    def export_debug_report(self, debug_dir: str):
+        """Export debug report to JSON file."""
 
-        os.makedirs(data_dir, exist_ok=True)
-        csv_file_path = os.path.join(data_dir, filename)
+        debug_file_path = os.path.join(debug_dir, 'delisting_debug.json')
+        summary_file_path = os.path.join(debug_dir, 'delisting_summary.csv')
+
+        os.makedirs(debug_dir, exist_ok=True)
+
+        # Export detailed debug JSON
+        with open(debug_file_path, 'w') as f:
+            json.dump(self.debug_results, f, indent=2, default=str)
+
+        # Export summary CSV
+        summary_data = []
+        for result in self.debug_results:
+            summary_data.append({
+                'master_symbol': result['master_symbol'],
+                'match_quality': result['match_quality'],
+                'source_count': result['source_count'],
+                'overall_confidence': result['overall_confidence'],
+                'delisting_date': result['delisting_date'],
+                'delisting_type': result['delisting_type']
+            })
+
+        pd.DataFrame(summary_data).to_csv(summary_file_path, index=False)
+
+        print(f"Debug report exported to {debug_file_path}")
+        print(f"Summary CSV exported to {summary_file_path}")
+
+    def export_unified_delistings(self, results, filename):
+        """Export unified delistings to CSV file."""
+
+        if not results:
+            print("No delisting results to export.")
+            return None
+
+        os.makedirs(os.path.dirname(filename), exist_ok=True)
+        csv_file_path = os.path.join(filename)
 
         csv_data = []
         for result in results:
@@ -412,51 +481,93 @@ class EnhancedDelistingProcessor:
 
         pd.DataFrame(csv_data).to_csv(csv_file_path, index=False)
         print(f"CSV summary exported to {csv_file_path}")
+
         return csv_file_path
 
-    def export_debug_report(self, debug_dir=None):
-        """Export detailed debug report."""
-        if debug_dir is None:
-            debug_dir = config.debug_dir
 
-        os.makedirs(debug_dir, exist_ok=True)
-        debug_file = os.path.join(debug_dir, f"delisting_debug_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json")
+def extract_delisting_from_sources(alpaca_data: Dict[str, pd.DataFrame],
+                                   fmp_data: Dict[str, pd.DataFrame],
+                                   poly_data: Dict[str, pd.DataFrame],
+                                   sharadar_data: pd.DataFrame) -> Dict[str, List[Dict[str, Any]]]:
+    """Extract delisting data from all sources and return in standardized format."""
 
-        with open(debug_file, 'w') as f:
-            json.dump(self.debug_results, f, indent=2, default=str)
+    extracted_data = {}
 
-        print(f"Debug report exported to {debug_file}")
-        return debug_file
+    # Extract from Alpaca - look for delisting/worthless actions
+    alpaca_delistings = []
+    for action_type, df in alpaca_data.items():
+        if 'worthless' in action_type.lower() or 'delisting' in action_type.lower():
+            if not df.empty:
+                alpaca_delistings.extend(df.to_dict('records'))
+    extracted_data['alpaca'] = alpaca_delistings
+
+    # Extract from FMP - no delisting data typically
+    extracted_data['fmp'] = []
+
+    # Extract from Polygon - no delisting data typically
+    extracted_data['poly'] = []
+
+    # Extract from Sharadar (filter for delisting actions)
+    if not sharadar_data.empty:
+        # Look for various delisting action types
+        delisting_actions = ['delisted', 'worthless', 'regulatory', 'voluntary']
+        delisting_records = sharadar_data[sharadar_data['action'].isin(delisting_actions)]
+        extracted_data['sharadar'] = delisting_records.to_dict('records')
+    else:
+        extracted_data['sharadar'] = []
+
+    return extracted_data
 
 
-if __name__ == "__main__":
+def run(alpaca_data: Dict[str, pd.DataFrame],
+        fmp_data: Dict[str, pd.DataFrame],
+        poly_data: Dict[str, pd.DataFrame],
+        sharadar_data: pd.DataFrame):
+    """Main function to process delistings from all sources."""
+
     # Ensure directories exist
     config.ensure_directories()
-    
-    # Use configuration paths
-    data_dir = config.data_dir
-    debug_dir = config.debug_dir
 
     # Find master files using configured path
-    master_files = glob.glob(os.path.join(config.master_files_dir, '*.csv'))
+    master_files = glob.glob(os.path.join(config.master_files_dir, '*_MASTER_UPDATED.csv'))
     if not master_files:
         raise FileNotFoundError(f"No master CSV files found in {config.master_files_dir}")
 
-    master_file = max(master_files)
+    master_file = max(master_files)  # Get the most recent master file
     print(f"Using master file: {master_file}")
 
+    # Extract delisting data from all sources
+    print("Extracting delisting data from sources...")
+    source_data = extract_delisting_from_sources(alpaca_data, fmp_data, poly_data, sharadar_data)
+
+    # Print extraction summary
+    total_records = sum(len(data) for data in source_data.values())
+    for source, data in source_data.items():
+        print(f"  - {source}: {len(data)} delisting records extracted")
+
+    if total_records == 0:
+        print("No delisting records found in any source. Skipping delisting processing.")
+        return
+
+    # Initialize processor
     processor = EnhancedDelistingProcessor(master_file)
 
-    source_data = {
-        'alpaca': [{'symbol': 'XYZ', 'process_date': '2025-08-15'}],
-        'sharadar_delisted': [{'ticker': 'XYZ', 'date': '2025-08-15', 'name': 'XYZ Corporation'}]
-    }
-
+    # Process all sources
+    print("Processing delistings from all sources...")
     results = processor.process_all_sources(source_data)
-    processor.export_debug_report(debug_dir)
-    processor.export_unified_delistings(results, data_dir)
 
-    print(f"Processed {len(results)} delisting matches")
-    for result in results:
-        print(f"{result.master_symbol}: Quality {result.match_quality:.2%}, "
-              f"Confidence {result.merged_delisting.overall_confidence:.2%}")
+    # Always export debug report (even if empty)
+    processor.export_debug_report(config.debug_dir)
+
+    # Only export CSV if we have results
+    if results:
+        # Ensure the filename is set properly
+        delisting_filename = config.unified_delisting_file or 'unified_delisting.csv'
+        processor.export_unified_delistings(results, os.path.join(config.data_dir, delisting_filename))
+
+        print(f"Processed {len(results)} delisting matches")
+        for result in results:
+            print(f"{result.master_symbol}: Quality {result.match_quality:.2%}, "
+                  f"Confidence {result.merged_delisting.overall_confidence:.2%}")
+    else:
+        print("No delisting matches found after processing.")
