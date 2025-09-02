@@ -1,6 +1,5 @@
 import pandas as pd
 import os
-from datetime import datetime
 from source.providers.utils import standardize
 from source.config import config
 
@@ -18,8 +17,8 @@ def load_fmp_data():
     Loads and merges FMP data from JSON files using pandas.
     """
     # Ensure data directory exists
-    os.makedirs(config.data_dir, exist_ok=True)
-    raw_file_path = os.path.join(config.data_dir, f"{datetime.now().strftime('%Y%m%d')}_FMP_raw.csv")
+    # os.makedirs(config.data_dir, exist_ok=True)
+    # raw_file_path = os.path.join(config.data_dir, f"{datetime.now().strftime('%Y%m%d')}_FMP_raw.csv")
 
     # Construct absolute paths to the data files
     nasdaq_path = os.path.join(config.fmp_data_path, config.fmp_nasdaq_file)
@@ -43,8 +42,8 @@ def load_fmp_data():
     merged_df = pd.merge(combined_df, symbol_list_df, on='symbol', how='left')
 
     # Save the raw merged DataFrame
-    merged_df.to_csv(raw_file_path, index=False)
-    print(f"Saved raw FMP data to: {raw_file_path}")
+    # merged_df.to_csv(raw_file_path, index=False)
+    # print(f"Saved raw FMP data to: {raw_file_path}")
 
     # Select and rename columns
     merged_df = merged_df[OLD_COLUMNS]

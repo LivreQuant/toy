@@ -15,8 +15,8 @@ def load_alphavantage_data():
     Fetches listing status from Alpha Vantage API, caches it, and returns a DataFrame.
     """
     # Ensure data directory exists
-    os.makedirs(config.data_dir, exist_ok=True)
-    file_path = os.path.join(config.data_dir, f"{datetime.now().strftime('%Y%m%d')}_AV.csv")
+    os.makedirs(config.alphavantage_data_path, exist_ok=True)
+    file_path = os.path.join(config.alphavantage_data_path, f"{datetime.now().strftime('%Y%m%d')}_AV.csv")
 
     # Check if the cached file exists
     if os.path.exists(file_path):

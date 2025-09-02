@@ -1,7 +1,6 @@
 import pandas as pd
 import os
 import json
-from datetime import datetime
 from source.providers.utils import standardize
 from source.config import config
 
@@ -19,7 +18,8 @@ NEW_COLUMNS = ['pl_symbol', 'exchange', 'pl_type', 'pl_name',
                'pl_share_class_shares_outstanding',
                'pl_cik', 'pl_sic_code', 'pl_sic_description',
                'pl_location',
-               'pl_market_capital_2', 'pl_description', 'pl_homepage_url', 'pl_branding', 'pl_weighted_shares_outstanding']
+               'pl_market_capital_2', 'pl_description', 'pl_homepage_url', 'pl_branding',
+               'pl_weighted_shares_outstanding']
 
 
 def load_poly_data():
@@ -28,8 +28,8 @@ def load_poly_data():
     Only the 'results' key from each file is loaded.
     """
     # Ensure data directory exists
-    os.makedirs(config.data_dir, exist_ok=True)
-    raw_file_path = os.path.join(config.data_dir, f"{datetime.now().strftime('%Y%m%d')}_POLY_raw.csv")
+    # os.makedirs(config.data_dir, exist_ok=True)
+    # raw_file_path = os.path.join(config.data_dir, f"{datetime.now().strftime('%Y%m%d')}_POLY_raw.csv")
 
     all_results = []
 
@@ -51,8 +51,8 @@ def load_poly_data():
     df = pd.DataFrame(all_results)
 
     # Save the raw DataFrame
-    df.to_csv(raw_file_path, index=False)
-    print(f"Saved raw Poly data to: {raw_file_path}")
+    # df.to_csv(raw_file_path, index=False)
+    # print(f"Saved raw Poly data to: {raw_file_path}")
 
     # Columns to keep
     df = df[OLD_COLUMNS]

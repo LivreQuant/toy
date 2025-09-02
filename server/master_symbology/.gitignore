@@ -30,7 +30,13 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# raw data
+# source data and output
+source_data/
+output/
+source_data/*
+output/*
+
+# legacy directories (can be removed after migration)
 example/
 data/
 debug/
@@ -38,5 +44,6 @@ example/*
 data/*
 debug/*
 
-# enviornment variables
+# environment variables
 source/.env
+.env

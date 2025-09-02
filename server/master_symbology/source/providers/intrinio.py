@@ -1,6 +1,5 @@
 import pandas as pd
 import os
-from datetime import datetime
 from source.providers.utils import standardize
 from source.config import config
 
@@ -20,8 +19,8 @@ def load_intrinio_data():
     Loads and merges Intrinio data from JSON files using pandas.
     """
     # Ensure data directory exists
-    os.makedirs(config.data_dir, exist_ok=True)
-    raw_file_path = os.path.join(config.data_dir, f"{datetime.now().strftime('%Y%m%d')}_INTRINIO_raw.csv")
+    #os.makedirs(config.data_dir, exist_ok=True)
+    #raw_file_path = os.path.join(config.data_dir, f"{datetime.now().strftime('%Y%m%d')}_INTRINIO_raw.csv")
 
     # Construct absolute paths to the data files
     securities_path = os.path.join(config.intrinio_data_path, config.intrinio_securities_file)
@@ -41,8 +40,8 @@ def load_intrinio_data():
     merged_df = pd.merge(securities_df, stock_exchange_df, on='id', how='left')
 
     # Save the raw merged DataFrame
-    merged_df.to_csv(raw_file_path, index=False)
-    print(f"Saved raw Intrinio data to: {raw_file_path}")
+    #merged_df.to_csv(raw_file_path, index=False)
+    #print(f"Saved raw Intrinio data to: {raw_file_path}")
 
     # Columns to keep
     merged_df = merged_df[OLD_COLUMNS]

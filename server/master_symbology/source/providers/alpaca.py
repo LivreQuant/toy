@@ -21,8 +21,8 @@ def load_alpaca_data():
     Fetches assets from Alpaca API, caches them, and returns a DataFrame.
     """
     # Ensure data directory exists
-    os.makedirs(config.data_dir, exist_ok=True)
-    file_path = os.path.join(config.data_dir, f"{datetime.now().strftime('%Y%m%d')}_ALPACA.csv")
+    os.makedirs(config.alpaca_data_path, exist_ok=True)
+    file_path = os.path.join(config.alpaca_data_path, f"{datetime.now().strftime('%Y%m%d')}_ALPACA.csv")
 
     # Check if the cached file exists
     if os.path.exists(file_path):

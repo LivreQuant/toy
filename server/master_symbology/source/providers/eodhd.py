@@ -17,8 +17,8 @@ def load_eodhd_data():
     Fetches exchange symbol list from EODHD API, caches it, and returns a DataFrame.
     """
     # Ensure data directory exists
-    os.makedirs(config.data_dir, exist_ok=True)
-    file_path = os.path.join(config.data_dir, f"{datetime.now().strftime('%Y%m%d')}_EODHD.csv")
+    os.makedirs(config.eodhd_data_path, exist_ok=True)
+    file_path = os.path.join(config.eodhd_data_path, f"{datetime.now().strftime('%Y%m%d')}_EODHD.csv")
 
     # Check if the cached file exists
     if os.path.exists(file_path):

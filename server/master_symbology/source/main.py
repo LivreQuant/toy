@@ -1,17 +1,18 @@
 import os
 import numpy as np
 from datetime import datetime
+from source.config import config
 
-from source.providers.fmp import load_fmp_data
-from source.providers.intrinio import load_intrinio_data
-from source.providers.poly import load_poly_data
-from source.providers.nasdaq import load_nasdaq_data
-from source.providers.nyse import load_nyse_data
+from source.providers.alpaca import load_alpaca_data
 from source.providers.alphavantage import load_alphavantage_data
 from source.providers.eodhd import load_eodhd_data
-from source.providers.alpaca import load_alpaca_data
-from source.providers.sharadar import load_sharadar_data
 from source.providers.finance_db import load_fd_data
+from source.providers.fmp import load_fmp_data
+from source.providers.intrinio import load_intrinio_data
+from source.providers.nasdaq import load_nasdaq_data
+from source.providers.nyse import load_nyse_data
+from source.providers.poly import load_poly_data
+from source.providers.sharadar import load_sharadar_data
 
 from source.providers.utils import (
     merge_and_prioritize, average_or_keep, process_location, clean_branding_url,
@@ -267,18 +268,13 @@ def main_with_debugging():
             for type_name, count in type_counts.items():
                 print(f"  {type_name}: {count:,}")
 
-        # Compare with previous day
-        print("\nComparing with previous day's data...")
-        daily_comparison = generate_comparison_with_previous(df_in_price, debug_dir)
-
         # Generate summary report
         print("\nGenerating debug summary...")
-        generate_debug_summary(debug_dir, provider_debugs, cross_analysis, merge_validation, daily_comparison)
+        generate_debug_summary(debug_dir, provider_debugs, cross_analysis, merge_validation)
 
         # Save final output
-        data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "data"))
-        os.makedirs(data_dir, exist_ok=True)
-        file_path = os.path.join(data_dir, f"{datetime.now().strftime('%Y%m%d')}_MASTER.csv")
+        os.makedirs(config.data_dir, exist_ok=True)
+        file_path = os.path.join(config.data_dir, f"{datetime.now().strftime('%Y%m%d')}_MASTER.csv")
 
         if not df_in_price.empty:
             df_in_price.to_csv(file_path, sep="|", index=False)
@@ -290,8 +286,6 @@ def main_with_debugging():
             print("Check the debug output above to see what's wrong with the al_symbol column.")
 
         print(f"Debug files available in: {debug_dir}")
-
-        return df_in_price, debug_dir
 
     except Exception as e:
         # Save error information

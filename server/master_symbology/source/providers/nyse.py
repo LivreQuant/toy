@@ -65,8 +65,8 @@ def load_nyse_data():
     Caches the data to a local file.
     """
     # Ensure data directory exists
-    os.makedirs(config.data_dir, exist_ok=True)
-    file_path = os.path.join(config.data_dir, f"{datetime.datetime.now().strftime('%Y%m%d')}_NYSE.csv")
+    os.makedirs(config.nyse_data_path, exist_ok=True)
+    file_path = os.path.join(config.nyse_data_path, f"{datetime.datetime.now().strftime('%Y%m%d')}_NYSE.csv")
 
     # Check if the cached file exists
     if os.path.exists(file_path):

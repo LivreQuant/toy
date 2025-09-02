@@ -5,34 +5,30 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="e9e6cd4c-684f-4e66-8307-213b18173ec7" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/source/compare/data_changes.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/source/compare/generate_summary_report.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/source/compare/missing_symbols.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/source/compare/new_symbols.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/source/compare/run.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../corporate_actions/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/../corporate_actions/.gitignore" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../corporate_actions/source/actions/cash_dividends.py" beforeDir="false" afterPath="$PROJECT_DIR$/../corporate_actions/source/actions/cash_dividends.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../corporate_actions/source/actions/delisting.py" beforeDir="false" afterPath="$PROJECT_DIR$/../corporate_actions/source/actions/delisting.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../corporate_actions/source/actions/ipo.py" beforeDir="false" afterPath="$PROJECT_DIR$/../corporate_actions/source/actions/ipo.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../corporate_actions/source/actions/mergers.py" beforeDir="false" afterPath="$PROJECT_DIR$/../corporate_actions/source/actions/mergers.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../corporate_actions/source/actions/rights.py" beforeDir="false" afterPath="$PROJECT_DIR$/../corporate_actions/source/actions/rights.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../corporate_actions/source/actions/spinoffs.py" beforeDir="false" afterPath="$PROJECT_DIR$/../corporate_actions/source/actions/spinoffs.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../corporate_actions/source/actions/split.py" beforeDir="false" afterPath="$PROJECT_DIR$/../corporate_actions/source/actions/split.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../corporate_actions/source/actions/stock_dividend.py" beforeDir="false" afterPath="$PROJECT_DIR$/../corporate_actions/source/actions/stock_dividend.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../corporate_actions/source/actions/symbol_change.py" beforeDir="false" afterPath="$PROJECT_DIR$/../corporate_actions/source/actions/symbol_change.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../corporate_actions/source/actions/symbol_mapper.py" beforeDir="false" afterPath="$PROJECT_DIR$/../corporate_actions/source/actions/symbol_mapper.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../corporate_actions/source/actions/utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/../corporate_actions/source/actions/utils.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../corporate_actions/source/history/alpaca.py" beforeDir="false" afterPath="$PROJECT_DIR$/../corporate_actions/source/history/alpaca.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../corporate_actions/source/history/fmp.py" beforeDir="false" afterPath="$PROJECT_DIR$/../corporate_actions/source/history/fmp.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../corporate_actions/source/history/poly.py" beforeDir="false" afterPath="$PROJECT_DIR$/../corporate_actions/source/history/poly.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../corporate_actions/source/history/sharadar.py" beforeDir="false" afterPath="$PROJECT_DIR$/../corporate_actions/source/history/sharadar.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../corporate_actions/source/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/../corporate_actions/source/main.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../corporate_actions/source/providers/alpaca.py" beforeDir="false" afterPath="$PROJECT_DIR$/../corporate_actions/source/providers/alpaca.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../corporate_actions/source/providers/fmp.py" beforeDir="false" afterPath="$PROJECT_DIR$/../corporate_actions/source/providers/fmp.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../corporate_actions/source/providers/poly.py" beforeDir="false" afterPath="$PROJECT_DIR$/../corporate_actions/source/providers/poly.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../corporate_actions/source/providers/sharadar.py" beforeDir="false" afterPath="$PROJECT_DIR$/../corporate_actions/source/providers/sharadar.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../validate/source/config.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../validate/source/main.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../validate/source/master/compare.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../validate/source/master/utils.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../validate/source/requirements.txt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/source/config.py" beforeDir="false" afterPath="$PROJECT_DIR$/source/config.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/source/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/source/main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/source/providers/alpaca.py" beforeDir="false" afterPath="$PROJECT_DIR$/source/providers/alpaca.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/source/providers/alphavantage.py" beforeDir="false" afterPath="$PROJECT_DIR$/source/providers/alphavantage.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/source/providers/eodhd.py" beforeDir="false" afterPath="$PROJECT_DIR$/source/providers/eodhd.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/source/providers/finance_db.py" beforeDir="false" afterPath="$PROJECT_DIR$/source/providers/finance_db.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/source/providers/fmp.py" beforeDir="false" afterPath="$PROJECT_DIR$/source/providers/fmp.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/source/providers/intrinio.py" beforeDir="false" afterPath="$PROJECT_DIR$/source/providers/intrinio.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/source/providers/nasdaq.py" beforeDir="false" afterPath="$PROJECT_DIR$/source/providers/nasdaq.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/source/providers/nyse.py" beforeDir="false" afterPath="$PROJECT_DIR$/source/providers/nyse.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/source/providers/poly.py" beforeDir="false" afterPath="$PROJECT_DIR$/source/providers/poly.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/source/providers/sharadar.py" beforeDir="false" afterPath="$PROJECT_DIR$/source/providers/sharadar.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/source/providers/utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/source/providers/utils.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../validate/source/data_changes.py" beforeDir="false" afterPath="$PROJECT_DIR$/../validate/source/old/data_changes.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../validate/source/generate_summary_report.py" beforeDir="false" afterPath="$PROJECT_DIR$/../validate/source/old/generate_summary_report.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../validate/source/missing_symbols.py" beforeDir="false" afterPath="$PROJECT_DIR$/../validate/source/old/missing_symbols.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../validate/source/new_symbols.py" beforeDir="false" afterPath="$PROJECT_DIR$/../validate/source/old/new_symbols.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -66,7 +62,7 @@
     "RunOnceActivity.OpenProjectViewOnStart": "true",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "git-widget-placeholder": "main",
-    "last_opened_file_path": "/home/samaral/projects/toy/20250325/server/master_symbology/source/providers"
+    "last_opened_file_path": "/home/samaral/projects/toy/20250325/server/validate"
   }
 }]]></component>
   <component name="RecentsManager">
@@ -174,5 +170,16 @@
       <updated>1756316451260</updated>
     </task>
     <servers />
+  </component>
+  <component name="XDebuggerManager">
+    <breakpoint-manager>
+      <breakpoints>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/source/main.py</url>
+          <line>255</line>
+          <option name="timeStamp" value="2" />
+        </line-breakpoint>
+      </breakpoints>
+    </breakpoint-manager>
   </component>
 </project>
