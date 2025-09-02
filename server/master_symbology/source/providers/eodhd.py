@@ -5,6 +5,11 @@ from datetime import datetime
 from source.providers.utils import standardize
 from source.config import config
 
+from pathlib import Path
+
+csv_path = Path(__file__).parent / "../standards/types.csv"
+df_types = pd.read_csv(csv_path)
+
 OLD_COLUMNS = ['Code', 'Exchange', 'Type', 'Name',
                'Country', 'Currency', 'Isin']
 
@@ -101,6 +106,12 @@ def load_eodhd_data():
             'Mutual Fund': 'CEF',
             'BOND': 'BND'
         })
+
+        # Find which sh_type values are not in Code
+        missing = df.loc[~df["ed_type"].isin(df_types["Code"]), "ed_type"].unique()
+
+        if len(missing) > 0:
+            raise ValueError(f"Invalid sh_type(s) not in Code: {missing.tolist()}")
 
         return df
 

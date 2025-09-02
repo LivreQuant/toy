@@ -1,7 +1,7 @@
-import os
 from source.config import config
 from source.providers import fmp, poly, sharadar, alpaca
 
+from source.actions import cash_dividends
 
 def main():
     """Main function to load data from all sources."""
@@ -29,6 +29,9 @@ def main():
     print("Alpaca data loaded:")
     for action_type, df in alpaca_data.items():
         print(f"  - {action_type}: {len(df)} records")
+
+    print("\nAnalyzing Cash Dividends...")
+    cash_dividends.run(alpaca_data, fmp_data, poly_data, sharadar_data)
 
 
 if __name__ == "__main__":

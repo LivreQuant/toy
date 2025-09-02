@@ -30,12 +30,25 @@ class Config:
                                      'market_capital,scalemarketcap,shares_outstanding,share_class_shares_outstanding,weighted_shares_outstanding,lot,margin_requirement_short,margin_requirement_long,maintenance_margin_requirement,sic_code')
     NUMERIC_COLUMNS = set(col.strip() for col in _numeric_columns_str.split(',') if col.strip())
 
+    # Columns to use previous day's value if current day is empty
+    _use_prev_columns_str = os.getenv('USE_PREV',
+                                      'fama_industry,naics_code,gics_sector,gics_industry,company_description,primary_sector')
+    USE_PREV_COLUMNS = set(col.strip() for col in _use_prev_columns_str.split(',') if col.strip())
+
     # Logging
     LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
 
     def get_output_dir(self, date_str: str) -> Path:
         """Get the output directory for a specific date"""
         return self.MASTER_FILE_DIR / date_str / "diff"
+
+    def get_primary_diff_dir(self, date_str: str) -> Path:
+        """Get the primary diff directory for important changes"""
+        return self.MASTER_FILE_DIR / date_str / "diff" / "primary"
+
+    def get_secondary_diff_dir(self, date_str: str) -> Path:
+        """Get the secondary diff directory for USE_PREV related changes"""
+        return self.MASTER_FILE_DIR / date_str / "diff" / "secondary"
 
     def get_data_dir(self, date_str: str) -> Path:
         """Get the data directory for a specific date"""
@@ -55,6 +68,7 @@ class Config:
             'MASTER_FILE_PATTERN': self.MASTER_FILE_PATTERN,
             'IGNORE_COLUMNS': sorted(list(self.IGNORE_COLUMNS)),
             'NUMERIC_COLUMNS': sorted(list(self.NUMERIC_COLUMNS)),
+            'USE_PREV_COLUMNS': sorted(list(self.USE_PREV_COLUMNS)),
             'LOG_LEVEL': self.LOG_LEVEL
         }
 

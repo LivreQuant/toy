@@ -478,16 +478,10 @@ class EnhancedCashDividendProcessor:
         print(f"Debug report exported to {debug_file_path}")
         print(f"Summary CSV exported to {summary_file_path}")
         
-    def export_unified_dividends(self, results, data_dir=None, filename=None):
-        """Export unified dividends to CSV format"""
-        if data_dir is None:
-            data_dir = config.data_dir
-        
-        if filename is None:
-            filename = config.get_unified_filename(config.unified_cash_dividends_file)
+    def export_unified_dividends(self, results, filename):
 
-        os.makedirs(data_dir, exist_ok=True)
-        csv_file_path = os.path.join(data_dir, filename)
+        os.makedirs(os.path.dirname(filename), exist_ok=True)
+        csv_file_path = os.path.join(filename)
 
         csv_data = []
         for result in results:
@@ -519,17 +513,16 @@ class EnhancedCashDividendProcessor:
         return csv_file_path
         
 
-if __name__ == "__main__":
+def run(alpaca_data: pd.DataFrame,
+        fmp_data: pd.DataFrame,
+        poly_data: pd.DataFrame,
+        sharadar_data: pd.DataFrame):
+
     # Ensure directories exist
     config.ensure_directories()
     
-    # Use configuration paths
-    data_dir = config.data_dir
-    debug_dir = config.debug_dir
-    example_dir = config.example_dir
-
     # Find master files using configured path
-    master_files = glob.glob(os.path.join(config.master_files_dir, '*.csv'))
+    master_files = glob.glob(os.path.join(config.master_files_dir, '*_MASTER_UPDATED.csv'))
     if not master_files:
         raise FileNotFoundError(f"No master CSV files found in {config.master_files_dir}")
 
@@ -538,18 +531,13 @@ if __name__ == "__main__":
 
     processor = EnhancedCashDividendProcessor(master_file)
 
-    # Example data from different sources
-    source_data = {
-        'alpaca': [{'symbol': 'AAPL', 'ex_date': '2025-08-15', 'payable_date': '2025-08-22', 'rate': 0.25}],
-        'fmp': [{'symbol': 'AAPL', 'date': '2025-08-15', 'dividend': 0.24, 'paymentDate': '2025-08-23'}],
-        'poly': [{'ticker': 'AAPL', 'ex_dividend_date': '2025-08-15', 'cash_amount': 0.25}]
-    }
+    source_data = {alpaca_data, fmp_data, poly_data, sharadar_data}
 
     results = processor.process_all_sources(source_data)
 
     # Export to appropriate directories
-    processor.export_debug_report(debug_dir)
-    processor.export_unified_dividends(results, data_dir)
+    processor.export_debug_report(config.debug_dir)
+    processor.export_unified_dividends(results, os.path.join(config.data_dir, config.unified_cash_dividends_file))
 
     print(f"Processed {len(results)} dividend matches")
     for result in results:

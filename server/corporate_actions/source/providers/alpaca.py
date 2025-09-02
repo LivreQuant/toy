@@ -16,7 +16,7 @@ def load_data():
         A dictionary of pandas DataFrames, where each key is a corporate action
         type and the value is a DataFrame containing the data for that action.
     """
-    alpaca_dir = os.path.join(config.example_dir, 'alpaca')
+    alpaca_dir = os.path.join(config.source_ca_dir, 'alpaca')
 
     # Check if the alpaca directory exists
     if not Path(alpaca_dir).exists():

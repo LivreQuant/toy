@@ -3,6 +3,11 @@ import os
 from source.providers.utils import standardize
 from source.config import config
 
+from pathlib import Path
+
+csv_path = Path(__file__).parent / "../standards/types.csv"
+df_types = pd.read_csv(csv_path)
+
 OLD_COLUMNS = ['symbol', 'exchange_y', 'type', 'name_x',
                'marketCap',
                'earningsAnnouncement', 'sharesOutstanding']
@@ -67,5 +72,11 @@ def load_fmp_data():
         'fund': 'FND',
         'trust': 'TRT'
     })
+
+    # Find which sh_type values are not in Code
+    missing = merged_df.loc[~merged_df["fp_type"].isin(df_types["Code"]), "fp_type"].unique()
+
+    if len(missing) > 0:
+        raise ValueError(f"Invalid sh_type(s) not in Code: {missing.tolist()}")
 
     return merged_df

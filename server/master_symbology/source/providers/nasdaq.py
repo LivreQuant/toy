@@ -1,9 +1,13 @@
 import pandas as pd
 import requests
 import os
-from datetime import datetime
 from source.providers.utils import standardize
 from source.config import config
+
+from pathlib import Path
+
+csv_path = Path(__file__).parent / "../standards/types.csv"
+df_types = pd.read_csv(csv_path)
 
 OLD_COLUMNS = ['Symbol', 'exchange', 'Security Name', 'Financial Status', 'Round Lot Size', 'ETF']
 NEW_COLUMNS = ['na_symbol', 'exchange', 'na_name', 'na_status', 'na_lot', 'na_etf']
@@ -22,6 +26,20 @@ def load_nasdaq_data():
     if os.path.exists(file_path):
         print(f"Loading data from cached file: {file_path}")
         df = pd.read_csv(file_path)
+
+        # Normalize symbols (e.g., upper case) to catch duplicates
+        df["symbol_norm"] = df["Symbol"].str.upper()
+
+        # Count uppercase letters (e.g., TpC vs TPC)
+        df["uppercase_count"] = df["Symbol"].str.count(r"[A-Z]")
+
+        # For each group, keep the one with the most uppercase letters (keep TPC)
+        df = (
+            df.sort_values(["symbol_norm", "uppercase_count"], ascending=[True, False])
+            .drop_duplicates("symbol_norm", keep="first")
+            .drop(columns=["symbol_norm", "uppercase_count"])
+            .reset_index(drop=True)
+        )
 
         # Exchange
         df['exchange'] = 'XNAS'

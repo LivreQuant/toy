@@ -3,6 +3,10 @@ import os
 from source.providers.utils import standardize
 from source.config import config
 import glob
+from pathlib import Path
+
+csv_path = Path(__file__).parent / "../standards/types.csv"
+df_types = pd.read_csv(csv_path)
 
 OLD_COLUMNS = ['ticker', 'exchange', 'category', 'name', 'currency',
                'secfilings', 'cusips', 'siccode', 'sicsector', 'sicindustry',
@@ -71,6 +75,12 @@ def load_sharadar_data():
         'ADR Common Stock Secondary Class': 'DR',
         'Canadian Common Stock Warrant': 'WAR',
     })
+
+    # Find which sh_type values are not in Code
+    missing = sharadar_df.loc[~sharadar_df["sh_type"].isin(df_types["Code"]), "sh_type"].unique()
+
+    if len(missing) > 0:
+        raise ValueError(f"Invalid sh_type(s) not in Code: {missing.tolist()}")
 
     # Get cik
     sharadar_df['sh_cik'] = sharadar_df['sh_cik'].str.extract('CIK=(.*)')

@@ -5,6 +5,11 @@ from datetime import datetime
 from source.providers.utils import standardize
 from source.config import config
 
+from pathlib import Path
+
+csv_path = Path(__file__).parent / "../standards/types.csv"
+df_types = pd.read_csv(csv_path)
+
 OLD_COLUMNS = ['symbol', 'exchange', 'name', 'status', 'tradable', 'marginable',
                'maintenance_margin_requirement', 'margin_requirement_long', 'margin_requirement_short',
                'shortable', 'easy_to_borrow']

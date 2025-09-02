@@ -4,6 +4,11 @@ import json
 from source.providers.utils import standardize
 from source.config import config
 
+from pathlib import Path
+
+csv_path = Path(__file__).parent / "../standards/types.csv"
+df_types = pd.read_csv(csv_path)
+
 OLD_COLUMNS = ['ticker', 'primary_exchange', 'type', 'name',
                'locale', 'active', 'currency_name',
                'composite_figi', 'share_class_figi',
@@ -73,6 +78,12 @@ def load_poly_data():
         'ADRC': 'DR',
         'RIGHT': 'RTS'
     })
+
+    # Find which sh_type values are not in Code
+    missing = df.loc[~df["pl_type"].isin(df_types["Code"]), "pl_type"].unique()
+
+    if len(missing) > 0:
+        raise ValueError(f"Invalid sh_type(s) not in Code: {missing.tolist()}")
 
     # Branding
     df['pl_branding'] = df['pl_branding'].str.get('logo_url')

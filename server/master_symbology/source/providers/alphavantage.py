@@ -6,6 +6,11 @@ from datetime import datetime
 from source.providers.utils import standardize
 from source.config import config
 
+from pathlib import Path
+
+csv_path = Path(__file__).parent / "../standards/types.csv"
+df_types = pd.read_csv(csv_path)
+
 OLD_COLUMNS = ['symbol', 'exchange', 'name', 'status']
 NEW_COLUMNS = ['av_symbol', 'exchange', 'av_name', 'av_status']
 

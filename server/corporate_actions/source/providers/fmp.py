@@ -16,10 +16,10 @@ def load_data():
         - mergers: DataFrame with merger information.
     """
     files_to_load = {
-        'dividends': os.path.join(config.example_dir, 'fmp', 'dividends.json'),
-        'splits': os.path.join(config.example_dir, 'fmp', 'splits.json'),
-        'symbol_changes': os.path.join(config.example_dir, 'fmp', 'symbol_change.json'),
-        'mergers': os.path.join(config.example_dir, 'fmp', 'mergers.json')
+        'dividends': os.path.join(config.source_ca_dir, 'fmp', 'dividends.json'),
+        'splits': os.path.join(config.source_ca_dir, 'fmp', 'splits.json'),
+        'symbol_changes': os.path.join(config.source_symbols_dir, 'fmp', 'symbol_change.json'),
+        'mergers': os.path.join(config.source_ca_dir, 'fmp', 'mergers.json')
     }
 
     results = {}
@@ -30,9 +30,9 @@ def load_data():
                 results[data_type] = pd.read_json(file_path)
             except Exception as e:
                 print(f"Error loading {data_type} from FMP: {e}")
-                results[data_type] = pd.DataFrame()
+                raise ValueError("Missing FMP Data")
         else:
             print(f"File not found: {file_path}")
-            results[data_type] = pd.DataFrame()
+            raise ValueError("Missing FMP Data")
 
     return results

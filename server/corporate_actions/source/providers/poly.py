@@ -14,8 +14,8 @@ def load_data():
         - splits: DataFrame with stock split information.
     """
     files_to_load = {
-        'dividends': os.path.join(config.example_dir, 'poly', 'dividends.json'),
-        'splits': os.path.join(config.example_dir, 'poly', 'splits.json')
+        'dividends': os.path.join(config.source_ca_dir, 'poly', 'dividends.json'),
+        'splits': os.path.join(config.source_ca_dir, 'poly', 'splits.json')
     }
 
     results = {}
@@ -26,9 +26,9 @@ def load_data():
                 results[data_type] = pd.read_json(file_path)
             except Exception as e:
                 print(f"Error loading {data_type} from Polygon: {e}")
-                results[data_type] = pd.DataFrame()
+                raise ValueError("Missing POLY Data")
         else:
             print(f"File not found: {file_path}")
-            results[data_type] = pd.DataFrame()
+            raise ValueError("Missing POLY Data")
 
     return results
