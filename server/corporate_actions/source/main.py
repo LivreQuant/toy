@@ -2,7 +2,12 @@ from source.config import config
 from source.providers import fmp, poly, sharadar, alpaca
 
 from source.actions import cash_dividends
-from source.actions import delisting
+from source.actions import delistings
+from source.actions import ipos
+from source.actions import mergers
+from source.actions import spinoffs
+from source.actions import splits
+from source.actions import symbol_changes
 
 def main():
     """Main function to load data from all sources."""
@@ -35,10 +40,22 @@ def main():
     #cash_dividends.run(alpaca_data, fmp_data, poly_data, sharadar_data)
 
     print("\nAnalyzing Delisting...")
-    delisting.run(alpaca_data, fmp_data, poly_data, sharadar_data)
+    #delisting.run(alpaca_data, fmp_data, poly_data, sharadar_data)
 
     print("\nAnalyzing IPOS...")
-    ipos.run(alpaca_data, fmp_data, poly_data, sharadar_data)
+    #ipo.run(alpaca_data, fmp_data, poly_data, sharadar_data)
+
+    print("\nAnalyzing Mergers...")
+    #mergers.run(alpaca_data, fmp_data, poly_data, sharadar_data)
+
+    print("\nAnalyzing Spinoffs...")
+    #spinoffs.run(alpaca_data, fmp_data, poly_data, sharadar_data)
+
+    print("\nAnalyzing Splits...")
+    #splits.run(alpaca_data, fmp_data, poly_data, sharadar_data)
+
+    print("\nAnalyzing Symbol Changes...")
+    symbol_changes.run(alpaca_data, fmp_data, poly_data, sharadar_data)
 
 
 if __name__ == "__main__":

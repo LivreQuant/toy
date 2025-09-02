@@ -44,7 +44,7 @@ def load_data():
                     continue
 
             if not data or 'corporate_actions' not in data:
-                print(f"No corporate_actions data found in file: {file}")
+                #print(f"No corporate_actions data found in file: {file}")
                 continue
 
             for action_type, actions in data['corporate_actions'].items():

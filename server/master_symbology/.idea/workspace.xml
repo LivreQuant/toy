@@ -5,12 +5,15 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="e9e6cd4c-684f-4e66-8307-213b18173ec7" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/../corporate_actions/source/actions/cash_dividends.py" beforeDir="false" afterPath="$PROJECT_DIR$/../corporate_actions/source/actions/cash_dividends.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../corporate_actions/source/actions/delisting.py" beforeDir="false" afterPath="$PROJECT_DIR$/../corporate_actions/source/actions/delisting.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../corporate_actions/source/config.py" beforeDir="false" afterPath="$PROJECT_DIR$/../corporate_actions/source/config.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../corporate_actions/source/history/poly.py" beforeDir="false" afterPath="$PROJECT_DIR$/../corporate_actions/source/history/poly.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../corporate_actions/source/history/schema_analysis_POLY.json" beforeDir="false" afterPath="$PROJECT_DIR$/../corporate_actions/source/history/schema_analysis_POLY.json" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../corporate_actions/source/actions/ipos.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../corporate_actions/source/actions/delisting.py" beforeDir="false" afterPath="$PROJECT_DIR$/../corporate_actions/source/actions/delistings.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../corporate_actions/source/actions/ipo.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../corporate_actions/source/actions/mergers.py" beforeDir="false" afterPath="$PROJECT_DIR$/../corporate_actions/source/actions/mergers.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../corporate_actions/source/actions/spinoffs.py" beforeDir="false" afterPath="$PROJECT_DIR$/../corporate_actions/source/actions/spinoffs.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../corporate_actions/source/actions/split.py" beforeDir="false" afterPath="$PROJECT_DIR$/../corporate_actions/source/actions/splits.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../corporate_actions/source/actions/symbol_change.py" beforeDir="false" afterPath="$PROJECT_DIR$/../corporate_actions/source/actions/symbol_changes.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../corporate_actions/source/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/../corporate_actions/source/main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../corporate_actions/source/providers/alpaca.py" beforeDir="false" afterPath="$PROJECT_DIR$/../corporate_actions/source/providers/alpaca.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />

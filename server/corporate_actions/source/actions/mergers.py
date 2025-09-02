@@ -1,16 +1,16 @@
+import os
+import glob
+import pandas as pd
+import json
+from datetime import datetime
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
 from decimal import Decimal
 import logging
-import os
 from collections import defaultdict
-import glob
+from source.config import config
 from source.actions.utils import ConfidenceCalculator, FieldConfidence
 from source.actions.symbol_mapper import SymbolMapper
-import json
-import pandas as pd
-from datetime import datetime
-from source.config import config
 
 logger = logging.getLogger(__name__)
 
@@ -36,10 +36,13 @@ class UnifiedMerger:
     # Dates
     ex_date: Optional[str] = None
     payable_date: Optional[str] = None
+    transaction_date: Optional[str] = None
+    accepted_date: Optional[str] = None
 
     # Companies involved
-    acquiree_symbol: Optional[str] = None  # Company being acquired
+    acquiree_symbol: Optional[str] = None  # Company being acquired (target)
     acquirer_symbol: Optional[str] = None  # Company doing the acquiring
+    company_name: Optional[str] = None
 
     # CUSIP/CIK information
     acquiree_cusip: Optional[str] = None
@@ -51,7 +54,8 @@ class UnifiedMerger:
     acquiree_rate: Optional[Decimal] = None  # Rate for acquiree shares
     acquirer_rate: Optional[Decimal] = None  # Rate for acquirer shares
     cash_rate: Optional[Decimal] = None  # Cash component per share
-    deal_type: Optional[str] = None  # stock, mixed
+    deal_value: Optional[Decimal] = None  # Total deal value
+    deal_type: Optional[str] = None  # stock, mixed, cash
 
     # Additional info
     link: Optional[str] = None
@@ -82,56 +86,57 @@ class EnhancedMergerProcessor:
     FIELD_MAPPINGS = {
         'alpaca_stock': {
             'symbol': 'acquiree_symbol',
-            'acquiree_cusip': 'acquiree_cusip',
-            'acquiree_rate': 'acquiree_rate',
-
+            'acquiree_symbol': 'acquiree_symbol',
             'acquirer_symbol': 'acquirer_symbol',
+            'acquiree_cusip': 'acquiree_cusip',
             'acquirer_cusip': 'acquirer_cusip',
+            'acquiree_rate': 'acquiree_rate',
             'acquirer_rate': 'acquirer_rate',
-
-            'cash_rate': 'cash_rate',
-
             'ex_date': 'effective_date',
             'payable_date': 'payable_date',
-
             'deal_type': lambda x: 'stock'
         },
         'alpaca_stock_and_cash': {
             'symbol': 'acquiree_symbol',
-            'acquiree_cusip': 'acquiree_cusip',
-            'acquiree_rate': 'acquiree_rate',
-
+            'acquiree_symbol': 'acquiree_symbol',
             'acquirer_symbol': 'acquirer_symbol',
+            'acquiree_cusip': 'acquiree_cusip',
             'acquirer_cusip': 'acquirer_cusip',
+            'acquiree_rate': 'acquiree_rate',
             'acquirer_rate': 'acquirer_rate',
-
             'cash_rate': 'cash_rate',
-
             'ex_date': 'effective_date',
             'payable_date': 'payable_date',
-
             'deal_type': lambda x: 'mixed'
         },
         'fmp': {
             'symbol': 'targetedSymbol',
+            'acquiree_symbol': 'targetedSymbol',
+            'acquirer_symbol': 'symbol',  # Assuming the main symbol is the acquirer
             'acquiree_cik': 'targetedCik',
-
-            'acquirer_symbol': 'targetedSymbol',
             'acquirer_cik': 'cik',
-
-            'ex_date': 'transactionDate',
-            'payable_date': 'acceptedDate',
-
-            'link': 'link'
+            'transaction_date': 'transactionDate',
+            'accepted_date': 'acceptedDate',
+            'link': 'link',
+            'deal_type': lambda x: 'acquisition'
         },
-        'sharadar': {
+        'sharadar_mergerfrom': {
             'symbol': 'ticker',
-
+            'acquiree_symbol': 'ticker',
             'acquirer_symbol': 'contraticker',
-
+            'company_name': 'contraname',
             'ex_date': 'date',
-
-            'cash_rate': 'value'
+            'deal_value': 'value',
+            'deal_type': lambda x: 'mergerfrom'
+        },
+        'sharadar_mergerto': {
+            'symbol': 'ticker',
+            'acquiree_symbol': 'contraticker',  # In mergerto, contraticker is the target
+            'acquirer_symbol': 'ticker',
+            'company_name': 'contraname',
+            'ex_date': 'date',
+            'deal_value': 'value',
+            'deal_type': lambda x: 'mergerto'
         }
     }
 
@@ -139,7 +144,8 @@ class EnhancedMergerProcessor:
         'alpaca_stock': 9,
         'alpaca_stock_and_cash': 9,
         'fmp': 8,
-        'sharadar': 7
+        'sharadar_mergerfrom': 7,
+        'sharadar_mergerto': 7
     }
 
     def __init__(self, master_csv_path: str):
@@ -155,7 +161,7 @@ class EnhancedMergerProcessor:
         for source, data in source_data_dict.items():
             processed_by_source[source] = self.process_source_data(source, data)
 
-        # Group by master symbol (target company being acquired)
+        # Group by master symbol
         symbol_groups = self._group_by_master_symbol(processed_by_source)
 
         # Merge and analyze matches
@@ -176,157 +182,292 @@ class EnhancedMergerProcessor:
 
     def process_source_data(self, source: str, data: List[Dict[str, Any]]) -> List[UnifiedMerger]:
         """Process merger data from a specific source with symbol mapping."""
-        if source not in self.FIELD_MAPPINGS:
-            raise ValueError(f"Unknown source: {source}")
 
-        mergers = []
-        mapping = self.FIELD_MAPPINGS[source]
+        if not data:
+            return []
 
-        for record in data:
+        field_mapping = self.FIELD_MAPPINGS.get(source, {})
+        unified_mergers = []
+
+        for row in data:
             try:
-                # Map to unified format first
-                merger = self._map_record_to_unified(source, record, mapping)
+                # Extract basic fields using mapping
+                unified_data = {}
+                raw_data = dict(row)  # Keep original data
 
-                # Map to master symbol (target company)
-                source_symbol = merger.master_symbol
-                master_symbol = self.symbol_mapper.map_to_master_symbol(
-                    source.replace('_stock', '').replace('_and_cash', ''),
-                    source_symbol
-                )
+                for unified_field, source_field in field_mapping.items():
+                    if callable(source_field):
+                        unified_data[unified_field] = source_field(row)
+                    else:
+                        unified_data[unified_field] = row.get(source_field)
 
+                # Convert numeric fields to proper types
+                for rate_field in ['acquiree_rate', 'acquirer_rate', 'cash_rate', 'deal_value']:
+                    if unified_data.get(rate_field) is not None:
+                        try:
+                            unified_data[rate_field] = Decimal(str(unified_data[rate_field]))
+                        except (ValueError, TypeError):
+                            unified_data[rate_field] = None
+
+                # Map symbol to master symbol (use acquiree_symbol as the target being acquired)
+                original_symbol = unified_data.get('symbol')
+                if not original_symbol:
+                    continue
+
+                # Use the correct method name: map_to_master_symbol
+                master_symbol = self.symbol_mapper.map_to_master_symbol(source.split('_')[0], original_symbol)
+
+                # Create symbol mapping info
                 if master_symbol:
-                    merger.master_symbol = master_symbol
-                    merger.symbol_mapping = SymbolMappingInfo(
+                    symbol_mapping = SymbolMappingInfo(
                         master_symbol=master_symbol,
-                        source_mappings={source: source_symbol},
+                        source_mappings={source: original_symbol},
                         unmapped_sources=[],
                         mapping_confidence=1.0
                     )
                 else:
-                    merger.master_symbol = source_symbol
-                    merger.symbol_mapping = SymbolMappingInfo(
-                        master_symbol=source_symbol,
+                    # If no mapping found, use original symbol as master symbol
+                    master_symbol = original_symbol
+                    symbol_mapping = SymbolMappingInfo(
+                        master_symbol=master_symbol,
                         source_mappings={},
                         unmapped_sources=[source],
                         mapping_confidence=0.0
                     )
 
+                # Create unified merger
+                merger = UnifiedMerger(
+                    master_symbol=master_symbol,
+                    source=source,
+                    symbol_mapping=symbol_mapping,
+                    ex_date=unified_data.get('ex_date'),
+                    payable_date=unified_data.get('payable_date'),
+                    transaction_date=unified_data.get('transaction_date'),
+                    accepted_date=unified_data.get('accepted_date'),
+                    acquiree_symbol=unified_data.get('acquiree_symbol'),
+                    acquirer_symbol=unified_data.get('acquirer_symbol'),
+                    company_name=unified_data.get('company_name'),
+                    acquiree_cusip=unified_data.get('acquiree_cusip'),
+                    acquirer_cusip=unified_data.get('acquirer_cusip'),
+                    acquiree_cik=unified_data.get('acquiree_cik'),
+                    acquirer_cik=unified_data.get('acquirer_cik'),
+                    acquiree_rate=unified_data.get('acquiree_rate'),
+                    acquirer_rate=unified_data.get('acquirer_rate'),
+                    cash_rate=unified_data.get('cash_rate'),
+                    deal_value=unified_data.get('deal_value'),
+                    deal_type=unified_data.get('deal_type'),
+                    link=unified_data.get('link'),
+                    raw_data={source: raw_data},
+                    source_list=[source]
+                )
+
+                # Calculate data completeness
                 merger.data_completeness = self._calculate_completeness_score(merger)
-                mergers.append(merger)
+                unified_mergers.append(merger)
 
             except Exception as e:
-                logger.error(f"Error processing {source} record: {e}, record: {record}")
+                logger.error(f"Error processing merger row from {source}: {e}")
                 continue
 
-        return mergers
-
-    def _map_record_to_unified(self, source: str, record: Dict[str, Any],
-                               mapping: Dict[str, str]) -> UnifiedMerger:
-        """Map a single record from source format to unified format."""
-        unified_data = {
-            'master_symbol': '',
-            'source': source,
-            'raw_data': record.copy()
-        }
-
-        for unified_field, source_field in mapping.items():
-            if callable(source_field):
-                unified_data[unified_field] = source_field(record)
-            elif source_field in record and record[source_field] is not None:
-                value = record[source_field]
-
-                if unified_field == 'symbol':
-                    unified_data['master_symbol'] = str(value)
-                elif unified_field in ['acquiree_rate', 'acquirer_rate', 'cash_rate']:
-                    unified_data[unified_field] = self._normalize_decimal_value(value)
-                else:
-                    unified_data[unified_field] = str(value) if value is not None else None
-
-        return UnifiedMerger(**unified_data)
-
-    def _normalize_decimal_value(self, value: Any) -> Optional[Decimal]:
-        """Normalize numeric values to Decimal for precision."""
-        if value is None:
-            return None
-        try:
-            return Decimal(str(value))
-        except Exception as e:
-            logger.warning(f"Could not convert value to Decimal: {value}, error: {e}")
-            return None
+        return unified_mergers
 
     def _calculate_completeness_score(self, merger: UnifiedMerger) -> float:
         """Calculate data completeness score."""
-        important_fields = [
-            merger.master_symbol, merger.ex_date, merger.acquiree_symbol, merger.acquirer_symbol
-        ]
-        filled_fields = sum(1 for field in important_fields if field is not None)
-        return filled_fields / len(important_fields)
+        required_fields = ['master_symbol', 'ex_date', 'acquiree_symbol', 'acquirer_symbol']
+        optional_fields = ['deal_type', 'cash_rate', 'deal_value', 'company_name', 'link']
+
+        required_score = sum(1 for field in required_fields if getattr(merger, field))
+        optional_score = sum(1 for field in optional_fields if getattr(merger, field))
+
+        return (required_score / len(required_fields)) * 0.7 + (optional_score / len(optional_fields)) * 0.3
 
     def _group_by_master_symbol(self, processed_by_source: Dict[str, List[UnifiedMerger]]) -> Dict[
         str, Dict[str, List[UnifiedMerger]]]:
-        """Group mergers by master symbol (target company) across sources."""
-        symbol_groups = {}
+        """Group mergers by master symbol and source."""
+
+        symbol_groups = defaultdict(lambda: defaultdict(list))
 
         for source, mergers in processed_by_source.items():
             for merger in mergers:
-                master_symbol = merger.master_symbol
-                if master_symbol not in symbol_groups:
-                    symbol_groups[master_symbol] = {}
-                if source not in symbol_groups[master_symbol]:
-                    symbol_groups[master_symbol][source] = []
-                symbol_groups[master_symbol][source].append(merger)
+                symbol_groups[merger.master_symbol][source].append(merger)
 
-        return symbol_groups
+        return dict(symbol_groups)
 
     def _create_match_result(self, master_symbol: str,
                              mergers_by_source: Dict[str, List[UnifiedMerger]]) -> MergerMatchResult:
-        """Create a match result for mergers with the same master symbol."""
+        """Create a match result for a master symbol."""
 
-        representative_mergers = []
-        for source, mergers in mergers_by_source.items():
-            if mergers:
-                representative_mergers.append(mergers[0])
+        # Flatten mergers from all sources
+        all_mergers = []
+        for source_mergers in mergers_by_source.values():
+            all_mergers.extend(source_mergers)
 
-        merged = self.merge_mergers_with_confidence([representative_mergers])
-        match_quality = self._calculate_match_quality(mergers_by_source, merged)
+        if not all_mergers:
+            raise ValueError(f"No mergers found for {master_symbol}")
+
+        # Group mergers that are likely the same (by ex_date and companies involved)
+        merger_groups = self._group_similar_mergers(all_mergers)
+
+        # Merge the largest group (most common merger)
+        largest_group = max(merger_groups, key=len) if merger_groups else []
+
+        if not largest_group:
+            raise ValueError(f"No valid merger groups for {master_symbol}")
+
+        merged_merger = self.merge_mergers_with_confidence([largest_group])
+
+        # Calculate match quality
+        match_quality = self._calculate_match_quality(largest_group, mergers_by_source)
 
         match_details = {
             'sources_matched': list(mergers_by_source.keys()),
-            'total_mergers': sum(len(mergers) for mergers in mergers_by_source.values()),
-            'date_agreement': merged.field_confidences.get('ex_date',
-                                                           FieldConfidence(None, 0, 0, 0, [])).agreement_ratio,
-            'acquirer_agreement': merged.field_confidences.get('acquirer_symbol',
-                                                               FieldConfidence(None, 0, 0, 0, [])).agreement_ratio,
-            'deal_type_agreement': merged.field_confidences.get('deal_type',
-                                                                FieldConfidence(None, 0, 0, 0, [])).agreement_ratio,
+            'total_mergers': len(all_mergers),
+            'merged_mergers': len(largest_group),
+            'merger_groups': len(merger_groups)
         }
 
         return MergerMatchResult(
             master_symbol=master_symbol,
-            merged_merger=merged,
+            merged_merger=merged_merger,
             match_quality=match_quality,
             match_details=match_details
         )
 
-    def _calculate_match_quality(self, mergers_by_source: Dict[str, List[UnifiedMerger]],
-                                 merged: UnifiedMerger) -> float:
-        """Calculate overall match quality for debugging."""
-        source_count = len(mergers_by_source)
-        source_score = min(1.0, source_count / 4.0)
-        confidence_score = merged.overall_confidence
-        agreement_score = merged.source_agreement_score
-        mapping_score = merged.symbol_mapping.mapping_confidence if merged.symbol_mapping else 0.0
+    def _group_similar_mergers(self, mergers: List[UnifiedMerger]) -> List[List[UnifiedMerger]]:
+        """Group mergers that appear to be the same event."""
 
-        quality = (
-                source_score * 0.2 +
-                confidence_score * 0.4 +
-                agreement_score * 0.3 +
-                mapping_score * 0.1
+        groups = []
+        remaining_mergers = mergers.copy()
+
+        while remaining_mergers:
+            current = remaining_mergers.pop(0)
+            current_group = [current]
+
+            # Find similar mergers
+            to_remove = []
+            for i, merger in enumerate(remaining_mergers):
+                if self._are_mergers_similar(current, merger):
+                    current_group.append(merger)
+                    to_remove.append(i)
+
+            # Remove grouped mergers
+            for i in reversed(to_remove):
+                remaining_mergers.pop(i)
+
+            groups.append(current_group)
+
+        return groups
+
+    def _are_mergers_similar(self, merger1: UnifiedMerger, merger2: UnifiedMerger) -> bool:
+        """Check if two mergers are likely the same event."""
+
+        # Same ex_date and similar companies
+        if merger1.ex_date and merger2.ex_date and merger1.ex_date == merger2.ex_date:
+            # Check if companies match (either direction)
+            if ((
+                    merger1.acquiree_symbol == merger2.acquiree_symbol and merger1.acquirer_symbol == merger2.acquirer_symbol) or
+                    (
+                            merger1.acquiree_symbol == merger2.acquirer_symbol and merger1.acquirer_symbol == merger2.acquiree_symbol)):
+                return True
+
+        return False
+
+    def _calculate_match_quality(self, merged_mergers: List[UnifiedMerger],
+                                 all_mergers_by_source: Dict[str, List[UnifiedMerger]]) -> float:
+        """Calculate the quality of the match."""
+
+        if not merged_mergers:
+            return 0.0
+
+        # Base quality on source agreement
+        sources_in_merge = set(merger.source for merger in merged_mergers)
+        total_sources = len(all_mergers_by_source)
+
+        source_coverage = len(sources_in_merge) / total_sources if total_sources > 0 else 0
+
+        # Quality score based on coverage and data completeness
+        data_completeness = sum(merger.data_completeness for merger in merged_mergers) / len(merged_mergers)
+
+        return (source_coverage * 0.7 + data_completeness * 0.3)
+
+    def merge_mergers_with_confidence(self, merger_groups: List[List[UnifiedMerger]]) -> UnifiedMerger:
+        """Merge mergers with confidence analysis."""
+
+        if not merger_groups or not any(merger_groups):
+            raise ValueError("No mergers to merge")
+
+        all_mergers = [merger for group in merger_groups for merger in group if merger]
+
+        if not all_mergers:
+            raise ValueError("No valid mergers to merge")
+
+        # Collect values by field and source
+        field_values = defaultdict(dict)
+        source_reliabilities = {}
+
+        for merger in all_mergers:
+            source_reliabilities[merger.source] = self.SOURCE_RELIABILITY.get(merger.source, 5) / 10.0
+
+            fields_to_analyze = {
+                'ex_date': merger.ex_date,
+                'payable_date': merger.payable_date,
+                'transaction_date': merger.transaction_date,
+                'accepted_date': merger.accepted_date,
+                'acquiree_symbol': merger.acquiree_symbol,
+                'acquirer_symbol': merger.acquirer_symbol,
+                'company_name': merger.company_name,
+                'acquiree_cusip': merger.acquiree_cusip,
+                'acquirer_cusip': merger.acquirer_cusip,
+                'acquiree_cik': merger.acquiree_cik,
+                'acquirer_cik': merger.acquirer_cik,
+                'acquiree_rate': merger.acquiree_rate,
+                'acquirer_rate': merger.acquirer_rate,
+                'cash_rate': merger.cash_rate,
+                'deal_value': merger.deal_value,
+                'deal_type': merger.deal_type,
+                'link': merger.link
+            }
+
+            for field_name, value in fields_to_analyze.items():
+                if value is not None:
+                    field_values[field_name][merger.source] = value
+
+        # Calculate confidence for each field
+        field_confidences = {}
+        for field_name, values_by_source in field_values.items():
+            field_confidences[field_name] = self.confidence_calculator.calculate_field_confidence(
+                field_name, values_by_source, source_reliabilities
+            )
+
+        # Build merged merger
+        merged = UnifiedMerger(
+            master_symbol=all_mergers[0].master_symbol,
+            source='+'.join(sorted(set(merger.source for merger in all_mergers))),
+            source_list=[merger.source for merger in all_mergers],
+            raw_data={merger.source: merger.raw_data[merger.source] for merger in all_mergers if
+                      merger.source in merger.raw_data},
+            symbol_mapping=all_mergers[0].symbol_mapping
         )
-        return quality
+
+        # Set field values using confidence analysis - USE .value NOT .final_value
+        for field_name, confidence in field_confidences.items():
+            setattr(merged, field_name, confidence.value)
+
+        merged.field_confidences = field_confidences
+
+        # Calculate overall scores
+        merged.overall_confidence = sum(conf.confidence_score for conf in field_confidences.values()) / len(
+            field_confidences) if field_confidences else 0.0
+        merged.source_agreement_score = sum(conf.agreement_ratio for conf in field_confidences.values()) / len(
+            field_confidences) if field_confidences else 0.0
+        merged.data_completeness = len([conf for conf in field_confidences.values() if conf.value is not None]) / len(
+            field_confidences) if field_confidences else 0.0
+
+        return merged
 
     def _create_debug_entry(self, match_result: MergerMatchResult) -> Dict[str, Any]:
-        """Create a debug entry for a match result."""
+        """Create debug entry for a match result."""
+
         merged = match_result.merged_merger
 
         return {
@@ -341,14 +482,12 @@ class EnhancedMergerProcessor:
             'acquiree_symbol': merged.acquiree_symbol,
             'acquirer_symbol': merged.acquirer_symbol,
             'deal_type': merged.deal_type,
-            'cash_rate': str(merged.cash_rate) if merged.cash_rate else None,
-            'acquirer_rate': str(merged.acquirer_rate) if merged.acquirer_rate else None,
             'field_agreements': {
                 'ex_date': merged.field_confidences.get('ex_date', FieldConfidence(None, 0, 0, 0, [])).agreement_ratio,
+                'acquiree_symbol': merged.field_confidences.get('acquiree_symbol',
+                                                                FieldConfidence(None, 0, 0, 0, [])).agreement_ratio,
                 'acquirer_symbol': merged.field_confidences.get('acquirer_symbol',
                                                                 FieldConfidence(None, 0, 0, 0, [])).agreement_ratio,
-                'deal_type': merged.field_confidences.get('deal_type',
-                                                          FieldConfidence(None, 0, 0, 0, [])).agreement_ratio,
             },
             'disagreements': {
                 field: conf.disagreement_details
@@ -362,111 +501,28 @@ class EnhancedMergerProcessor:
             },
             'raw_data_summary': {
                 source: {
-                    'acquiree_symbol': data.get('acquiree_symbol') or data.get('targetedSymbol') or data.get('ticker'),
-                    'acquirer_symbol': data.get('acquirer_symbol') or data.get('acquirerticker'),
-                    'ex_date': data.get('effective_date') or data.get('transactionDate') or data.get('date'),
-                    'cash_rate': data.get('cash_rate') or data.get('value'),
-                    'acquirer_rate': data.get('acquirer_rate')
+                    'acquiree': data.get('acquiree_symbol') or data.get('targetedSymbol') or data.get('ticker'),
+                    'acquirer': data.get('acquirer_symbol') or data.get('symbol') or data.get('contraticker'),
+                    'date': data.get('effective_date') or data.get('transactionDate') or data.get('date'),
+                    'deal_type': data.get('deal_type')
                 }
                 for source, data in merged.raw_data.items()
             }
         }
 
-    def merge_mergers_with_confidence(self, merger_groups: List[List[UnifiedMerger]]) -> UnifiedMerger:
-        """Merge mergers with confidence analysis."""
-        if not merger_groups or not any(merger_groups):
-            raise ValueError("No mergers to merge")
+    def export_debug_report(self, debug_dir: str):
+        """Export debug report to JSON file."""
 
-        all_mergers = [merger for group in merger_groups for merger in group if merger]
-
-        if not all_mergers:
-            raise ValueError("No valid mergers to merge")
-
-        field_values = defaultdict(dict)
-        source_reliabilities = {}
-
-        for merger in all_mergers:
-            source_reliabilities[merger.source] = self.SOURCE_RELIABILITY.get(merger.source, 5) / 10.0
-
-            fields_to_analyze = {
-                'ex_date': merger.ex_date,
-                'payable_date': merger.payable_date,
-                'acquiree_symbol': merger.acquiree_symbol,
-                'acquirer_symbol': merger.acquirer_symbol,
-                'acquiree_cusip': merger.acquiree_cusip,
-                'acquirer_cusip': merger.acquirer_cusip,
-                'acquiree_cik': merger.acquiree_cik,
-                'acquirer_cik': merger.acquirer_cik,
-                'acquiree_rate': merger.acquiree_rate,
-                'acquirer_rate': merger.acquirer_rate,
-                'cash_rate': merger.cash_rate,
-                'deal_type': merger.deal_type,
-                'link': merger.link
-            }
-
-            for field_name, value in fields_to_analyze.items():
-                if value is not None:
-                    field_values[field_name][merger.source] = value
-
-        field_confidences = {}
-        for field_name, values_by_source in field_values.items():
-            if field_name in ['acquiree_rate', 'acquirer_rate', 'cash_rate']:
-                field_confidences[field_name] = self.confidence_calculator.calculate_field_confidence(
-                    field_name.replace('_rate', '_amount'),
-                    values_by_source, source_reliabilities
-                )
-            else:
-                field_confidences[field_name] = self.confidence_calculator.calculate_field_confidence(
-                    field_name, values_by_source, source_reliabilities
-                )
-
-        merged = UnifiedMerger(
-            master_symbol=all_mergers[0].master_symbol,
-            source='+'.join(sorted(set(merger.source for merger in all_mergers))),
-            source_list=[merger.source for merger in all_mergers],
-            raw_data={merger.source: merger.raw_data for merger in all_mergers},
-            symbol_mapping=all_mergers[0].symbol_mapping
-        )
-
-        for field_name, confidence in field_confidences.items():
-            setattr(merged, field_name, confidence.value)
-
-        merged.field_confidences = field_confidences
-
-        field_weights = {
-            'acquirer_symbol': 0.3,
-            'ex_date': 0.25,
-            'deal_type': 0.2,
-            'cash_rate': 0.1,
-            'acquirer_rate': 0.1,
-            'acquiree_symbol': 0.05
-        }
-
-        merged.overall_confidence = self.confidence_calculator.calculate_overall_confidence(
-            field_confidences, field_weights
-        )
-        merged.source_agreement_score = self.confidence_calculator.calculate_source_agreement_score(
-            field_confidences
-        )
-        merged.data_completeness = self._calculate_completeness_score(merged)
-
-        return merged
-
-    def export_debug_report(self, debug_dir: str, filename: str = None):
-        """Export debug results to debug directory."""
-        if filename is None:
-            timestamp = datetime.now().strftime("%Y%m%d")
-            filename = f'mergers_debug_report_{timestamp}.json'
+        debug_file_path = os.path.join(debug_dir, 'merger_debug.json')
+        summary_file_path = os.path.join(debug_dir, 'merger_summary.csv')
 
         os.makedirs(debug_dir, exist_ok=True)
 
-        debug_file_path = os.path.join(debug_dir, filename)
+        # Export detailed debug JSON
         with open(debug_file_path, 'w') as f:
-            json.dump(self.debug_results, f, indent=2)
+            json.dump(self.debug_results, f, indent=2, default=str)
 
-        summary_filename = filename.replace('.json', '_summary.csv')
-        summary_file_path = os.path.join(debug_dir, summary_filename)
-
+        # Export summary CSV
         summary_data = []
         for result in self.debug_results:
             summary_data.append({
@@ -474,32 +530,26 @@ class EnhancedMergerProcessor:
                 'match_quality': result['match_quality'],
                 'source_count': result['source_count'],
                 'overall_confidence': result['overall_confidence'],
-                'source_agreement': result['source_agreement'],
-                'date_agreement': result['field_agreements']['ex_date'],
-                'acquirer_agreement': result['field_agreements']['acquirer_symbol'],
-                'deal_type_agreement': result['field_agreements']['deal_type'],
-                'sources': ', '.join(result['sources']),
+                'ex_date': result['ex_date'],
                 'acquiree_symbol': result['acquiree_symbol'],
                 'acquirer_symbol': result['acquirer_symbol'],
-                'deal_type': result['deal_type'],
-                'has_disagreements': len(result['disagreements']) > 0,
-                'mapping_confidence': result['symbol_mapping_info']['mapping_confidence']
+                'deal_type': result['deal_type']
             })
 
         pd.DataFrame(summary_data).to_csv(summary_file_path, index=False)
+
         print(f"Debug report exported to {debug_file_path}")
         print(f"Summary CSV exported to {summary_file_path}")
-        
-    def export_unified_mergers(self, results, data_dir=None, filename=None):
-        """Export unified mergers to CSV format"""
-        if data_dir is None:
-            data_dir = config.data_dir
-            
-        if filename is None:
-            filename = config.get_unified_filename(config.unified_mergers_file)
 
-        os.makedirs(data_dir, exist_ok=True)
-        csv_file_path = os.path.join(data_dir, filename)
+    def export_unified_mergers(self, results, filename):
+        """Export unified mergers to CSV file."""
+
+        if not results:
+            print("No merger results to export.")
+            return None
+
+        os.makedirs(os.path.dirname(filename), exist_ok=True)
+        csv_file_path = os.path.join(filename)
 
         csv_data = []
         for result in results:
@@ -510,8 +560,11 @@ class EnhancedMergerProcessor:
                 'source': merger.source,
                 'ex_date': merger.ex_date,
                 'payable_date': merger.payable_date,
+                'transaction_date': merger.transaction_date,
+                'accepted_date': merger.accepted_date,
                 'acquiree_symbol': merger.acquiree_symbol,
                 'acquirer_symbol': merger.acquirer_symbol,
+                'company_name': merger.company_name,
                 'acquiree_cusip': merger.acquiree_cusip,
                 'acquirer_cusip': merger.acquirer_cusip,
                 'acquiree_cik': merger.acquiree_cik,
@@ -519,6 +572,7 @@ class EnhancedMergerProcessor:
                 'acquiree_rate': str(merger.acquiree_rate) if merger.acquiree_rate else None,
                 'acquirer_rate': str(merger.acquirer_rate) if merger.acquirer_rate else None,
                 'cash_rate': str(merger.cash_rate) if merger.cash_rate else None,
+                'deal_value': str(merger.deal_value) if merger.deal_value else None,
                 'deal_type': merger.deal_type,
                 'link': merger.link,
                 'overall_confidence': merger.overall_confidence,
@@ -535,33 +589,110 @@ class EnhancedMergerProcessor:
 
         pd.DataFrame(csv_data).to_csv(csv_file_path, index=False)
         print(f"CSV summary exported to {csv_file_path}")
+
         return csv_file_path
 
 
-if __name__ == "__main__":
+def extract_merger_from_sources(alpaca_data: Dict[str, pd.DataFrame],
+                                fmp_data: Dict[str, pd.DataFrame],
+                                poly_data: Dict[str, pd.DataFrame],
+                                sharadar_data: pd.DataFrame) -> Dict[str, List[Dict[str, Any]]]:
+    """Extract merger data from all sources and return in standardized format."""
+
+    extracted_data = {}
+
+    # Extract from Alpaca - look for merger actions
+    alpaca_mergers = []
+    for action_type, df in alpaca_data.items():
+        if 'merger' in action_type.lower() or 'stock_mergers' in action_type.lower():
+            if not df.empty:
+                # Determine the merger type based on action_type
+                source_key = f"alpaca_{action_type.lower()}"
+                records = df.to_dict('records')
+                for record in records:
+                    record['_source_type'] = source_key
+                alpaca_mergers.extend(records)
+
+    # Split Alpaca mergers by type for proper field mapping
+    extracted_data['alpaca_stock'] = []
+    extracted_data['alpaca_stock_and_cash'] = []
+    for merger in alpaca_mergers:
+        source_type = merger.get('_source_type', 'alpaca_stock')
+        if 'cash' in source_type:
+            extracted_data['alpaca_stock_and_cash'].append(merger)
+        else:
+            extracted_data['alpaca_stock'].append(merger)
+
+    # Extract from FMP
+    if 'mergers' in fmp_data and not fmp_data['mergers'].empty:
+        extracted_data['fmp'] = fmp_data['mergers'].to_dict('records')
+    else:
+        extracted_data['fmp'] = []
+
+    # Extract from Polygon - no merger data typically
+    extracted_data['poly'] = []
+
+    # Extract from Sharadar (filter for merger actions)
+    extracted_data['sharadar_mergerfrom'] = []
+    extracted_data['sharadar_mergerto'] = []
+    if not sharadar_data.empty:
+        mergerfrom_records = sharadar_data[sharadar_data['action'] == 'mergerfrom']
+        mergerto_records = sharadar_data[sharadar_data['action'] == 'mergerto']
+        extracted_data['sharadar_mergerfrom'] = mergerfrom_records.to_dict('records')
+        extracted_data['sharadar_mergerto'] = mergerto_records.to_dict('records')
+
+    return extracted_data
+
+
+def run(alpaca_data: Dict[str, pd.DataFrame],
+        fmp_data: Dict[str, pd.DataFrame],
+        poly_data: Dict[str, pd.DataFrame],
+        sharadar_data: pd.DataFrame):
+    """Main function to process mergers from all sources."""
+
     # Ensure directories exist
     config.ensure_directories()
-    
-    # Use configuration paths
-    data_dir = config.data_dir
-    debug_dir = config.debug_dir
 
     # Find master files using configured path
-    master_files = glob.glob(os.path.join(config.master_files_dir, '*.csv'))
+    master_files = glob.glob(os.path.join(config.master_files_dir, '*_MASTER_UPDATED.csv'))
     if not master_files:
         raise FileNotFoundError(f"No master CSV files found in {config.master_files_dir}")
 
-    master_file = max(master_files)
+    master_file = max(master_files)  # Get the most recent master file
     print(f"Using master file: {master_file}")
 
+    # Extract merger data from all sources
+    print("Extracting merger data from sources...")
+    source_data = extract_merger_from_sources(alpaca_data, fmp_data, poly_data, sharadar_data)
+
+    # Print extraction summary
+    total_records = sum(len(data) for data in source_data.values())
+    for source, data in source_data.items():
+        print(f"  - {source}: {len(data)} merger records extracted")
+
+    if total_records == 0:
+        print("No merger records found in any source. Skipping merger processing.")
+        return
+
+    # Initialize processor
     processor = EnhancedMergerProcessor(master_file)
 
-    source_data = {
-        'alpaca': [{'acquiree_symbol': 'ABC', 'acquirer_symbol': 'XYZ', 'ex_date': '2025-08-15'}]
-    }
-
+    # Process all sources
+    print("Processing mergers from all sources...")
     results = processor.process_all_sources(source_data)
-    processor.export_debug_report(debug_dir)
-    processor.export_unified_mergers(results, data_dir)
 
-    print(f"Processed {len(results)} merger matches")
+    # Always export debug report (even if empty)
+    processor.export_debug_report(config.debug_dir)
+
+    # Only export CSV if we have results
+    if results:
+        # Ensure the filename is set properly
+        merger_filename = config.unified_mergers_file or 'unified_mergers.csv'
+        processor.export_unified_mergers(results, os.path.join(config.data_dir, merger_filename))
+
+        print(f"Processed {len(results)} merger matches")
+        for result in results:
+            print(f"{result.master_symbol}: Quality {result.match_quality:.2%}, "
+                  f"Confidence {result.merged_merger.overall_confidence:.2%}")
+    else:
+        print("No merger matches found after processing.")
