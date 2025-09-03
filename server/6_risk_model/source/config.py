@@ -4,6 +4,10 @@ Loads configuration from environment variables with sensible defaults.
 """
 import os
 import logging
+import pandas as pd
+from datetime import datetime
+from pathlib import Path
+from typing import Optional
 from pydantic import BaseModel, Field
 
 # Log level mapping
@@ -14,6 +18,11 @@ LOG_LEVELS = {
     'ERROR': logging.ERROR,
     'CRITICAL': logging.CRITICAL
 }
+
+
+class MasterDataConfig(BaseModel):
+    """Configuration for master data directory"""
+    master_dir: str = Field(default="data/master")
 
 
 class DatabaseConfig(BaseModel):
@@ -35,7 +44,11 @@ class Config(BaseModel):
     """Main configuration class"""
     environment: str = Field(default="development")
     log_level: str = Field(default="INFO")
+    master_data: MasterDataConfig = Field(default_factory=MasterDataConfig)
     db: DatabaseConfig = Field(default_factory=DatabaseConfig)
+
+    # Master data cache
+    _master_data: Optional[pd.DataFrame] = None
 
     @classmethod
     def from_env(cls) -> 'Config':
@@ -43,6 +56,9 @@ class Config(BaseModel):
         return cls(
             environment=os.getenv('ENVIRONMENT', 'development'),
             log_level=os.getenv('LOG_LEVEL', 'INFO'),
+            master_data=MasterDataConfig(
+                master_dir=os.getenv('MASTER_DIR', 'data/master')
+            ),
             db=DatabaseConfig(
                 driver=os.getenv('DB_DRIVER', '{ODBC Driver 17 for SQL Server}'),
                 server=os.getenv('DB_SERVER', 'localhost'),
@@ -52,6 +68,41 @@ class Config(BaseModel):
                 table=os.getenv('DB_TABLE', 'exch_us_equity.risk_factor_data')
             )
         )
+
+    def get_ymd(self) -> str:
+        ymd = datetime.strftime(datetime.today(), "%Y%m%d")
+        return ymd
+
+    def get_master_dir(self) -> Path:
+        """Get master data directory path"""
+        return Path(self.master_data.master_dir)
+
+    def load_master_file(self, filename: str) -> Optional[pd.DataFrame]:
+        """Load a specific master file"""
+        try:
+
+            try:
+                master_path = self.get_master_dir()
+                if master_path.exists():
+                    master_file = Path([f.name for f in master_path.glob("*MASTER_UPDATED.csv")][0])
+
+                else:
+                    logging.error(f"Master directory does not exist: {master_path}")
+                    raise ValueError("Missing Master file")
+            except Exception as e:
+                logging.error(f"Failed to list master files: {e}")
+                raise ValueError("Missing Master file")
+
+            if master_file.exists():
+                df = pd.read_csv(master_file, dtype=str, keep_default_na=False, na_values=[])
+                logging.info(f"Loaded master file {filename}: {len(df)} records")
+                return df
+            else:
+                logging.error(f"Master file not found: {master_file}")
+                raise ValueError("Missing Master file")
+        except Exception as e:
+            logging.error(f"Failed to load master file {filename}: {e}")
+            raise ValueError("Missing Master file")
 
 
 # Create global config instance

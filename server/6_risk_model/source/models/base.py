@@ -1,12 +1,17 @@
 # models/base.py
+import logging
 from abc import ABC, abstractmethod
+from pandas import pd
 from datetime import date
 from typing import List, Dict, Any
+from source.config import config
+
 
 class BaseRiskModel(ABC):
     """
     Abstract base class for all risk models.
     """
+
     def __init__(self, model: str, symbols: List[str]):
         """
         Initializes the base risk model with a name and a list of symbols.
@@ -19,7 +24,7 @@ class BaseRiskModel(ABC):
         self.symbols = symbols
 
     @abstractmethod
-    def generate_data(self, date: date) -> List[Dict[str, Any]]:
+    def generate_exposures(self, date: date) -> List[Dict[str, Any]]:
         """
         Generates risk factor data for a specific date.
 
