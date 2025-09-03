@@ -19,7 +19,7 @@ def load_data():
         return pd.DataFrame()
 
     try:
-        sharadar_df = pd.read_csv(sharadar_path)
+        sharadar_df = pd.read_csv(sharadar_path, dtype=str, keep_default_na=False, na_values=[])
         return sharadar_df
     except pd.errors.EmptyDataError:
         print(f"Sharadar file is empty: {sharadar_path}")

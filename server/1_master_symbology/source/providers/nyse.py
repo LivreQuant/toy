@@ -9,7 +9,7 @@ from source.config import config
 from pathlib import Path
 
 csv_path = Path(__file__).parent / "../standards/types.csv"
-df_types = pd.read_csv(csv_path)
+df_types = pd.read_csv(csv_path, dtype=str, keep_default_na=False, na_values=[])
 
 OLD_COLUMNS = ['Symbol', 'PrimaryListingMarketParticipantID', 'FinancialStatusIndicator', 
                'ShortSaleRestrictionIndicator', 'HaltReason']
@@ -76,7 +76,7 @@ def load_nyse_data():
     # Check if the cached file exists
     if os.path.exists(file_path):
         print(f"Loading data from cached file: {file_path}")
-        df = pd.read_csv(file_path)
+        df = pd.read_csv(file_path, dtype=str, keep_default_na=False, na_values=[])
 
         # Normalize symbols (e.g., upper case) to catch duplicates
         df["symbol_norm"] = df["Symbol"].str.upper()
@@ -131,7 +131,7 @@ def load_nyse_data():
             shutil.move(downloaded_file_path, file_path)
             print(f"Moved downloaded file to: {file_path}")
 
-            df = pd.read_csv(file_path)
+            df = pd.read_csv(file_path, dtype=str, keep_default_na=False, na_values=[])
 
             # Normalize symbols (e.g., upper case) to catch duplicates
             df["symbol_norm"] = df["Symbol"].str.upper()

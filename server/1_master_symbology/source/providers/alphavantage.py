@@ -9,7 +9,7 @@ from source.config import config
 from pathlib import Path
 
 csv_path = Path(__file__).parent / "../standards/types.csv"
-df_types = pd.read_csv(csv_path)
+df_types = pd.read_csv(csv_path, dtype=str, keep_default_na=False, na_values=[])
 
 OLD_COLUMNS = ['symbol', 'exchange', 'name', 'status']
 NEW_COLUMNS = ['av_symbol', 'exchange', 'av_name', 'av_status']
@@ -26,7 +26,7 @@ def load_alphavantage_data():
     # Check if the cached file exists
     if os.path.exists(file_path):
         print(f"Loading data from cached file: {file_path}")
-        df = pd.read_csv(file_path)
+        df = pd.read_csv(file_path, dtype=str, keep_default_na=False, na_values=[])
 
         # Select and rename columns
         df = df[OLD_COLUMNS]
@@ -57,7 +57,7 @@ def load_alphavantage_data():
         response.raise_for_status()
 
         # Read the CSV content into a DataFrame
-        df = pd.read_csv(io.StringIO(response.text))
+        df = pd.read_csv(io.StringIO(response.text), dtype=str, keep_default_na=False, na_values=[])
 
         # Save the DataFrame to a CSV file
         df.to_csv(file_path, index=False)

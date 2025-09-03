@@ -8,7 +8,7 @@ from source.config import config
 from pathlib import Path
 
 csv_path = Path(__file__).parent / "../standards/types.csv"
-df_types = pd.read_csv(csv_path)
+df_types = pd.read_csv(csv_path, dtype=str, keep_default_na=False, na_values=[])
 
 OLD_COLUMNS = ['symbol', 'market', 'name',
                'summary', 'currency',

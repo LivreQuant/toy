@@ -18,7 +18,7 @@ class SymbolMapper:
                 raise FileNotFoundError(f"No master CSV files found in {config.master_files_dir}")
             master_csv_path = max(master_files)
             
-        self.master_df = pd.read_csv(master_csv_path, sep='|')
+        self.master_df = pd.read_csv(master_csv_path, sep='|', dtype=str, keep_default_na=False, na_values=[])
         self.source_mappings = {
             'alpaca': 'al_symbol',
             'poly': 'pl_symbol',

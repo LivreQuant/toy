@@ -8,7 +8,7 @@ from source.config import config
 from pathlib import Path
 
 csv_path = Path(__file__).parent / "../standards/types.csv"
-df_types = pd.read_csv(csv_path)
+df_types = pd.read_csv(csv_path, dtype=str, keep_default_na=False, na_values=[])
 
 OLD_COLUMNS = ['symbol', 'exchange', 'name', 'status', 'tradable', 'marginable',
                'maintenance_margin_requirement', 'margin_requirement_long', 'margin_requirement_short',
@@ -32,7 +32,7 @@ def load_alpaca_data():
     # Check if the cached file exists
     if os.path.exists(file_path):
         print(f"Loading data from cached file: {file_path}")
-        df = pd.read_csv(file_path)
+        df = pd.read_csv(file_path, dtype=str, keep_default_na=False, na_values=[])
 
         # Columns to keep
         df = df[OLD_COLUMNS]

@@ -8,7 +8,7 @@ from source.config import config
 from pathlib import Path
 
 csv_path = Path(__file__).parent / "../standards/types.csv"
-df_types = pd.read_csv(csv_path)
+df_types = pd.read_csv(csv_path, dtype=str, keep_default_na=False, na_values=[])
 
 OLD_COLUMNS = ['Code', 'Exchange', 'Type', 'Name',
                'Country', 'Currency', 'Isin']
@@ -28,7 +28,7 @@ def load_eodhd_data():
     # Check if the cached file exists
     if os.path.exists(file_path):
         print(f"Loading data from cached file: {file_path}")
-        df = pd.read_csv(file_path)
+        df = pd.read_csv(file_path, dtype=str, keep_default_na=False, na_values=[])
 
         # Select and rename columns
         df = df[OLD_COLUMNS]

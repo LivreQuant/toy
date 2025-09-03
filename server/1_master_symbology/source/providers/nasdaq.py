@@ -7,7 +7,7 @@ from source.config import config
 from pathlib import Path
 
 csv_path = Path(__file__).parent / "../standards/types.csv"
-df_types = pd.read_csv(csv_path)
+df_types = pd.read_csv(csv_path, dtype=str, keep_default_na=False, na_values=[])
 
 OLD_COLUMNS = ['Symbol', 'exchange', 'Security Name', 'Financial Status', 'Round Lot Size', 'ETF']
 NEW_COLUMNS = ['na_symbol', 'exchange', 'na_name', 'na_status', 'na_lot', 'na_etf']
@@ -25,7 +25,7 @@ def load_nasdaq_data():
     # Check if the cached file exists
     if os.path.exists(file_path):
         print(f"Loading data from cached file: {file_path}")
-        df = pd.read_csv(file_path)
+        df = pd.read_csv(file_path, dtype=str, keep_default_na=False, na_values=[])
 
         # Normalize symbols (e.g., upper case) to catch duplicates
         df["symbol_norm"] = df["Symbol"].str.upper()

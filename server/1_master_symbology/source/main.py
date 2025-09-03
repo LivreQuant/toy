@@ -17,7 +17,7 @@ from source.providers.sharadar import load_sharadar_data
 from source.providers.utils import (
     merge_and_prioritize, average_or_keep, process_location, clean_branding_url,
     create_debug_directory, validate_and_debug_dataframe, generate_cross_provider_analysis,
-    validate_merge_results, generate_comparison_with_previous, generate_debug_summary
+    validate_merge_results, generate_debug_summary
 )
 
 

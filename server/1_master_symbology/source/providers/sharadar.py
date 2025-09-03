@@ -6,7 +6,7 @@ import glob
 from pathlib import Path
 
 csv_path = Path(__file__).parent / "../standards/types.csv"
-df_types = pd.read_csv(csv_path)
+df_types = pd.read_csv(csv_path, dtype=str, keep_default_na=False, na_values=[])
 
 OLD_COLUMNS = ['ticker', 'exchange', 'category', 'name', 'currency',
                'secfilings', 'cusips', 'siccode', 'sicsector', 'sicindustry',
@@ -35,7 +35,7 @@ def load_sharadar_data():
         raise FileNotFoundError(f"Sharadar file not found: {sharadar_path}")
 
     # Load the CSV data into a pandas DataFrame
-    sharadar_df = pd.read_csv(sharadar_path)
+    sharadar_df = pd.read_csv(sharadar_path, dtype=str, keep_default_na=False, na_values=[])
 
     # Save the raw DataFrame
     # sharadar_df.to_csv(raw_file_path, index=False)

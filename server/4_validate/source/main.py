@@ -23,6 +23,7 @@ from config import config
 class ValidationResult:
     """Structure to hold validation results for entries"""
     symbol: str
+    type: str
     composite_key: str
     change_type: str  # NEW_ENTRY or MISSING_ENTRY
     explanation: str
@@ -82,7 +83,7 @@ class CorporateActionsValidator:
             return pd.DataFrame()
 
         try:
-            df = pd.read_csv(file_path)
+            df = pd.read_csv(file_path, dtype=str, keep_default_na=False, na_values=[])
             self.logger.info(f"Loaded {len(df)} records from {file_path}")
             return df
         except Exception as e:
@@ -114,7 +115,7 @@ class CorporateActionsValidator:
             file_path = os.path.join(ca_data_dir, filename)
             if os.path.exists(file_path):
                 try:
-                    df = pd.read_csv(file_path)
+                    df = pd.read_csv(file_path, dtype=str, keep_default_na=False, na_values=[])
                     setattr(self, f"{action_type}_df", df)
                     self.logger.info(f"Loaded {len(df)} {action_type} records from {filename}")
                 except Exception as e:
@@ -130,6 +131,7 @@ class CorporateActionsValidator:
 
         for _, row in self.new_entries_df.iterrows():
             symbol = row.get('symbol', '')
+            type = row.get('type', '')
             composite_key = row.get('composite_key', '')
 
             # Check for symbol changes (new symbol appearing)
@@ -153,6 +155,7 @@ class CorporateActionsValidator:
             # If no explanation found
             results.append(ValidationResult(
                 symbol=symbol,
+                type=type,
                 composite_key=composite_key,
                 change_type='NEW_ENTRY',
                 explanation='No corporate action found to explain new entry',
@@ -170,6 +173,7 @@ class CorporateActionsValidator:
 
         for _, row in self.missing_entries_df.iterrows():
             symbol = row.get('symbol', '')
+            type = row.get('type', '')
             composite_key = row.get('composite_key', '')
 
             # Check for symbol changes (old symbol disappearing)
@@ -193,6 +197,7 @@ class CorporateActionsValidator:
             # If no explanation found
             results.append(ValidationResult(
                 symbol=symbol,
+                type=type,
                 composite_key=composite_key,
                 change_type='MISSING_ENTRY',
                 explanation='No corporate action found to explain missing entry',
@@ -211,6 +216,7 @@ class CorporateActionsValidator:
                 ipo_action = ipo_matches.iloc[0]
                 return ValidationResult(
                     symbol=symbol,
+                    type=row.get('type', ''),
                     composite_key=row.get('composite_key', ''),
                     change_type='NEW_ENTRY',
                     explanation=f'IPO detected: {symbol} went public',
@@ -233,6 +239,7 @@ class CorporateActionsValidator:
                 change_action = symbol_changes.iloc[0]
                 return ValidationResult(
                     symbol=symbol,
+                    type=row.get('type', ''),
                     composite_key=row.get('composite_key', ''),
                     change_type='NEW_ENTRY',
                     explanation=f'Symbol change detected: {change_action.get("old_symbol", "unknown")} changed to {symbol}',
@@ -256,6 +263,7 @@ class CorporateActionsValidator:
                 spinoff_action = spinoff_matches.iloc[0]
                 return ValidationResult(
                     symbol=symbol,
+                    type=row.get('type', ''),
                     composite_key=row.get('composite_key', ''),
                     change_type='NEW_ENTRY',
                     explanation=f'Spinoff detected: {symbol} spun off from {spinoff_action.get("master_symbol", "unknown")}',
@@ -280,6 +288,7 @@ class CorporateActionsValidator:
                 delisting_action = delisting_matches.iloc[0]
                 return ValidationResult(
                     symbol=symbol,
+                    type=row.get('type', ''),
                     composite_key=row.get('composite_key', ''),
                     change_type='MISSING_ENTRY',
                     explanation=f'Delisting detected: {symbol} - {delisting_action.get("delisting_reason", "delisted")}',
@@ -304,6 +313,7 @@ class CorporateActionsValidator:
                 merger_action = merger_matches.iloc[0]
                 return ValidationResult(
                     symbol=symbol,
+                    type=row.get('type', ''),
                     composite_key=row.get('composite_key', ''),
                     change_type='MISSING_ENTRY',
                     explanation=f'Merger detected: {symbol} was acquired by {merger_action.get("acquirer_symbol", "unknown")}',
@@ -327,6 +337,7 @@ class CorporateActionsValidator:
                 change_action = symbol_changes.iloc[0]
                 return ValidationResult(
                     symbol=symbol,
+                    type=row.get('type', ''),
                     composite_key=row.get('composite_key', ''),
                     change_type='MISSING_ENTRY',
                     explanation=f'Symbol change detected: {symbol} changed to {change_action.get("new_symbol", "unknown")}',
@@ -371,6 +382,7 @@ class CorporateActionsValidator:
             explained_df = pd.DataFrame([
                 {
                     'symbol': r.symbol,
+                    'type': r.type,
                     'composite_key': r.composite_key,
                     'change_type': r.change_type,
                     'explanation': r.explanation,
@@ -391,6 +403,7 @@ class CorporateActionsValidator:
             unexplained_df = pd.DataFrame([
                 {
                     'symbol': r.symbol,
+                    'type': r.type,
                     'composite_key': r.composite_key,
                     'change_type': r.change_type,
                     'explanation': r.explanation,

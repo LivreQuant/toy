@@ -121,7 +121,7 @@ def load_master_file(file_path: str) -> Optional[pd.DataFrame]:
     """Load master symbology file with error handling"""
     try:
         logger.info(f"Loading master file: {file_path}")
-        df = pd.read_csv(file_path, sep='|', dtype=str, low_memory=False)
+        df = pd.read_csv(file_path, sep='|', dtype=str, low_memory=False, keep_default_na=False, na_values=[])
         df = df.fillna('')
         logger.info(f"Successfully loaded {len(df)} records from {file_path}")
         return df
