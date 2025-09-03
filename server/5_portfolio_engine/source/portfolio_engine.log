@@ -1,0 +1,263 @@
+2025-09-03 19:01:07,054 - __main__ - INFO - Starting portfolio processing for date: 20250903
+2025-09-03 19:01:07,055 - __main__ - INFO - SOD directory: /media/samaral/pro/alphastamp/sod
+2025-09-03 19:01:07,055 - __main__ - INFO - CA data directory: /media/samaral/pro/alphastamp/ca/20250903/data
+2025-09-03 19:01:07,055 - __main__ - INFO - Loading corporate actions...
+2025-09-03 19:01:07,055 - source.portfolio.engine - INFO - Loading corporate actions for all action types...
+2025-09-03 19:01:07,098 - source.actions.cash_dividends - INFO - Loaded 247 unified cash dividends
+2025-09-03 19:01:07,098 - source.portfolio.engine - INFO - Loaded 247 actions from CashDividendsHandler
+2025-09-03 19:01:07,098 - source.portfolio.engine - INFO - Loaded 0 actions from DelistingsHandler
+2025-09-03 19:01:07,102 - source.actions.mergers - WARNING - No valid merger components found for ARIS, added placeholder
+2025-09-03 19:01:07,102 - source.actions.mergers - WARNING - No valid merger components found for FNBT, added placeholder
+2025-09-03 19:01:07,102 - source.actions.mergers - WARNING - No valid merger components found for NUCL, added placeholder
+2025-09-03 19:01:07,102 - source.actions.mergers - WARNING - No valid merger components found for CORZ, added placeholder
+2025-09-03 19:01:07,102 - source.actions.mergers - WARNING - No valid merger components found for GNTY, added placeholder
+2025-09-03 19:01:07,103 - source.actions.mergers - WARNING - No valid merger components found for SQCF, added placeholder
+2025-09-03 19:01:07,103 - source.actions.mergers - WARNING - No valid merger components found for MRNO, added placeholder
+2025-09-03 19:01:07,103 - source.actions.mergers - WARNING - No valid merger components found for RJET, added placeholder
+2025-09-03 19:01:07,103 - source.actions.mergers - WARNING - No valid merger components found for STRR, added placeholder
+2025-09-03 19:01:07,103 - source.actions.mergers - WARNING - No valid merger components found for HLGN, added placeholder
+2025-09-03 19:01:07,104 - source.actions.mergers - WARNING - No valid merger components found for FL, added placeholder
+2025-09-03 19:01:07,104 - source.actions.mergers - WARNING - No valid merger components found for BBOT, added placeholder
+2025-09-03 19:01:07,104 - source.actions.mergers - WARNING - No valid merger components found for FIEB, added placeholder
+2025-09-03 19:01:07,104 - source.actions.mergers - WARNING - No valid merger components found for ICAD, added placeholder
+2025-09-03 19:01:07,105 - source.actions.mergers - WARNING - No valid merger components found for COOP, added placeholder
+2025-09-03 19:01:07,105 - source.actions.mergers - WARNING - No valid merger components found for OTCQX, added placeholder
+2025-09-03 19:01:07,105 - source.actions.mergers - WARNING - No valid merger components found for SLRN, added placeholder
+2025-09-03 19:01:07,105 - source.actions.mergers - WARNING - No valid merger components found for BRDG, added placeholder
+2025-09-03 19:01:07,105 - source.actions.mergers - WARNING - No valid merger components found for RDFN, added placeholder
+2025-09-03 19:01:07,105 - source.actions.mergers - WARNING - No valid merger components found for CRSB, added placeholder
+2025-09-03 19:01:07,106 - source.actions.mergers - WARNING - No valid merger components found for SSTK, added placeholder
+2025-09-03 19:01:07,106 - source.actions.mergers - WARNING - No valid merger components found for HEES, added placeholder
+2025-09-03 19:01:07,106 - source.actions.mergers - WARNING - No valid merger components found for IMA, added placeholder
+2025-09-03 19:01:07,106 - source.actions.mergers - WARNING - No valid merger components found for BOID, added placeholder
+2025-09-03 19:01:07,106 - source.actions.mergers - WARNING - No valid merger components found for ESSA, added placeholder
+2025-09-03 19:01:07,107 - source.actions.mergers - WARNING - No valid merger components found for JTAI, added placeholder
+2025-09-03 19:01:07,107 - source.actions.mergers - WARNING - No valid merger components found for AKYA, added placeholder
+2025-09-03 19:01:07,107 - source.actions.mergers - WARNING - No valid merger components found for ENFN, added placeholder
+2025-09-03 19:01:07,107 - source.actions.mergers - WARNING - No valid merger components found for KANT, added placeholder
+2025-09-03 19:01:07,107 - source.actions.mergers - WARNING - No valid merger components found for ML, added placeholder
+2025-09-03 19:01:07,107 - source.actions.mergers - WARNING - No valid merger components found for EBTC, added placeholder
+2025-09-03 19:01:07,108 - source.actions.mergers - WARNING - No valid merger components found for PWOD, added placeholder
+2025-09-03 19:01:07,108 - source.actions.mergers - WARNING - No valid merger components found for BNIX, added placeholder
+2025-09-03 19:01:07,108 - source.actions.mergers - WARNING - No valid merger components found for IPG, added placeholder
+2025-09-03 19:01:07,108 - source.actions.mergers - WARNING - No valid merger components found for WMPN, added placeholder
+2025-09-03 19:01:07,108 - source.actions.mergers - WARNING - No valid merger components found for AMC, added placeholder
+2025-09-03 19:01:07,109 - source.actions.mergers - WARNING - No valid merger components found for ATLN, added placeholder
+2025-09-03 19:01:07,109 - source.actions.mergers - WARNING - No valid merger components found for STAF, added placeholder
+2025-09-03 19:01:07,109 - source.actions.mergers - WARNING - No valid merger components found for UDFI, added placeholder
+2025-09-03 19:01:07,109 - source.actions.mergers - WARNING - No valid merger components found for IROH, added placeholder
+2025-09-03 19:01:07,109 - source.actions.mergers - WARNING - No valid merger components found for TVRD, added placeholder
+2025-09-03 19:01:07,109 - source.actions.mergers - WARNING - No valid merger components found for LBRDA, added placeholder
+2025-09-03 19:01:07,110 - source.actions.mergers - WARNING - No valid merger components found for FLIC, added placeholder
+2025-09-03 19:01:07,110 - source.actions.mergers - WARNING - No valid merger components found for ENLC, added placeholder
+2025-09-03 19:01:07,110 - source.actions.mergers - WARNING - No valid merger components found for KLRS, added placeholder
+2025-09-03 19:01:07,110 - source.actions.mergers - WARNING - No valid merger components found for JBIO, added placeholder
+2025-09-03 19:01:07,110 - source.actions.mergers - WARNING - No valid merger components found for BFAC, added placeholder
+2025-09-03 19:01:07,111 - source.actions.mergers - WARNING - No valid merger components found for MITA, added placeholder
+2025-09-03 19:01:07,111 - source.actions.mergers - WARNING - No valid merger components found for ATHA, added placeholder
+2025-09-03 19:01:07,111 - source.actions.mergers - WARNING - No valid merger components found for AUB, added placeholder
+2025-09-03 19:01:07,111 - source.actions.mergers - WARNING - No valid merger components found for SASR, added placeholder
+2025-09-03 19:01:07,111 - source.actions.mergers - WARNING - No valid merger components found for AMTV, added placeholder
+2025-09-03 19:01:07,112 - source.actions.mergers - WARNING - No valid merger components found for LUNR, added placeholder
+2025-09-03 19:01:07,112 - source.actions.mergers - WARNING - No valid merger components found for AGSD, added placeholder
+2025-09-03 19:01:07,112 - source.actions.mergers - WARNING - No valid merger components found for EMAT, added placeholder
+2025-09-03 19:01:07,112 - source.actions.mergers - WARNING - No valid merger components found for VRDE, added placeholder
+2025-09-03 19:01:07,112 - source.actions.mergers - WARNING - No valid merger components found for DTC, added placeholder
+2025-09-03 19:01:07,113 - source.actions.mergers - WARNING - No valid merger components found for SMNR, added placeholder
+2025-09-03 19:01:07,113 - source.actions.mergers - INFO - Loaded 60 unified mergers
+2025-09-03 19:01:07,113 - source.portfolio.engine - INFO - Loaded 60 actions from MergersHandler
+2025-09-03 19:01:07,118 - source.actions.stock_splits - INFO - Loaded 20 unified stock splits
+2025-09-03 19:01:07,118 - source.portfolio.engine - INFO - Loaded 20 actions from StockSplitsHandler
+2025-09-03 19:01:07,118 - source.portfolio.engine - INFO - Loaded 0 actions from StockDividendsHandler
+2025-09-03 19:01:07,579 - source.actions.symbol_changes - INFO - Loaded 4003 unified symbol changes
+2025-09-03 19:01:07,581 - source.portfolio.engine - INFO - Loaded 4003 actions from SymbolChangesHandler
+2025-09-03 19:01:07,581 - source.portfolio.engine - INFO - Total corporate actions loaded: 4330
+2025-09-03 19:01:07,581 - __main__ - INFO - Loaded 4330 corporate actions
+2025-09-03 19:01:07,581 - __main__ - INFO - Loading user portfolios...
+2025-09-03 19:01:07,581 - source.portfolio.engine - INFO - Loading user sod data from /media/samaral/pro/alphastamp/sod
+2025-09-03 19:01:07,581 - source.portfolio.engine - INFO - No accounts file found at user1/accounts.csv, created default USD account
+2025-09-03 19:01:07,581 - source.portfolio.engine - INFO - Loaded portfolio for user user1: 0 positions, 1 accounts
+2025-09-03 19:01:07,581 - source.portfolio.engine - INFO - Total users loaded: 1
+2025-09-03 19:01:07,581 - __main__ - INFO - Loaded portfolios for 1 users
+2025-09-03 19:01:07,581 - __main__ - INFO - Processing corporate actions for all users...
+2025-09-03 19:01:07,581 - source.portfolio.engine - INFO - Processing corporate actions for all users...
+2025-09-03 19:01:07,581 - source.portfolio.engine - INFO - Processing user: user1
+2025-09-03 19:01:07,583 - __main__ - INFO - Saving results...
+2025-09-03 19:01:07,583 - source.portfolio.engine - INFO - Saving results to /media/samaral/pro/alphastamp/sod
+2025-09-03 19:01:07,791 - source.portfolio.engine - INFO - Saved results for user user1
+2025-09-03 19:01:07,895 - source.portfolio.engine - INFO - Saved processing summary: /media/samaral/pro/alphastamp/sod/processing_summary.csv
+2025-09-03 19:01:07,895 - __main__ - INFO - Portfolio processing completed successfully
+2025-09-03 19:03:57,940 - __main__ - INFO - Starting portfolio processing for date: 20250903
+2025-09-03 19:03:57,940 - __main__ - INFO - SOD directory: /media/samaral/pro/alphastamp/sod
+2025-09-03 19:03:57,940 - __main__ - INFO - CA data directory: /media/samaral/pro/alphastamp/ca/20250903/data
+2025-09-03 19:03:57,940 - __main__ - INFO - Loading corporate actions...
+2025-09-03 19:03:57,985 - source.actions.mergers - WARNING - No valid merger components found for ARIS, added placeholder
+2025-09-03 19:03:57,985 - source.actions.mergers - WARNING - No valid merger components found for FNBT, added placeholder
+2025-09-03 19:03:57,985 - source.actions.mergers - WARNING - No valid merger components found for NUCL, added placeholder
+2025-09-03 19:03:57,986 - source.actions.mergers - WARNING - No valid merger components found for CORZ, added placeholder
+2025-09-03 19:03:57,986 - source.actions.mergers - WARNING - No valid merger components found for GNTY, added placeholder
+2025-09-03 19:03:57,986 - source.actions.mergers - WARNING - No valid merger components found for SQCF, added placeholder
+2025-09-03 19:03:57,986 - source.actions.mergers - WARNING - No valid merger components found for MRNO, added placeholder
+2025-09-03 19:03:57,986 - source.actions.mergers - WARNING - No valid merger components found for RJET, added placeholder
+2025-09-03 19:03:57,987 - source.actions.mergers - WARNING - No valid merger components found for STRR, added placeholder
+2025-09-03 19:03:57,987 - source.actions.mergers - WARNING - No valid merger components found for HLGN, added placeholder
+2025-09-03 19:03:57,987 - source.actions.mergers - WARNING - No valid merger components found for FL, added placeholder
+2025-09-03 19:03:57,987 - source.actions.mergers - WARNING - No valid merger components found for BBOT, added placeholder
+2025-09-03 19:03:57,987 - source.actions.mergers - WARNING - No valid merger components found for FIEB, added placeholder
+2025-09-03 19:03:57,988 - source.actions.mergers - WARNING - No valid merger components found for ICAD, added placeholder
+2025-09-03 19:03:57,988 - source.actions.mergers - WARNING - No valid merger components found for COOP, added placeholder
+2025-09-03 19:03:57,988 - source.actions.mergers - WARNING - No valid merger components found for OTCQX, added placeholder
+2025-09-03 19:03:57,988 - source.actions.mergers - WARNING - No valid merger components found for SLRN, added placeholder
+2025-09-03 19:03:57,988 - source.actions.mergers - WARNING - No valid merger components found for BRDG, added placeholder
+2025-09-03 19:03:57,989 - source.actions.mergers - WARNING - No valid merger components found for RDFN, added placeholder
+2025-09-03 19:03:57,989 - source.actions.mergers - WARNING - No valid merger components found for CRSB, added placeholder
+2025-09-03 19:03:57,989 - source.actions.mergers - WARNING - No valid merger components found for SSTK, added placeholder
+2025-09-03 19:03:57,989 - source.actions.mergers - WARNING - No valid merger components found for HEES, added placeholder
+2025-09-03 19:03:57,989 - source.actions.mergers - WARNING - No valid merger components found for IMA, added placeholder
+2025-09-03 19:03:57,989 - source.actions.mergers - WARNING - No valid merger components found for BOID, added placeholder
+2025-09-03 19:03:57,990 - source.actions.mergers - WARNING - No valid merger components found for ESSA, added placeholder
+2025-09-03 19:03:57,990 - source.actions.mergers - WARNING - No valid merger components found for JTAI, added placeholder
+2025-09-03 19:03:57,990 - source.actions.mergers - WARNING - No valid merger components found for AKYA, added placeholder
+2025-09-03 19:03:57,990 - source.actions.mergers - WARNING - No valid merger components found for ENFN, added placeholder
+2025-09-03 19:03:57,990 - source.actions.mergers - WARNING - No valid merger components found for KANT, added placeholder
+2025-09-03 19:03:57,991 - source.actions.mergers - WARNING - No valid merger components found for ML, added placeholder
+2025-09-03 19:03:57,991 - source.actions.mergers - WARNING - No valid merger components found for EBTC, added placeholder
+2025-09-03 19:03:57,991 - source.actions.mergers - WARNING - No valid merger components found for PWOD, added placeholder
+2025-09-03 19:03:57,991 - source.actions.mergers - WARNING - No valid merger components found for BNIX, added placeholder
+2025-09-03 19:03:57,991 - source.actions.mergers - WARNING - No valid merger components found for IPG, added placeholder
+2025-09-03 19:03:57,992 - source.actions.mergers - WARNING - No valid merger components found for WMPN, added placeholder
+2025-09-03 19:03:57,992 - source.actions.mergers - WARNING - No valid merger components found for AMC, added placeholder
+2025-09-03 19:03:57,992 - source.actions.mergers - WARNING - No valid merger components found for ATLN, added placeholder
+2025-09-03 19:03:57,992 - source.actions.mergers - WARNING - No valid merger components found for STAF, added placeholder
+2025-09-03 19:03:57,992 - source.actions.mergers - WARNING - No valid merger components found for UDFI, added placeholder
+2025-09-03 19:03:57,993 - source.actions.mergers - WARNING - No valid merger components found for IROH, added placeholder
+2025-09-03 19:03:57,993 - source.actions.mergers - WARNING - No valid merger components found for TVRD, added placeholder
+2025-09-03 19:03:57,993 - source.actions.mergers - WARNING - No valid merger components found for LBRDA, added placeholder
+2025-09-03 19:03:57,993 - source.actions.mergers - WARNING - No valid merger components found for FLIC, added placeholder
+2025-09-03 19:03:57,993 - source.actions.mergers - WARNING - No valid merger components found for ENLC, added placeholder
+2025-09-03 19:03:57,994 - source.actions.mergers - WARNING - No valid merger components found for KLRS, added placeholder
+2025-09-03 19:03:57,994 - source.actions.mergers - WARNING - No valid merger components found for JBIO, added placeholder
+2025-09-03 19:03:57,994 - source.actions.mergers - WARNING - No valid merger components found for BFAC, added placeholder
+2025-09-03 19:03:57,994 - source.actions.mergers - WARNING - No valid merger components found for MITA, added placeholder
+2025-09-03 19:03:57,994 - source.actions.mergers - WARNING - No valid merger components found for ATHA, added placeholder
+2025-09-03 19:03:57,994 - source.actions.mergers - WARNING - No valid merger components found for AUB, added placeholder
+2025-09-03 19:03:57,995 - source.actions.mergers - WARNING - No valid merger components found for SASR, added placeholder
+2025-09-03 19:03:57,995 - source.actions.mergers - WARNING - No valid merger components found for AMTV, added placeholder
+2025-09-03 19:03:57,995 - source.actions.mergers - WARNING - No valid merger components found for LUNR, added placeholder
+2025-09-03 19:03:57,995 - source.actions.mergers - WARNING - No valid merger components found for AGSD, added placeholder
+2025-09-03 19:03:57,995 - source.actions.mergers - WARNING - No valid merger components found for EMAT, added placeholder
+2025-09-03 19:03:57,996 - source.actions.mergers - WARNING - No valid merger components found for VRDE, added placeholder
+2025-09-03 19:03:57,996 - source.actions.mergers - WARNING - No valid merger components found for DTC, added placeholder
+2025-09-03 19:03:57,996 - source.actions.mergers - WARNING - No valid merger components found for SMNR, added placeholder
+2025-09-03 19:03:58,458 - source.portfolio.engine - INFO - Corporate actions loaded:
+2025-09-03 19:03:58,458 - source.portfolio.engine - INFO -   CashDividends: 247
+2025-09-03 19:03:58,458 - source.portfolio.engine - INFO -   Mergers: 60
+2025-09-03 19:03:58,458 - source.portfolio.engine - INFO -   StockSplits: 20
+2025-09-03 19:03:58,458 - source.portfolio.engine - INFO -   SymbolChanges: 4003
+2025-09-03 19:03:58,458 - __main__ - INFO - Loaded 4330 corporate actions
+2025-09-03 19:03:58,458 - __main__ - INFO - Loading user portfolios...
+2025-09-03 19:03:58,458 - source.portfolio.engine - INFO - Loading user data from /media/samaral/pro/alphastamp/sod
+2025-09-03 19:03:58,460 - __main__ - INFO - Loaded portfolios for 1 users
+2025-09-03 19:03:58,460 - __main__ - INFO - Processing corporate actions for all users...
+2025-09-03 19:03:58,462 - source.portfolio.engine - INFO - Applied 0 corporate actions across all users
+2025-09-03 19:03:58,462 - __main__ - INFO - Saving results...
+2025-09-03 19:03:58,783 - __main__ - INFO - Portfolio processing completed successfully
+2025-09-03 19:05:10,446 - __main__ - INFO - Starting portfolio processing for date: 20250903
+2025-09-03 19:05:10,446 - __main__ - INFO - SOD directory: /media/samaral/pro/alphastamp/sod
+2025-09-03 19:05:10,446 - __main__ - INFO - CA data directory: /media/samaral/pro/alphastamp/ca/20250903/data
+2025-09-03 19:05:10,446 - __main__ - INFO - Loading corporate actions...
+2025-09-03 19:05:10,934 - source.portfolio.engine - INFO - Corporate actions loaded:
+2025-09-03 19:05:10,934 - source.portfolio.engine - INFO -   CashDividends: 247
+2025-09-03 19:05:10,934 - source.portfolio.engine - INFO -   Mergers: 2
+2025-09-03 19:05:10,934 - source.portfolio.engine - INFO -   StockSplits: 20
+2025-09-03 19:05:10,934 - source.portfolio.engine - INFO -   SymbolChanges: 4003
+2025-09-03 19:05:10,934 - __main__ - INFO - Loaded 4272 corporate actions
+2025-09-03 19:05:10,934 - __main__ - INFO - Loading user portfolios...
+2025-09-03 19:05:10,934 - source.portfolio.engine - INFO - Loading user data from /media/samaral/pro/alphastamp/sod
+2025-09-03 19:05:10,936 - __main__ - INFO - Loaded portfolios for 1 users
+2025-09-03 19:05:10,936 - __main__ - INFO - Processing corporate actions for all users...
+2025-09-03 19:05:10,938 - source.portfolio.engine - INFO - Applied 0 corporate actions across all users
+2025-09-03 19:05:10,938 - __main__ - INFO - Saving results...
+2025-09-03 19:05:11,259 - __main__ - INFO - Portfolio processing completed successfully
+2025-09-03 19:06:34,043 - __main__ - INFO - Starting portfolio processing for date: 20250903
+2025-09-03 19:06:34,043 - __main__ - INFO - SOD directory: /media/samaral/pro/alphastamp/sod
+2025-09-03 19:06:34,043 - __main__ - INFO - CA data directory: /media/samaral/pro/alphastamp/ca/20250903/data
+2025-09-03 19:06:34,043 - __main__ - INFO - Loading corporate actions...
+2025-09-03 19:06:34,539 - source.portfolio.engine - INFO - Corporate actions loaded:
+2025-09-03 19:06:34,539 - source.portfolio.engine - INFO -   CashDividends: 247
+2025-09-03 19:06:34,539 - source.portfolio.engine - INFO -   Mergers: 2
+2025-09-03 19:06:34,539 - source.portfolio.engine - INFO -   StockSplits: 20
+2025-09-03 19:06:34,539 - source.portfolio.engine - INFO -   SymbolChanges: 4003
+2025-09-03 19:06:34,539 - __main__ - INFO - Loaded 4272 corporate actions
+2025-09-03 19:06:34,539 - __main__ - INFO - Loading user portfolios...
+2025-09-03 19:06:34,539 - source.portfolio.engine - INFO - Loading user data from /media/samaral/pro/alphastamp/sod
+2025-09-03 19:06:34,541 - __main__ - INFO - Loaded portfolios for 1 users
+2025-09-03 19:06:34,541 - __main__ - INFO - Processing corporate actions for all users...
+2025-09-03 19:06:34,543 - source.portfolio.engine - INFO - Applied 0 corporate actions across all users
+2025-09-03 19:06:34,543 - __main__ - INFO - Saving results...
+2025-09-03 19:06:34,855 - __main__ - INFO - Portfolio processing completed successfully
+2025-09-03 19:06:40,003 - __main__ - INFO - Starting portfolio processing for date: 20250903
+2025-09-03 19:06:40,003 - __main__ - INFO - SOD directory: /media/samaral/pro/alphastamp/sod
+2025-09-03 19:06:40,003 - __main__ - INFO - CA data directory: /media/samaral/pro/alphastamp/ca/20250903/data
+2025-09-03 19:06:40,003 - __main__ - INFO - Loading corporate actions...
+2025-09-03 19:06:40,517 - source.portfolio.engine - INFO - Corporate actions loaded:
+2025-09-03 19:06:40,517 - source.portfolio.engine - INFO -   CashDividends: 247
+2025-09-03 19:06:40,517 - source.portfolio.engine - INFO -   Mergers: 2
+2025-09-03 19:06:40,517 - source.portfolio.engine - INFO -   StockSplits: 20
+2025-09-03 19:06:40,517 - source.portfolio.engine - INFO -   SymbolChanges: 4003
+2025-09-03 19:06:40,517 - __main__ - INFO - Loaded 4272 corporate actions
+2025-09-03 19:06:40,517 - __main__ - INFO - Loading user portfolios...
+2025-09-03 19:06:40,517 - source.portfolio.engine - INFO - Loading user data from /media/samaral/pro/alphastamp/sod
+2025-09-03 19:06:40,519 - __main__ - INFO - Loaded portfolios for 1 users
+2025-09-03 19:06:40,519 - __main__ - INFO - Processing corporate actions for all users...
+2025-09-03 19:06:40,521 - source.portfolio.engine - INFO - Applied 0 corporate actions across all users
+2025-09-03 19:06:40,521 - __main__ - INFO - Saving results...
+2025-09-03 19:06:40,843 - __main__ - INFO - Portfolio processing completed successfully
+2025-09-03 19:34:31,585 - __main__ - INFO - Starting portfolio processing for date: 20250903
+2025-09-03 19:34:31,585 - __main__ - INFO - SOD directory: /media/samaral/pro/alphastamp/sod
+2025-09-03 19:34:31,585 - __main__ - INFO - CA data directory: /media/samaral/pro/alphastamp/ca/20250903/data
+2025-09-03 19:34:31,585 - __main__ - INFO - Loading corporate actions...
+2025-09-03 19:34:32,142 - source.portfolio.engine - INFO - Corporate actions loaded:
+2025-09-03 19:34:32,142 - source.portfolio.engine - INFO -   CashDividends: 247
+2025-09-03 19:34:32,142 - source.portfolio.engine - INFO -   Mergers: 2
+2025-09-03 19:34:32,142 - source.portfolio.engine - INFO -   StockSplits: 20
+2025-09-03 19:34:32,142 - source.portfolio.engine - INFO -   SymbolChanges: 4003
+2025-09-03 19:34:32,142 - __main__ - INFO - Loaded 4272 corporate actions
+2025-09-03 19:34:32,142 - __main__ - INFO - Loading user portfolios...
+2025-09-03 19:34:32,142 - source.portfolio.engine - INFO - Loading user data from /media/samaral/pro/alphastamp/sod
+2025-09-03 19:34:32,144 - source.portfolio.engine - INFO - No accounts file found at /media/samaral/pro/alphastamp/sod/user1/accounts.csv, created default: {'USD': Decimal('100000')}
+2025-09-03 19:34:32,144 - source.portfolio.engine - INFO - User user1:
+2025-09-03 19:34:32,144 - source.portfolio.engine - INFO -   Positions: 1
+2025-09-03 19:34:32,144 - source.portfolio.engine - INFO -     AAPL: 100
+2025-09-03 19:34:32,144 - source.portfolio.engine - INFO -   Accounts: {'USD': Decimal('100000')}
+2025-09-03 19:34:32,144 - __main__ - INFO - Loaded portfolios for 1 users
+2025-09-03 19:34:32,144 - __main__ - INFO - Processing corporate actions for all users...
+2025-09-03 19:34:32,144 - source.portfolio.engine - INFO - === STARTING USER PROCESSING ===
+2025-09-03 19:34:32,144 - source.portfolio.engine - INFO - 
+--- Processing user: user1 ---
+2025-09-03 19:34:32,144 - source.portfolio.engine - INFO - Starting accounts: {'USD': Decimal('100000')}
+2025-09-03 19:34:32,144 - source.portfolio.engine - INFO - Starting positions: 1
+2025-09-03 19:34:32,144 - source.portfolio.engine - INFO - Processing portfolio for user user1
+2025-09-03 19:34:32,144 - source.portfolio.engine - INFO - Initial final_accounts (copy): {'USD': Decimal('100000')}
+2025-09-03 19:34:32,146 - source.portfolio.engine - INFO - Corporate actions available for 4152 symbols
+2025-09-03 19:34:32,146 - source.portfolio.engine - INFO - Processing 1 positions
+2025-09-03 19:34:32,146 - source.portfolio.engine - INFO -   Position 1: AAPL - 100
+2025-09-03 19:34:32,146 - source.portfolio.engine - INFO -     No corporate actions found for AAPL
+2025-09-03 19:34:32,146 - source.portfolio.engine - INFO -     Kept original position: AAPL = 100
+2025-09-03 19:34:32,146 - source.portfolio.engine - INFO - Completed processing. Actions applied: 0
+2025-09-03 19:34:32,146 - source.portfolio.engine - INFO - Final accounts before return: {'USD': Decimal('100000')}
+2025-09-03 19:34:32,146 - source.portfolio.engine - INFO - Final positions before return: {'AAPL': Decimal('100')}
+2025-09-03 19:34:32,146 - source.portfolio.engine - INFO - Final accounts: {'USD': Decimal('100000')}
+2025-09-03 19:34:32,147 - source.portfolio.engine - INFO - Final positions: 1
+2025-09-03 19:34:32,147 - source.portfolio.engine - INFO - Actions applied: 0
+2025-09-03 19:34:32,147 - source.portfolio.engine - INFO - 
+=== PROCESSING COMPLETE ===
+2025-09-03 19:34:32,147 - source.portfolio.engine - INFO - Total actions applied across all users: 0
+2025-09-03 19:34:32,147 - __main__ - INFO - Saving results...
+2025-09-03 19:34:32,147 - source.portfolio.engine - INFO - === SAVING RESULTS ===
+2025-09-03 19:34:32,147 - source.portfolio.engine - INFO - Saving results for user user1
+2025-09-03 19:34:32,147 - source.portfolio.engine - INFO -   Accounts to save: {'USD': Decimal('100000')}
+2025-09-03 19:34:32,147 - source.portfolio.engine - INFO -   Positions to save: {'AAPL': Decimal('100')}
+2025-09-03 19:34:32,251 - source.portfolio.engine - INFO -   Saved portfolio: /media/samaral/pro/alphastamp/sod/user1_final_portfolio.csv
+2025-09-03 19:34:32,355 - source.portfolio.engine - INFO -   Saved accounts: /media/samaral/pro/alphastamp/sod/user1_final_accounts.csv
+2025-09-03 19:34:32,459 - __main__ - INFO - Portfolio processing completed successfully

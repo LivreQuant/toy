@@ -21,6 +21,11 @@ def setup_logging():
         ]
     )
 
+    # Reduce verbosity for specific modules
+    logging.getLogger('source.actions').setLevel(logging.WARNING)  # Only show warnings/errors for actions
+    logging.getLogger('source.portfolio.engine').setLevel(logging.INFO)  # Keep engine logs
+
+
 
 def main():
     """Main function"""
@@ -77,7 +82,6 @@ def main():
     except Exception as e:
         logger.error(f"Error during processing: {e}")
         sys.exit(1)
-
 
 if __name__ == '__main__':
     main()

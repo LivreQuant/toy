@@ -31,16 +31,16 @@ class MergersHandler:
             for _, row in df.iterrows():
                 components = self._build_merger_components(row)
 
-                action = Merger(
-                    symbol=row['acquiree_symbol'],
-                    action_type='MERGER',
-                    effective_date=self._safe_get_date(row, 'ex_date'),
-                    source=f"unified_{row['source']}",
-                    components=components
-                )
-                actions.append(action)
-
-            logger.info(f"Loaded {len(actions)} unified mergers")
+                # Only create merger if we have valid components
+                if self._has_valid_components(components):
+                    action = Merger(
+                        symbol=row['acquiree_symbol'],
+                        action_type='MERGER',
+                        effective_date=self._safe_get_date(row, 'ex_date'),
+                        source=f"unified_{row['source']}",
+                        components=components
+                    )
+                    actions.append(action)
 
         return actions
 
@@ -78,8 +78,6 @@ class MergersHandler:
                 )
                 actions.append(action)
 
-            logger.info(f"Loaded {len(actions)} manual mergers")
-
         return actions
 
     def load_all_data(self) -> List[Merger]:
@@ -107,7 +105,6 @@ class MergersHandler:
                     quantity=new_quantity
                 )
                 new_positions.append(new_position)
-                logger.info(f"Merger for {position.symbol}: created {new_quantity} shares of {component.parent}")
 
         return new_positions
 
@@ -126,8 +123,6 @@ class MergersHandler:
                 else:
                     cash_adjustments[currency] = cash_amount
 
-                logger.info(f"Merger for {position.symbol}: {cash_amount} {currency} credited to account")
-
         return cash_adjustments
 
     def apply_action(self, position: Position, action: Merger, current_date: str) -> PortfolioUpdate:
@@ -141,6 +136,10 @@ class MergersHandler:
             new_positions=new_positions,
             cash_adjustments=cash_adjustments
         )
+
+    def can_handle(self, action) -> bool:
+        """Check if this handler can process the given action"""
+        return hasattr(action, 'action_type') and action.action_type == 'MERGER'
 
     def _build_merger_components(self, row) -> List[MergerComponent]:
         """Build merger components from unified merger row"""
@@ -158,7 +157,7 @@ class MergersHandler:
                         value=Decimal(str(acquirer_rate))
                     ))
             except (ValueError, TypeError):
-                logger.warning(f"Invalid acquirer_rate for {row.get('acquiree_symbol')}: {row.get('acquirer_rate')}")
+                pass
 
         # Add cash component if cash rate available
         if pd.notna(row.get('cash_rate')):
@@ -172,19 +171,13 @@ class MergersHandler:
                         value=Decimal(str(cash_rate))
                     ))
             except (ValueError, TypeError):
-                logger.warning(f"Invalid cash_rate for {row.get('acquiree_symbol')}: {row.get('cash_rate')}")
-
-        # If no components found, create a placeholder that needs manual override
-        if not components:
-            components.append(MergerComponent(
-                type='cash',
-                parent='Credit',
-                currency='USD',
-                value=Decimal('0')  # Needs manual override
-            ))
-            logger.warning(f"No valid merger components found for {row.get('acquiree_symbol')}, added placeholder")
+                pass
 
         return components
+
+    def _has_valid_components(self, components: List[MergerComponent]) -> bool:
+        """Check if merger has any valid (non-zero) components"""
+        return any(component.value > 0 for component in components)
 
     def _safe_get_date(self, row, date_field: str) -> str:
         """Safely extract date field"""
@@ -201,7 +194,6 @@ class MergersHandler:
                     return str(date_value).strip()
             return ''
         except Exception as e:
-            logger.warning(f"Error processing date field {date_field}: {e}")
             return ''
 
     def create_manual_template(self):
@@ -217,5 +209,3 @@ class MergersHandler:
                 'currency': [None, 'USD'],
                 'value': [0.34, 10.0]
             }).to_csv(template_path, index=False)
-
-            logger.info(f"Created mergers manual template: {template_path}")
