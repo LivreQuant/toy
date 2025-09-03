@@ -5,22 +5,9 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="e9e6cd4c-684f-4e66-8307-213b18173ec7" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/../validate/source/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../corporate_actions/source/actions/rights.py" beforeDir="false" afterPath="$PROJECT_DIR$/../corporate_actions/source/actions/rights.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../corporate_actions/source/actions/stock_dividend.py" beforeDir="false" afterPath="$PROJECT_DIR$/../corporate_actions/source/actions/stock_dividends.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../corporate_actions/source/actions/symbol_changes.py" beforeDir="false" afterPath="$PROJECT_DIR$/../corporate_actions/source/actions/symbol_changes.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../corporate_actions/source/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/../corporate_actions/source/main.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../data/20250901_MASTER.csv" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../validate/source/config.py" beforeDir="false" afterPath="$PROJECT_DIR$/../validate/source/config.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../validate/source/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/../validate/source/main.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../validate/source/master/compare.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../validate/source/master/utils.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../validate/source/old/data_changes.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../validate/source/old/generate_summary_report.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../validate/source/old/missing_symbols.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../validate/source/old/new_symbols.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../validate/source/run.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/source/providers/utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/source/providers/utils.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -163,16 +150,5 @@
       <updated>1756316451260</updated>
     </task>
     <servers />
-  </component>
-  <component name="XDebuggerManager">
-    <breakpoint-manager>
-      <breakpoints>
-        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/source/main.py</url>
-          <line>255</line>
-          <option name="timeStamp" value="2" />
-        </line-breakpoint>
-      </breakpoints>
-    </breakpoint-manager>
   </component>
 </project>

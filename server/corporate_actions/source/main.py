@@ -40,31 +40,31 @@ def main():
         print(f"  - {action_type}: {len(df)} records")
 
     print("\nAnalyzing Cash Dividends...")
-    # cash_dividends.run(alpaca_data, fmp_data, poly_data, sharadar_data)
+    cash_dividends.run(alpaca_data, fmp_data, poly_data, sharadar_data)
 
     print("\nAnalyzing Delisting...")
-    # delisting.run(alpaca_data, fmp_data, poly_data, sharadar_data)
+    delistings.run(alpaca_data, fmp_data, poly_data, sharadar_data)
 
     print("\nAnalyzing IPOS...")
-    # ipo.run(alpaca_data, fmp_data, poly_data, sharadar_data)
+    ipos.run(alpaca_data, fmp_data, poly_data, sharadar_data)
 
     print("\nAnalyzing Mergers...")
-    # mergers.run(alpaca_data, fmp_data, poly_data, sharadar_data)
+    mergers.run(alpaca_data, fmp_data, poly_data, sharadar_data)
 
     print("\nAnalyzing Rights...")
     rights.run(alpaca_data, fmp_data, poly_data, sharadar_data)
 
     print("\nAnalyzing Spinoffs...")
-    # spinoffs.run(alpaca_data, fmp_data, poly_data, sharadar_data)
+    spinoffs.run(alpaca_data, fmp_data, poly_data, sharadar_data)
 
     print("\nAnalyzing Splits...")
-    # splits.run(alpaca_data, fmp_data, poly_data, sharadar_data)
+    splits.run(alpaca_data, fmp_data, poly_data, sharadar_data)
 
     print("\nAnalyzing Stock Dividends...")
-    # stock_dividends.run(alpaca_data, fmp_data, poly_data, sharadar_data)
+    stock_dividends.run(alpaca_data, fmp_data, poly_data, sharadar_data)
 
     print("\nAnalyzing Symbol Changes...")
-    # symbol_changes.run(alpaca_data, fmp_data, poly_data, sharadar_data)
+    symbol_changes.run(alpaca_data, fmp_data, poly_data, sharadar_data)
 
 
 if __name__ == "__main__":
