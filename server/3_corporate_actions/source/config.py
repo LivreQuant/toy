@@ -21,13 +21,14 @@ class CorporateActionsConfig:
             load_dotenv(env_file_path)
 
         ymd = datetime.strftime(datetime.today(), "%Y%m%d")
-        prv_ymd = sorted(glob.glob(os.path.join(os.getenv('SOURCE_CA_DIR'), '*')))[-2]
+        prv_ymd = os.path.basename(sorted(glob.glob(os.path.join(os.getenv('SOURCE_CA_DIR'), '*')))[-2])
 
         self.source_symbols_dir = os.path.join(os.getenv('SOURCE_SYMBOLS_DIR'), ymd)
         self.source_ca_dir = os.path.join(os.getenv('SOURCE_CA_DIR'), ymd)
         self.source_ca_prv_dir = os.path.join(os.getenv('SOURCE_CA_DIR'), prv_ymd)
 
         self.master_files_dir = os.path.join(os.getenv('MASTER_FILES_DIR'), ymd, 'data')
+        self.master_files_prv_dir = os.path.join(os.getenv('MASTER_FILES_DIR'), prv_ymd, 'data')
         self.corporate_actions_dir = os.path.join(os.getenv('CORPORATE_ACTIONS_DIR'), ymd)
 
         # Data directories
@@ -54,7 +55,7 @@ class CorporateActionsConfig:
     def ensure_directories(self):
         """Create all necessary directories if they don't exist"""
         directories = [
-            self.data_dir, self.debug_dir, self.master_files_dir, self.corporate_actions_dir
+            self.data_dir, self.debug_dir, self.master_files_dir, self.master_files_prv_dir, self.corporate_actions_dir
         ]
 
         for directory in directories:

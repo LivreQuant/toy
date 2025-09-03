@@ -91,6 +91,12 @@ class EnhancedIPOProcessor:
             'ipo_symbol': 'ticker',
             'company_name': 'name',
             'listing_exchange': 'exchange'
+        },
+        'nasdaq': {
+            'symbol': 'Symbol',
+            'ipo_symbol': 'Symbol',
+            'company_name': 'Company Name',
+            'listing_exchange': lambda x: 'XNAS'
         }
     }
 
@@ -527,7 +533,8 @@ class EnhancedIPOProcessor:
 def extract_ipo_from_sources(alpaca_data: Dict[str, pd.DataFrame],
                              fmp_data: Dict[str, pd.DataFrame],
                              poly_data: Dict[str, pd.DataFrame],
-                             sharadar_data: pd.DataFrame) -> Dict[str, List[Dict[str, Any]]]:
+                             sharadar_data: pd.DataFrame,
+                             nasdaq_data: Dict[str, pd.DataFrame]) -> Dict[str, List[Dict[str, Any]]]:
     """Extract IPO data from all sources and return in standardized format."""
 
     extracted_data = {}
@@ -551,13 +558,21 @@ def extract_ipo_from_sources(alpaca_data: Dict[str, pd.DataFrame],
     else:
         extracted_data['sharadar'] = []
 
+    # Extract from NASDAQ
+    if 'ipos' in nasdaq_data and not nasdaq_data['ipos'].empty:
+        extracted_data['nasdaq'] = nasdaq_data['ipos'].to_dict('records')
+    else:
+        extracted_data['nasdaq'] = []
+
     return extracted_data
+
 
 
 def run(alpaca_data: Dict[str, pd.DataFrame],
         fmp_data: Dict[str, pd.DataFrame],
         poly_data: Dict[str, pd.DataFrame],
-        sharadar_data: pd.DataFrame):
+        sharadar_data: pd.DataFrame,
+        nasdaq_data: Dict[str, pd.DataFrame]):
     """Main function to process IPOs from all sources."""
 
     # Ensure directories exist
@@ -573,7 +588,7 @@ def run(alpaca_data: Dict[str, pd.DataFrame],
 
     # Extract IPO data from all sources
     print("Extracting IPO data from sources...")
-    source_data = extract_ipo_from_sources(alpaca_data, fmp_data, poly_data, sharadar_data)
+    source_data = extract_ipo_from_sources(alpaca_data, fmp_data, poly_data, sharadar_data, nasdaq_data)
 
     # Print extraction summary
     total_records = sum(len(data) for data in source_data.values())

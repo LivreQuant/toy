@@ -106,7 +106,7 @@ class CorporateActionsValidator:
             'symbol_changes': 'unified_symbol_changes.csv',
             'mergers': 'unified_mergers.csv',
             'spinoffs': 'unified_spinoffs.csv',
-            'delistings': 'unified_delisting.csv',
+            'delistings': 'unified_delistings.csv',
             'ipos': 'unified_ipos.csv'
         }
 
@@ -272,6 +272,7 @@ class CorporateActionsValidator:
 
     def check_for_delisting(self, symbol: str, row: pd.Series) -> ValidationResult:
         """Check if missing entry can be explained by a delisting"""
+        print(self.delistings_df)
         if not self.delistings_df.empty:
             delisting_matches = self.delistings_df[self.delistings_df['master_symbol'] == symbol]
 

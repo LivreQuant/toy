@@ -80,6 +80,12 @@ class EnhancedDelistingProcessor:
             'delisted_symbol': 'ticker',
             'company_name': 'name',
             'delisting_type': lambda x: 'general'
+        },
+        'nasdaq': {
+            'symbol': 'symbol',
+            'delisted_symbol': 'symbol',
+            'company_name': 'company_name',
+            'delisting_type': lambda x: 'issue_event'
         }
     }
 
@@ -107,6 +113,7 @@ class EnhancedDelistingProcessor:
         # Merge and analyze matches
         match_results = []
         for master_symbol, delistings_by_source in symbol_groups.items():
+            print(master_symbol, delistings_by_source)
             try:
                 match_result = self._create_match_result(master_symbol, delistings_by_source)
                 match_results.append(match_result)
@@ -488,7 +495,8 @@ class EnhancedDelistingProcessor:
 def extract_delisting_from_sources(alpaca_data: Dict[str, pd.DataFrame],
                                    fmp_data: Dict[str, pd.DataFrame],
                                    poly_data: Dict[str, pd.DataFrame],
-                                   sharadar_data: pd.DataFrame) -> Dict[str, List[Dict[str, Any]]]:
+                                   sharadar_data: pd.DataFrame,
+                                   nasdaq_data: Dict[str, pd.DataFrame]) -> Dict[str, List[Dict[str, Any]]]:
     """Extract delisting data from all sources and return in standardized format."""
 
     extracted_data = {}
@@ -516,29 +524,37 @@ def extract_delisting_from_sources(alpaca_data: Dict[str, pd.DataFrame],
     else:
         extracted_data['sharadar'] = []
 
+    # Extract from NASDAQ
+    if 'delistings' in nasdaq_data and not nasdaq_data['delistings'].empty:
+        extracted_data['nasdaq'] = nasdaq_data['delistings'].to_dict('records')
+    else:
+        extracted_data['nasdaq'] = []
+
     return extracted_data
+
 
 
 def run(alpaca_data: Dict[str, pd.DataFrame],
         fmp_data: Dict[str, pd.DataFrame],
         poly_data: Dict[str, pd.DataFrame],
-        sharadar_data: pd.DataFrame):
+        sharadar_data: pd.DataFrame,
+        nasdaq_data: Dict[str, pd.DataFrame]):
     """Main function to process delistings from all sources."""
 
     # Ensure directories exist
     config.ensure_directories()
 
     # Find master files using configured path
-    master_files = glob.glob(os.path.join(config.master_files_dir, '*_MASTER_UPDATED.csv'))
+    master_files = glob.glob(os.path.join(config.master_files_prv_dir, '*_MASTER_UPDATED.csv'))
     if not master_files:
-        raise FileNotFoundError(f"No master CSV files found in {config.master_files_dir}")
+        raise FileNotFoundError(f"No master CSV files found in {config.master_files_prv_dir}")
 
     master_file = max(master_files)  # Get the most recent master file
     print(f"Using master file: {master_file}")
 
     # Extract delisting data from all sources
     print("Extracting delisting data from sources...")
-    source_data = extract_delisting_from_sources(alpaca_data, fmp_data, poly_data, sharadar_data)
+    source_data = extract_delisting_from_sources(alpaca_data, fmp_data, poly_data, sharadar_data, nasdaq_data)
 
     # Print extraction summary
     total_records = sum(len(data) for data in source_data.values())
@@ -562,7 +578,7 @@ def run(alpaca_data: Dict[str, pd.DataFrame],
     # Only export CSV if we have results
     if results:
         # Ensure the filename is set properly
-        delisting_filename = config.unified_delisting_file or 'unified_delisting.csv'
+        delisting_filename = config.unified_delisting_file or 'unified_delistings.csv'
         processor.export_unified_delistings(results, os.path.join(config.data_dir, delisting_filename))
 
         print(f"Processed {len(results)} delisting matches")

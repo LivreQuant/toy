@@ -1,5 +1,5 @@
 from source.config import config
-from source.providers import fmp, poly, sharadar, alpaca
+from source.providers import fmp, poly, sharadar, alpaca, nasdaq
 
 from source.actions import cash_dividends
 from source.actions import delistings
@@ -39,14 +39,20 @@ def main():
     for action_type, df in alpaca_data.items():
         print(f"  - {action_type}: {len(df)} records")
 
+    print("\nLoading data from NASDAQ...")
+    nasdaq_data = nasdaq.load_data()
+    print("NASDAQ data loaded:")
+    for action_type, df in nasdaq_data.items():
+        print(f"  - {action_type}: {len(df)} records")
+
     print("\nAnalyzing Cash Dividends...")
     cash_dividends.run(alpaca_data, fmp_data, poly_data, sharadar_data)
 
     print("\nAnalyzing Delisting...")
-    delistings.run(alpaca_data, fmp_data, poly_data, sharadar_data)
+    delistings.run(alpaca_data, fmp_data, poly_data, sharadar_data, nasdaq_data)
 
     print("\nAnalyzing IPOS...")
-    ipos.run(alpaca_data, fmp_data, poly_data, sharadar_data)
+    ipos.run(alpaca_data, fmp_data, poly_data, sharadar_data, nasdaq_data)
 
     print("\nAnalyzing Mergers...")
     mergers.run(alpaca_data, fmp_data, poly_data, sharadar_data)
