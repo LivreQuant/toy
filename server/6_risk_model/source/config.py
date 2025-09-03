@@ -77,7 +77,11 @@ class Config(BaseModel):
         """Get master data directory path"""
         return Path(self.master_data.master_dir)
 
-    def load_master_file(self, filename: str) -> Optional[pd.DataFrame]:
+    def get_output_dir(self) -> Path:
+        """Get master data directory path"""
+        return Path(config.OUTPUT_DIR)
+
+    def load_master_file(self) -> Optional[pd.DataFrame]:
         """Load a specific master file"""
         try:
 
@@ -95,13 +99,13 @@ class Config(BaseModel):
 
             if master_file.exists():
                 df = pd.read_csv(master_file, dtype=str, keep_default_na=False, na_values=[])
-                logging.info(f"Loaded master file {filename}: {len(df)} records")
+                logging.info(f"Loaded master file: {len(df)} records")
                 return df
             else:
                 logging.error(f"Master file not found: {master_file}")
                 raise ValueError("Missing Master file")
         except Exception as e:
-            logging.error(f"Failed to load master file {filename}: {e}")
+            logging.error(f"Failed to load master file: {e}")
             raise ValueError("Missing Master file")
 
 
