@@ -7,7 +7,6 @@ from datetime import date
 from typing import List, Dict, Any
 from source.config import config
 import pandas as pd
-from source.db.symbol_manager import SymbolManager
 
 
 class BaseRiskModel(ABC):
@@ -15,7 +14,7 @@ class BaseRiskModel(ABC):
     Abstract base class for all risk models.
     """
 
-    def __init__(self, model: str, symbol_manager: SymbolManager):
+    def __init__(self, model: str, master_data: pd.DataFrame):
         """
         Initializes the base risk model with a name and a list of symbols.
 
@@ -24,7 +23,7 @@ class BaseRiskModel(ABC):
             symbols (List[str]): A list of security symbols to generate data for.
         """
         self.model = model
-        self.symbol_manager = symbol_manager
+        self.master_data = master_data
         self.exposures = pd.DataFrame()
 
     @abstractmethod

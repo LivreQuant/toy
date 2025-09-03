@@ -1,8 +1,6 @@
 # main.py
 import logging
 from datetime import date
-from db.risk_manager import RiskManager
-from db.symbol_manager import SymbolManager
 from models.random import RandomRiskModel
 from config import config
 
@@ -30,14 +28,14 @@ def main():
             f"Starting risk model generation and loading for {today} with model '{model_name}' in {config.environment} environment.")
 
         # Step 1: Load the universe of symbols
-        symbol_manager = SymbolManager()
+        master_data = config.load_master_file()
 
-        if not symbols:
+        if master_data.empty:
             logging.error("No symbols were retrieved. Aborting process.")
             return False
 
         # Step 2: Generate the risk model data
-        risk_model = RandomRiskModel(model=model_name, symbol_manager=symbol_manager)
+        risk_model = RandomRiskModel(model=model_name, master_data=master_data)
         risk_model.generate_exposures(date=today)
 
         # Step 3: Load the data into the database

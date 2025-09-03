@@ -5,7 +5,6 @@ from typing import List, Dict, Any
 import random
 import pandas as pd
 import logging
-from source.db.symbol_manager import SymbolManager
 
 
 class RandomRiskModel(BaseRiskModel):
@@ -14,15 +13,18 @@ class RandomRiskModel(BaseRiskModel):
     ALL risk model structure and factor definitions are contained here.
     """
 
-    def __init__(self, model: str, symbol_manager: SymbolManager):
+    def __init__(self, model: str, master_data: pd.DataFrame):
         """
         Initializes the Random risk model.
 
         Args:
             model (str): The name of the risk model.
-            symbols (List[str]): A list of security symbols.
+            symbol_manager (SymbolManager): Symbol manager containing master data.
         """
-        super().__init__(model, symbol_manager)
+        super().__init__(model, master_data)
+
+        # Get the master data from symbol manager
+        self.master_data = master_data
 
         # Define Style factors (random values between -1 and 1)
         self.style_factors = [
@@ -67,11 +69,8 @@ class RandomRiskModel(BaseRiskModel):
 
     def _extract_sectors(self) -> List[str]:
         """Extract unique sectors from master data"""
-        if self.symbol_manager.empty:
-            return ["Technology", "Finance", "Healthcare"]  # Default fallback
-
         # Try common sector column names
-        sector_columns = ["SECTOR", "Sector", "sector", "GICS_SECTOR", "Industry"]
+        sector_columns = ["sic_sector"]
 
         for col in sector_columns:
             if col in self.master_data.columns:
@@ -85,11 +84,8 @@ class RandomRiskModel(BaseRiskModel):
 
     def _extract_countries(self) -> List[str]:
         """Extract unique countries from master data"""
-        if self.master_data.empty:
-            return ["USA"]  # Default fallback
-
         # Try common country column names
-        country_columns = ["COUNTRY", "Country", "country", "LOCATION", "Location"]
+        country_columns = ["country"]
 
         for col in country_columns:
             if col in self.master_data.columns:
@@ -103,11 +99,8 @@ class RandomRiskModel(BaseRiskModel):
 
     def _extract_currencies(self) -> List[str]:
         """Extract unique currencies from master data"""
-        if self.master_data.empty:
-            return ["USD"]  # Default fallback
-
         # Try common currency column names
-        currency_columns = ["CURRENCY", "Currency", "currency", "CCY", "Ccy"]
+        currency_columns = ["currency"]
 
         for col in currency_columns:
             if col in self.master_data.columns:
@@ -121,12 +114,9 @@ class RandomRiskModel(BaseRiskModel):
 
     def get_symbol_sector(self, symbol: str) -> str:
         """Get sector for a specific symbol from master data"""
-        if self.master_data.empty:
-            return random.choice(self.sector_factors)
-
         # Try to find the symbol in master data
-        symbol_columns = ["SYMBOL", "Symbol", "symbol", "TICKER", "Ticker"]
-        sector_columns = ["SECTOR", "Sector", "sector", "GICS_SECTOR", "Industry"]
+        symbol_columns = ["symbol"]
+        sector_columns = ["sector_columns"]
 
         symbol_col = None
         sector_col = None
@@ -157,8 +147,8 @@ class RandomRiskModel(BaseRiskModel):
             return random.choice(self.country_factors)
 
         # Similar logic as get_symbol_sector but for country
-        symbol_columns = ["SYMBOL", "Symbol", "symbol", "TICKER", "Ticker"]
-        country_columns = ["COUNTRY", "Country", "country", "LOCATION", "Location"]
+        symbol_columns = ["symbol"]
+        country_columns = ["country"]
 
         symbol_col = None
         country_col = None
@@ -184,12 +174,9 @@ class RandomRiskModel(BaseRiskModel):
 
     def get_symbol_currency(self, symbol: str) -> str:
         """Get currency for a specific symbol from master data"""
-        if self.master_data.empty:
-            return random.choice(self.currency_factors)
-
         # Similar logic as get_symbol_sector but for currency
-        symbol_columns = ["SYMBOL", "Symbol", "symbol", "TICKER", "Ticker"]
-        currency_columns = ["CURRENCY", "Currency", "currency", "CCY", "Ccy"]
+        symbol_columns = ["symbol"]
+        currency_columns = ["currency"]
 
         symbol_col = None
         currency_col = None
@@ -213,6 +200,21 @@ class RandomRiskModel(BaseRiskModel):
 
         return random.choice(self.currency_factors)
 
+    def _get_symbols_from_master_data(self) -> List[str]:
+        """Extract symbols from master data"""
+        # Try common symbol column names
+        symbol_columns = ["symbol"]
+
+        for col in symbol_columns:
+            if col in self.master_data.columns:
+                symbols = self.master_data[col].dropna().unique().tolist()
+                if symbols:
+                    logging.info(f"Found {len(symbols)} symbols in column '{col}'")
+                    return symbols
+
+        logging.warning("No symbol column found in master data")
+        return []
+
     def generate_exposures(self, date: date) -> List[Dict[str, Any]]:
         """
         Generates random risk factor data for the given symbols and date.
@@ -227,7 +229,14 @@ class RandomRiskModel(BaseRiskModel):
         """
         data = []
 
-        for symbol in self.symbols:
+        # Get symbols from master data
+        symbols = self._get_symbols_from_master_data()
+
+        if not symbols:
+            logging.error("No symbols found in master data")
+            return data
+
+        for symbol in symbols:
             # Generate factors where the cumulative sum must equal 1 and values are non-negative
             for factor_type, factor_names in self.factor_types_cum_eq_1.items():
                 if factor_type == "Sector":
@@ -238,12 +247,10 @@ class RandomRiskModel(BaseRiskModel):
                         row = {
                             "date": date,
                             "model": self.model,
+                            "symbol": symbol,
                             "factor1": factor_type,
                             "factor2": factor_name,
                             "factor3": "",
-                            "symbol": symbol,
-                            "type": factor_type,
-                            "name": factor_name,
                             "value": round(value, 6)
                         }
                         data.append(row)
@@ -256,12 +263,10 @@ class RandomRiskModel(BaseRiskModel):
                         row = {
                             "date": date,
                             "model": self.model,
+                            "symbol": symbol,
                             "factor1": factor_type,
                             "factor2": factor_name,
                             "factor3": "",
-                            "symbol": symbol,
-                            "type": factor_type,
-                            "name": factor_name,
                             "value": round(value, 6)
                         }
                         data.append(row)
@@ -274,12 +279,10 @@ class RandomRiskModel(BaseRiskModel):
                         row = {
                             "date": date,
                             "model": self.model,
+                            "symbol": symbol,
                             "factor1": factor_type,
                             "factor2": factor_name,
                             "factor3": "",
-                            "symbol": symbol,
-                            "type": factor_type,
-                            "name": factor_name,
                             "value": round(value, 6)
                         }
                         data.append(row)
@@ -298,12 +301,10 @@ class RandomRiskModel(BaseRiskModel):
                         row = {
                             "date": date,
                             "model": self.model,
+                            "symbol": symbol,
                             "factor1": factor_type,
                             "factor2": factor_name,
                             "factor3": "",
-                            "symbol": symbol,
-                            "type": factor_type,
-                            "name": factor_name,
                             "value": round(value, 6)
                         }
                         data.append(row)
@@ -315,14 +316,13 @@ class RandomRiskModel(BaseRiskModel):
                     row = {
                         "date": date,
                         "model": self.model,
+                        "symbol": symbol,
                         "factor1": factor_type,
                         "factor2": factor_name,
                         "factor3": "",
-                        "symbol": symbol,
-                        "type": factor_type,
-                        "name": factor_name,
                         "value": value
                     }
                     data.append(row)
 
         self.exposures = data
+        logging.info(f"Generated {len(data)} exposure records for {len(symbols)} symbols")
