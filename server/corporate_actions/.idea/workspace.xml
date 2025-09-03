@@ -1,0 +1,201 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="d4b34a4d-a445-49e8-9038-3da24b4787f6" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/.gitignore" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/corporate_actions.iml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/inspectionProfiles/Project_Default.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/inspectionProfiles/profiles_settings.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/modules.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/requirements.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/source/__init__.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/source/actions/cash_dividends.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/source/actions/delistings.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/source/actions/ipos.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/source/actions/mergers.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/source/actions/rights.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/source/actions/spinoffs.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/source/actions/splits.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/source/actions/stock_dividends.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/source/actions/symbol_changes.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/source/actions/symbol_mapper.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/source/actions/utils.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/source/config.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/source/history/alpaca.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/source/history/fmp.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/source/history/poly.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/source/history/schema_analysis_ALPACA.json" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/source/history/schema_analysis_FMP.json" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/source/history/schema_analysis_POLY.json" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/source/history/schema_analysis_SHARADAR.json" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/source/history/sharadar.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/source/main.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/source/providers/__init__.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/source/providers/alpaca.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/source/providers/fmp.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/source/providers/poly.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/source/providers/sharadar.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../master_symbology/.gitignore" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../master_symbology/.idea/workspace.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../master_symbology/requirements.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../master_symbology/source/config.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../master_symbology/source/main.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../master_symbology/source/providers/__init__.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../master_symbology/source/providers/alpaca.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../master_symbology/source/providers/alphavantage.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../master_symbology/source/providers/eodhd.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../master_symbology/source/providers/finance_db.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../master_symbology/source/providers/fmp.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../master_symbology/source/providers/intrinio.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../master_symbology/source/providers/nasdaq.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../master_symbology/source/providers/nyse.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../master_symbology/source/providers/poly.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../master_symbology/source/providers/sharadar.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../master_symbology/source/providers/utils.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../master_symbology/source/standards/__init__.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../master_symbology/source/standards/types.csv" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../validate/.gitignore" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../validate/requirements.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../validate/source/README.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../validate/source/config.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../validate/source/main.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../validate/source/requirements.txt" beforeDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Python Script" />
+      </list>
+    </option>
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/../.." />
+  </component>
+  <component name="ProjectColorInfo"><![CDATA[{
+  "associatedIndex": 0
+}]]></component>
+  <component name="ProjectId" id="31vMkYWZilqqtuOnuPIslsvROp9" />
+  <component name="ProjectLevelVcsManager">
+    <ConfirmationsSetting value="2" id="Add" />
+  </component>
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "Python.alpaca.executor": "Run",
+    "Python.cash_dividends.executor": "Run",
+    "Python.delisting.executor": "Run",
+    "Python.fmp.executor": "Run",
+    "Python.ipo.executor": "Run",
+    "Python.main.executor": "Run",
+    "Python.mergers.executor": "Run",
+    "Python.poly.executor": "Run",
+    "Python.rights.executor": "Run",
+    "Python.sharadar.executor": "Run",
+    "Python.spinoffs.executor": "Run",
+    "Python.split.executor": "Run",
+    "Python.stock_dividend.executor": "Run",
+    "Python.symbol_change.executor": "Run",
+    "Python.symbol_changes.executor": "Run",
+    "RunOnceActivity.OpenProjectViewOnStart": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "git-widget-placeholder": "main",
+    "last_opened_file_path": "/home/samaral/projects/toy/20250325/server/corporate_actions/source/history"
+  }
+}]]></component>
+  <component name="RecentsManager">
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/source/history" />
+      <recent name="$PROJECT_DIR$/source/actions" />
+      <recent name="$PROJECT_DIR$/example/fmp" />
+      <recent name="$PROJECT_DIR$/example/master" />
+      <recent name="$PROJECT_DIR$/examples/fmp" />
+    </key>
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/source/history" />
+      <recent name="$PROJECT_DIR$/source" />
+    </key>
+  </component>
+  <component name="RunManager">
+    <configuration name="cash_dividends" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="corporate_actions" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/source/actions" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/source/actions/cash_dividends.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="main" type="PythonConfigurationType" factoryName="Python" nameIsGenerated="true">
+      <module name="corporate_actions" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/source/main.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <recent_temporary>
+      <list>
+        <item itemvalue="Python.cash_dividends" />
+      </list>
+    </recent_temporary>
+  </component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-python-sdk-5a2391486177-d3b881c8e49f-com.jetbrains.pycharm.community.sharedIndexes.bundled-PC-233.13763.11" />
+      </set>
+    </attachedChunks>
+  </component>
+  <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="d4b34a4d-a445-49e8-9038-3da24b4787f6" name="Changes" comment="" />
+      <created>1756400236267</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1756400236267</updated>
+    </task>
+    <servers />
+  </component>
+</project>
