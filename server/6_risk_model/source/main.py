@@ -31,14 +31,13 @@ def main():
 
         # Step 1: Load the universe of symbols
         symbol_manager = SymbolManager()
-        symbols = symbol_manager.get_universe()
 
         if not symbols:
             logging.error("No symbols were retrieved. Aborting process.")
             return False
 
         # Step 2: Generate the risk model data
-        risk_model = RandomRiskModel(model=model_name, symbols=symbols)
+        risk_model = RandomRiskModel(model=model_name, symbol_manager=symbol_manager)
         risk_model.generate_exposures(date=today)
 
         # Step 3: Load the data into the database

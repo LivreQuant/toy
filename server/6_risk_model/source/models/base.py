@@ -7,6 +7,7 @@ from datetime import date
 from typing import List, Dict, Any
 from source.config import config
 import pandas as pd
+from source.db.symbol_manager import SymbolManager
 
 
 class BaseRiskModel(ABC):
@@ -14,7 +15,7 @@ class BaseRiskModel(ABC):
     Abstract base class for all risk models.
     """
 
-    def __init__(self, model: str, symbols: List[str]):
+    def __init__(self, model: str, symbol_manager: SymbolManager):
         """
         Initializes the base risk model with a name and a list of symbols.
 
@@ -23,7 +24,7 @@ class BaseRiskModel(ABC):
             symbols (List[str]): A list of security symbols to generate data for.
         """
         self.model = model
-        self.symbols = symbols
+        self.symbol_manager = symbol_manager
         self.exposures = pd.DataFrame()
 
     @abstractmethod
@@ -52,7 +53,7 @@ class BaseRiskModel(ABC):
 
         try:
             # Create the output directory structure: OUTPUT_DIR/model_name/
-            model_dir = Path(os.path.join(config.get_output_dir(), config.get_ymd(), self.model.lower()))
+            model_dir = Path(os.path.join(config.get_output_dir(), self.model.lower()))
             model_dir.mkdir(parents=True, exist_ok=True)
 
             # Create the output file path

@@ -1,21 +1,23 @@
 # db/risk_manager.py
-from db.base_manager import BaseManager
+from source.db.base_manager import BaseManager
 import logging
 import pandas as pd
 import pyodbc
-from config import config
+from source.config import config
+
 
 class RiskManager(BaseManager):
     """
     Manages database operations for the risk factor data.
     """
+
     def __init__(self):
         """
         Initializes the risk manager.
         """
         super().__init__()
         self.table = config.db.table
-        
+
     def load(self, data):
         """
         Loads the provided risk factor data into the database,
@@ -30,7 +32,7 @@ class RiskManager(BaseManager):
             return
 
         df = pd.DataFrame(data)
-        
+
         try:
             # Connect to the database
             with pyodbc.connect(self._get_connection_string(), autocommit=False) as conn:
@@ -39,7 +41,7 @@ class RiskManager(BaseManager):
 
                     # Use a unique temporary table to avoid conflicts
                     temp_table = "#temp_risk_factor_data"
-                    
+
                     # Create the temporary table with the new schema
                     create_temp_sql = f"""
                     CREATE TABLE {temp_table} (
@@ -58,9 +60,10 @@ class RiskManager(BaseManager):
 
                     # Insert data from the pandas DataFrame into the temp table
                     logging.info("Inserting new data into temporary table...")
-                    
+
                     # Prepare the data for insertion
-                    params = df[['date', 'model', 'factor1', 'factor2', 'factor3', 'symbol', 'type', 'name', 'value']].to_records(index=False).tolist()
+                    params = df[['date', 'model', 'factor1', 'factor2', 'factor3', 'symbol', 'type', 'name',
+                                 'value']].to_records(index=False).tolist()
                     insert_temp_sql = f"INSERT INTO {temp_table} (date, model, factor1, factor2, factor3, symbol, type, name, value) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);"
                     cursor.executemany(insert_temp_sql, params)
 
@@ -70,7 +73,7 @@ class RiskManager(BaseManager):
                     DELETE FROM {self.table}
                     WHERE date = ? AND model = ? AND symbol IN ({','.join(['?'] * len(symbols_tuple))});
                     """
-                    
+
                     logging.info("Deleting existing data from main table...")
                     cursor.execute(delete_sql, df['date'].iloc[0], df['model'].iloc[0], *symbols_tuple)
 

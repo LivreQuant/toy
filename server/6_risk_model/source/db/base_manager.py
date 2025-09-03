@@ -1,13 +1,13 @@
 # db/base_manager.py
-import pyodbc
-import logging
-from config import config
+from source.config import config
+
 
 class BaseManager:
     """
     Abstract base class for all database managers.
     Contains common database connection logic.
     """
+
     def __init__(self):
         """
         Initializes the base database manager with connection details from config.
@@ -17,7 +17,7 @@ class BaseManager:
         self.database = config.db.database
         self.username = config.db.username
         self.password = config.db.password
-        
+
     def _get_connection_string(self):
         """
         Constructs the connection string using config.

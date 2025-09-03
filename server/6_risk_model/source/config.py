@@ -9,6 +9,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 from pydantic import BaseModel, Field
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Log level mapping
 LOG_LEVELS = {
@@ -46,6 +50,7 @@ class Config(BaseModel):
     log_level: str = Field(default="INFO")
     master_data: MasterDataConfig = Field(default_factory=MasterDataConfig)
     db: DatabaseConfig = Field(default_factory=DatabaseConfig)
+    output_dir: str = Field(default="output")
 
     # Master data cache
     _master_data: Optional[pd.DataFrame] = None
@@ -54,10 +59,11 @@ class Config(BaseModel):
     def from_env(cls) -> 'Config':
         """Load configuration from environment variables"""
         return cls(
-            environment=os.getenv('ENVIRONMENT', 'development'),
-            log_level=os.getenv('LOG_LEVEL', 'INFO'),
+            environment=os.getenv('ENVIRONMENT'),
+            log_level=os.getenv('LOG_LEVEL'),
+            output_dir=os.getenv('OUTPUT_DIR'),
             master_data=MasterDataConfig(
-                master_dir=os.getenv('MASTER_DIR', 'data/master')
+                master_dir=os.getenv('MASTER_DIR')
             ),
             db=DatabaseConfig(
                 driver=os.getenv('DB_DRIVER', '{ODBC Driver 17 for SQL Server}'),
@@ -75,38 +81,40 @@ class Config(BaseModel):
 
     def get_master_dir(self) -> Path:
         """Get master data directory path"""
-        return Path(self.master_data.master_dir)
+        return Path(os.path.join(self.master_data.master_dir, self.get_ymd(), "data"))
 
     def get_output_dir(self) -> Path:
-        """Get master data directory path"""
-        return Path(config.OUTPUT_DIR)
+        """Get output directory path"""
+        return Path(os.path.join(self.output_dir, self.get_ymd()))
 
-    def load_master_file(self) -> Optional[pd.DataFrame]:
+    def load_master_file(self) -> pd.DataFrame:
         """Load a specific master file"""
         try:
+            master_path = self.get_master_dir()
 
-            try:
-                master_path = self.get_master_dir()
-                if master_path.exists():
-                    master_file = Path([f.name for f in master_path.glob("*MASTER_UPDATED.csv")][0])
+            if not master_path.exists():
+                logging.error(f"Master directory does not exist: {master_path}")
+                raise ValueError(f"Master directory not found: {master_path}")
 
-                else:
-                    logging.error(f"Master directory does not exist: {master_path}")
-                    raise ValueError("Missing Master file")
-            except Exception as e:
-                logging.error(f"Failed to list master files: {e}")
-                raise ValueError("Missing Master file")
+            # Find master files
+            master_files = list(master_path.glob("*MASTER_UPDATED.csv"))
 
-            if master_file.exists():
-                df = pd.read_csv(master_file, dtype=str, keep_default_na=False, na_values=[])
-                logging.info(f"Loaded master file: {len(df)} records")
-                return df
-            else:
-                logging.error(f"Master file not found: {master_file}")
-                raise ValueError("Missing Master file")
+            if not master_files:
+                logging.error(f"No MASTER_UPDATED.csv files found in: {master_path}")
+                # List what files ARE there for debugging
+                all_files = list(master_path.glob("*.csv"))
+                logging.error(f"Available CSV files: {[f.name for f in all_files]}")
+                raise ValueError("No MASTER_UPDATED.csv file found")
+
+            master_file = master_files[0]  # Take the first one
+
+            df = pd.read_csv(master_file, dtype=str, keep_default_na=False, na_values=[], sep="|")
+            logging.info(f"Loaded master file: {master_file} with {len(df)} records")
+            return df
+
         except Exception as e:
             logging.error(f"Failed to load master file: {e}")
-            raise ValueError("Missing Master file")
+            raise
 
 
 # Create global config instance

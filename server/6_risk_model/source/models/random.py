@@ -5,7 +5,7 @@ from typing import List, Dict, Any
 import random
 import pandas as pd
 import logging
-from source.config import config
+from source.db.symbol_manager import SymbolManager
 
 
 class RandomRiskModel(BaseRiskModel):
@@ -14,7 +14,7 @@ class RandomRiskModel(BaseRiskModel):
     ALL risk model structure and factor definitions are contained here.
     """
 
-    def __init__(self, model: str, symbols: List[str]):
+    def __init__(self, model: str, symbol_manager: SymbolManager):
         """
         Initializes the Random risk model.
 
@@ -22,10 +22,7 @@ class RandomRiskModel(BaseRiskModel):
             model (str): The name of the risk model.
             symbols (List[str]): A list of security symbols.
         """
-        super().__init__(model, symbols)
-
-        # Load master data to determine universe and factor structure
-        self.master_data = config.load_master_file()
+        super().__init__(model, symbol_manager)
 
         # Define Style factors (random values between -1 and 1)
         self.style_factors = [
@@ -70,7 +67,7 @@ class RandomRiskModel(BaseRiskModel):
 
     def _extract_sectors(self) -> List[str]:
         """Extract unique sectors from master data"""
-        if self.master_data.empty:
+        if self.symbol_manager.empty:
             return ["Technology", "Finance", "Healthcare"]  # Default fallback
 
         # Try common sector column names
