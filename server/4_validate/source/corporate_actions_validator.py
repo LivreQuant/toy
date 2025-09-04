@@ -371,7 +371,7 @@ class CorporateActionsValidator:
         return None
 
     def run_validation(self) -> tuple[List[ValidationResult], List[ValidationResult]]:
-        """Run complete validation process with portfolio impact checking"""
+        """Run complete validation process with enhanced priority assignment"""
         self.logger.info("Starting corporate actions validation with legitimacy and portfolio checks...")
 
         # Validate new entries
@@ -383,22 +383,71 @@ class CorporateActionsValidator:
         # Store results
         self.validation_results = new_results + missing_results
 
-        # Check for portfolio impact
-        self.portfolio_impacted_results = self.portfolio_checker.check_portfolio_impact(self.validation_results)
+        # Initialize priority assigner and assign priorities
+        from priority_assigner import PriorityAssigner
+        priority_assigner = PriorityAssigner()
+        self.validation_results = priority_assigner.assign_priorities(self.validation_results)
 
-        # Log portfolio impact summary
-        if self.portfolio_impacted_results:
-            portfolio_summary = self.portfolio_checker.generate_portfolio_alert_summary(self.portfolio_impacted_results)
-            severity = portfolio_summary['severity']
+        # Check for portfolio impact (now integrated with priority assignment)
+        self.portfolio_impacted_results = [
+            r for r in self.validation_results
+            if r.portfolio_holding
+        ]
 
-            self.logger.warning(f"PORTFOLIO IMPACT DETECTED - Severity: {severity}")
-            self.logger.warning(f"Impacted symbols: {portfolio_summary['impacted_symbol_list']}")
+        # Generate priority summary for logging
+        priority_summary = priority_assigner.generate_priority_summary(self.validation_results)
 
-            if severity in ["CRITICAL", "HIGH"]:
-                self.logger.critical(
-                    f"IMMEDIATE ACTION REQUIRED: {len(self.portfolio_impacted_results)} portfolio symbols need urgent investigation!")
+        # Log comprehensive summary
+        self._log_validation_summary(priority_summary)
 
         return new_results, missing_results
+
+    def _log_validation_summary(self, priority_summary: dict):
+        """Log detailed validation summary with business context"""
+        severity = priority_summary["alert_severity"]
+        portfolio_impact = priority_summary["portfolio_impact"]
+        priority_dist = priority_summary["priority_distribution"]
+        risk_metrics = priority_summary["risk_metrics"]
+
+        self.logger.info(f"=== VALIDATION COMPLETE - Alert Severity: {severity} ===")
+
+        # Portfolio impact logging
+        if portfolio_impact["total_portfolio_affected"] > 0:
+            self.logger.critical(
+                f"PORTFOLIO IMPACT: {portfolio_impact['total_portfolio_affected']} portfolio symbols affected"
+            )
+
+            if portfolio_impact["missing_portfolio_symbols"] > 0:
+                self.logger.critical(
+                    f"  🚨 {portfolio_impact['missing_portfolio_symbols']} portfolio symbols MISSING from master list"
+                )
+
+            if portfolio_impact["unexplained_portfolio"] > 0:
+                self.logger.critical(
+                    f"  ❓ {portfolio_impact['unexplained_portfolio']} portfolio changes UNEXPLAINED"
+                )
+        else:
+            self.logger.info("✅ No portfolio symbols affected")
+
+        # Priority distribution logging
+        self.logger.info(f"Priority Distribution:")
+        self.logger.info(f"  ULTRA_HIGH (Portfolio): {priority_dist['ULTRA_HIGH']}")
+        self.logger.info(f"  HIGH (Price data, unexplained): {priority_dist['HIGH']}")
+        self.logger.info(f"  MEDIUM (Legitimacy failed): {priority_dist['MEDIUM']}")
+        self.logger.info(f"  LOW (No price data, unexplained): {priority_dist['LOW']}")
+        self.logger.info(f"  EXPLAINED (No review needed): {priority_dist['EXPLAINED']}")
+
+        # Risk metrics
+        self.logger.info(f"Risk Metrics:")
+        self.logger.info(f"  Manual review rate: {risk_metrics['manual_review_rate']:.1f}%")
+        self.logger.info(f"  Explanation success rate: {risk_metrics['explanation_success_rate']:.1f}%")
+        self.logger.info(f"  Portfolio impact rate: {risk_metrics['portfolio_impact_rate']:.1f}%")
+
+        # Final alert
+        if severity in ["CRITICAL", "HIGH"]:
+            self.logger.critical(
+                f"⚠️ IMMEDIATE ACTION REQUIRED - Severity: {severity} ⚠️"
+            )
 
     def get_portfolio_alert_summary(self) -> dict:
         """Get portfolio alert summary for external reporting"""
