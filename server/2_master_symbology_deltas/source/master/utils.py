@@ -123,6 +123,11 @@ def load_master_file(file_path: str) -> Optional[pd.DataFrame]:
         logger.info(f"Loading master file: {file_path}")
         df = pd.read_csv(file_path, sep='|', dtype=str, low_memory=False, keep_default_na=False, na_values=[])
         df = df.fillna('')
+
+        # REMOVE MISSING PRICE DATA AND MISSING TYPE (WE NEED TO KNOW WHAT WE ARE TRADING)
+        df = df.loc[~(df['type'].isnull() | (df['type'] == ''))]
+        df = df.loc[~(df['al_symbol'].isnull() | (df['al_symbol'] == ''))]
+
         logger.info(f"Successfully loaded {len(df)} records from {file_path}")
         return df
     except Exception as e:

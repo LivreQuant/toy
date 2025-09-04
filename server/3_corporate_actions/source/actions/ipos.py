@@ -480,7 +480,7 @@ class EnhancedIPOProcessor:
                 'company_name': result['company_name']
             })
 
-        pd.DataFrame(summary_data).to_csv(summary_file_path, index=False)
+        pd.DataFrame(summary_data).to_csv(summary_file_path, index=False, sep="|")
 
         print(f"Debug report exported to {debug_file_path}")
         print(f"Summary CSV exported to {summary_file_path}")
@@ -524,7 +524,7 @@ class EnhancedIPOProcessor:
             }
             csv_data.append(csv_row)
 
-        pd.DataFrame(csv_data).to_csv(csv_file_path, index=False)
+        pd.DataFrame(csv_data).to_csv(csv_file_path, index=False, sep="|")
         print(f"CSV summary exported to {csv_file_path}")
 
         return csv_file_path

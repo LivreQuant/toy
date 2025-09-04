@@ -195,13 +195,13 @@ def save_debug_csv(ipo_data, delisting_data, date_str):
         # Save IPO data
         if ipo_data:
             ipo_filename = os.path.join(debug_dir, f"nasdaq_ipos_{date_formatted}.csv")
-            pd.DataFrame(ipo_data).to_csv(ipo_filename, index=False)
+            pd.DataFrame(ipo_data).to_csv(ipo_filename, index=False, sep="|")
             print(f"Debug IPO data saved to: {ipo_filename}")
 
         # Save delisting data
         if delisting_data:
             delisting_filename = os.path.join(debug_dir, f"nasdaq_delistings_{date_formatted}.csv")
-            pd.DataFrame(delisting_data).to_csv(delisting_filename, index=False)
+            pd.DataFrame(delisting_data).to_csv(delisting_filename, index=False, sep="|")
             print(f"Debug delisting data saved to: {delisting_filename}")
 
     except Exception as e:

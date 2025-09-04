@@ -36,7 +36,7 @@ class PortfolioChecker:
         for file_path in portfolio_file_paths:
             if Path(file_path).exists():
                 try:
-                    df = pd.read_csv(file_path)
+                    df = pd.read_csv(file_path, dtype=str, keep_default_na=False, na_values=[], sep="|")
                     # Assume the CSV has a 'symbol' column
                     symbols = set(df['symbol'].astype(str).str.upper().tolist())
                     self.logger.info(f"Loaded portfolio symbols from {file_path}")

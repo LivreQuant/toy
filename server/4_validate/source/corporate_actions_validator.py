@@ -75,7 +75,7 @@ class CorporateActionsValidator:
             return pd.DataFrame()
 
         try:
-            df = pd.read_csv(file_path, dtype=str, keep_default_na=False, na_values=[])
+            df = pd.read_csv(file_path, sep="|", dtype=str, keep_default_na=False, na_values=[])
             self.logger.info(f"Loaded {len(df)} records from {file_path}")
             return df
         except Exception as e:
@@ -107,7 +107,7 @@ class CorporateActionsValidator:
             file_path = os.path.join(ca_data_dir, filename)
             if os.path.exists(file_path):
                 try:
-                    df = pd.read_csv(file_path, dtype=str, keep_default_na=False, na_values=[])
+                    df = pd.read_csv(file_path, sep="|", dtype=str, keep_default_na=False, na_values=[])
                     setattr(self, f"{action_type}_df", df)
                     self.logger.info(f"Loaded {len(df)} {action_type} records from {filename}")
                 except Exception as e:

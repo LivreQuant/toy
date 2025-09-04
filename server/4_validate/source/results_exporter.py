@@ -56,7 +56,7 @@ class ResultsExporter:
         # Export truly explained results (ONLY those that passed legitimacy)
         explained_df = self._create_results_dataframe(truly_explained)
         explained_file = output_path / f"explained_{timestamp}.csv"
-        explained_df.to_csv(explained_file, index=False)
+        explained_df.to_csv(explained_file, sep="|", index=False)
         output_files['explained_file'] = explained_file
         self.logger.info(f"Exported {len(truly_explained)} truly explained changes to {explained_file}")
 
@@ -64,28 +64,28 @@ class ResultsExporter:
         if ultra_high_priority:
             ultra_high_df = self._create_results_dataframe(ultra_high_priority)
             ultra_high_file = output_path / f"manual_review_ULTRA_HIGH_PRIORITY_{timestamp}.csv"
-            ultra_high_df.to_csv(ultra_high_file, index=False)
+            ultra_high_df.to_csv(ultra_high_file, sep="|", index=False)
             output_files['ultra_high_priority_file'] = ultra_high_file
             self.logger.critical(f"Exported {len(ultra_high_priority)} ULTRA HIGH PRIORITY items to {ultra_high_file}")
 
         if high_priority:
             high_df = self._create_results_dataframe(high_priority)
             high_file = output_path / f"manual_review_HIGH_PRIORITY_{timestamp}.csv"
-            high_df.to_csv(high_file, index=False)
+            high_df.to_csv(high_file, sep="|", index=False)
             output_files['high_priority_file'] = high_file
             self.logger.warning(f"Exported {len(high_priority)} HIGH PRIORITY items to {high_file}")
 
         if medium_priority:
             medium_df = self._create_results_dataframe(medium_priority)
             medium_file = output_path / f"manual_review_MEDIUM_PRIORITY_{timestamp}.csv"
-            medium_df.to_csv(medium_file, index=False)
+            medium_df.to_csv(medium_file, sep="|", index=False)
             output_files['medium_priority_file'] = medium_file
             self.logger.info(f"Exported {len(medium_priority)} MEDIUM PRIORITY items to {medium_file}")
 
         if low_priority:
             low_df = self._create_results_dataframe(low_priority)
             low_file = output_path / f"manual_review_LOW_PRIORITY_{timestamp}.csv"
-            low_df.to_csv(low_file, index=False)
+            low_df.to_csv(low_file, sep="|", index=False)
             output_files['low_priority_file'] = low_file
             self.logger.info(f"Exported {len(low_priority)} LOW PRIORITY items to {low_file}")
 
@@ -118,7 +118,7 @@ class ResultsExporter:
         if not self.new_entries_df.empty:
             annotated_new = self._annotate_original_file(self.new_entries_df, result_lookup, "NEW_ENTRY")
             new_audit_file = output_path / f"audit_new_entries_{timestamp}.csv"
-            annotated_new.to_csv(new_audit_file, index=False)
+            annotated_new.to_csv(new_audit_file, sep="|", index=False)
             output_files['audit_new_entries'] = new_audit_file
             self.logger.info(f"Created audit trail for new entries: {new_audit_file}")
 
@@ -126,7 +126,7 @@ class ResultsExporter:
         if not self.missing_entries_df.empty:
             annotated_missing = self._annotate_original_file(self.missing_entries_df, result_lookup, "MISSING_ENTRY")
             missing_audit_file = output_path / f"audit_missing_entries_{timestamp}.csv"
-            annotated_missing.to_csv(missing_audit_file, index=False)
+            annotated_missing.to_csv(missing_audit_file, sep="|", index=False)
             output_files['audit_missing_entries'] = missing_audit_file
             self.logger.info(f"Created audit trail for missing entries: {missing_audit_file}")
 

@@ -70,7 +70,7 @@ class RandomRiskModel(BaseRiskModel):
     def _extract_sectors(self) -> List[str]:
         """Extract unique sectors from master data"""
         # Try common sector column names
-        sector_columns = ["sic_sector"]
+        sector_columns = ["sector"]
 
         for col in sector_columns:
             if col in self.master_data.columns:

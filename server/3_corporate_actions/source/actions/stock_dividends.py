@@ -455,7 +455,7 @@ class EnhancedStockDividendProcessor:
                 'dividend_ratio': result['dividend_ratio']
             })
 
-        pd.DataFrame(summary_data).to_csv(summary_file_path, index=False)
+        pd.DataFrame(summary_data).to_csv(summary_file_path, index=False, sep="|")
 
         print(f"Debug report exported to {debug_file_path}")
         print(f"Summary CSV exported to {summary_file_path}")
@@ -491,7 +491,7 @@ class EnhancedStockDividendProcessor:
             }
             csv_data.append(csv_row)
 
-        pd.DataFrame(csv_data).to_csv(filename, index=False)
+        pd.DataFrame(csv_data).to_csv(filename, index=False, sep="|")
         print(f"Unified stock dividends exported to {filename}")
 
 

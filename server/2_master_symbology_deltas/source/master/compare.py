@@ -485,47 +485,47 @@ class MasterFileComparator:
         # Save new entries
         if not new_entries.empty:
             new_file = self.output_dir / f"{output_prefix}_new_entries.csv"
-            new_entries.to_csv(new_file, index=False)
+            new_entries.to_csv(new_file, index=False, sep="|")
             output_files['new_entries'] = str(new_file)
             logger.info(f"Saved {len(new_entries)} new entries to {new_file}")
 
         # Save missing entries
         if not missing_entries.empty:
             missing_file = self.output_dir / f"{output_prefix}_missing_entries.csv"
-            missing_entries.to_csv(missing_file, index=False)
+            missing_entries.to_csv(missing_file, index=False, sep="|")
             output_files['missing_entries'] = str(missing_file)
             logger.info(f"Saved {len(missing_entries)} missing entries to {missing_file}")
 
         # Save USE_PREV changes summary
         if not self.use_prev_changes_df.empty:
             use_prev_file = self.output_dir / f"{output_prefix}_use_prev_changes.csv"
-            self.use_prev_changes_df.to_csv(use_prev_file, index=False)
+            self.use_prev_changes_df.to_csv(use_prev_file, index=False, sep="|")
             output_files['use_prev_changes'] = str(use_prev_file)
             logger.info(f"Saved {len(self.use_prev_changes_df)} USE_PREV changes to {use_prev_file}")
 
         # Save data changes summary (contains both primary and secondary)
         if not data_changes_summary.empty:
             changes_summary_file = self.output_dir / f"{output_prefix}_data_changes_summary.csv"
-            data_changes_summary.to_csv(changes_summary_file, index=False)
+            data_changes_summary.to_csv(changes_summary_file, index=False, sep="|")
             output_files['data_changes_summary'] = str(changes_summary_file)
             logger.info(f"Saved {len(data_changes_summary)} data change summaries to {changes_summary_file}")
 
         # Save column summaries
         if not all_column_summary.empty:
             all_column_summary_file = self.output_dir / f"{output_prefix}_columns_summary.csv"
-            all_column_summary.to_csv(all_column_summary_file, index=False)
+            all_column_summary.to_csv(all_column_summary_file, index=False, sep="|")
             output_files['all_columns_summary'] = str(all_column_summary_file)
             logger.info(f"Saved all columns summary to {all_column_summary_file}")
 
         if not primary_column_summary.empty:
             primary_summary_file = self.output_dir / f"{output_prefix}_primary_columns_summary.csv"
-            primary_column_summary.to_csv(primary_summary_file, index=False)
+            primary_column_summary.to_csv(primary_summary_file, index=False, sep="|")
             output_files['primary_columns_summary'] = str(primary_summary_file)
             logger.info(f"Saved primary columns summary to {primary_summary_file}")
 
         if not secondary_column_summary.empty:
             secondary_summary_file = self.output_dir / f"{output_prefix}_secondary_columns_summary.csv"
-            secondary_column_summary.to_csv(secondary_summary_file, index=False)
+            secondary_column_summary.to_csv(secondary_summary_file, index=False, sep="|")
             output_files['secondary_columns_summary'] = str(secondary_summary_file)
             logger.info(f"Saved secondary columns summary to {secondary_summary_file}")
 
@@ -537,7 +537,7 @@ class MasterFileComparator:
 
             clean_column_name = column_name.replace('/', '_').replace(' ', '_').replace('|', '_')
             column_file = self.primary_diff_dir / f"{output_prefix}_primary_column_{clean_column_name}_changes.csv"
-            changes_df.to_csv(column_file, index=False)
+            changes_df.to_csv(column_file, index=False, sep="|")
             output_files[f'primary_column_{clean_column_name}'] = str(column_file)
             primary_files_created += 1
 
@@ -551,7 +551,7 @@ class MasterFileComparator:
 
             clean_column_name = column_name.replace('/', '_').replace(' ', '_').replace('|', '_')
             column_file = self.secondary_diff_dir / f"{output_prefix}_secondary_column_{clean_column_name}_changes.csv"
-            changes_df.to_csv(column_file, index=False)
+            changes_df.to_csv(column_file, index=False, sep="|")
             output_files[f'secondary_column_{clean_column_name}'] = str(column_file)
             secondary_files_created += 1
 

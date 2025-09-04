@@ -35,7 +35,7 @@ class MasterFileLoader:
     def load_csv_file(self, file_path: str, description: str) -> pd.DataFrame:
         """Load CSV file and return DataFrame"""
         try:
-            df = pd.read_csv(file_path, dtype=str, keep_default_na=False, na_values=[])
+            df = pd.read_csv(file_path, dtype=str, keep_default_na=False, na_values=[], sep="|")
             self.logger.info(f"Loaded {len(df)} records from {description}: {file_path}")
             return df
         except Exception as e:
