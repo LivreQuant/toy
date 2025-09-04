@@ -60,7 +60,7 @@ class BaseRiskModel(ABC):
 
             # Convert exposures to DataFrame and save to CSV
             df = pd.DataFrame(self.exposures)
-            df.to_csv(output_file, index=False)
+            df.to_csv(output_file, index=False, sep="|")
 
             logging.info(f"Exposures saved successfully to: {output_file}")
             logging.info(f"Saved {len(df)} rows of exposure data.")
