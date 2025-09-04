@@ -34,7 +34,7 @@ class ValidationResult:
 
     # Additional flags for manual review prioritization
     has_price_data: bool = field(init=False)
-    priority_for_review: str = "LOW"  # LOW, MEDIUM, HIGH, ULTRA_HIGH
+    priority_for_review: str = "LOW"  # LOW, MEDIUM, HIGH
 
     def __post_init__(self):
         """Post-initialization processing"""
@@ -44,9 +44,7 @@ class ValidationResult:
         # Set initial priority for manual review (can be overridden by portfolio check)
         if self.portfolio_holding:
             self.priority_for_review = "ULTRA_HIGH"
-        elif not self.explained and self.has_price_data and self.type:
+        elif not self.explained and self.has_price_data:
             self.priority_for_review = "HIGH"
-        elif not self.explained and (self.has_price_data or self.type):
-            self.priority_for_review = "MEDIUM"
-        else:
+        elif not self.explained:
             self.priority_for_review = "LOW"
