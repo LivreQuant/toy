@@ -78,6 +78,7 @@ def load_nyse_data():
         print(f"Loading data from cached file: {file_path}")
         df = pd.read_csv(file_path, dtype=str, keep_default_na=False, na_values=[])
 
+        """
         # Normalize symbols (e.g., upper case) to catch duplicates
         df["symbol_norm"] = df["Symbol"].str.upper()
 
@@ -91,13 +92,14 @@ def load_nyse_data():
             .drop(columns=["symbol_norm", "uppercase_count"])
             .reset_index(drop=True)
         )
+        """
 
         # Columns to keep
         df = df[OLD_COLUMNS]
         df.columns = NEW_COLUMNS
 
         # Standardize symbol
-        df['standardized_symbol'] = df['ny_symbol'].apply(standardize)
+        df['standardized_symbol'] = df['ny_symbol']  # .apply(standardize)
 
         # Standardize exchange
         df['exchange'] = df['exchange'].replace({
@@ -133,6 +135,7 @@ def load_nyse_data():
 
             df = pd.read_csv(file_path, dtype=str, keep_default_na=False, na_values=[])
 
+            """
             # Normalize symbols (e.g., upper case) to catch duplicates
             df["symbol_norm"] = df["Symbol"].str.upper()
 
@@ -146,13 +149,14 @@ def load_nyse_data():
                 .drop(columns=["symbol_norm", "uppercase_count"])
                 .reset_index(drop=True)
             )
+            """
 
             # Columns to keep
             df = df[OLD_COLUMNS]
             df.columns = NEW_COLUMNS
 
             # Standardize symbol
-            df['standardized_symbol'] = df['ny_symbol'].apply(standardize)
+            df['standardized_symbol'] = df['ny_symbol']  # .apply(standardize)
 
             # Standardize exchange
             df['exchange'] = df['exchange'].replace({

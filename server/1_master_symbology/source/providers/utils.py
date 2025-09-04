@@ -182,21 +182,46 @@ def merge_and_prioritize(dataframes, priorities, required_tables, merge_keys=['s
     for name, df in dataframes.items():
         df[f'_in_{name}'] = 1
 
-    # Merge all dataframes
-    merged_df = reduce(lambda left, right: pd.merge(left, right, on=merge_keys, how='outer'), dataframes.values())
+    # Step 1: OUTER merge all required tables first to establish the base universe
+    required_dfs = [dataframes[table] for table in required_tables if table in dataframes]
+
+    if not required_dfs:
+        raise ValueError("No required tables found in dataframes")
+
+    # Start with first required table
+    merged_df = required_dfs[0].copy()
+
+    # OUTER merge with remaining required tables
+    for df in required_dfs[1:]:
+        merged_df = pd.merge(merged_df, df, on=merge_keys, how='outer')
+
+    print(f"After OUTER merge of required tables: {merged_df.shape[0]:,} records")
+
+    # Step 2: LEFT merge all remaining tables to the required base
+    remaining_tables = [table for table in dataframes.keys() if table not in required_tables]
+
+    for table in remaining_tables:
+        if table in dataframes:
+            merged_df = pd.merge(merged_df, dataframes[table], on=merge_keys, how='left')
+            print(f"After LEFT merge with {table}: {merged_df.shape[0]:,} records")
 
     # Calculate confidence score
     indicator_cols = [f'_in_{name}' for name in dataframes.keys()]
-    merged_df['confidence_score'] = merged_df[indicator_cols].sum(axis=1)
 
     # Fill NaNs in indicator columns with 0
     for col in indicator_cols:
-        merged_df[col] = merged_df[col].fillna(0)
+        if col in merged_df.columns:
+            merged_df[col] = merged_df[col].fillna(0)
 
-    # Set confidence to zero if not in required tables
+    merged_df['confidence_score'] = merged_df[indicator_cols].sum(axis=1)
+
+    # Since we did OUTER merge on required tables, all records should have confidence > 0
+    # But let's verify required tables are present
     required_indicator_cols = [f'_in_{name}' for name in required_tables]
     required_condition = merged_df[required_indicator_cols].sum(axis=1) > 0
-    merged_df.loc[~required_condition, 'confidence_score'] = 0
+
+    # This should be 100% since we did OUTER merge, but let's be safe
+    print(f"Records meeting required table condition: {required_condition.sum():,} / {len(merged_df):,}")
 
     # Define the base variables to be consolidated
     base_variables = {re.sub(r'^[a-z]{2}_', '', col) for col in merged_df.columns if re.match(r'^[a-z]{2}_', col)}
@@ -234,12 +259,11 @@ def merge_and_prioritize(dataframes, priorities, required_tables, merge_keys=['s
     final_df_parts = [
         merged_df[merge_keys + indicator_cols + ['confidence_score']],
         pd.DataFrame(consolidated_columns, index=merged_df.index),
-        pd.DataFrame(provider_columns, index=merged_df.index)  # ADD THIS LINE!
+        pd.DataFrame(provider_columns, index=merged_df.index)
     ]
     final_df = pd.concat(final_df_parts, axis=1)
 
     return final_df, base_variables
-
 
 def create_debug_directory():
     """Create timestamped debug directory for this run"""
@@ -405,7 +429,7 @@ def validate_merge_results(df_final, df_not_in, debug_dir):
     return merge_validation
 
 
-def generate_debug_summary(debug_dir, provider_debugs, cross_analysis, merge_validation):
+def generate_debug_summary(debug_dir, provider_debugs, cross_analysis):
     """Generate a human-readable summary report"""
     summary = []
     summary.append(f"Master Symbology Debug Report - {datetime.now().strftime('%Y-%m-%d')}")
@@ -433,6 +457,7 @@ def generate_debug_summary(debug_dir, provider_debugs, cross_analysis, merge_val
             summary.append(f"{provider.upper()}: {unique_info['count']} unique symbols")
     summary.append("")
 
+    """
     # Merge results
     summary.append("MERGE RESULTS:")
     summary.append("-" * 40)
@@ -449,7 +474,7 @@ def generate_debug_summary(debug_dir, provider_debugs, cross_analysis, merge_val
     summary.append("-" * 40)
     quality_issues = merge_validation.get('quality_issues', {})
     alerts = []
-
+    
     for issue, count in quality_issues.items():
         if isinstance(count, int) and count > 0 and 'missing_' in issue:
             alerts.append(f"⚠️  {count:,} records missing {issue.replace('missing_', '')}")
@@ -458,6 +483,7 @@ def generate_debug_summary(debug_dir, provider_debugs, cross_analysis, merge_val
         summary.append("✅ No critical data quality issues detected")
     else:
         summary.extend(alerts)
+    """
 
     summary.append("")
     summary.append(f"Debug files saved to: {debug_dir}")

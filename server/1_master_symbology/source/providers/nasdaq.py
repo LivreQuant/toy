@@ -27,6 +27,7 @@ def load_nasdaq_data():
         print(f"Loading data from cached file: {file_path}")
         df = pd.read_csv(file_path, dtype=str, keep_default_na=False, na_values=[])
 
+        """
         # Normalize symbols (e.g., upper case) to catch duplicates
         df["symbol_norm"] = df["Symbol"].str.upper()
 
@@ -40,6 +41,7 @@ def load_nasdaq_data():
             .drop(columns=["symbol_norm", "uppercase_count"])
             .reset_index(drop=True)
         )
+        """
 
         # Exchange
         df['exchange'] = 'XNAS'
@@ -52,7 +54,7 @@ def load_nasdaq_data():
         df.columns = NEW_COLUMNS
 
         # Standardize symbol
-        df['standardized_symbol'] = df['na_symbol'].apply(standardize)
+        df['standardized_symbol'] = df['na_symbol']  # .apply(standardize)
 
         df = df.loc[df['exchange'].isin(['XNYS', 'XNAS'])]
 
@@ -85,6 +87,7 @@ def load_nasdaq_data():
         df.to_csv(file_path, index=False)
         print(f"Saved data to cached file: {file_path}")
 
+        """
         # Normalize symbols (e.g., upper case) to catch duplicates
         df["symbol_norm"] = df["Symbol"].str.upper()
 
@@ -98,6 +101,7 @@ def load_nasdaq_data():
             .drop(columns=["symbol_norm", "uppercase_count"])
             .reset_index(drop=True)
         )
+        """
 
         # Exchange
         df['exchange'] = 'XNAS'
@@ -110,7 +114,7 @@ def load_nasdaq_data():
         df.columns = NEW_COLUMNS
 
         # Standardize symbol
-        df['standardized_symbol'] = df['na_symbol'].apply(standardize)
+        df['standardized_symbol'] = df['na_symbol']  # .apply(standardize)
 
         df = df.loc[df['exchange'].isin(['XNYS', 'XNAS'])]
 
