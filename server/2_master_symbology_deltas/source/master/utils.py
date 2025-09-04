@@ -124,8 +124,9 @@ def load_master_file(file_path: str) -> Optional[pd.DataFrame]:
         df = pd.read_csv(file_path, sep='|', dtype=str, low_memory=False, keep_default_na=False, na_values=[])
         df = df.fillna('')
 
-        # REMOVE MISSING PRICE DATA AND MISSING TYPE (WE NEED TO KNOW WHAT WE ARE TRADING)
-        df = df.loc[~(df['type'].isnull() | (df['type'] == ''))]
+        # REMOVE MISSING PRICE DATA (WE NEED TO KNOW WHAT WE ARE ABLE TO TRADE)
+        # WITHOUT PRICE DATA I CAN'T MARK TO MARKET IT - SO KICK IT OUT?
+        # df = df.loc[~(df['type'].isnull() | (df['type'] == ''))]
         df = df.loc[~(df['al_symbol'].isnull() | (df['al_symbol'] == ''))]
 
         logger.info(f"Successfully loaded {len(df)} records from {file_path}")
